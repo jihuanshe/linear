@@ -70,13 +70,14 @@ export const listCommand = new Command()
         return
       }
 
-      if (limit != null && limit < 0) {
-        throw new ValidationError("--limit must be 0 or greater")
+      if (limit != null && (!Number.isSafeInteger(limit) || limit < 0)) {
+        throw new ValidationError("--limit must be a non-negative integer")
       }
 
       spinner?.start()
 
       const client = getGraphQLClient()
+      const boundedJson = json && limit != null && limit > 0
 
       // Fetch all teams with pagination
       const allTeams: GetTeamsQuery["teams"]["nodes"] = []
@@ -88,9 +89,13 @@ export const listCommand = new Command()
       }
 
       while (hasNextPage) {
+        const activeTeamCount = allTeams.filter((team) =>
+          !team.archivedAt
+        ).length
+        const first = boundedJson ? Math.min(100, limit - activeTeamCount) : 100
         const result: GetTeamsQuery = await client.request(GetTeams, {
           filter: undefined,
-          first: 100,
+          first,
           after,
         })
 
@@ -103,6 +108,10 @@ export const listCommand = new Command()
         }
         hasNextPage = pageInfo.hasNextPage
         after = pageInfo.endCursor
+        if (boundedJson) {
+          const activeTeams = allTeams.filter((team) => !team.archivedAt)
+          if (activeTeams.length >= limit) break
+        }
       }
 
       spinner?.stop()
@@ -110,11 +119,13 @@ export const listCommand = new Command()
       // Filter out archived teams
       let teams = allTeams.filter((team) => !team.archivedAt)
 
-      // Sort teams alphabetically by name
-      teams = teams.sort((a, b) => a.name.localeCompare(b.name))
+      if (!boundedJson) {
+        // Sort teams alphabetically by name
+        teams = teams.sort((a, b) => a.name.localeCompare(b.name))
 
-      if (limit != null && limit > 0) {
-        teams = teams.slice(0, limit)
+        if (limit != null && limit > 0) {
+          teams = teams.slice(0, limit)
+        }
       }
 
       if (json) {

@@ -199,7 +199,7 @@ await cliffySnapshotTest({
 })
 
 await cliffySnapshotTest({
-  name: "Team List Command - JSON Limit After Sorting",
+  name: "Team List Command - JSON Limit Preserves API Pagination",
   meta: import.meta,
   colors: false,
   args: ["--json", "--limit", "1"],
@@ -220,12 +220,12 @@ await cliffySnapshotTest({
     })
     const server = new MockLinearServer([{
       queryName: "GetTeams",
-      variables: { filter: undefined, first: 100, after: undefined },
+      variables: { filter: undefined, first: 1, after: undefined },
       response: {
         data: {
           teams: {
-            nodes: [team("team-z", "Zulu", "Z"), team("team-a", "Alpha", "A")],
-            pageInfo: { hasNextPage: false, endCursor: null },
+            nodes: [team("team-z", "Zulu", "Z")],
+            pageInfo: { hasNextPage: true, endCursor: "cursor-1" },
           },
         },
       },

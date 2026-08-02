@@ -109,8 +109,8 @@ export const listCommand = new Command()
     spinner?.start()
 
     try {
-      if (limit != null && limit < 0) {
-        throw new ValidationError("--limit must be 0 or greater")
+      if (limit != null && (!Number.isSafeInteger(limit) || limit < 0)) {
+        throw new ValidationError("--limit must be a non-negative integer")
       }
 
       // Validate conflicting flags
@@ -135,6 +135,7 @@ export const listCommand = new Command()
       }
 
       const client = getGraphQLClient()
+      const boundedJson = json && limit != null && limit > 0
 
       // Fetch all projects with pagination
       const allProjects: GetProjectsQuery["projects"]["nodes"] = []
@@ -146,9 +147,12 @@ export const listCommand = new Command()
       }
 
       while (hasNextPage) {
+        const first = boundedJson
+          ? Math.min(100, limit - allProjects.length)
+          : 100
         const result: GetProjectsQuery = await client.request(GetProjects, {
           filter: Object.keys(filter).length > 0 ? filter : undefined,
-          first: 100,
+          first,
           after,
         })
 
@@ -162,6 +166,7 @@ export const listCommand = new Command()
         }
         hasNextPage = pageInfo.hasNextPage
         after = pageInfo.endCursor
+        if (boundedJson && allProjects.length >= limit) break
       }
 
       spinner?.stop()
@@ -185,33 +190,35 @@ export const listCommand = new Command()
         return
       }
 
-      // Sort projects logically by status then by relevant date
-      const statusOrder: Record<ProjectStatusType, number> = {
-        "started": 1,
-        "planned": 2,
-        "backlog": 3,
-        "paused": 4,
-        "completed": 5,
-        "canceled": 6,
-      }
-
-      projects = projects.sort((a, b) => {
-        // First sort by status type priority
-        const statusA =
-          statusOrder[a.status.type as keyof typeof statusOrder] || 999
-        const statusB =
-          statusOrder[b.status.type as keyof typeof statusOrder] || 999
-
-        if (statusA !== statusB) {
-          return statusA - statusB
+      if (!boundedJson) {
+        // Sort projects logically by status then by relevant date
+        const statusOrder: Record<ProjectStatusType, number> = {
+          "started": 1,
+          "planned": 2,
+          "backlog": 3,
+          "paused": 4,
+          "completed": 5,
+          "canceled": 6,
         }
 
-        // Then sort alphabetically by name
-        return a.name.localeCompare(b.name)
-      })
+        projects = projects.sort((a, b) => {
+          // First sort by status type priority
+          const statusA =
+            statusOrder[a.status.type as keyof typeof statusOrder] || 999
+          const statusB =
+            statusOrder[b.status.type as keyof typeof statusOrder] || 999
 
-      if (limit != null && limit > 0) {
-        projects = projects.slice(0, limit)
+          if (statusA !== statusB) {
+            return statusA - statusB
+          }
+
+          // Then sort alphabetically by name
+          return a.name.localeCompare(b.name)
+        })
+
+        if (limit != null && limit > 0) {
+          projects = projects.slice(0, limit)
+        }
       }
 
       if (json) {

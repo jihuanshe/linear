@@ -44,14 +44,14 @@ stderr:
 ""
 `;
 
-snapshot[`Team List Command - JSON Limit After Sorting 1`] = `
+snapshot[`Team List Command - JSON Limit Preserves API Pagination 1`] = `
 stdout:
 '{
   "nodes": [
     {
-      "id": "team-a",
-      "name": "Alpha",
-      "key": "A",
+      "id": "team-z",
+      "name": "Zulu",
+      "key": "Z",
       "description": null,
       "icon": null,
       "color": null,
@@ -66,8 +66,8 @@ stdout:
     }
   ],
   "pageInfo": {
-    "hasNextPage": false,
-    "endCursor": null
+    "hasNextPage": true,
+    "endCursor": "cursor-1"
   }
 }
 '

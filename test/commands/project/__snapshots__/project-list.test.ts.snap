@@ -136,8 +136,8 @@ stdout:
     }
   ],
   "pageInfo": {
-    "hasNextPage": false,
-    "endCursor": null
+    "hasNextPage": true,
+    "endCursor": "cursor-1"
   }
 }
 '
