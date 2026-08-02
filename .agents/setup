@@ -50,8 +50,11 @@ esac
 EOF
 fi
 
-echo "Installing linear CLI from this checkout"
+echo "Caching locked dependencies"
 cd "$repo_root"
+"$deno_bin" install --frozen --quiet
+
+echo "Installing linear CLI from this checkout"
 DENO_INSTALL_ROOT="$checkout_root" "$deno_bin" task install
 
 echo "Deno $deno_version is ready"
