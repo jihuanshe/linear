@@ -943,6 +943,7 @@ export const createCommand = new Command()
         }
         const issueId = issue.id
         spinner?.stop()
+        console.log(`✓ Created issue ${issue.identifier}: ${title}`)
         console.log(issue.url)
 
         if (start) {

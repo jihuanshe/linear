@@ -147,16 +147,30 @@ linear issue create --start
 
 #### update an issue
 
-update the current issue:
+updates require at least one explicit field option. update the current issue inferred from the branch:
 
 ```bash
-linear issue update
+linear issue update --state "In Review"
 ```
 
 update a specific issue:
 
 ```bash
-linear issue update TEAM-123
+linear issue update TEAM-123 --title "Updated title"
+```
+
+label updates distinguish replacement from incremental changes:
+
+```bash
+linear issue update TEAM-123 --label bug --label frontend       # replace all labels
+linear issue update TEAM-123 --add-label security               # preserve existing labels
+linear issue update TEAM-123 --remove-label backlog             # remove only this label
+```
+
+use `--json` for the GraphQL `issueUpdate` payload, including the resulting labels connection:
+
+```bash
+linear issue update TEAM-123 --add-label security --json
 ```
 
 #### other issue commands
@@ -189,7 +203,9 @@ linear issue pr  # Short alias
 delete an issue:
 
 ```bash
-linear issue delete TEAM-123
+linear issue delete TEAM-123 --confirm
+linear issue delete 11111111-1111-4111-8111-111111111111 --confirm
+linear issue delete --confirm --bulk TEAM-123 11111111-1111-4111-8111-111111111111
 ```
 
 ### teams

@@ -65,6 +65,7 @@ linear issue update ENG-123 --state "In Review" --assignee sam
 linear issue update ENG-123 --unassign
 linear issue update ENG-123 --label infra --label security  # replaces the label set
 linear issue update ENG-123 --add-label infra --remove-label backlog
+linear issue update ENG-123 --add-label infra --json  # returns resulting labels
 ```
 
 ### Add a comment

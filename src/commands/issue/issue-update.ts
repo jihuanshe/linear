@@ -101,7 +101,10 @@ export const updateCommand = new Command()
     "Remove the issue from its cycle",
   )
   .option("-t, --title <title:string>", "Title of the issue")
-  .option("-j, --json", "Output the update result as JSON")
+  .option(
+    "-j, --json",
+    "Output the mutation result, including resulting labels, as JSON",
+  )
   .action(
     async (
       {
@@ -383,7 +386,22 @@ export const updateCommand = new Command()
           mutation UpdateIssue($id: String!, $input: IssueUpdateInput!) {
             issueUpdate(id: $id, input: $input) {
               success
-              issue { id, identifier, url, title }
+              issue {
+                id
+                identifier
+                url
+                title
+                labels(first: 100) {
+                  nodes {
+                    id
+                    name
+                  }
+                  pageInfo {
+                    hasNextPage
+                    endCursor
+                  }
+                }
+              }
             }
           }
         `)

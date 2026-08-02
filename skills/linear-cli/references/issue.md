@@ -283,9 +283,9 @@ Options:
   -h, --help               - Show this help.                                             
   --workspace    <slug>    - Target workspace (uses credentials)                         
   -y, --confirm            - Skip confirmation prompt                                    
-  --bulk         <ids...>  - Delete multiple issues by identifier (e.g., TC-123 TC-124)  
-  --bulk-file    <file>    - Read issue identifiers from a file (one per line)           
-  --bulk-stdin             - Read issue identifiers from stdin
+  --bulk         <ids...>  - Delete multiple issues by identifier or UUID                
+  --bulk-file    <file>    - Read issue identifiers or UUIDs from a file (one per line)  
+  --bulk-stdin             - Read issue identifiers or UUIDs from stdin
 ```
 
 ### describe
@@ -594,7 +594,7 @@ Options:
                                        from its cycle                                                                   
   --clear-cycle                      - Remove the issue from its cycle                                                  
   -t, --title         <title>        - Title of the issue                                                               
-  -j, --json                         - Output the update result as JSON
+  -j, --json                         - Output the mutation result, including resulting labels, as JSON
 ```
 
 ### url

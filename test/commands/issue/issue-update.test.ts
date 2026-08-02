@@ -1279,6 +1279,10 @@ Deno.test("Issue Update Command - JSON output contains only the mutation payload
       identifier: "ENG-123",
       url: "https://linear.app/test-team/issue/ENG-123/renamed",
       title: "Renamed",
+      labels: {
+        nodes: [{ id: "label-1", name: "Bug" }],
+        pageInfo: { hasNextPage: false, endCursor: null },
+      },
     },
   }
   const { cleanup } = await setupMockLinearServer([{

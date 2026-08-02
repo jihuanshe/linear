@@ -134,6 +134,10 @@ Deno.test("main emits only the issueUpdate payload for issue update --json", asy
       identifier: "ENG-123",
       url: "https://linear.app/acme/issue/ENG-123/renamed",
       title: "Renamed",
+      labels: {
+        nodes: [{ id: "label-1", name: "Bug" }],
+        pageInfo: { hasNextPage: false, endCursor: null },
+      },
     },
   }
   const { server, cleanup } = await setupMockLinearServer([{
@@ -273,6 +277,216 @@ Deno.test("label list rejects conflicting scopes", async () => {
   assertEquals(result.stdout, "")
   assertMatch(result.stderr, /Only one label scope can be specified/)
   assertMatch(result.stderr, /--team, --workspace-labels, or --all/)
+})
+
+Deno.test("label list rejects the old bare workspace flag with migration guidance", async () => {
+  const result = await run([
+    "label",
+    "list",
+    "--workspace",
+    "--json",
+  ])
+
+  assertEquals(result.code, 2)
+  assertEquals(result.stdout, "")
+  assertMatch(result.stderr, /Missing value for option "--workspace"/)
+  assertMatch(result.stderr, /--workspace-labels/)
+})
+
+Deno.test("team delete dry-run never prompts when a move target is required", async () => {
+  const { server, cleanup } = await setupMockLinearServer([
+    {
+      queryName: "GetTeamIdByKey",
+      variables: { team: "SOURCE" },
+      response: {
+        data: { teams: { nodes: [{ id: "source-team-id" }] } },
+      },
+    },
+    {
+      queryName: "GetTeamDetails",
+      variables: { id: "source-team-id" },
+      response: {
+        data: {
+          team: {
+            id: "source-team-id",
+            key: "SOURCE",
+            name: "Source Team",
+            issueCount: 2,
+          },
+        },
+      },
+    },
+  ])
+
+  try {
+    const result = await run([
+      "team",
+      "delete",
+      "SOURCE",
+      "--dry-run",
+    ], {
+      LINEAR_API_KEY: "Bearer test-token",
+      LINEAR_GRAPHQL_ENDPOINT: server.getEndpoint(),
+      LINEAR_PROMPT_DISABLED: "1",
+      NO_COLOR: "1",
+    })
+
+    assertEquals(result.code, 1)
+    assertEquals(result.stdout, "")
+    assertMatch(result.stderr, /must be moved before deletion/)
+    assertMatch(result.stderr, /Use --move-issues <teamKey>/)
+    assertEquals(result.stderr.includes("prompt"), false)
+  } finally {
+    await cleanup()
+  }
+})
+
+Deno.test("team delete validates an explicit move target for an empty team", async () => {
+  const { server, cleanup } = await setupMockLinearServer([
+    {
+      queryName: "GetTeamIdByKey",
+      variables: { team: "SOURCE" },
+      response: {
+        data: { teams: { nodes: [{ id: "source-team-id" }] } },
+      },
+    },
+    {
+      queryName: "GetTeamDetails",
+      variables: { id: "source-team-id" },
+      response: {
+        data: {
+          team: {
+            id: "source-team-id",
+            key: "SOURCE",
+            name: "Source Team",
+            issueCount: 0,
+          },
+        },
+      },
+    },
+    {
+      queryName: "GetTeamIdByKey",
+      variables: { team: "MISSING" },
+      response: { data: { teams: { nodes: [] } } },
+    },
+  ])
+
+  try {
+    const result = await run([
+      "team",
+      "delete",
+      "SOURCE",
+      "--move-issues",
+      "MISSING",
+      "--dry-run",
+    ], {
+      LINEAR_API_KEY: "Bearer test-token",
+      LINEAR_GRAPHQL_ENDPOINT: server.getEndpoint(),
+      LINEAR_PROMPT_DISABLED: "1",
+      NO_COLOR: "1",
+    })
+
+    assertEquals(result.code, 1)
+    assertEquals(result.stdout, "")
+    assertMatch(result.stderr, /Target team not found: MISSING/)
+  } finally {
+    await cleanup()
+  }
+})
+
+Deno.test("team delete preserves completed mappings on a later move failure", async () => {
+  const { server, cleanup } = await setupMockLinearServer([
+    {
+      queryName: "GetTeamIdByKey",
+      variables: { team: "SOURCE" },
+      response: {
+        data: { teams: { nodes: [{ id: "source-team-id" }] } },
+      },
+    },
+    {
+      queryName: "GetTeamDetails",
+      variables: { id: "source-team-id" },
+      response: {
+        data: {
+          team: {
+            id: "source-team-id",
+            key: "SOURCE",
+            name: "Source Team",
+            issueCount: 2,
+          },
+        },
+      },
+    },
+    {
+      queryName: "GetTeamIdByKey",
+      variables: { team: "TARGET" },
+      response: {
+        data: { teams: { nodes: [{ id: "target-team-id" }] } },
+      },
+    },
+    {
+      queryName: "GetTeamIssuesForMove",
+      variables: {
+        teamId: "source-team-id",
+        first: 100,
+        after: undefined,
+      },
+      response: {
+        data: {
+          team: {
+            issues: {
+              nodes: [
+                { id: "issue-1", identifier: "SOURCE-1" },
+                { id: "issue-2", identifier: "SOURCE-2" },
+              ],
+              pageInfo: { hasNextPage: false, endCursor: null },
+            },
+          },
+        },
+      },
+    },
+    {
+      queryName: "MoveIssueToTeam",
+      variables: { id: "issue-1", teamId: "target-team-id" },
+      response: {
+        data: {
+          issueUpdate: {
+            success: true,
+            issue: { identifier: "TARGET-41" },
+          },
+        },
+      },
+    },
+    {
+      queryName: "MoveIssueToTeam",
+      variables: { id: "issue-2", teamId: "target-team-id" },
+      response: {
+        data: { issueUpdate: { success: false, issue: null } },
+      },
+    },
+  ])
+
+  try {
+    const result = await run([
+      "team",
+      "delete",
+      "SOURCE",
+      "--move-issues",
+      "TARGET",
+      "--force",
+    ], {
+      LINEAR_API_KEY: "Bearer test-token",
+      LINEAR_GRAPHQL_ENDPOINT: server.getEndpoint(),
+      LINEAR_PROMPT_DISABLED: "1",
+      NO_COLOR: "1",
+    })
+
+    assertEquals(result.code, 1)
+    assertEquals(result.stdout, "✓ Moved SOURCE-1 → TARGET-41\n")
+    assertMatch(result.stderr, /Failed to move issue SOURCE-2/)
+  } finally {
+    await cleanup()
+  }
 })
 
 Deno.test("auth login skips post-write migration prompts when disabled", async () => {

@@ -36,7 +36,10 @@ export const deleteCommand = new Command()
     "Move all issues to another team before deletion",
   )
   .option("-y, --force", "Skip confirmation prompt")
-  .option("--dry-run", "Show planned changes without deleting the team")
+  .option(
+    "--dry-run",
+    "Validate and show planned changes without prompting or mutating",
+  )
   .action(async ({ moveIssues, force, dryRun }, teamKey) => {
     try {
       const client = getGraphQLClient()
@@ -70,12 +73,37 @@ export const deleteCommand = new Command()
       let targetTeamId: string | undefined
       let targetTeamDisplay: string | undefined
 
-      // If the team has issues, require --move-issues or prompt
-      if (issueCount > 0 && !moveIssues) {
-        console.log(
+      // An explicit target must always be valid, even when there are no issues.
+      if (moveIssues) {
+        targetTeamId = await getTeamIdByKey(moveIssues.toUpperCase())
+        if (!targetTeamId) {
+          throw new NotFoundError("Target team", moveIssues)
+        }
+
+        if (targetTeamId === teamId) {
+          throw new ValidationError("Cannot move issues to the same team")
+        }
+        targetTeamDisplay = moveIssues.toUpperCase()
+      }
+
+      // A dry run must never prompt and should predict whether the same
+      // non-interactive invocation has enough information to run.
+      if (dryRun && issueCount > 0 && !targetTeamId) {
+        throw new ValidationError(
+          `Team ${team.key} has ${issueCount} issue(s) that must be moved before deletion`,
+          {
+            suggestion:
+              "Use --move-issues <teamKey> to specify the target team.",
+          },
+        )
+      }
+
+      // If the team has issues, require --move-issues or prompt.
+      if (issueCount > 0 && !targetTeamId) {
+        console.error(
           `\n⚠️  Team ${team.key} (${team.name}) has ${issueCount} issue(s).`,
         )
-        console.log(
+        console.error(
           "You must move these issues to another team before deletion.\n",
         )
 
@@ -101,17 +129,6 @@ export const deleteCommand = new Command()
         if (targetTeam) {
           targetTeamDisplay = `${targetTeam.key} (${targetTeam.name})`
         }
-      } else if (issueCount > 0 && moveIssues) {
-        // Resolve the target team
-        targetTeamId = await getTeamIdByKey(moveIssues.toUpperCase())
-        if (!targetTeamId) {
-          throw new NotFoundError("Target team", moveIssues)
-        }
-
-        if (targetTeamId === teamId) {
-          throw new ValidationError("Cannot move issues to the same team")
-        }
-        targetTeamDisplay = moveIssues.toUpperCase()
       }
 
       if (dryRun) {
@@ -141,8 +158,8 @@ export const deleteCommand = new Command()
         }
       }
 
-      if (targetTeamId) {
-        await moveIssuesToTeam(client, teamId, targetTeamId, issueCount)
+      if (targetTeamId && issueCount > 0) {
+        await moveIssuesToTeam(client, teamId, targetTeamId)
       }
 
       // Delete the team
@@ -167,94 +184,69 @@ export const deleteCommand = new Command()
   })
 
 async function moveIssuesToTeam(
-  // deno-lint-ignore no-explicit-any
-  client: any,
+  client: ReturnType<typeof getGraphQLClient>,
   sourceTeamId: string,
   targetTeamId: string,
-  issueCount: number,
 ) {
-  const { Spinner } = await import("@std/cli/unstable-spinner")
-  const { shouldShowSpinner } = await import("../../utils/hyperlink.ts")
-  const spinner = shouldShowSpinner()
-    ? new Spinner({
-      message: `Moving ${issueCount} issue(s) to target team...`,
-    })
-    : null
-  spinner?.start()
-
-  try {
-    // Fetch all issues from source team
-    type IssueNode = { id: string; identifier: string }
-    type PageInfo = { hasNextPage: boolean; endCursor?: string | null }
-    type TeamIssuesResult = {
-      team?: {
-        issues?: {
-          nodes?: IssueNode[]
-          pageInfo?: PageInfo
-        } | null
+  // Fetch all issues from source team
+  type IssueNode = { id: string; identifier: string }
+  type PageInfo = { hasNextPage: boolean; endCursor?: string | null }
+  type TeamIssuesResult = {
+    team?: {
+      issues?: {
+        nodes?: IssueNode[]
+        pageInfo?: PageInfo
       } | null
-    }
+    } | null
+  }
 
-    const allIssues: IssueNode[] = []
-    let hasNextPage = true
-    let after: string | undefined = undefined
+  const allIssues: IssueNode[] = []
+  let hasNextPage = true
+  let after: string | undefined = undefined
 
-    while (hasNextPage) {
-      const result: TeamIssuesResult = await client.request(
-        GetTeamIssuesForMove,
-        {
-          teamId: sourceTeamId,
-          first: 100,
-          after,
-        },
-      )
+  while (hasNextPage) {
+    const result: TeamIssuesResult = await client.request(
+      GetTeamIssuesForMove,
+      {
+        teamId: sourceTeamId,
+        first: 100,
+        after,
+      },
+    )
 
-      const issues = result.team?.issues?.nodes || []
-      allIssues.push(...issues)
+    const issues = result.team?.issues?.nodes || []
+    allIssues.push(...issues)
 
-      hasNextPage = result.team?.issues?.pageInfo?.hasNextPage || false
-      after = result.team?.issues?.pageInfo?.endCursor ?? undefined
-    }
+    hasNextPage = result.team?.issues?.pageInfo?.hasNextPage || false
+    after = result.team?.issues?.pageInfo?.endCursor ?? undefined
+  }
 
-    // Update each issue to move to target team
-    const updateIssueMutation = gql(`
-      mutation MoveIssueToTeam($id: String!, $teamId: String!) {
-        issueUpdate(id: $id, input: { teamId: $teamId }) {
-          success
-          issue {
-            identifier
-          }
+  // Update each issue to move to target team. Print each mapping as soon as it
+  // becomes durable so a later failure cannot hide already-changed identifiers.
+  const updateIssueMutation = gql(`
+    mutation MoveIssueToTeam($id: String!, $teamId: String!) {
+      issueUpdate(id: $id, input: { teamId: $teamId }) {
+        success
+        issue {
+          identifier
         }
       }
-    `)
-
-    const movedIssues: Array<{ from: string; to: string }> = []
-    let movedCount = 0
-    for (const issue of allIssues) {
-      const result = await client.request(updateIssueMutation, {
-        id: issue.id,
-        teamId: targetTeamId,
-      })
-      if (!result.issueUpdate.success || !result.issueUpdate.issue) {
-        throw new CliError(`Failed to move issue ${issue.identifier}`)
-      }
-      movedIssues.push({
-        from: issue.identifier,
-        to: result.issueUpdate.issue.identifier,
-      })
-      movedCount++
-      if (spinner) {
-        spinner.message = `Moving issues... (${movedCount}/${allIssues.length})`
-      }
     }
+  `)
 
-    spinner?.stop()
-    for (const issue of movedIssues) {
-      console.log(`✓ Moved ${issue.from} → ${issue.to}`)
+  let movedCount = 0
+  for (const issue of allIssues) {
+    const result = await client.request(updateIssueMutation, {
+      id: issue.id,
+      teamId: targetTeamId,
+    })
+    if (!result.issueUpdate.success || !result.issueUpdate.issue) {
+      throw new CliError(`Failed to move issue ${issue.identifier}`)
     }
-    console.log(`✓ Moved ${movedCount} issue(s) to target team`)
-  } catch (error) {
-    spinner?.stop()
-    handleError(error, "Failed to move issues")
+    console.log(
+      `✓ Moved ${issue.identifier} → ${result.issueUpdate.issue.identifier}`,
+    )
+    movedCount++
   }
+  console.log(`✓ Moved ${movedCount} issue(s) to target team`)
 }

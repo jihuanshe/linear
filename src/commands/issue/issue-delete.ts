@@ -1,5 +1,5 @@
 import { Command } from "@cliffy/command"
-import { Confirm } from "../../utils/prompt.ts"
+import { assertPromptAllowed, Confirm } from "../../utils/prompt.ts"
 import { gql } from "../../__codegen__/gql.ts"
 import { getGraphQLClient } from "../../utils/graphql.ts"
 import { getIssueIdentifier, isLinearUuid } from "../../utils/linear.ts"
@@ -29,13 +29,13 @@ export const deleteCommand = new Command()
   .option("-y, --confirm", "Skip confirmation prompt")
   .option(
     "--bulk <ids...:string>",
-    "Delete multiple issues by identifier (e.g., TC-123 TC-124)",
+    "Delete multiple issues by identifier or UUID",
   )
   .option(
     "--bulk-file <file:string>",
-    "Read issue identifiers from a file (one per line)",
+    "Read issue identifiers or UUIDs from a file (one per line)",
   )
-  .option("--bulk-stdin", "Read issue identifiers from stdin")
+  .option("--bulk-stdin", "Read issue identifiers or UUIDs from stdin")
   .action(
     async (
       { confirm, bulk, bulkFile, bulkStdin },
@@ -103,12 +103,7 @@ async function handleSingleDelete(
 
   // Show confirmation prompt unless --confirm flag is used
   if (!confirm) {
-    if (!Deno.stdin.isTerminal()) {
-      throw new ValidationError(
-        "Interactive confirmation required",
-        { suggestion: "Use --confirm to skip." },
-      )
-    }
+    assertPromptAllowed({ suggestion: "Use --confirm to skip." })
     const confirmed = await Confirm.prompt({
       message: `Are you sure you want to delete "${identifier}: ${title}"?`,
       default: false,
@@ -162,19 +157,16 @@ async function handleBulkDelete(
   })
 
   if (ids.length === 0) {
-    throw new ValidationError("No issue identifiers provided for bulk delete")
+    throw new ValidationError(
+      "No issue identifiers or UUIDs provided for bulk delete",
+    )
   }
 
-  console.log(`Found ${ids.length} issue(s) to delete.`)
+  console.error(`Found ${ids.length} issue(s) to delete.`)
 
   // Confirm bulk operation
   if (!confirm) {
-    if (!Deno.stdin.isTerminal()) {
-      throw new ValidationError(
-        "Interactive confirmation required",
-        { suggestion: "Use --confirm to skip." },
-      )
-    }
+    assertPromptAllowed({ suggestion: "Use --confirm to skip." })
     const confirmed = await Confirm.prompt({
       message: `Delete ${ids.length} issue(s)?`,
       default: false,
@@ -190,8 +182,10 @@ async function handleBulkDelete(
   const deleteOperation = async (
     issueIdInput: string,
   ): Promise<IssueDeleteResult> => {
-    // Resolve the issue identifier
-    const resolvedId = await getIssueIdentifier(issueIdInput)
+    // Resolve identifiers while allowing UUIDs to pass through unchanged.
+    const resolvedId = isLinearUuid(issueIdInput)
+      ? issueIdInput
+      : await getIssueIdentifier(issueIdInput)
     if (!resolvedId) {
       return {
         id: issueIdInput,

@@ -36,7 +36,7 @@ export const listCommand = new Command()
   .description("List issue labels")
   .option(
     "--team <teamKey:string>",
-    "Filter by team (e.g., TC). Shows team-specific labels only.",
+    "Show labels available to a team, including workspace-level labels",
   )
   .option(
     "--workspace-labels",
@@ -75,7 +75,7 @@ export const listCommand = new Command()
         // Only workspace labels (no team)
         filter = { team: { null: true } }
       } else if (teamKey) {
-        // Only labels for a specific team (includes workspace labels)
+        // Labels available to a specific team include workspace labels.
         filter = {
           or: [
             { team: { key: { eq: teamKey.toUpperCase() } } },

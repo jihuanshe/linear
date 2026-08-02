@@ -142,9 +142,10 @@ linear issue start     # create/switch to issue branch and mark as started
 linear issue create    # create a new issue (interactive prompts)
 linear issue create -t "title" -d "description"  # create with flags
 linear issue create --project "My Project" --milestone "Phase 1"  # create with milestone
-linear issue update    # update an issue (interactive prompts)
+linear issue update ENG-123 --state "In Review"  # update an issue with explicit fields
 linear issue update ENG-123 --milestone "Phase 2"  # set milestone on existing issue
-linear issue delete    # delete an issue
+linear issue update ENG-123 --add-label bug  # add without replacing existing labels
+linear issue delete ENG-123 --confirm  # delete by identifier (UUID is also accepted)
 linear issue comment list          # list comments on current issue
 linear issue comment add           # add a comment to current issue
 linear issue comment add -p <id>   # reply to a specific comment
