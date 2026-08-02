@@ -4,9 +4,13 @@
   "version": "2.3.0",
   "exports": "./src/main.ts",
   "license": "MIT",
+  "lock": {
+    "path": "./deno.lock",
+    "frozen": true
+  },
   "tasks": {
     "dev": "deno task codegen && deno run --allow-all --quiet src/main.ts ",
-    "install": "deno task codegen && deno install -c ./deno.json --allow-all --quiet -g -f -n linear ./src/main.ts",
+    "install": "deno task codegen && deno install --compile --frozen --lock=./deno.lock -c ./deno.json --allow-all --quiet -g -f -n linear ./src/main.ts",
     "uninstall": "deno uninstall -g linear",
     "sync-schema": "deno task dev schema -o graphql/schema.graphql",
     "codegen": "deno run --allow-all npm:@graphql-codegen/cli/graphql-codegen-esm",

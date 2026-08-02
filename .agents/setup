@@ -3,7 +3,9 @@ set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 deno_version="2.7.9"
-install_dir="$HOME/.local/share/deno/$deno_version"
+tool_root="$HOME/.local/share/amp/jihuanshe-linear"
+bin_dir="$tool_root/bin"
+install_dir="$tool_root/deno/$deno_version"
 deno_bin="$install_dir/deno"
 
 if [[ ! -x "$deno_bin" ]]; then
@@ -18,12 +20,32 @@ if [[ ! -x "$deno_bin" ]]; then
   install -m 0755 "$tmp_dir/deno" "$deno_bin"
 fi
 
-mkdir -p "$HOME/.local/bin"
-ln -sfn "$deno_bin" "$HOME/.local/bin/deno"
-export PATH="$HOME/.local/bin:$PATH"
+mkdir -p "$bin_dir"
+ln -sfn "$deno_bin" "$bin_dir/deno"
+export PATH="$bin_dir:$PATH"
+
+profile_file="$HOME/.bash_profile"
+if [[ ! -e "$profile_file" && -f "$HOME/.profile" ]]; then
+  profile_file="$HOME/.profile"
+fi
+profile_marker="# jihuanshe/linear orb toolchain ($repo_root)"
+if ! grep -Fqx "$profile_marker" "$profile_file" 2>/dev/null; then
+  cat >> "$profile_file" <<EOF
+
+$profile_marker
+case "\$PWD/" in
+  "$repo_root/"*)
+    case ":\$PATH:" in
+      *":$bin_dir:"*) ;;
+      *) export PATH="$bin_dir:\$PATH" ;;
+    esac
+    ;;
+esac
+EOF
+fi
 
 echo "Installing linear CLI from this checkout"
 cd "$repo_root"
-DENO_INSTALL_ROOT="$HOME/.local" "$deno_bin" task install
+DENO_INSTALL_ROOT="$tool_root" "$deno_bin" task install
 
 echo "Deno $deno_version is ready"

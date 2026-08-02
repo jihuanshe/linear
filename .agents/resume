@@ -2,9 +2,11 @@
 set -euo pipefail
 
 deno_version="2.7.9"
-deno_bin="$HOME/.local/share/deno/$deno_version/deno"
+tool_root="$HOME/.local/share/amp/jihuanshe-linear"
+bin_dir="$tool_root/bin"
+deno_bin="$tool_root/deno/$deno_version/deno"
 
 if [[ -x "$deno_bin" ]]; then
-  mkdir -p "$HOME/.local/bin"
-  ln -sfn "$deno_bin" "$HOME/.local/bin/deno"
+  mkdir -p "$bin_dir"
+  ln -sfn "$deno_bin" "$bin_dir/deno"
 fi

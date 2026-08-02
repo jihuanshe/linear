@@ -117,10 +117,12 @@ Description:
 
 Options:
 
-  -h, --help           - Show this help.                      
-  --workspace  <slug>  - Target workspace (uses credentials)  
-  -w, --web            - Open in web browser                  
-  -a, --app            - Open in Linear.app
+  -h, --help            - Show this help.                      
+  --workspace  <slug>   - Target workspace (uses credentials)  
+  -w, --web             - Open in web browser                  
+  -a, --app             - Open in Linear.app                   
+  -j, --json            - Output as JSON                       
+  --limit      <limit>  - Limit results
 ```
 
 ### members

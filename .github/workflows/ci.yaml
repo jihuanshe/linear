@@ -32,8 +32,10 @@ jobs:
       - name: Install linear-cli for skill generation
         run: deno task install
 
-      - name: Verify skill docs generate successfully
-        run: deno task generate-skill-docs
+      - name: Verify generated skill docs are current
+        run: |
+          deno task generate-skill-docs
+          git diff --exit-code -- skills/linear-cli
 
   keyring-integration:
     strategy:

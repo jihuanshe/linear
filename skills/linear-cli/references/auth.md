@@ -148,5 +148,6 @@ Description:
 Options:
 
   -h, --help           - Show this help.                      
-  --workspace  <slug>  - Target workspace (uses credentials)
+  --workspace  <slug>  - Target workspace (uses credentials)  
+  -j, --json           - Output as JSON
 ```
