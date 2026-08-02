@@ -581,7 +581,9 @@ Options:
   --estimate          <estimate>     - Points estimate of the issue                                                     
   -d, --description   <description>  - Description of the issue                                                         
   --description-file  <path>         - Read description from a file (preferred for markdown content)                    
-  -l, --label         <label>        - Issue label associated with the issue. May be repeated.                          
+  -l, --label         <label>        - Replace all issue labels. May be repeated.                                       
+  --add-label         <label>        - Add an issue label without replacing existing labels. May be repeated.           
+  --remove-label      <label>        - Remove an issue label without replacing other labels. May be repeated.           
   --team              <team>         - Team associated with the issue (if not your default team)                        
   --project           <project>      - Project to assign the issue to (UUID, slug ID, or name)                          
   -s, --state         <state>        - Workflow state for the issue (by name or type)                                   
@@ -591,7 +593,8 @@ Options:
                                        like +1 (use --cycle=-1 for negatives). Use --clear-cycle to remove the issue    
                                        from its cycle                                                                   
   --clear-cycle                      - Remove the issue from its cycle                                                  
-  -t, --title         <title>        - Title of the issue
+  -t, --title         <title>        - Title of the issue                                                               
+  -j, --json                         - Output the update result as JSON
 ```
 
 ### url

@@ -276,6 +276,12 @@ the CLI supports configuration via environment variables or a `.linear.toml` con
 | VCS             | `LINEAR_VCS`                      | `vcs`                      | `"git"` or `"jj"`                  | version control system (default: git)                 |
 | Download images | `LINEAR_DOWNLOAD_IMAGES`          | `download_images`          | `true` or `false`                  | download images when viewing issues                   |
 
+### non-interactive commands
+
+set `LINEAR_PROMPT_DISABLED=1` (or `true`) to prevent the CLI from displaying any interactive prompt or reading a response from stdin. commands whose inputs are fully specified by flags continue normally; commands that still require input fail before prompting, write the error to stderr, and exit with code 1. this setting never confirms an operation or implies `--force`.
+
+unset the variable, leave it empty, or set it to `0`/`false` to allow prompts. other values are configuration errors when a command attempts to prompt.
+
 the config file can be placed at (checked in order, first found is used):
 
 - `./linear.toml` or `./.linear.toml` (current directory)

@@ -35,7 +35,8 @@ export const cli = new Command()
     `Handy linear commands from the command line.
 
 Environment Variables:
-  LINEAR_DEBUG=1    Show full error details including stack traces`,
+  LINEAR_DEBUG=1             Show full error details including stack traces
+  LINEAR_PROMPT_DISABLED=1   Disable all interactive prompts`,
   )
   .globalOption(
     "--workspace <slug:string>",

@@ -84,7 +84,8 @@ Options:
   -h, --help                   - Show this help.                                  
   --workspace    <slug>        - Target workspace (uses credentials)              
   --move-issues  <targetTeam>  - Move all issues to another team before deletion  
-  -y, --force                  - Skip confirmation prompt
+  -y, --force                  - Skip confirmation prompt                         
+  --dry-run                    - Show planned changes without deleting the team
 ```
 
 ### id

@@ -63,7 +63,17 @@ export const updateCommand = new Command()
   )
   .option(
     "-l, --label <label:string>",
-    "Issue label associated with the issue. May be repeated.",
+    "Replace all issue labels. May be repeated.",
+    { collect: true },
+  )
+  .option(
+    "--add-label <label:string>",
+    "Add an issue label without replacing existing labels. May be repeated.",
+    { collect: true },
+  )
+  .option(
+    "--remove-label <label:string>",
+    "Remove an issue label without replacing other labels. May be repeated.",
     { collect: true },
   )
   .option(
@@ -91,6 +101,7 @@ export const updateCommand = new Command()
     "Remove the issue from its cycle",
   )
   .option("-t, --title <title:string>", "Title of the issue")
+  .option("-j, --json", "Output the update result as JSON")
   .action(
     async (
       {
@@ -104,16 +115,33 @@ export const updateCommand = new Command()
         description,
         descriptionFile,
         label: labels,
+        addLabel: addedLabels,
+        removeLabel: removedLabels,
         team,
         project,
         state,
         milestone,
         cycle,
         title,
+        json,
       },
       issueIdArg,
     ) => {
       try {
+        const replacesLabels = labels != null && labels.length > 0
+        const addsLabels = addedLabels != null && addedLabels.length > 0
+        const removesLabels = removedLabels != null && removedLabels.length > 0
+
+        if (replacesLabels && (addsLabels || removesLabels)) {
+          throw new ValidationError(
+            "Cannot combine --label with --add-label or --remove-label",
+            {
+              suggestion:
+                "Use --label to replace all labels, or use --add-label and --remove-label for incremental changes.",
+            },
+          )
+        }
+
         if (unassign && assignee != null) {
           throw new ValidationError(
             "Cannot specify both --assignee and --unassign",
@@ -138,6 +166,22 @@ export const updateCommand = new Command()
         if (description && descriptionFile) {
           throw new ValidationError(
             "Cannot specify both --description and --description-file",
+          )
+        }
+
+        if (
+          assignee == null && !unassign && dueDate == null && parent == null &&
+          priority == null && estimate == null && description == null &&
+          descriptionFile == null && !replacesLabels && !addsLabels &&
+          !removesLabels && team == null && project == null && state == null &&
+          milestone == null && cycle == null && !clearCycle && title == null
+        ) {
+          throw new ValidationError(
+            "At least one update option must be provided",
+            {
+              suggestion:
+                "Use a field option such as --title, --state, --add-label, or --remove-label.",
+            },
           )
         }
 
@@ -172,7 +216,7 @@ export const updateCommand = new Command()
 
         const { Spinner } = await import("@std/cli/unstable-spinner")
         const { shouldShowSpinner } = await import("../../utils/hyperlink.ts")
-        const spinner = shouldShowSpinner() ? new Spinner() : null
+        const spinner = shouldShowSpinner() && !json ? new Spinner() : null
         spinner?.start()
 
         // Extract team from issue ID if not provided
@@ -186,10 +230,14 @@ export const updateCommand = new Command()
           )
         }
 
-        // Convert team key to team ID for some operations
-        const teamId = await getTeamIdByKey(teamKey)
-        if (!teamId) {
-          throw new NotFoundError("Team", teamKey)
+        // Resolve a team ID only when the mutation moves teams or cycle lookup
+        // requires it. Team-scoped state and label lookups use the key directly.
+        let teamId: string | undefined
+        if (team != null || cycle != null) {
+          teamId = await getTeamIdByKey(teamKey)
+          if (!teamId) {
+            throw new NotFoundError("Team", teamKey)
+          }
         }
 
         let stateId: string | undefined
@@ -211,15 +259,32 @@ export const updateCommand = new Command()
           }
         }
 
-        const labelIds: string[] = []
-        if (labels != null && labels.length > 0) {
-          for (const label of labels) {
+        const resolveLabelIds = async (
+          labelNames: string[] | undefined,
+        ): Promise<string[]> => {
+          const ids = new Set<string>()
+          for (const label of labelNames ?? []) {
             const labelId = await getIssueLabelIdByNameForTeam(label, teamKey)
             if (!labelId) {
               throw new NotFoundError("Issue label", label)
             }
-            labelIds.push(labelId)
+            ids.add(labelId)
           }
+          return [...ids]
+        }
+
+        const labelIds = await resolveLabelIds(labels)
+        const addedLabelIds = await resolveLabelIds(addedLabels)
+        const removedLabelIds = await resolveLabelIds(removedLabels)
+        const removedLabelIdSet = new Set(removedLabelIds)
+        if (addedLabelIds.some((labelId) => removedLabelIdSet.has(labelId))) {
+          throw new ValidationError(
+            "Cannot add and remove the same label in one update",
+            {
+              suggestion:
+                "Remove the duplicate label from either --add-label or --remove-label.",
+            },
+          )
         }
 
         let projectId: string | undefined = undefined
@@ -258,6 +323,9 @@ export const updateCommand = new Command()
 
         let cycleId: string | undefined
         if (cycle != null) {
+          if (!teamId) {
+            throw new NotFoundError("Team", teamKey)
+          }
           cycleId = await getCycleIdByNameOrNumber(cycle, teamId)
         }
 
@@ -290,7 +358,9 @@ export const updateCommand = new Command()
         if (estimate !== undefined) input.estimate = estimate
         if (finalDescription !== undefined) input.description = finalDescription
         if (labelIds.length > 0) input.labelIds = labelIds
-        if (teamId !== undefined) input.teamId = teamId
+        if (addedLabelIds.length > 0) input.addedLabelIds = addedLabelIds
+        if (removedLabelIds.length > 0) input.removedLabelIds = removedLabelIds
+        if (team != null) input.teamId = teamId
         if (projectId !== undefined) input.projectId = projectId
         if (projectMilestoneId !== undefined) {
           input.projectMilestoneId = projectMilestoneId
@@ -303,8 +373,10 @@ export const updateCommand = new Command()
         if (stateId !== undefined) input.stateId = stateId
 
         spinner?.stop()
-        console.log(`Updating issue ${issueId}`)
-        console.log()
+        if (!json) {
+          console.log(`Updating issue ${issueId}`)
+          console.log()
+        }
         spinner?.start()
 
         const updateIssueMutation = gql(`
@@ -332,8 +404,12 @@ export const updateCommand = new Command()
         }
 
         spinner?.stop()
-        console.log(`✓ Updated issue ${issue.identifier}: ${issue.title}`)
-        console.log(issue.url)
+        if (json) {
+          console.log(JSON.stringify(data.issueUpdate, null, 2))
+        } else {
+          console.log(`✓ Updated issue ${issue.identifier}: ${issue.title}`)
+          console.log(issue.url)
+        }
       } catch (error) {
         handleError(error, "Failed to update issue")
       }

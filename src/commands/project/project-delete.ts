@@ -1,5 +1,5 @@
 import { Command } from "@cliffy/command"
-import { Confirm } from "@cliffy/prompt"
+import { Confirm } from "../../utils/prompt.ts"
 import { gql } from "../../__codegen__/gql.ts"
 import { getGraphQLClient } from "../../utils/graphql.ts"
 import { resolveProjectId } from "../../utils/linear.ts"

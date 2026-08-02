@@ -1,5 +1,5 @@
 import { Command } from "@cliffy/command"
-import { Confirm, Secret } from "@cliffy/prompt"
+import { Confirm, isPromptDisabled, Secret } from "../../utils/prompt.ts"
 import { yellow } from "@std/fmt/colors"
 import { gql } from "../../__codegen__/gql.ts"
 import {
@@ -42,8 +42,20 @@ export const loginCommand = new Command()
   .action(async (options) => {
     try {
       let apiKey = options.key?.trim()
+      const promptDisabled =
+        !apiKey || options.plaintext || isUsingInlineFormat()
+          ? isPromptDisabled()
+          : false
 
       if (!apiKey) {
+        if (promptDisabled) {
+          throw new ValidationError(
+            "An API key is required when interactive prompting is disabled",
+            {
+              suggestion: "Use --key <key> to provide the API key explicitly.",
+            },
+          )
+        }
         apiKey = (await Secret.prompt({
           message: "Enter your Linear API key",
           hint: "Create one at https://linear.app/settings/account/security",
@@ -108,7 +120,7 @@ export const loginCommand = new Command()
         }
 
         // Prompt to migrate inline credentials to keyring
-        if (isUsingInlineFormat()) {
+        if (isUsingInlineFormat() && !promptDisabled) {
           const keyringOk = await keyring.isAvailable()
           if (keyringOk) {
             console.log()

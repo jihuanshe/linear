@@ -1,4 +1,4 @@
-import { Select } from "@cliffy/prompt"
+import { Select } from "./prompt.ts"
 import { getOption } from "../config.ts"
 import { CliError } from "./errors.ts"
 import { getCurrentBranch } from "./git.ts"

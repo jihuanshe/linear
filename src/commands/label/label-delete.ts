@@ -1,5 +1,5 @@
 import { Command } from "@cliffy/command"
-import { Confirm, Select } from "@cliffy/prompt"
+import { Confirm, Select } from "../../utils/prompt.ts"
 import { gql } from "../../__codegen__/gql.ts"
 import { getGraphQLClient } from "../../utils/graphql.ts"
 import { getTeamKey } from "../../utils/linear.ts"

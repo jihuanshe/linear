@@ -1,5 +1,5 @@
 import { Command } from "@cliffy/command"
-import { Checkbox, Input, Select } from "@cliffy/prompt"
+import { Checkbox, Input, Select } from "../../utils/prompt.ts"
 import { gql } from "../../__codegen__/gql.ts"
 import { getOption } from "../../config.ts"
 import { getGraphQLClient } from "../../utils/graphql.ts"

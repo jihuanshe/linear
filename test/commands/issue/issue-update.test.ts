@@ -1,4 +1,6 @@
 import { snapshotTest } from "@cliffy/testing"
+import { assertEquals } from "@std/assert"
+import { stub } from "@std/testing/mock"
 import { updateCommand } from "../../../src/commands/issue/issue-update.ts"
 import {
   commonDenoArgs,
@@ -610,7 +612,7 @@ await snapshotTest({
         queryName: "UpdateIssue",
         variables: {
           id: "ENG-123",
-          input: { assigneeId: null, teamId: "team-eng-id" },
+          input: { assigneeId: null },
         },
         response: {
           data: {
@@ -658,7 +660,6 @@ await snapshotTest({
           input: {
             title: "Renamed",
             assigneeId: null,
-            teamId: "team-eng-id",
           },
         },
         response: {
@@ -710,7 +711,7 @@ await snapshotTest({
         queryName: "UpdateIssue",
         variables: {
           id: "ENG-123",
-          input: { assigneeId: "user-self-123", teamId: "team-eng-id" },
+          input: { assigneeId: "user-self-123" },
         },
         response: {
           data: {
@@ -775,7 +776,7 @@ await snapshotTest({
         queryName: "UpdateIssue",
         variables: {
           id: "ENG-123",
-          input: { cycleId: null, teamId: "team-eng-id" },
+          input: { cycleId: null },
         },
         response: {
           data: {
@@ -864,7 +865,7 @@ await snapshotTest({
         queryName: "UpdateIssue",
         variables: {
           id: "ENG-123",
-          input: { cycleId: "cycle-7-id", teamId: "team-eng-id" },
+          input: { cycleId: "cycle-7-id" },
         },
         response: {
           data: {
@@ -945,7 +946,7 @@ await snapshotTest({
         queryName: "UpdateIssue",
         variables: {
           id: "ENG-123",
-          input: { cycleId: "cycle-7-id", teamId: "team-eng-id" },
+          input: { cycleId: "cycle-7-id" },
         },
         response: {
           data: {
@@ -1129,7 +1130,7 @@ await snapshotTest({
         queryName: "UpdateIssue",
         variables: {
           id: "ENG-123",
-          input: { cycleId: "cycle-1-id", teamId: "team-eng-id" },
+          input: { cycleId: "cycle-1-id" },
         },
         response: {
           data: {
@@ -1266,6 +1267,238 @@ Deno.test("Issue Update Command - --cycle now errors helpfully when no cycle is 
   )
   assertEquals(
     errorLogs.some((l) => l.includes("The next cycle (#8) starts 2026-07-27")),
+    true,
+  )
+})
+
+Deno.test("Issue Update Command - JSON output contains only the mutation payload", async () => {
+  const issueUpdate = {
+    success: true,
+    issue: {
+      id: "issue-existing-123",
+      identifier: "ENG-123",
+      url: "https://linear.app/test-team/issue/ENG-123/renamed",
+      title: "Renamed",
+    },
+  }
+  const { cleanup } = await setupMockLinearServer([{
+    queryName: "UpdateIssue",
+    variables: { id: "ENG-123", input: { title: "Renamed" } },
+    response: { data: { issueUpdate } },
+  }])
+  const logs: string[] = []
+  const logStub = stub(console, "log", (...args: unknown[]) => {
+    logs.push(args.map(String).join(" "))
+  })
+
+  try {
+    await updateCommand.parse(["ENG-123", "--title", "Renamed", "--json"])
+  } finally {
+    logStub.restore()
+    await cleanup()
+  }
+
+  assertEquals(logs, [JSON.stringify(issueUpdate, null, 2)])
+})
+
+Deno.test("Issue Update Command - teamId is sent only for an explicit team move", async () => {
+  const { cleanup } = await setupMockLinearServer([
+    {
+      queryName: "GetTeamIdByKey",
+      variables: { team: "OPS" },
+      response: { data: { teams: { nodes: [{ id: "team-ops-id" }] } } },
+    },
+    {
+      queryName: "UpdateIssue",
+      variables: {
+        id: "ENG-123",
+        input: { title: "Moved", teamId: "team-ops-id" },
+      },
+      response: {
+        data: {
+          issueUpdate: {
+            success: true,
+            issue: {
+              id: "issue-existing-123",
+              identifier: "OPS-456",
+              url: "https://linear.app/test-team/issue/OPS-456/moved",
+              title: "Moved",
+            },
+          },
+        },
+      },
+    },
+  ])
+
+  try {
+    await updateCommand.parse([
+      "ENG-123",
+      "--title",
+      "Moved",
+      "--team",
+      "OPS",
+    ])
+  } finally {
+    await cleanup()
+  }
+})
+
+Deno.test("Issue Update Command - label additions and removals stay incremental", async () => {
+  const { cleanup } = await setupMockLinearServer([
+    {
+      queryName: "GetIssueLabelIdByNameForTeam",
+      variables: { name: "frontend", teamKey: "ENG" },
+      response: {
+        data: {
+          issueLabels: { nodes: [{ id: "label-frontend", name: "frontend" }] },
+        },
+      },
+    },
+    {
+      queryName: "GetIssueLabelIdByNameForTeam",
+      variables: { name: "backend", teamKey: "ENG" },
+      response: {
+        data: {
+          issueLabels: { nodes: [{ id: "label-backend", name: "backend" }] },
+        },
+      },
+    },
+    {
+      queryName: "UpdateIssue",
+      variables: {
+        id: "ENG-123",
+        input: {
+          addedLabelIds: ["label-frontend"],
+          removedLabelIds: ["label-backend"],
+        },
+      },
+      response: {
+        data: {
+          issueUpdate: {
+            success: true,
+            issue: {
+              id: "issue-existing-123",
+              identifier: "ENG-123",
+              url: "https://linear.app/test-team/issue/ENG-123/labels",
+              title: "Labels",
+            },
+          },
+        },
+      },
+    },
+  ])
+
+  try {
+    await updateCommand.parse([
+      "ENG-123",
+      "--add-label",
+      "frontend",
+      "--add-label",
+      "frontend",
+      "--remove-label",
+      "backend",
+    ])
+  } finally {
+    await cleanup()
+  }
+})
+
+Deno.test("Issue Update Command - requires an update option", async () => {
+  const errorLogs: string[] = []
+  const errorStub = stub(console, "error", (...args: unknown[]) => {
+    errorLogs.push(args.map(String).join(" "))
+  })
+  const exitStub = stub(Deno, "exit", (_code?: number) => {
+    throw new Error("EXIT")
+  })
+
+  try {
+    await updateCommand.parse(["ENG-123"])
+  } catch (error) {
+    if (!(error instanceof Error) || error.message !== "EXIT") throw error
+  } finally {
+    exitStub.restore()
+    errorStub.restore()
+  }
+
+  assertEquals(
+    errorLogs.some((line) =>
+      line.includes("At least one update option must be provided")
+    ),
+    true,
+  )
+})
+
+Deno.test("Issue Update Command - replacement and incremental labels conflict", async () => {
+  const errorLogs: string[] = []
+  const errorStub = stub(console, "error", (...args: unknown[]) => {
+    errorLogs.push(args.map(String).join(" "))
+  })
+  const exitStub = stub(Deno, "exit", (_code?: number) => {
+    throw new Error("EXIT")
+  })
+
+  try {
+    await updateCommand.parse([
+      "ENG-123",
+      "--label",
+      "frontend",
+      "--add-label",
+      "backend",
+    ])
+  } catch (error) {
+    if (!(error instanceof Error) || error.message !== "EXIT") throw error
+  } finally {
+    exitStub.restore()
+    errorStub.restore()
+  }
+
+  assertEquals(
+    errorLogs.some((line) =>
+      line.includes("Cannot combine --label with --add-label or --remove-label")
+    ),
+    true,
+  )
+})
+
+Deno.test("Issue Update Command - cannot add and remove the same label", async () => {
+  const { cleanup } = await setupMockLinearServer([{
+    queryName: "GetIssueLabelIdByNameForTeam",
+    variables: { name: "frontend", teamKey: "ENG" },
+    response: {
+      data: {
+        issueLabels: { nodes: [{ id: "label-frontend", name: "frontend" }] },
+      },
+    },
+  }])
+  const errorLogs: string[] = []
+  const errorStub = stub(console, "error", (...args: unknown[]) => {
+    errorLogs.push(args.map(String).join(" "))
+  })
+  const exitStub = stub(Deno, "exit", (_code?: number) => {
+    throw new Error("EXIT")
+  })
+
+  try {
+    await updateCommand.parse([
+      "ENG-123",
+      "--add-label",
+      "frontend",
+      "--remove-label",
+      "frontend",
+    ])
+  } catch (error) {
+    if (!(error instanceof Error) || error.message !== "EXIT") throw error
+  } finally {
+    exitStub.restore()
+    errorStub.restore()
+    await cleanup()
+  }
+
+  assertEquals(
+    errorLogs.some((line) =>
+      line.includes("Cannot add and remove the same label in one update")
+    ),
     true,
   )
 })

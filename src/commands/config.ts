@@ -1,5 +1,5 @@
 import { Command } from "@cliffy/command"
-import { prompt, Select } from "@cliffy/prompt"
+import { prompt, Select } from "../utils/prompt.ts"
 import { join } from "@std/path"
 import { gql } from "../__codegen__/gql.ts"
 import { getGraphQLClient } from "../utils/graphql.ts"

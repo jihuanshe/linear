@@ -1,5 +1,5 @@
 import { Command } from "@cliffy/command"
-import { Input } from "@cliffy/prompt"
+import { Input } from "../../utils/prompt.ts"
 import { gql } from "../../__codegen__/gql.ts"
 import { getGraphQLClient } from "../../utils/graphql.ts"
 import { CliError, handleError, ValidationError } from "../../utils/errors.ts"

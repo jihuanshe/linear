@@ -1,5 +1,5 @@
 import { Command } from "@cliffy/command"
-import { Confirm, Select } from "@cliffy/prompt"
+import { assertPromptAllowed, Confirm, Select } from "../../utils/prompt.ts"
 import { gql } from "../../__codegen__/gql.ts"
 import { getGraphQLClient } from "../../utils/graphql.ts"
 import { getAllTeams, getTeamIdByKey } from "../../utils/linear.ts"
@@ -36,7 +36,8 @@ export const deleteCommand = new Command()
     "Move all issues to another team before deletion",
   )
   .option("-y, --force", "Skip confirmation prompt")
-  .action(async ({ moveIssues, force }, teamKey) => {
+  .option("--dry-run", "Show planned changes without deleting the team")
+  .action(async ({ moveIssues, force, dryRun }, teamKey) => {
     try {
       const client = getGraphQLClient()
 
@@ -53,11 +54,7 @@ export const deleteCommand = new Command()
             id
             key
             name
-            issues {
-              nodes {
-                id
-              }
-            }
+            issueCount
           }
         }
       `)
@@ -69,8 +66,9 @@ export const deleteCommand = new Command()
       }
 
       const team = teamDetails.team
-      const issueCount = team.issues?.nodes?.length || 0
+      const issueCount = team.issueCount
       let targetTeamId: string | undefined
+      let targetTeamDisplay: string | undefined
 
       // If the team has issues, require --move-issues or prompt
       if (issueCount > 0 && !moveIssues) {
@@ -81,14 +79,9 @@ export const deleteCommand = new Command()
           "You must move these issues to another team before deletion.\n",
         )
 
-        if (!Deno.stdin.isTerminal()) {
-          throw new ValidationError(
-            "Interactive selection required",
-            {
-              suggestion: "Use --move-issues <teamKey> to specify target team.",
-            },
-          )
-        }
+        assertPromptAllowed({
+          suggestion: "Use --move-issues <teamKey> to specify the target team.",
+        })
 
         const allTeams = await getAllTeams()
         const otherTeams = allTeams.filter((t) => t.id !== teamId)
@@ -104,6 +97,10 @@ export const deleteCommand = new Command()
             value: t.id,
           })),
         })
+        const targetTeam = otherTeams.find((team) => team.id === targetTeamId)
+        if (targetTeam) {
+          targetTeamDisplay = `${targetTeam.key} (${targetTeam.name})`
+        }
       } else if (issueCount > 0 && moveIssues) {
         // Resolve the target team
         targetTeamId = await getTeamIdByKey(moveIssues.toUpperCase())
@@ -114,16 +111,24 @@ export const deleteCommand = new Command()
         if (targetTeamId === teamId) {
           throw new ValidationError("Cannot move issues to the same team")
         }
+        targetTeamDisplay = moveIssues.toUpperCase()
+      }
+
+      if (dryRun) {
+        console.log(`Would delete team ${team.key} (${team.name})`)
+        if (targetTeamId) {
+          console.log(
+            `Would move ${issueCount} issue(s) to ${targetTeamDisplay}`,
+          )
+        }
+        return
       }
 
       // Confirm deletion
       if (!force) {
-        if (!Deno.stdin.isTerminal()) {
-          throw new ValidationError(
-            "Interactive confirmation required",
-            { suggestion: "Use --force to skip." },
-          )
-        }
+        assertPromptAllowed({
+          suggestion: "Use --force to skip the confirmation prompt.",
+        })
         const confirmed = await Confirm.prompt({
           message:
             `Are you sure you want to delete team "${team.key}: ${team.name}"?`,
