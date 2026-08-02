@@ -1,8 +1,8 @@
 import { Command } from "@cliffy/command"
-import { renderMarkdown } from "@littletof/charmd"
+import { renderMarkdown } from "../../utils/markdown.ts"
 import { gql } from "../../__codegen__/gql.ts"
 import { getGraphQLClient } from "../../utils/graphql.ts"
-import { formatRelativeTime } from "../../utils/display.ts"
+import { formatRelativeTime, printStyled } from "../../utils/display.ts"
 import { openProjectPage } from "../../utils/actions.ts"
 import { shouldShowSpinner } from "../../utils/hyperlink.ts"
 import { handleError, NotFoundError } from "../../utils/errors.ts"
@@ -116,7 +116,7 @@ export const viewCommand = new Command()
       // Status with color styling
       const statusLine = `**Status:** ${project.status.name}`
       if (Deno.stdout.isTerminal()) {
-        console.log(`%c${statusLine}%c`, `color: ${project.status.color}`, "")
+        printStyled([statusLine, `color: ${project.status.color}`])
       } else {
         lines.push(statusLine)
       }

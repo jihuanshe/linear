@@ -1,7 +1,12 @@
 import { Command } from "@cliffy/command"
 import { gql } from "../../__codegen__/gql.ts"
 import { getGraphQLClient } from "../../utils/graphql.ts"
-import { getTimeAgo, padDisplay } from "../../utils/display.ts"
+import {
+  getTimeAgo,
+  padDisplay,
+  printStyled,
+  printStyledHeader,
+} from "../../utils/display.ts"
 import { shouldShowSpinner } from "../../utils/hyperlink.ts"
 import { handleError } from "../../utils/errors.ts"
 
@@ -137,18 +142,7 @@ export const listCommand = new Command()
         padDisplay("UPDATED", UPDATED_WIDTH),
       ]
 
-      let headerMsg = ""
-      const headerStyles: string[] = []
-      header.forEach((cell, index) => {
-        headerMsg += `%c${cell}`
-        headerStyles.push("text-decoration: underline")
-        if (index < header.length - 1) {
-          headerMsg += "%c %c"
-          headerStyles.push("text-decoration: none")
-          headerStyles.push("text-decoration: underline")
-        }
-      })
-      console.log(headerMsg, ...headerStyles)
+      printStyledHeader(header)
 
       // Print each document
       for (const doc of documents) {
@@ -159,12 +153,11 @@ export const listCommand = new Command()
         const attachment = getAttachment(doc)
         const updated = getTimeAgo(new Date(doc.updatedAt))
 
-        console.log(
+        printStyled(
           `${padDisplay(doc.slugId, SLUG_WIDTH)} ${truncTitle} ${
             padDisplay(attachment, ATTACHMENT_WIDTH)
-          } %c${padDisplay(updated, UPDATED_WIDTH)}%c`,
-          "color: gray",
-          "",
+          } `,
+          [padDisplay(updated, UPDATED_WIDTH), "color: gray"],
         )
       }
     } catch (error) {

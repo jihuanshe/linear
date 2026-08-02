@@ -1,5 +1,5 @@
 import { Command } from "@cliffy/command"
-import { renderMarkdown } from "@littletof/charmd"
+import { renderMarkdown } from "../../utils/markdown.ts"
 import { open } from "@opensrc/deno-open"
 import { gql } from "../../__codegen__/gql.ts"
 import { getGraphQLClient } from "../../utils/graphql.ts"

@@ -1,7 +1,7 @@
 import { Command } from "@cliffy/command"
 import { unicodeWidth } from "@std/cli"
 import { getTeamKey, getWorkflowStates } from "../../utils/linear.ts"
-import { padDisplay } from "../../utils/display.ts"
+import { padDisplay, printStyled } from "../../utils/display.ts"
 import { shouldShowSpinner } from "../../utils/hyperlink.ts"
 import { handleError, ValidationError } from "../../utils/errors.ts"
 
@@ -53,18 +53,14 @@ export const statesCommand = new Command()
         ...states.map((s) => unicodeWidth(s.type)),
       )
 
-      console.log(
-        `%c${padDisplay("NAME", NAME_WIDTH)}%c %c${
-          padDisplay("TYPE", TYPE_WIDTH)
-        }%c`,
-        "text-decoration: underline",
-        "text-decoration: none",
-        "text-decoration: underline",
-        "text-decoration: none",
+      printStyled(
+        [padDisplay("NAME", NAME_WIDTH), "text-decoration: underline"],
+        " ",
+        [padDisplay("TYPE", TYPE_WIDTH), "text-decoration: underline"],
       )
 
       for (const state of states) {
-        console.log(
+        printStyled(
           `${padDisplay(state.name, NAME_WIDTH)} ${
             padDisplay(state.type, TYPE_WIDTH)
           }`,

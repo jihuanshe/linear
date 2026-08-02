@@ -7,7 +7,12 @@ import type {
   ProjectStatusType,
 } from "../../__codegen__/graphql.ts"
 import { getGraphQLClient } from "../../utils/graphql.ts"
-import { getTimeAgo, padDisplay } from "../../utils/display.ts"
+import {
+  getTimeAgo,
+  padDisplay,
+  printStyled,
+  printStyledHeader,
+} from "../../utils/display.ts"
 import { LINEAR_WEB_BASE_URL } from "../../const.ts"
 import { getTeamKey } from "../../utils/linear.ts"
 import { getOption } from "../../config.ts"
@@ -319,18 +324,7 @@ export const listCommand = new Command()
         padDisplay("DATE", DATE_WIDTH),
       ]
 
-      let headerMsg = ""
-      const headerStyles: string[] = []
-      headerCells.forEach((cell, index) => {
-        headerMsg += `%c${cell}`
-        headerStyles.push("text-decoration: underline")
-        if (index < headerCells.length - 1) {
-          headerMsg += "%c %c"
-          headerStyles.push("text-decoration: none")
-          headerStyles.push("text-decoration: underline")
-        }
-      })
-      console.log(headerMsg, ...headerStyles)
+      printStyledHeader(headerCells)
 
       // Print each project
       for (const project of projects) {
@@ -352,18 +346,16 @@ export const listCommand = new Command()
           ? project.name.slice(0, nameWidth - 3) + "..."
           : padDisplay(project.name, nameWidth)
 
-        console.log(
-          `${padDisplay(project.slugId, SLUG_WIDTH)} ${truncName} %c${
-            padDisplay(project.status.name, STATUS_WIDTH)
-          }%c ${padDisplay(priority, PRIORITY_WIDTH)} ${
+        printStyled(
+          `${padDisplay(project.slugId, SLUG_WIDTH)} ${truncName} `,
+          [
+            padDisplay(project.status.name, STATUS_WIDTH),
+            `color: ${project.status.color}`,
+          ],
+          ` ${padDisplay(priority, PRIORITY_WIDTH)} ${
             padDisplay(health, HEALTH_WIDTH)
-          } ${padDisplay(lead, LEAD_WIDTH)} ${
-            padDisplay(teams, TEAMS_WIDTH)
-          } %c${padDisplay(dateDisplay, DATE_WIDTH)}%c`,
-          `color: ${project.status.color}`,
-          "",
-          "color: gray",
-          "",
+          } ${padDisplay(lead, LEAD_WIDTH)} ${padDisplay(teams, TEAMS_WIDTH)} `,
+          [padDisplay(dateDisplay, DATE_WIDTH), "color: gray"],
         )
       }
     } catch (error) {

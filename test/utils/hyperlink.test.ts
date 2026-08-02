@@ -39,9 +39,13 @@ Deno.test({
 
     // Ensure NO_COLOR is not set
     const originalNoColor = Deno.env.get("NO_COLOR")
+    const originalTerm = Deno.env.get("TERM")
+    const originalCliColor = Deno.env.get("CLICOLOR")
     if (originalNoColor != null) {
       Deno.env.delete("NO_COLOR")
     }
+    Deno.env.set("TERM", "xterm-256color")
+    Deno.env.delete("CLICOLOR")
 
     try {
       assertEquals(shouldShowSpinner(), false)
@@ -50,6 +54,10 @@ Deno.test({
       if (originalNoColor != null) {
         Deno.env.set("NO_COLOR", originalNoColor)
       }
+      if (originalTerm != null) Deno.env.set("TERM", originalTerm)
+      else Deno.env.delete("TERM")
+      if (originalCliColor != null) Deno.env.set("CLICOLOR", originalCliColor)
+      else Deno.env.delete("CLICOLOR")
     }
   },
 })
@@ -63,9 +71,13 @@ Deno.test({
 
     // Ensure NO_COLOR is not set
     const originalNoColor = Deno.env.get("NO_COLOR")
+    const originalTerm = Deno.env.get("TERM")
+    const originalCliColor = Deno.env.get("CLICOLOR")
     if (originalNoColor != null) {
       Deno.env.delete("NO_COLOR")
     }
+    Deno.env.set("TERM", "xterm-256color")
+    Deno.env.delete("CLICOLOR")
 
     try {
       assertEquals(shouldShowSpinner(), true)
@@ -74,6 +86,10 @@ Deno.test({
       if (originalNoColor != null) {
         Deno.env.set("NO_COLOR", originalNoColor)
       }
+      if (originalTerm != null) Deno.env.set("TERM", originalTerm)
+      else Deno.env.delete("TERM")
+      if (originalCliColor != null) Deno.env.set("CLICOLOR", originalCliColor)
+      else Deno.env.delete("CLICOLOR")
     }
   },
 })
@@ -162,9 +178,13 @@ Deno.test({
 
     // Ensure NO_COLOR is not set
     const originalNoColor = Deno.env.get("NO_COLOR")
+    const originalTerm = Deno.env.get("TERM")
+    const originalCliColor = Deno.env.get("CLICOLOR")
     if (originalNoColor != null) {
       Deno.env.delete("NO_COLOR")
     }
+    Deno.env.set("TERM", "xterm-256color")
+    Deno.env.delete("CLICOLOR")
 
     try {
       assertEquals(shouldEnableHyperlinks(), true)
@@ -173,6 +193,10 @@ Deno.test({
       if (originalNoColor != null) {
         Deno.env.set("NO_COLOR", originalNoColor)
       }
+      if (originalTerm != null) Deno.env.set("TERM", originalTerm)
+      else Deno.env.delete("TERM")
+      if (originalCliColor != null) Deno.env.set("CLICOLOR", originalCliColor)
+      else Deno.env.delete("CLICOLOR")
     }
   },
 })

@@ -3,7 +3,12 @@ import { unicodeWidth } from "@std/cli"
 import { open } from "@opensrc/deno-open"
 import { gql } from "../../__codegen__/gql.ts"
 import { getGraphQLClient } from "../../utils/graphql.ts"
-import { padDisplay, truncateText } from "../../utils/display.ts"
+import {
+  padDisplay,
+  printStyled,
+  printStyledHeader,
+  truncateText,
+} from "../../utils/display.ts"
 import { getOption } from "../../config.ts"
 import { shouldShowSpinner } from "../../utils/hyperlink.ts"
 import { LINEAR_WEB_BASE_URL } from "../../const.ts"
@@ -263,18 +268,7 @@ export const listCommand = new Command()
         padDisplay("TARGET", TARGET_WIDTH),
       ]
 
-      let headerMsg = ""
-      const headerStyles: string[] = []
-      headerCells.forEach((cell, index) => {
-        headerMsg += `%c${cell}`
-        headerStyles.push("text-decoration: underline")
-        if (index < headerCells.length - 1) {
-          headerMsg += "%c %c"
-          headerStyles.push("text-decoration: none")
-          headerStyles.push("text-decoration: underline")
-        }
-      })
-      console.log(headerMsg, ...headerStyles)
+      printStyledHeader(headerCells)
 
       // Print each initiative
       for (const init of initiatives) {
@@ -296,18 +290,13 @@ export const listCommand = new Command()
         }
         const statusColor = statusColors[init.status] || "#6B6F76"
 
-        console.log(
-          `${padDisplay(init.slugId, SLUG_WIDTH)} ${paddedName} %c${
-            padDisplay(statusDisplay, STATUS_WIDTH)
-          }%c ${padDisplay(health, HEALTH_WIDTH)} ${
+        printStyled(
+          `${padDisplay(init.slugId, SLUG_WIDTH)} ${paddedName} `,
+          [padDisplay(statusDisplay, STATUS_WIDTH), `color: ${statusColor}`],
+          ` ${padDisplay(health, HEALTH_WIDTH)} ${
             padDisplay(owner, OWNER_WIDTH)
-          } ${padDisplay(projectCount, PROJECTS_WIDTH)} %c${
-            padDisplay(target, TARGET_WIDTH)
-          }%c`,
-          `color: ${statusColor}`,
-          "",
-          "color: gray",
-          "",
+          } ${padDisplay(projectCount, PROJECTS_WIDTH)} `,
+          [padDisplay(target, TARGET_WIDTH), "color: gray"],
         )
       }
     } catch (error) {

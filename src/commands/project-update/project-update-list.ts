@@ -1,7 +1,13 @@
 import { Command } from "@cliffy/command"
 import { gql } from "../../__codegen__/gql.ts"
 import { getGraphQLClient } from "../../utils/graphql.ts"
-import { getTimeAgo, padDisplay, truncateText } from "../../utils/display.ts"
+import {
+  getTimeAgo,
+  padDisplay,
+  printStyled,
+  printStyledHeader,
+  truncateText,
+} from "../../utils/display.ts"
 import { resolveProjectId } from "../../utils/linear.ts"
 import { shouldShowSpinner } from "../../utils/hyperlink.ts"
 import { handleError, NotFoundError } from "../../utils/errors.ts"
@@ -119,18 +125,7 @@ export const listCommand = new Command()
         padDisplay("AUTHOR", AUTHOR_WIDTH),
       ]
 
-      let headerMsg = ""
-      const headerStyles: string[] = []
-      header.forEach((cell, index) => {
-        headerMsg += `%c${cell}`
-        headerStyles.push("text-decoration: underline")
-        if (index < header.length - 1) {
-          headerMsg += "%c %c"
-          headerStyles.push("text-decoration: none")
-          headerStyles.push("text-decoration: underline")
-        }
-      })
-      console.log(headerMsg, ...headerStyles)
+      printStyledHeader(header)
 
       // Print each update
       for (const update of updates) {
@@ -150,14 +145,12 @@ export const listCommand = new Command()
         }
 
         if (healthColor) {
-          console.log(
-            `${padDisplay(shortId, ID_WIDTH)} %c${
-              padDisplay(health, HEALTH_WIDTH)
-            }%c ${padDisplay(date, DATE_WIDTH)} ${
+          printStyled(
+            `${padDisplay(shortId, ID_WIDTH)} `,
+            [padDisplay(health, HEALTH_WIDTH), healthColor],
+            ` ${padDisplay(date, DATE_WIDTH)} ${
               padDisplay(author, AUTHOR_WIDTH)
             }`,
-            healthColor,
-            "",
           )
         } else {
           console.log(
@@ -173,7 +166,7 @@ export const listCommand = new Command()
         if (update.body) {
           const bodyPreview = update.body.replace(/\n/g, " ").trim()
           const truncatedBody = truncateText(bodyPreview, availableWidth)
-          console.log(`%c   ${truncatedBody}%c`, "color: gray", "")
+          printStyled([`   ${truncatedBody}`, "color: gray"])
         }
       }
     } catch (error) {

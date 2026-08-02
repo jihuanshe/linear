@@ -9,7 +9,8 @@
  */
 
 import { ClientError } from "graphql-request"
-import { gray, red, setColorEnabled } from "@std/fmt/colors"
+import { gray, red } from "@std/fmt/colors"
+import { withTerminalColors } from "./terminal.ts"
 
 /**
  * Check if debug mode is enabled via LINEAR_DEBUG environment variable.
@@ -132,17 +133,17 @@ export function isClientError(error: unknown): error is ClientError {
  * In debug mode (LINEAR_DEBUG=1): Also shows the full error details
  */
 export function handleError(error: unknown, context?: string): never {
-  setColorEnabled(Deno.stderr.isTerminal())
-
-  if (error instanceof CliError) {
-    printCliError(error, context)
-  } else if (isClientError(error)) {
-    printGraphQLError(error, context)
-  } else if (error instanceof Error) {
-    printGenericError(error, context)
-  } else {
-    printUnknownError(error, context)
-  }
+  withTerminalColors(Deno.stderr, () => {
+    if (error instanceof CliError) {
+      printCliError(error, context)
+    } else if (isClientError(error)) {
+      printGraphQLError(error, context)
+    } else if (error instanceof Error) {
+      printGenericError(error, context)
+    } else {
+      printUnknownError(error, context)
+    }
+  })
 
   Deno.exit(1)
 }

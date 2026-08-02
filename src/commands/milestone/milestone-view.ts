@@ -1,5 +1,5 @@
 import { Command } from "@cliffy/command"
-import { renderMarkdown } from "@littletof/charmd"
+import { renderMarkdown } from "../../utils/markdown.ts"
 import { gql } from "../../__codegen__/gql.ts"
 import { getGraphQLClient } from "../../utils/graphql.ts"
 import { formatRelativeTime } from "../../utils/display.ts"

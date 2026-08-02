@@ -3,6 +3,8 @@ import { gql } from "../../__codegen__/gql.ts"
 import {
   formatRelativeTime,
   padDisplay,
+  printStyled,
+  printStyledHeader,
   truncateText,
 } from "../../utils/display.ts"
 import { handleError, NotFoundError } from "../../utils/errors.ts"
@@ -196,18 +198,7 @@ export const listCommand = new Command()
         padDisplay("AUTHOR", AUTHOR_WIDTH),
       ]
 
-      let headerMsg = ""
-      const headerStyles: string[] = []
-      headerCells.forEach((cell, index) => {
-        headerMsg += `%c${cell}`
-        headerStyles.push("text-decoration: underline")
-        if (index < headerCells.length - 1) {
-          headerMsg += "%c %c"
-          headerStyles.push("text-decoration: none")
-          headerStyles.push("text-decoration: underline")
-        }
-      })
-      console.log(headerMsg, ...headerStyles)
+      printStyledHeader(headerCells)
 
       // Print each update
       for (const update of updates) {
@@ -221,16 +212,12 @@ export const listCommand = new Command()
         const date = formatRelativeTime(update.createdAt)
         const author = update.user?.name || "-"
 
-        console.log(
-          `${padDisplay(shortId, ID_WIDTH)} %c${
-            padDisplay(healthDisplay, HEALTH_WIDTH)
-          }%c %c${padDisplay(date, DATE_WIDTH)}%c ${
-            padDisplay(author, AUTHOR_WIDTH)
-          }`,
-          `color: ${healthColor}`,
-          "",
-          "color: gray",
-          "",
+        printStyled(
+          `${padDisplay(shortId, ID_WIDTH)} `,
+          [padDisplay(healthDisplay, HEALTH_WIDTH), `color: ${healthColor}`],
+          " ",
+          [padDisplay(date, DATE_WIDTH), "color: gray"],
+          ` ${padDisplay(author, AUTHOR_WIDTH)}`,
         )
 
         // Print body preview if available (indented, on next line)
@@ -239,7 +226,7 @@ export const listCommand = new Command()
             update.body.replace(/\n/g, " ").trim(),
             availableWidth,
           )
-          console.log(`  %c${bodyPreview}%c`, "color: gray", "")
+          printStyled("  ", [bodyPreview, "color: gray"])
         }
       }
     } catch (error) {

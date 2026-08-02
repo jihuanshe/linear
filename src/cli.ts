@@ -17,6 +17,7 @@ import { configCommand } from "./commands/config.ts"
 import { schemaCommand } from "./commands/schema.ts"
 import { apiCommand } from "./commands/api.ts"
 import { setCliWorkspace } from "./config.ts"
+import { supportsStdoutStyling } from "./utils/terminal.ts"
 
 // Import config and credentials setup
 import "./config.ts"
@@ -27,6 +28,8 @@ import "./credentials.ts"
 // published public API and doesn't trip the no-slow-types check.
 export const cli = new Command()
   .name("linear")
+  .throwErrors()
+  .help({ colors: supportsStdoutStyling() })
   .version(denoConfig.version)
   .description(
     `Handy linear commands from the command line.

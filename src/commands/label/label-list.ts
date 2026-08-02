@@ -3,7 +3,7 @@ import { unicodeWidth } from "@std/cli"
 import { gql } from "../../__codegen__/gql.ts"
 import type { GetIssueLabelsQuery } from "../../__codegen__/graphql.ts"
 import { getGraphQLClient } from "../../utils/graphql.ts"
-import { padDisplay } from "../../utils/display.ts"
+import { padDisplay, printStyledHeader } from "../../utils/display.ts"
 import { getTeamKey } from "../../utils/linear.ts"
 import { shouldShowSpinner } from "../../utils/hyperlink.ts"
 import { handleError } from "../../utils/errors.ts"
@@ -185,18 +185,7 @@ export const listCommand = new Command()
         padDisplay("TEAM", TEAM_WIDTH),
       ]
 
-      let headerMsg = ""
-      const headerStyles: string[] = []
-      headerCells.forEach((cell, index) => {
-        headerMsg += `%c${cell}`
-        headerStyles.push("text-decoration: underline")
-        if (index < headerCells.length - 1) {
-          headerMsg += "%c %c"
-          headerStyles.push("text-decoration: none")
-          headerStyles.push("text-decoration: underline")
-        }
-      })
-      console.log(headerMsg, ...headerStyles)
+      printStyledHeader(headerCells)
 
       // Print each label
       for (const label of sortedLabels) {

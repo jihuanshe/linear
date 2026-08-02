@@ -2,6 +2,7 @@ import { yellow } from "@std/fmt/colors"
 import { macosBackend } from "./macos.ts"
 import { linuxBackend } from "./linux.ts"
 import { windowsBackend } from "./windows.ts"
+import { withTerminalColors } from "../utils/terminal.ts"
 
 export const SERVICE = "linear-cli"
 
@@ -52,9 +53,10 @@ export async function isAvailable(): Promise<boolean> {
     return await getBackend().isAvailable()
   } catch (error) {
     const detail = error instanceof Error ? error.message : String(error)
-    console.error(
-      yellow(`Warning: Keyring availability check failed: ${detail}`),
-    )
+    withTerminalColors(Deno.stderr, () =>
+      console.error(
+        yellow(`Warning: Keyring availability check failed: ${detail}`),
+      ))
     return false
   }
 }

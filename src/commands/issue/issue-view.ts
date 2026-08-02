@@ -1,5 +1,5 @@
 import { Command } from "@cliffy/command"
-import { renderMarkdown } from "@littletof/charmd"
+import { renderMarkdown } from "../../utils/markdown.ts"
 import type { Extension } from "@littletof/charmd"
 import {
   fetchIssueDetails,

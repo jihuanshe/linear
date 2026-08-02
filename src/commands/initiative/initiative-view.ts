@@ -1,9 +1,9 @@
 import { Command } from "@cliffy/command"
-import { renderMarkdown } from "@littletof/charmd"
+import { renderMarkdown } from "../../utils/markdown.ts"
 import { open } from "@opensrc/deno-open"
 import { gql } from "../../__codegen__/gql.ts"
 import { getGraphQLClient } from "../../utils/graphql.ts"
-import { formatRelativeTime } from "../../utils/display.ts"
+import { formatRelativeTime, printStyled } from "../../utils/display.ts"
 import { shouldShowSpinner } from "../../utils/hyperlink.ts"
 import { handleError, NotFoundError } from "../../utils/errors.ts"
 
@@ -136,7 +136,7 @@ export const viewCommand = new Command()
       const statusLine = `**Status:** ${statusDisplay}`
       if (Deno.stdout.isTerminal()) {
         const statusColor = STATUS_COLORS[initiative.status] || "#6B6F76"
-        console.log(`%c${statusLine}%c`, `color: ${statusColor}`, "")
+        printStyled([statusLine, `color: ${statusColor}`])
       } else {
         lines.push(statusLine)
       }

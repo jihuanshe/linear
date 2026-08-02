@@ -6,7 +6,7 @@ import {
   getDefaultWorkspace,
   getWorkspaces,
 } from "../../credentials.ts"
-import { padDisplay } from "../../utils/display.ts"
+import { padDisplay, printStyled } from "../../utils/display.ts"
 import { handleError, isClientError } from "../../utils/errors.ts"
 import { createGraphQLClient } from "../../utils/graphql.ts"
 
@@ -110,7 +110,7 @@ export const listCommand = new Command()
       const header = `  ${padDisplay("WORKSPACE", workspaceWidth)} ${
         padDisplay("ORG NAME", orgWidth)
       } USER`
-      console.log(`%c${header}`, "text-decoration: underline")
+      printStyled([header, "text-decoration: underline"])
 
       // Print each workspace
       for (const info of infos) {
@@ -118,7 +118,7 @@ export const listCommand = new Command()
         const ws = padDisplay(info.workspace, workspaceWidth)
         if (info.error) {
           const org = padDisplay(info.error, orgWidth)
-          console.log(`${prefix}${ws} %c${org}%c`, "color: red", "")
+          printStyled(`${prefix}${ws} `, [org, "color: red"])
         } else {
           const org = padDisplay(info.orgName ?? "", orgWidth)
           const user = `${info.userName} <${info.email}>`

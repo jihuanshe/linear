@@ -3,6 +3,7 @@ import { dirname, join } from "@std/path"
 import { ensureDir } from "@std/fs"
 import { yellow } from "@std/fmt/colors"
 import { deletePassword, getPassword, setPassword } from "./keyring/index.ts"
+import { withTerminalColors } from "./utils/terminal.ts"
 
 function errorDetail(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
@@ -90,12 +91,13 @@ function parseKeyringCredentials(parsed: Record<string, unknown>): Credentials {
   const defaultIsValid = defaultWs != null && workspaces.includes(defaultWs)
 
   if (defaultWs != null && !defaultIsValid) {
-    console.error(
-      yellow(
-        `Warning: Default workspace "${defaultWs}" is not in the workspaces list. ` +
-          `Run \`linear auth default <workspace>\` to set a valid default.`,
-      ),
-    )
+    withTerminalColors(Deno.stderr, () =>
+      console.error(
+        yellow(
+          `Warning: Default workspace "${defaultWs}" is not in the workspaces list. ` +
+            `Run \`linear auth default <workspace>\` to set a valid default.`,
+        ),
+      ))
   }
 
   return {
@@ -111,20 +113,22 @@ async function populateKeyringCache(workspaces: string[]): Promise<void> {
       if (key != null) {
         apiKeyCache.set(ws, key)
       } else {
-        console.error(
-          yellow(
-            `Warning: No keyring entry for workspace "${ws}". Run \`linear auth login\` to re-authenticate.`,
-          ),
-        )
+        withTerminalColors(Deno.stderr, () =>
+          console.error(
+            yellow(
+              `Warning: No keyring entry for workspace "${ws}". Run \`linear auth login\` to re-authenticate.`,
+            ),
+          ))
       }
     } catch (error) {
-      console.error(
-        yellow(
-          `Warning: Failed to read keyring for workspace "${ws}": ${
-            errorDetail(error)
-          }`,
-        ),
-      )
+      withTerminalColors(Deno.stderr, () =>
+        console.error(
+          yellow(
+            `Warning: Failed to read keyring for workspace "${ws}": ${
+              errorDetail(error)
+            }`,
+          ),
+        ))
     }
   }))
 }

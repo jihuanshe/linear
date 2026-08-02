@@ -1,5 +1,47 @@
 import { assertEquals, assertThrows } from "@std/assert"
-import { formatCycleShort } from "../../src/utils/display.ts"
+import { formatCycleShort, printStyled } from "../../src/utils/display.ts"
+
+Deno.test("printStyled preserves literal directives on the plain path", () => {
+  const originalLog = console.log
+  const originalIsTerminal = Deno.stdout.isTerminal
+  const calls: unknown[][] = []
+  console.log = (...args: unknown[]) => calls.push(args)
+  Deno.stdout.isTerminal = () => false
+  try {
+    printStyled("literal %c %s ", ["%d", "underline"])
+    assertEquals(calls, [["literal %c %s %d"]])
+  } finally {
+    console.log = originalLog
+    Deno.stdout.isTerminal = originalIsTerminal
+  }
+})
+
+Deno.test("printStyled passes dynamic text only as string arguments", () => {
+  const originalLog = console.log
+  const originalIsTerminal = Deno.stdout.isTerminal
+  const originalNoColor = Deno.env.get("NO_COLOR")
+  const originalTerm = Deno.env.get("TERM")
+  const originalCliColor = Deno.env.get("CLICOLOR")
+  const calls: unknown[][] = []
+  console.log = (...args: unknown[]) => calls.push(args)
+  Deno.stdout.isTerminal = () => true
+  Deno.env.delete("NO_COLOR")
+  Deno.env.set("TERM", "xterm-256color")
+  Deno.env.delete("CLICOLOR")
+  try {
+    printStyled("literal %c %s ", ["%d", "underline"])
+    assertEquals(calls, [["%s%c%s%c", "literal %c %s ", "underline", "%d", ""]])
+  } finally {
+    console.log = originalLog
+    Deno.stdout.isTerminal = originalIsTerminal
+    if (originalNoColor == null) Deno.env.delete("NO_COLOR")
+    else Deno.env.set("NO_COLOR", originalNoColor)
+    if (originalTerm == null) Deno.env.delete("TERM")
+    else Deno.env.set("TERM", originalTerm)
+    if (originalCliColor == null) Deno.env.delete("CLICOLOR")
+    else Deno.env.set("CLICOLOR", originalCliColor)
+  }
+})
 
 function cycle(overrides: {
   number: number

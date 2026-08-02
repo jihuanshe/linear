@@ -1,6 +1,7 @@
 import { unicodeWidth } from "@std/cli"
 import { green } from "@std/fmt/colors"
 import { muted } from "./styling.ts"
+import { supportsStdoutStyling } from "./terminal.ts"
 
 export function padDisplay(s: string, width: number): string {
   const w = unicodeWidth(s)
@@ -9,6 +10,40 @@ export function padDisplay(s: string, width: number): string {
 
 export function stripConsoleFormat(s: string): string {
   return s.replace(/%c/g, "")
+}
+
+export type StyledPart = string | readonly [text: string, style: string]
+
+export function printStyled(...parts: readonly StyledPart[]): void {
+  if (supportsStdoutStyling()) {
+    let format = ""
+    const args: string[] = []
+    for (const part of parts) {
+      if (typeof part === "string") {
+        format += "%s"
+        args.push(part)
+      } else {
+        format += "%c%s"
+        args.push(part[1], part[0])
+      }
+    }
+    format += "%c"
+    console.log(format, ...args, "")
+  } else {
+    console.log(
+      parts.map((part) => typeof part === "string" ? part : part[0]).join(""),
+    )
+  }
+}
+
+export function printStyledHeader(cells: readonly string[]): void {
+  printStyled(
+    ...cells.flatMap<StyledPart>((cell, index) =>
+      index === 0
+        ? [[cell, "text-decoration: underline"]]
+        : [" ", [cell, "text-decoration: underline"]]
+    ),
+  )
 }
 
 export function padDisplayFormatted(s: string, width: number): string {

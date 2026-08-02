@@ -1,10 +1,11 @@
 import { ClientError, GraphQLClient } from "graphql-request"
-import { gray, setColorEnabled } from "@std/fmt/colors"
+import { gray } from "@std/fmt/colors"
 import { getCliWorkspace, getOption } from "../config.ts"
 import { getCredentialApiKey } from "../credentials.ts"
 import denoConfig from "../../deno.json" with { type: "json" }
 import { extractGraphQLMessage, isDebugMode } from "./errors.ts"
 import { LINEAR_API_ENDPOINT } from "../const.ts"
+import { withTerminalColors } from "./terminal.ts"
 
 export { ClientError }
 
@@ -21,15 +22,15 @@ export function logClientError(error: ClientError): void {
 
   // Only show query details in debug mode
   if (isDebugMode()) {
-    setColorEnabled(Deno.stderr.isTerminal())
+    withTerminalColors(Deno.stderr, () => {
+      const rawQuery = error.request?.query
+      const query = typeof rawQuery === "string" ? rawQuery.trim() : rawQuery
+      const vars = JSON.stringify(error.request?.variables, null, 2)
 
-    const rawQuery = error.request?.query
-    const query = typeof rawQuery === "string" ? rawQuery.trim() : rawQuery
-    const vars = JSON.stringify(error.request?.variables, null, 2)
-
-    console.error(gray(String(query)))
-    console.error("")
-    console.error(gray(vars))
+      console.error(gray(String(query)))
+      console.error("")
+      console.error(gray(vars))
+    })
   }
 }
 

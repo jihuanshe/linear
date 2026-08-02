@@ -7,6 +7,8 @@
  * See: https://gist.github.com/egmontkob/eb114294efbcd5adb1944c9f3cb5feda
  */
 
+import { supportsStdoutStyling } from "./terminal.ts"
+
 /**
  * Wrap text in an OSC-8 hyperlink escape sequence
  */
@@ -21,13 +23,7 @@ export function hyperlink(text: string, url: string): string {
  * - stdout is not a terminal
  */
 export function shouldEnableHyperlinks(): boolean {
-  if (Deno.env.get("NO_COLOR") != null) {
-    return false
-  }
-  if (!Deno.stdout.isTerminal()) {
-    return false
-  }
-  return true
+  return supportsStdoutStyling()
 }
 
 /**
@@ -40,13 +36,7 @@ export function shouldEnableHyperlinks(): boolean {
  * other tools that capture output (e.g., AI assistants, scripts).
  */
 export function shouldShowSpinner(): boolean {
-  if (Deno.env.get("NO_COLOR") != null) {
-    return false
-  }
-  if (!Deno.stdout.isTerminal()) {
-    return false
-  }
-  return true
+  return supportsStdoutStyling()
 }
 
 /**

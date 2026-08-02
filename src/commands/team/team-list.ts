@@ -4,7 +4,12 @@ import { open } from "@opensrc/deno-open"
 import { gql } from "../../__codegen__/gql.ts"
 import type { GetTeamsQuery } from "../../__codegen__/graphql.ts"
 import { getGraphQLClient } from "../../utils/graphql.ts"
-import { getTimeAgo, padDisplay } from "../../utils/display.ts"
+import {
+  getTimeAgo,
+  padDisplay,
+  printStyled,
+  printStyledHeader,
+} from "../../utils/display.ts"
 import { getOption } from "../../config.ts"
 import { shouldShowSpinner } from "../../utils/hyperlink.ts"
 import { handleError, ValidationError } from "../../utils/errors.ts"
@@ -139,18 +144,7 @@ export const listCommand = new Command()
         padDisplay("ID", ID_WIDTH),
       ]
 
-      let headerMsg = ""
-      const headerStyles: string[] = []
-      headerCells.forEach((cell, index) => {
-        headerMsg += `%c${cell}`
-        headerStyles.push("text-decoration: underline")
-        if (index < headerCells.length - 1) {
-          headerMsg += "%c %c"
-          headerStyles.push("text-decoration: none")
-          headerStyles.push("text-decoration: underline")
-        }
-      })
-      console.log(headerMsg, ...headerStyles)
+      printStyledHeader(headerCells)
 
       // Print each team
       for (const team of teams) {
@@ -161,18 +155,15 @@ export const listCommand = new Command()
           ? team.name.slice(0, nameWidth - 3) + "..."
           : padDisplay(team.name, nameWidth)
 
-        console.log(
-          `%c${padDisplay(team.key, KEY_WIDTH)}%c ${truncName} ${
-            padDisplay(cycles, CYCLES_WIDTH)
-          } %c${padDisplay(updated, UPDATED_WIDTH)}%c %c${
-            padDisplay(team.id, ID_WIDTH)
-          }%c`,
-          `color: ${team.color || "#ffffff"}`,
-          "",
-          "color: gray",
-          "",
-          "color: gray",
-          "",
+        printStyled(
+          [
+            padDisplay(team.key, KEY_WIDTH),
+            `color: ${team.color || "#ffffff"}`,
+          ],
+          ` ${truncName} ${padDisplay(cycles, CYCLES_WIDTH)} `,
+          [padDisplay(updated, UPDATED_WIDTH), "color: gray"],
+          " ",
+          [padDisplay(team.id, ID_WIDTH), "color: gray"],
         )
       }
     } catch (error) {
