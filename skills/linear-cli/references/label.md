@@ -79,9 +79,10 @@ Description:
 
 Options:
 
-  -h, --help              - Show this help.                                              
-  --team       <teamKey>  - Filter by team (e.g., TC). Shows team-specific labels only.  
-  --workspace             - Show only workspace-level labels (not team-specific)         
-  --all                   - Show all labels (both workspace and team)                    
-  -j, --json              - Output as JSON
+  -h, --help                     - Show this help.                                              
+  --workspace         <slug>     - Target workspace (uses credentials)                          
+  --team              <teamKey>  - Filter by team (e.g., TC). Shows team-specific labels only.  
+  --workspace-labels             - Show only workspace-level labels (not team-specific)         
+  --all                          - Show all labels (both workspace and team)                    
+  -j, --json                     - Output as JSON
 ```

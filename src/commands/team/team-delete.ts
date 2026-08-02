@@ -221,15 +221,26 @@ async function moveIssuesToTeam(
       mutation MoveIssueToTeam($id: String!, $teamId: String!) {
         issueUpdate(id: $id, input: { teamId: $teamId }) {
           success
+          issue {
+            identifier
+          }
         }
       }
     `)
 
+    const movedIssues: Array<{ from: string; to: string }> = []
     let movedCount = 0
     for (const issue of allIssues) {
-      await client.request(updateIssueMutation, {
+      const result = await client.request(updateIssueMutation, {
         id: issue.id,
         teamId: targetTeamId,
+      })
+      if (!result.issueUpdate.success || !result.issueUpdate.issue) {
+        throw new CliError(`Failed to move issue ${issue.identifier}`)
+      }
+      movedIssues.push({
+        from: issue.identifier,
+        to: result.issueUpdate.issue.identifier,
       })
       movedCount++
       if (spinner) {
@@ -238,6 +249,9 @@ async function moveIssuesToTeam(
     }
 
     spinner?.stop()
+    for (const issue of movedIssues) {
+      console.log(`✓ Moved ${issue.from} → ${issue.to}`)
+    }
     console.log(`✓ Moved ${movedCount} issue(s) to target team`)
   } catch (error) {
     spinner?.stop()

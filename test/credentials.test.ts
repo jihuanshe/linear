@@ -612,6 +612,9 @@ Deno.test("credentials - addCredential on inline-format file preserves inline fo
       `${configDir}/credentials.toml`,
       `default = "old-ws"\nold-ws = "lin_api_old"\n`,
     )
+    if (Deno.build.os !== "windows") {
+      await Deno.chmod(`${configDir}/credentials.toml`, 0o644)
+    }
 
     const code = `
       ${
@@ -620,13 +623,17 @@ Deno.test("credentials - addCredential on inline-format file preserves inline fo
       )
     }
       await addCredential("new-ws", "lin_api_new");
-      const toml = await Deno.readTextFile(getCredentialsPath()!);
+      const path = getCredentialsPath()!;
+      const toml = await Deno.readTextFile(path);
       console.log(JSON.stringify({
         workspaces: getWorkspaces(),
         hasWorkspacesKey: toml.includes("workspaces"),
         hasInlineKey: toml.includes("lin_api"),
         oldKeyPreserved: toml.includes("lin_api_old"),
         newKeyPresent: toml.includes("lin_api_new"),
+        mode: Deno.build.os === "windows"
+          ? null
+          : (await Deno.stat(path)).mode! & 0o777,
       }));
     `
 
@@ -636,6 +643,9 @@ Deno.test("credentials - addCredential on inline-format file preserves inline fo
     assertEquals(result.hasInlineKey, true)
     assertEquals(result.oldKeyPreserved, true)
     assertEquals(result.newKeyPresent, true)
+    if (Deno.build.os !== "windows") {
+      assertEquals(result.mode, 0o600)
+    }
   } finally {
     await Deno.remove(tempDir, { recursive: true })
   }
@@ -739,11 +749,15 @@ Deno.test("credentials - addCredential with plaintext writes key to TOML file", 
       )
     }
       await addCredential("my-ws", "lin_api_plain", { plaintext: true });
-      const toml = await Deno.readTextFile(getCredentialsPath()!);
+      const path = getCredentialsPath()!;
+      const toml = await Deno.readTextFile(path);
       console.log(JSON.stringify({
         apiKey: getCredentialApiKey("my-ws"),
         hasInlineKey: toml.includes("lin_api_plain"),
         hasWorkspacesArray: toml.includes("workspaces"),
+        mode: Deno.build.os === "windows"
+          ? null
+          : (await Deno.stat(path)).mode! & 0o777,
       }));
     `
 
@@ -753,6 +767,9 @@ Deno.test("credentials - addCredential with plaintext writes key to TOML file", 
     assertEquals(result.apiKey, "lin_api_plain")
     assertEquals(result.hasInlineKey, true)
     assertEquals(result.hasWorkspacesArray, false)
+    if (Deno.build.os !== "windows") {
+      assertEquals(result.mode, 0o600)
+    }
   } finally {
     await Deno.remove(tempDir, { recursive: true })
   }

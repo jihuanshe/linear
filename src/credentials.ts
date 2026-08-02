@@ -9,6 +9,27 @@ function errorDetail(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
 }
 
+async function writeCredentialsFile(
+  path: string,
+  content: string,
+): Promise<void> {
+  if (Deno.build.os !== "windows") {
+    try {
+      await Deno.chmod(path, 0o600)
+    } catch (error) {
+      if (!(error instanceof Deno.errors.NotFound)) {
+        throw error
+      }
+    }
+  }
+
+  await Deno.writeTextFile(path, content, { mode: 0o600 })
+
+  if (Deno.build.os !== "windows") {
+    await Deno.chmod(path, 0o600)
+  }
+}
+
 export interface Credentials {
   default?: string
   workspaces: string[]
@@ -202,7 +223,7 @@ async function saveCredentials(): Promise<void> {
   }
   ordered.workspaces = [...credentials.workspaces].sort()
 
-  await Deno.writeTextFile(path, stringify(ordered))
+  await writeCredentialsFile(path, stringify(ordered))
 }
 
 /**
@@ -235,7 +256,7 @@ async function saveInlineCredentials(
     ordered[ws] = key
   }
 
-  await Deno.writeTextFile(path, stringify(ordered))
+  await writeCredentialsFile(path, stringify(ordered))
 }
 
 /**
@@ -265,7 +286,7 @@ async function saveAllInlineCredentials(): Promise<void> {
     ordered[ws] = key
   }
 
-  await Deno.writeTextFile(path, stringify(ordered))
+  await writeCredentialsFile(path, stringify(ordered))
 }
 
 /**

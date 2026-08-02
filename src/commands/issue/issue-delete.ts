@@ -2,7 +2,7 @@ import { Command } from "@cliffy/command"
 import { Confirm } from "../../utils/prompt.ts"
 import { gql } from "../../__codegen__/gql.ts"
 import { getGraphQLClient } from "../../utils/graphql.ts"
-import { getIssueIdentifier } from "../../utils/linear.ts"
+import { getIssueIdentifier, isLinearUuid } from "../../utils/linear.ts"
 import {
   type BulkOperationResult,
   collectBulkIds,
@@ -23,7 +23,7 @@ interface IssueDeleteResult extends BulkOperationResult {
 
 export const deleteCommand = new Command()
   .name("delete")
-  .description("Delete an issue")
+  .description("Delete an issue by identifier or UUID")
   .alias("d")
   .arguments("[issueId:string]")
   .option("-y, --confirm", "Skip confirmation prompt")
@@ -79,7 +79,9 @@ async function handleSingleDelete(
   const { confirm } = options
 
   // First resolve the issue ID to get the issue details
-  const resolvedId = await getIssueIdentifier(issueId)
+  const resolvedId = isLinearUuid(issueId)
+    ? issueId
+    : await getIssueIdentifier(issueId)
   if (!resolvedId) {
     throw new NotFoundError("Issue", issueId)
   }

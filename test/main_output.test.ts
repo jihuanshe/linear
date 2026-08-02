@@ -165,6 +165,116 @@ Deno.test("main emits only the issueUpdate payload for issue update --json", asy
   }
 })
 
+Deno.test("global workspace selection does not change label --all scope", async () => {
+  const root = await Deno.makeTempDir()
+  const configRoot = join(root, "config")
+  const credentialsDir = join(configRoot, "linear")
+  await Deno.mkdir(credentialsDir, { recursive: true })
+  await Deno.writeTextFile(
+    join(credentialsDir, "credentials.toml"),
+    'default = "sandbox"\nsandbox = "Bearer test-token"\n',
+  )
+  const label = {
+    id: "team-label-id",
+    name: "Team label",
+    description: null,
+    color: "#5E6AD2",
+    team: { key: "ENG", name: "Engineering" },
+  }
+  const { server, cleanup } = await setupMockLinearServer([{
+    queryName: "GetIssueLabels",
+    variables: { filter: undefined, first: 100, after: undefined },
+    response: {
+      data: {
+        issueLabels: {
+          nodes: [label],
+          pageInfo: { hasNextPage: false, endCursor: null },
+        },
+      },
+    },
+  }])
+
+  try {
+    const result = await run([
+      "--workspace",
+      "sandbox",
+      "label",
+      "list",
+      "--all",
+      "--json",
+    ], {
+      HOME: join(root, "home"),
+      XDG_CONFIG_HOME: configRoot,
+      LINEAR_API_KEY: "",
+      LINEAR_GRAPHQL_ENDPOINT: server.getEndpoint(),
+      NO_COLOR: "1",
+    })
+
+    assertEquals(result.code, 0, result.stderr)
+    assertEquals(JSON.parse(result.stdout).nodes, [label])
+    assertEquals(result.stderr, "")
+  } finally {
+    await cleanup()
+    await Deno.remove(root, { recursive: true })
+  }
+})
+
+Deno.test("label list workspace-labels uses the workspace label filter", async () => {
+  const { server, cleanup } = await setupMockLinearServer([{
+    queryName: "GetIssueLabels",
+    variables: {
+      filter: { team: { null: true } },
+      first: 100,
+      after: undefined,
+    },
+    response: {
+      data: {
+        issueLabels: {
+          nodes: [],
+          pageInfo: { hasNextPage: false, endCursor: null },
+        },
+      },
+    },
+  }])
+
+  try {
+    const result = await run([
+      "label",
+      "list",
+      "--workspace-labels",
+      "--json",
+    ], {
+      LINEAR_API_KEY: "Bearer test-token",
+      LINEAR_GRAPHQL_ENDPOINT: server.getEndpoint(),
+      NO_COLOR: "1",
+    })
+
+    assertEquals(result.code, 0, result.stderr)
+    assertEquals(JSON.parse(result.stdout).nodes, [])
+    assertEquals(result.stderr, "")
+  } finally {
+    await cleanup()
+  }
+})
+
+Deno.test("label list rejects conflicting scopes", async () => {
+  const result = await run([
+    "label",
+    "list",
+    "--workspace-labels",
+    "--all",
+    "--json",
+  ], {
+    LINEAR_API_KEY: "Bearer test-token",
+    NO_COLOR: "1",
+  })
+
+  assertEquals(result.code, 1)
+  assertEquals(result.stdout, "")
+  assertMatch(result.stderr, /Only one label scope can be specified/)
+  assertMatch(result.stderr, /--team, --workspace-labels, or --all/)
+})
+
 Deno.test("auth login skips post-write migration prompts when disabled", async () => {
   const root = await Deno.makeTempDir()
   const configRoot = join(root, "config")
@@ -205,6 +315,10 @@ Deno.test("auth login skips post-write migration prompts when disabled", async (
     assertEquals(result.code, 0, result.stderr)
     assertMatch(result.stdout, /Logged in to workspace: Acme \(acme\)/)
     assertEquals(result.stderr, "")
+    if (Deno.build.os !== "windows") {
+      const stat = await Deno.stat(join(credentialsDir, "credentials.toml"))
+      assertEquals(stat.mode! & 0o777, 0o600)
+    }
   } finally {
     await cleanup()
     await Deno.remove(root, { recursive: true })
