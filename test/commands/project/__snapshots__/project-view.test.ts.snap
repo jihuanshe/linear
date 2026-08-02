@@ -14,6 +14,7 @@ Options:
   -h, --help  - Show this help.      
   -w, --web   - Open in web browser  
   -a, --app   - Open in Linear.app   
+  -j, --json  - Output as JSON       
 
 "
 stderr:
@@ -85,18 +86,41 @@ stderr:
 ""
 `;
 
-snapshot[`Project View Command - Minimal Project 1`] = `
+snapshot[`Project View Command - Minimal Project JSON 1`] = `
 stdout:
-"# Simple Project
-
-**Slug:** simple
-**URL:** https://linear.app/acme/project/simple
-**Status:** Backlog
-**Priority:** None
-
-**Created:** 1/20/2024
-**Updated:** 1/20/2024
-"
+'{
+  "id": "minimal-project",
+  "name": "Simple Project",
+  "description": "",
+  "slugId": "simple",
+  "icon": null,
+  "color": "#64748b",
+  "status": {
+    "id": "status-backlog",
+    "name": "Backlog",
+    "color": "#94a3b8"
+  },
+  "creator": null,
+  "lead": null,
+  "priority": 0,
+  "health": null,
+  "startDate": null,
+  "targetDate": null,
+  "startedAt": null,
+  "completedAt": null,
+  "canceledAt": null,
+  "updatedAt": "2024-01-20T12:00:00Z",
+  "createdAt": "2024-01-20T12:00:00Z",
+  "url": "https://linear.app/acme/project/simple",
+  "teams": {
+    "nodes": []
+  },
+  "issues": {
+    "nodes": []
+  },
+  "lastUpdate": null
+}
+'
 stderr:
 ""
 `;

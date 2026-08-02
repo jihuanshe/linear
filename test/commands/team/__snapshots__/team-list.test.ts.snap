@@ -11,9 +11,11 @@ Description:
 
 Options:
 
-  -h, --help  - Show this help.      
-  -w, --web   - Open in web browser  
-  -a, --app   - Open in Linear.app   
+  -h, --help           - Show this help.      
+  -w, --web            - Open in web browser  
+  -a, --app            - Open in Linear.app   
+  -j, --json           - Output as JSON       
+  --limit     <limit>  - Limit results        
 
 "
 stderr:
@@ -24,6 +26,51 @@ snapshot[`Team List Command - No Teams Found 1`] = `
 stdout:
 "No teams found.
 "
+stderr:
+""
+`;
+
+snapshot[`Team List Command - Empty JSON Connection 1`] = `
+stdout:
+'{
+  "nodes": [],
+  "pageInfo": {
+    "hasNextPage": false,
+    "endCursor": null
+  }
+}
+'
+stderr:
+""
+`;
+
+snapshot[`Team List Command - JSON Limit After Sorting 1`] = `
+stdout:
+'{
+  "nodes": [
+    {
+      "id": "team-a",
+      "name": "Alpha",
+      "key": "A",
+      "description": null,
+      "icon": null,
+      "color": null,
+      "cyclesEnabled": false,
+      "createdAt": "2024-01-01T00:00:00Z",
+      "updatedAt": "2024-01-01T00:00:00Z",
+      "archivedAt": null,
+      "organization": {
+        "id": "org-1",
+        "name": "Acme"
+      }
+    }
+  ],
+  "pageInfo": {
+    "hasNextPage": false,
+    "endCursor": null
+  }
+}
+'
 stderr:
 ""
 `;

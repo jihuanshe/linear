@@ -1,0 +1,21 @@
+export const snapshot = {};
+
+snapshot[`Auth Whoami Command - JSON viewer 1`] = `
+stdout:
+'{
+  "id": "user-1",
+  "name": "Pat",
+  "displayName": "Pat Example",
+  "email": "pat@example.com",
+  "admin": true,
+  "guest": false,
+  "organization": {
+    "name": "Acme",
+    "urlKey": "acme",
+    "logoUrl": "https://example.com/logo.png"
+  }
+}
+'
+stderr:
+""
+`;

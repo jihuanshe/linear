@@ -13,6 +13,7 @@ await snapshotTest({
   args: ["--help"],
   denoArgs,
   async fn() {
+    viewCommand.help({ colors: false })
     await viewCommand.parse()
   },
 })
@@ -149,10 +150,10 @@ await snapshotTest({
 
 // Test with minimal project (no optional fields)
 await snapshotTest({
-  name: "Project View Command - Minimal Project",
+  name: "Project View Command - Minimal Project JSON",
   meta: import.meta,
   colors: false,
-  args: ["minimal-project"],
+  args: ["minimal-project", "--json"],
   denoArgs,
   async fn() {
     const server = new MockLinearServer([

@@ -25,11 +25,18 @@ const viewerQuery = gql(`
 export const whoamiCommand = new Command()
   .name("whoami")
   .description("Print information about the authenticated user")
-  .action(async () => {
+  .option("-j, --json", "Output as JSON")
+  .action(async ({ json }) => {
     try {
       const client = getGraphQLClient()
       const result = await client.request(viewerQuery)
       const viewer = result.viewer
+
+      if (json) {
+        console.log(JSON.stringify(viewer, null, 2))
+        return
+      }
+
       const org = viewer.organization
 
       console.log(`Workspace: ${org.name}`)

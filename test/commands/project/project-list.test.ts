@@ -12,6 +12,7 @@ await cliffySnapshotTest({
   args: ["--help"],
   denoArgs: commonDenoArgs,
   async fn() {
+    listCommand.help({ colors: false })
     await listCommand.parse()
   },
 })
@@ -506,7 +507,7 @@ await cliffySnapshotTest({
   name: "Project List Command - JSON Output With Pagination",
   meta: import.meta,
   colors: false,
-  args: ["--all-teams", "--json"],
+  args: ["--all-teams", "--json", "--limit", "1"],
   denoArgs: commonDenoArgs,
   async fn() {
     const server = new MockLinearServer([

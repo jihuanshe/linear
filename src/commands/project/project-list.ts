@@ -73,7 +73,8 @@ export const listCommand = new Command()
   .option("-w, --web", "Open in web browser")
   .option("-a, --app", "Open in Linear.app")
   .option("-j, --json", "Output as JSON")
-  .action(async ({ team, allTeams, status, web, app, json }) => {
+  .option("--limit <limit:number>", "Limit results")
+  .action(async ({ team, allTeams, status, web, app, json, limit }) => {
     if (web || app) {
       let workspace = getOption("workspace")
       if (!workspace) {
@@ -108,6 +109,10 @@ export const listCommand = new Command()
     spinner?.start()
 
     try {
+      if (limit != null && limit < 0) {
+        throw new ValidationError("--limit must be 0 or greater")
+      }
+
       // Validate conflicting flags
       if (team && allTeams) {
         throw new ValidationError(
@@ -204,6 +209,10 @@ export const listCommand = new Command()
         // Then sort alphabetically by name
         return a.name.localeCompare(b.name)
       })
+
+      if (limit != null && limit > 0) {
+        projects = projects.slice(0, limit)
+      }
 
       if (json) {
         console.log(JSON.stringify(

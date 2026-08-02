@@ -14,6 +14,7 @@ await cliffySnapshotTest({
   args: ["--help"],
   denoArgs,
   async fn() {
+    listCommand.help({ colors: false })
     await listCommand.parse()
   },
 })
@@ -156,6 +157,83 @@ await cliffySnapshotTest({
       Deno.env.set("LINEAR_GRAPHQL_ENDPOINT", server.getEndpoint())
       Deno.env.set("LINEAR_API_KEY", "Bearer test-token")
 
+      await listCommand.parse()
+    } finally {
+      await server.stop()
+      Deno.env.delete("LINEAR_GRAPHQL_ENDPOINT")
+      Deno.env.delete("LINEAR_API_KEY")
+    }
+  },
+})
+
+await cliffySnapshotTest({
+  name: "Team List Command - Empty JSON Connection",
+  meta: import.meta,
+  colors: false,
+  args: ["--json"],
+  denoArgs,
+  async fn() {
+    const server = new MockLinearServer([{
+      queryName: "GetTeams",
+      variables: { filter: undefined, first: 100, after: undefined },
+      response: {
+        data: {
+          teams: {
+            nodes: [],
+            pageInfo: { hasNextPage: false, endCursor: null },
+          },
+        },
+      },
+    }])
+    try {
+      await server.start()
+      Deno.env.set("LINEAR_GRAPHQL_ENDPOINT", server.getEndpoint())
+      Deno.env.set("LINEAR_API_KEY", "Bearer test-token")
+      await listCommand.parse()
+    } finally {
+      await server.stop()
+      Deno.env.delete("LINEAR_GRAPHQL_ENDPOINT")
+      Deno.env.delete("LINEAR_API_KEY")
+    }
+  },
+})
+
+await cliffySnapshotTest({
+  name: "Team List Command - JSON Limit After Sorting",
+  meta: import.meta,
+  colors: false,
+  args: ["--json", "--limit", "1"],
+  denoArgs,
+  async fn() {
+    const team = (id: string, name: string, key: string) => ({
+      id,
+      name,
+      key,
+      description: null,
+      icon: null,
+      color: null,
+      cyclesEnabled: false,
+      createdAt: "2024-01-01T00:00:00Z",
+      updatedAt: "2024-01-01T00:00:00Z",
+      archivedAt: null,
+      organization: { id: "org-1", name: "Acme" },
+    })
+    const server = new MockLinearServer([{
+      queryName: "GetTeams",
+      variables: { filter: undefined, first: 100, after: undefined },
+      response: {
+        data: {
+          teams: {
+            nodes: [team("team-z", "Zulu", "Z"), team("team-a", "Alpha", "A")],
+            pageInfo: { hasNextPage: false, endCursor: null },
+          },
+        },
+      },
+    }])
+    try {
+      await server.start()
+      Deno.env.set("LINEAR_GRAPHQL_ENDPOINT", server.getEndpoint())
+      Deno.env.set("LINEAR_API_KEY", "Bearer test-token")
       await listCommand.parse()
     } finally {
       await server.stop()

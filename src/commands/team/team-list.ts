@@ -47,9 +47,11 @@ export const listCommand = new Command()
   .description("List teams")
   .option("-w, --web", "Open in web browser")
   .option("-a, --app", "Open in Linear.app")
-  .action(async ({ web, app }) => {
+  .option("-j, --json", "Output as JSON")
+  .option("--limit <limit:number>", "Limit results")
+  .action(async ({ web, app, json, limit }) => {
     const { Spinner } = await import("@std/cli/unstable-spinner")
-    const showSpinner = shouldShowSpinner()
+    const showSpinner = shouldShowSpinner() && !json
     const spinner = showSpinner ? new Spinner() : null
 
     try {
@@ -68,6 +70,10 @@ export const listCommand = new Command()
         return
       }
 
+      if (limit != null && limit < 0) {
+        throw new ValidationError("--limit must be 0 or greater")
+      }
+
       spinner?.start()
 
       const client = getGraphQLClient()
@@ -76,6 +82,10 @@ export const listCommand = new Command()
       const allTeams: GetTeamsQuery["teams"]["nodes"] = []
       let hasNextPage = true
       let after: string | null | undefined = undefined
+      let pageInfo: NonNullable<GetTeamsQuery["teams"]>["pageInfo"] = {
+        hasNextPage: false,
+        endCursor: null,
+      }
 
       while (hasNextPage) {
         const result: GetTeamsQuery = await client.request(GetTeams, {
@@ -87,8 +97,12 @@ export const listCommand = new Command()
         const teams = result.teams?.nodes || []
         allTeams.push(...teams)
 
-        hasNextPage = result.teams?.pageInfo?.hasNextPage || false
-        after = result.teams?.pageInfo?.endCursor
+        pageInfo = result.teams?.pageInfo ?? {
+          hasNextPage: false,
+          endCursor: null,
+        }
+        hasNextPage = pageInfo.hasNextPage
+        after = pageInfo.endCursor
       }
 
       spinner?.stop()
@@ -96,13 +110,22 @@ export const listCommand = new Command()
       // Filter out archived teams
       let teams = allTeams.filter((team) => !team.archivedAt)
 
+      // Sort teams alphabetically by name
+      teams = teams.sort((a, b) => a.name.localeCompare(b.name))
+
+      if (limit != null && limit > 0) {
+        teams = teams.slice(0, limit)
+      }
+
+      if (json) {
+        console.log(JSON.stringify({ nodes: teams, pageInfo }, null, 2))
+        return
+      }
+
       if (teams.length === 0) {
         console.log("No teams found.")
         return
       }
-
-      // Sort teams alphabetically by name
-      teams = teams.sort((a, b) => a.name.localeCompare(b.name))
 
       // Define column widths based on actual data
       const { columns } = Deno.stdout.isTerminal()

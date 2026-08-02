@@ -78,8 +78,9 @@ export const viewCommand = new Command()
   .arguments("<projectId:string>")
   .option("-w, --web", "Open in web browser")
   .option("-a, --app", "Open in Linear.app")
+  .option("-j, --json", "Output as JSON")
   .action(async (options, projectId) => {
-    const { web, app } = options
+    const { web, app, json } = options
 
     if (web || app) {
       await openProjectPage(projectId, { app, web: !app })
@@ -87,7 +88,7 @@ export const viewCommand = new Command()
     }
 
     const { Spinner } = await import("@std/cli/unstable-spinner")
-    const showSpinner = shouldShowSpinner()
+    const showSpinner = shouldShowSpinner() && !json
     const spinner = showSpinner ? new Spinner() : null
     spinner?.start()
 
@@ -99,6 +100,11 @@ export const viewCommand = new Command()
       const project = result.project
       if (!project) {
         throw new NotFoundError("Project", projectId)
+      }
+
+      if (json) {
+        console.log(JSON.stringify(project, null, 2))
+        return
       }
 
       // Build the display
