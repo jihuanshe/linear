@@ -20,10 +20,10 @@ fi
 
 mkdir -p "$HOME/.local/bin"
 ln -sfn "$deno_bin" "$HOME/.local/bin/deno"
+export PATH="$HOME/.local/bin:$PATH"
 
-echo "Generating GraphQL client"
+echo "Installing linear CLI from this checkout"
 cd "$repo_root"
-"$deno_bin" task codegen
-"$deno_bin" cache --lock=deno.lock src/main.ts
+DENO_INSTALL_ROOT="$HOME/.local" "$deno_bin" task install
 
 echo "Deno $deno_version is ready"
