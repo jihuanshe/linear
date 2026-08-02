@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+deno_version="2.7.9"
+deno_bin="$HOME/.local/share/deno/$deno_version/deno"
+
+if [[ -x "$deno_bin" ]]; then
+  mkdir -p "$HOME/.local/bin"
+  ln -sfn "$deno_bin" "$HOME/.local/bin/deno"
+fi
