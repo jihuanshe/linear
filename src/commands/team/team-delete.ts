@@ -70,6 +70,7 @@ export const deleteCommand = new Command()
 
       const team = teamDetails.team
       const issueCount = team.issues?.nodes?.length || 0
+      let targetTeamId: string | undefined
 
       // If the team has issues, require --move-issues or prompt
       if (issueCount > 0 && !moveIssues) {
@@ -96,19 +97,16 @@ export const deleteCommand = new Command()
           throw new CliError("No other teams available to move issues to")
         }
 
-        const targetTeamId = await Select.prompt({
+        targetTeamId = await Select.prompt({
           message: "Select a team to move issues to:",
           options: otherTeams.map((t) => ({
             name: `${t.name} (${t.key})`,
             value: t.id,
           })),
         })
-
-        // Move all issues to target team
-        await moveIssuesToTeam(client, teamId, targetTeamId, issueCount)
       } else if (issueCount > 0 && moveIssues) {
         // Resolve the target team
-        const targetTeamId = await getTeamIdByKey(moveIssues.toUpperCase())
+        targetTeamId = await getTeamIdByKey(moveIssues.toUpperCase())
         if (!targetTeamId) {
           throw new NotFoundError("Target team", moveIssues)
         }
@@ -116,9 +114,6 @@ export const deleteCommand = new Command()
         if (targetTeamId === teamId) {
           throw new ValidationError("Cannot move issues to the same team")
         }
-
-        // Move all issues to target team
-        await moveIssuesToTeam(client, teamId, targetTeamId, issueCount)
       }
 
       // Confirm deletion
@@ -139,6 +134,10 @@ export const deleteCommand = new Command()
           console.log("Delete cancelled.")
           return
         }
+      }
+
+      if (targetTeamId) {
+        await moveIssuesToTeam(client, teamId, targetTeamId, issueCount)
       }
 
       // Delete the team
