@@ -13,6 +13,7 @@ await snapshotTest({
   args: ["--help"],
   denoArgs: commonDenoArgs,
   async fn() {
+    linkCommand.help({ colors: false })
     await linkCommand.parse()
   },
 })

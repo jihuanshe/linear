@@ -12,6 +12,7 @@ await cliffySnapshotTest({
   args: ["--help"],
   denoArgs,
   async fn() {
+    autolinksCommand.help({ colors: false })
     await autolinksCommand.parse()
   },
 })

@@ -254,6 +254,7 @@ await snapshotTest({
   args: ["--help"],
   denoArgs: commonDenoArgs,
   async fn() {
+    attachCommand.help({ colors: false })
     await attachCommand.parse()
   },
 })

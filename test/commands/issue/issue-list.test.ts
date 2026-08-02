@@ -18,6 +18,7 @@ await cliffySnapshotTest({
   args: ["--help"],
   denoArgs: commonDenoArgs,
   async fn() {
+    listCommand.help({ colors: false })
     await listCommand.parse()
   },
 })

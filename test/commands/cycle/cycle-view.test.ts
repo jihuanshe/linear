@@ -10,6 +10,7 @@ await snapshotTest({
   args: ["--help"],
   denoArgs: commonDenoArgs,
   async fn() {
+    viewCommand.help({ colors: false })
     await viewCommand.parse()
   },
 })

@@ -209,6 +209,7 @@ await snapshotTest({
   args: ["--help"],
   denoArgs: commonDenoArgs,
   async fn() {
+    commentAddCommand.help({ colors: false })
     await commentAddCommand.parse()
   },
 })

@@ -17,6 +17,7 @@ await snapshotTest({
   args: ["--help"],
   denoArgs,
   async fn() {
+    viewCommand.help({ colors: false })
     await viewCommand.parse()
   },
 })

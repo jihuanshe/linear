@@ -12,6 +12,7 @@ await snapshotTest({
   args: ["--help"],
   denoArgs,
   async fn() {
+    commitsCommand.help({ colors: false })
     await commitsCommand.parse()
   },
 })

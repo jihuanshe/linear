@@ -13,6 +13,7 @@ await cliffySnapshotTest({
   args: ["--help"],
   denoArgs: commonDenoArgs,
   async fn() {
+    updateCommand.help({ colors: false })
     await updateCommand.parse()
   },
 })

@@ -10,6 +10,7 @@ await snapshotTest({
   args: ["--help"],
   denoArgs: commonDenoArgs,
   async fn() {
+    agentSessionViewCommand.help({ colors: false })
     await agentSessionViewCommand.parse()
   },
 })

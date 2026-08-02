@@ -13,6 +13,7 @@ await snapshotTest({
   args: ["--help"],
   denoArgs,
   async fn() {
+    describeCommand.help({ colors: false })
     await describeCommand.parse()
   },
 })

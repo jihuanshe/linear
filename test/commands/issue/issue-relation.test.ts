@@ -13,6 +13,7 @@ await snapshotTest({
   args: ["add", "--help"],
   denoArgs: commonDenoArgs,
   async fn() {
+    relationCommand.getCommand("add")?.help({ colors: false })
     await relationCommand.parse()
   },
 })

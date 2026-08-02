@@ -13,8 +13,8 @@ Options:
 
   -h, --help            - Show this help.                                                                     
   -j, --json            - Output as JSON                                                                      
-  --status    <status>  - Filter by session status  (Values: \\x1b[32m"pending"\\x1b[39m, \\x1b[32m"active"\\x1b[39m, \\x1b[32m"complete"\\x1b[39m, \\x1b[32m"awaitingInput"\\x1b[39m,
-                                                    \\x1b[32m"error"\\x1b[39m, \\x1b[32m"stale"\\x1b[39m)                                         
+  --status    <status>  - Filter by session status  (Values: "pending", "active", "complete", "awaitingInput",
+                                                    "error", "stale")                                         
 
 '
 stderr:

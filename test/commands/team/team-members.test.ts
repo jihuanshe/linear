@@ -65,6 +65,7 @@ await cliffySnapshotTest({
   args: ["--help"],
   denoArgs,
   async fn() {
+    membersCommand.help({ colors: false })
     await membersCommand.parse()
   },
 })

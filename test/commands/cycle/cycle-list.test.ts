@@ -1,4 +1,5 @@
 import { snapshotTest as cliffySnapshotTest } from "@cliffy/testing"
+import { setColorEnabled } from "@std/fmt/colors"
 import { listCommand } from "../../../src/commands/cycle/cycle-list.ts"
 import { commonDenoArgs } from "../../utils/test-helpers.ts"
 import { MockLinearServer } from "../../utils/mock_linear_server.ts"
@@ -10,6 +11,7 @@ await cliffySnapshotTest({
   args: ["--help"],
   denoArgs: commonDenoArgs,
   async fn() {
+    listCommand.help({ colors: false })
     await listCommand.parse()
   },
 })
@@ -21,6 +23,7 @@ await cliffySnapshotTest({
   args: ["--team", "ENG"],
   denoArgs: commonDenoArgs,
   async fn() {
+    setColorEnabled(false)
     const server = new MockLinearServer([
       {
         queryName: "GetTeamIdByKey",

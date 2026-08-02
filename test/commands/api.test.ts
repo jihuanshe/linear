@@ -1,4 +1,5 @@
 import { snapshotTest as cliffySnapshotTest } from "@cliffy/testing"
+import { setColorEnabled } from "@std/fmt/colors"
 import { apiCommand } from "../../src/commands/api.ts"
 import { loadCredentials } from "../../src/credentials.ts"
 import { MockLinearServer } from "../utils/mock_linear_server.ts"
@@ -12,6 +13,7 @@ await cliffySnapshotTest({
   args: ["--help"],
   denoArgs,
   async fn() {
+    apiCommand.help({ colors: false })
     await apiCommand.parse()
   },
 })
@@ -159,6 +161,8 @@ await cliffySnapshotTest({
   denoArgs,
   canFail: true,
   async fn() {
+    setColorEnabled(false)
+    apiCommand.help({ colors: false })
     Deno.env.set("LINEAR_API_KEY", "Bearer test-token")
     try {
       await apiCommand.parse()

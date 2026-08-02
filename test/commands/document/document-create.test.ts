@@ -11,6 +11,7 @@ await snapshotTest({
   args: ["--help"],
   denoArgs: commonDenoArgs,
   async fn() {
+    createCommand.help({ colors: false })
     await createCommand.parse()
   },
 })

@@ -16,6 +16,7 @@ await snapshotTest({
   args: ["--help"],
   denoArgs: commonDenoArgs,
   async fn() {
+    queryCommand.help({ colors: false })
     await queryCommand.parse()
   },
 })

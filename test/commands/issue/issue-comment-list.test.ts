@@ -1,4 +1,5 @@
 import { snapshotTest } from "@cliffy/testing"
+import { setColorEnabled } from "@std/fmt/colors"
 import { commentListCommand } from "../../../src/commands/issue/issue-comment-list.ts"
 import {
   commonDenoArgs,
@@ -13,6 +14,7 @@ await snapshotTest({
   args: ["TEST-123"],
   denoArgs: commonDenoArgs,
   async fn() {
+    setColorEnabled(false)
     const { cleanup } = await setupMockLinearServer([
       {
         queryName: "GetIssueId",
