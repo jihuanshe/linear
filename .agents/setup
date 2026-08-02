@@ -1,10 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
 deno_version="2.7.9"
 tool_root="$HOME/.local/share/amp/jihuanshe-linear"
-bin_dir="$tool_root/bin"
+repo_id="$(printf '%s' "$repo_root" | sha256sum | cut -c1-16)"
+checkout_root="$tool_root/checkouts/$repo_id"
+bin_dir="$checkout_root/bin"
 install_dir="$tool_root/deno/$deno_version"
 deno_bin="$install_dir/deno"
 
@@ -24,11 +26,15 @@ mkdir -p "$bin_dir"
 ln -sfn "$deno_bin" "$bin_dir/deno"
 export PATH="$bin_dir:$PATH"
 
-profile_file="$HOME/.bash_profile"
-if [[ ! -e "$profile_file" && -f "$HOME/.profile" ]]; then
-  profile_file="$HOME/.profile"
-fi
-profile_marker="# jihuanshe/linear orb toolchain ($repo_root)"
+profile_file=""
+for candidate in "$HOME/.bash_profile" "$HOME/.bash_login" "$HOME/.profile"; do
+  if [[ -e "$candidate" ]]; then
+    profile_file="$candidate"
+    break
+  fi
+done
+profile_file="${profile_file:-$HOME/.bash_profile}"
+profile_marker="# jihuanshe/linear orb toolchain ($repo_root -> $bin_dir)"
 if ! grep -Fqx "$profile_marker" "$profile_file" 2>/dev/null; then
   cat >> "$profile_file" <<EOF
 
@@ -46,6 +52,6 @@ fi
 
 echo "Installing linear CLI from this checkout"
 cd "$repo_root"
-DENO_INSTALL_ROOT="$tool_root" "$deno_bin" task install
+DENO_INSTALL_ROOT="$checkout_root" "$deno_bin" task install
 
 echo "Deno $deno_version is ready"
