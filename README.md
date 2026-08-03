@@ -142,9 +142,10 @@ linear issue start     # create/switch to issue branch and mark as started
 linear issue create    # create a new issue (interactive prompts)
 linear issue create -t "title" -d "description"  # create with flags
 linear issue create --project "My Project" --milestone "Phase 1"  # create with milestone
-linear issue update    # update an issue (interactive prompts)
+linear issue update ENG-123 --state "In Review"  # update an issue with explicit fields
 linear issue update ENG-123 --milestone "Phase 2"  # set milestone on existing issue
-linear issue delete    # delete an issue
+linear issue update ENG-123 --add-label bug  # add without replacing existing labels
+linear issue delete ENG-123 --confirm  # delete by identifier (UUID is also accepted)
 linear issue comment list          # list comments on current issue
 linear issue comment add           # add a comment to current issue
 linear issue comment add -p <id>   # reply to a specific comment
@@ -275,6 +276,12 @@ the CLI supports configuration via environment variables or a `.linear.toml` con
 | Assign self     | `LINEAR_ISSUE_CREATE_ASSIGN_SELF` | `issue_create_assign_self` | `"always"`, `"auto"`, or `"never"` | control default self-assignment during issue creation |
 | VCS             | `LINEAR_VCS`                      | `vcs`                      | `"git"` or `"jj"`                  | version control system (default: git)                 |
 | Download images | `LINEAR_DOWNLOAD_IMAGES`          | `download_images`          | `true` or `false`                  | download images when viewing issues                   |
+
+### non-interactive commands
+
+set `LINEAR_PROMPT_DISABLED=1` (or `true`) to prevent the CLI from displaying any interactive prompt or reading a response from stdin. commands whose inputs are fully specified by flags continue normally; commands that still require input fail before prompting, write the error to stderr, and exit with code 1. this setting never confirms an operation or implies `--force`.
+
+unset the variable, leave it empty, or set it to `0`/`false` to allow prompts. other values are configuration errors when a command attempts to prompt.
 
 the config file can be placed at (checked in order, first found is used):
 

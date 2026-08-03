@@ -31,8 +31,8 @@ linear initiative remove-project <initiative> <project>
 ```bash
 # List labels (shows ID, name, color, team)
 linear label list
-linear label list --team DEV
-linear label list --workspace  # Workspace-level only
+linear label list --team DEV              # Team and workspace-level labels
+linear label list --workspace-labels  # Workspace-level only
 
 # Create label
 linear label create --name "Bug" --color "#EB5757"
@@ -77,9 +77,10 @@ linear initiative archive --bulk <id1> <id2>
 ## Adding Labels to Issues
 
 ```bash
-# Add label to issue
-linear issue update DEV-123 --label "Bug"
+# Add labels without removing existing labels
+linear issue update DEV-123 --add-label "Bug"
+linear issue update DEV-123 --add-label "Bug" --add-label "High Priority"
 
-# Add multiple labels
+# Replace the complete label set
 linear issue update DEV-123 --label "Bug" --label "High Priority"
 ```

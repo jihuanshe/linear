@@ -2,6 +2,28 @@
 
 ## [Unreleased]
 
+### Added
+
+- `LINEAR_PROMPT_DISABLED=1` to make every interactive prompt fail instead of reading stdin, without implying confirmation
+- Cursor-based `--after` pagination for JSON team, project, and issue connections
+- JSON output for `issue mine`/`issue list` and `issue update`; update results include the resulting labels connection
+- Incremental `issue update --add-label` and `--remove-label` options alongside the existing label replacement behavior
+- UUID support for single and bulk `issue delete` operations
+
+### Changed
+
+- `label list --workspace-labels` now selects workspace-level labels without conflicting with the global `--workspace <slug>` credential selector. Replace the old `label list --workspace` spelling with `label list --workspace-labels`
+- `team delete --dry-run` never prompts or mutates and fails when required migration input is missing
+- `team delete --move-issues` reports each identifier mapping as soon as the issue is moved, preserving completed mappings if a later move fails
+- `issue update` requires at least one explicit update option instead of implying an interactive update flow
+
+### Fixed
+
+- `label list --team` help now reflects that workspace-level labels are included
+- Explicit `team delete --move-issues` targets are validated even when the source team is empty
+- Flag-based `issue create` now reports the created identifier and title, matching the interactive path
+- Plaintext credential files are restricted to owner read/write permissions on non-Windows systems
+
 ## [2.3.0] - 2026-07-23
 
 ### Added

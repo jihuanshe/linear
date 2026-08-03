@@ -1,5 +1,5 @@
 import { Command } from "@cliffy/command"
-import { Input, Select } from "@cliffy/prompt"
+import { Input, Select } from "../../utils/prompt.ts"
 import { gql } from "../../__codegen__/gql.ts"
 import { readIdsFromStdin } from "../../utils/bulk.ts"
 import { getEditor, openEditor } from "../../utils/editor.ts"

@@ -81,10 +81,11 @@ Description:
 
 Options:
 
-  -h, --help                   - Show this help.                                  
-  --workspace    <slug>        - Target workspace (uses credentials)              
-  --move-issues  <targetTeam>  - Move all issues to another team before deletion  
-  -y, --force                  - Skip confirmation prompt
+  -h, --help                   - Show this help.                                                  
+  --workspace    <slug>        - Target workspace (uses credentials)                              
+  --move-issues  <targetTeam>  - Move all issues to another team before deletion                  
+  -y, --force                  - Skip confirmation prompt                                         
+  --dry-run                    - Validate and show planned changes without prompting or mutating
 ```
 
 ### id

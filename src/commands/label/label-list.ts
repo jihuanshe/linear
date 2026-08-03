@@ -6,7 +6,7 @@ import { getGraphQLClient } from "../../utils/graphql.ts"
 import { padDisplay, printStyledHeader } from "../../utils/display.ts"
 import { getTeamKey } from "../../utils/linear.ts"
 import { shouldShowSpinner } from "../../utils/hyperlink.ts"
-import { handleError } from "../../utils/errors.ts"
+import { handleError, ValidationError } from "../../utils/errors.ts"
 
 const GetIssueLabels = gql(`
   query GetIssueLabels($filter: IssueLabelFilter, $first: Int, $after: String) {
@@ -36,10 +36,10 @@ export const listCommand = new Command()
   .description("List issue labels")
   .option(
     "--team <teamKey:string>",
-    "Filter by team (e.g., TC). Shows team-specific labels only.",
+    "Show labels available to a team, including workspace-level labels",
   )
   .option(
-    "--workspace",
+    "--workspace-labels",
     "Show only workspace-level labels (not team-specific)",
   )
   .option(
@@ -47,24 +47,35 @@ export const listCommand = new Command()
     "Show all labels (both workspace and team)",
   )
   .option("-j, --json", "Output as JSON")
-  .action(async ({ team: teamKey, workspace, all, json }) => {
+  .action(async ({ team: teamKey, workspaceLabels, all, json }) => {
     const { Spinner } = await import("@std/cli/unstable-spinner")
     const showSpinner = !json && shouldShowSpinner()
     const spinner = showSpinner ? new Spinner() : null
     spinner?.start()
 
     try {
+      const scopeCount = [teamKey != null, workspaceLabels, all].filter(Boolean)
+        .length
+      if (scopeCount > 1) {
+        throw new ValidationError(
+          "Only one label scope can be specified",
+          {
+            suggestion: "Use only one of --team, --workspace-labels, or --all.",
+          },
+        )
+      }
+
       const client = getGraphQLClient()
 
       // Build filter based on options
       // deno-lint-ignore no-explicit-any
       let filter: any = {}
 
-      if (workspace) {
+      if (workspaceLabels) {
         // Only workspace labels (no team)
         filter = { team: { null: true } }
       } else if (teamKey) {
-        // Only labels for a specific team (includes workspace labels)
+        // Labels available to a specific team include workspace labels.
         filter = {
           or: [
             { team: { key: { eq: teamKey.toUpperCase() } } },

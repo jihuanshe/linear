@@ -1,5 +1,5 @@
 import { Command } from "@cliffy/command"
-import { Input, Select } from "@cliffy/prompt"
+import { Input, Select } from "../../utils/prompt.ts"
 import { gql } from "../../__codegen__/gql.ts"
 import { getGraphQLClient } from "../../utils/graphql.ts"
 import { getAllTeams, getTeamIdByKey, getTeamKey } from "../../utils/linear.ts"

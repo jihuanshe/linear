@@ -28,7 +28,7 @@ Commands:
   describe          [issueId]             - Print the issue title and Linear-issue trailer                            
   commits           [issueId]             - Show all commits for a Linear issue (jj only)                             
   pull-request, pr  [issueId]             - Create a GitHub pull request with issue details                           
-  delete, d         [issueId]             - Delete an issue                                                           
+  delete, d         [issueId]             - Delete an issue by identifier or UUID                                     
   create                                  - Create a linear issue                                                     
   update            [issueId]             - Update a linear issue                                                     
   comment                                 - Manage issue comments                                                     
@@ -269,23 +269,23 @@ Options:
 
 ### delete
 
-> Delete an issue
+> Delete an issue by identifier or UUID
 
 ```
 Usage:   linear issue delete [issueId]
 
 Description:
 
-  Delete an issue
+  Delete an issue by identifier or UUID
 
 Options:
 
   -h, --help               - Show this help.                                             
   --workspace    <slug>    - Target workspace (uses credentials)                         
   -y, --confirm            - Skip confirmation prompt                                    
-  --bulk         <ids...>  - Delete multiple issues by identifier (e.g., TC-123 TC-124)  
-  --bulk-file    <file>    - Read issue identifiers from a file (one per line)           
-  --bulk-stdin             - Read issue identifiers from stdin
+  --bulk         <ids...>  - Delete multiple issues by identifier or UUID                
+  --bulk-file    <file>    - Read issue identifiers or UUIDs from a file (one per line)  
+  --bulk-stdin             - Read issue identifiers or UUIDs from stdin
 ```
 
 ### describe
@@ -581,7 +581,9 @@ Options:
   --estimate          <estimate>     - Points estimate of the issue                                                     
   -d, --description   <description>  - Description of the issue                                                         
   --description-file  <path>         - Read description from a file (preferred for markdown content)                    
-  -l, --label         <label>        - Issue label associated with the issue. May be repeated.                          
+  -l, --label         <label>        - Replace all issue labels. May be repeated.                                       
+  --add-label         <label>        - Add an issue label without replacing existing labels. May be repeated.           
+  --remove-label      <label>        - Remove an issue label without replacing other labels. May be repeated.           
   --team              <team>         - Team associated with the issue (if not your default team)                        
   --project           <project>      - Project to assign the issue to (UUID, slug ID, or name)                          
   -s, --state         <state>        - Workflow state for the issue (by name or type)                                   
@@ -591,7 +593,8 @@ Options:
                                        like +1 (use --cycle=-1 for negatives). Use --clear-cycle to remove the issue    
                                        from its cycle                                                                   
   --clear-cycle                      - Remove the issue from its cycle                                                  
-  -t, --title         <title>        - Title of the issue
+  -t, --title         <title>        - Title of the issue                                                               
+  -j, --json                         - Output the mutation result, including resulting labels, as JSON
 ```
 
 ### url

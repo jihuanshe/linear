@@ -1,5 +1,5 @@
 import { Command } from "@cliffy/command"
-import { Checkbox, Input, Select } from "@cliffy/prompt"
+import { Checkbox, Input, Select } from "../../utils/prompt.ts"
 import { gql } from "../../__codegen__/gql.ts"
 import { getOption } from "../../config.ts"
 import { getGraphQLClient } from "../../utils/graphql.ts"
@@ -943,6 +943,7 @@ export const createCommand = new Command()
         }
         const issueId = issue.id
         spinner?.stop()
+        console.log(`✓ Created issue ${issue.identifier}: ${title}`)
         console.log(issue.url)
 
         if (start) {

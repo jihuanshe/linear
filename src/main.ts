@@ -1,5 +1,18 @@
 import { initializeStdoutColors } from "./utils/terminal.ts"
 
+function getLegacyLabelWorkspaceError(args: string[]): string | undefined {
+  const labelIndex = args.findIndex((arg) => arg === "label" || arg === "l")
+  if (labelIndex === -1 || args[labelIndex + 1] !== "list") return
+
+  const workspaceIndex = args.indexOf("--workspace", labelIndex + 2)
+  if (workspaceIndex === -1) return
+
+  const value = args[workspaceIndex + 1]
+  if (value != null && !value.startsWith("-")) return
+
+  return 'Missing value for option "--workspace". To list workspace-level labels, use "--workspace-labels".'
+}
+
 if (import.meta.main) {
   initializeStdoutColors()
   const [{ ValidationError }, { cli }] = await Promise.all([
@@ -7,6 +20,10 @@ if (import.meta.main) {
     import("./cli.ts"),
   ])
   try {
+    const legacyWorkspaceError = getLegacyLabelWorkspaceError(Deno.args)
+    if (legacyWorkspaceError) {
+      throw new ValidationError(legacyWorkspaceError)
+    }
     await cli.parse(Deno.args)
   } catch (error) {
     if (error instanceof ValidationError) {

@@ -14,7 +14,7 @@ import type {
   PaginationOrderBy,
   SearchIssuesQuery,
 } from "../__codegen__/graphql.ts"
-import { Select } from "@cliffy/prompt"
+import { Select } from "./prompt.ts"
 import { getOption, resolveIssueSort } from "../config.ts"
 import { CliError, NotFoundError, ValidationError } from "./errors.ts"
 import { getGraphQLClient } from "./graphql.ts"

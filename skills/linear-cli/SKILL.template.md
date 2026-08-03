@@ -25,6 +25,8 @@ npx @schpet/linear-cli --version
 All subsequent commands can be prefixed with `npx @schpet/linear-cli` in place of `linear`. Otherwise, follow the install instructions at:\
 https://github.com/schpet/linear-cli?tab=readme-ov-file#install
 
+For unattended execution, set `LINEAR_PROMPT_DISABLED=1`. The CLI will fail instead of prompting when required inputs or confirmation flags are missing. This does not imply consent and never replaces `--force`.
+
 ## Common Tasks
 
 Copy-pasteable recipes for the most frequent flows. Prefer these dedicated commands over `linear api` — reach for the GraphQL fallback only when no dedicated command or flag covers the operation.
@@ -62,6 +64,8 @@ Write multi-line markdown to a file and pass `--description-file` (see the markd
 linear issue update ENG-123 --state "In Review" --assignee sam
 linear issue update ENG-123 --unassign
 linear issue update ENG-123 --label infra --label security  # replaces the label set
+linear issue update ENG-123 --add-label infra --remove-label backlog
+linear issue update ENG-123 --add-label infra --json  # returns resulting labels
 ```
 
 ### Add a comment

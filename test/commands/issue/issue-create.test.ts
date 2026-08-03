@@ -533,8 +533,13 @@ Deno.test("Issue Create Command - Explicit Project Still Uses Interactive Mode",
     },
   ], { LINEAR_TEAM_ID: "ENG" })
 
-  const terminalStub = stub(
+  const stdoutTerminalStub = stub(
     Object.getPrototypeOf(Deno.stdout),
+    "isTerminal",
+    () => true,
+  )
+  const stdinTerminalStub = stub(
+    Object.getPrototypeOf(Deno.stdin),
     "isTerminal",
     () => true,
   )
@@ -573,7 +578,8 @@ Deno.test("Issue Create Command - Explicit Project Still Uses Interactive Mode",
   } finally {
     selectStub.restore()
     inputStub.restore()
-    terminalStub.restore()
+    stdinTerminalStub.restore()
+    stdoutTerminalStub.restore()
     await cleanup()
   }
 })
@@ -669,8 +675,13 @@ Deno.test("Issue Create Command - Interactive Project Prompt Uses Team Projects"
     LINEAR_ISSUE_CREATE_ASK_PROJECT: "true",
   })
 
-  const terminalStub = stub(
+  const stdoutTerminalStub = stub(
     Object.getPrototypeOf(Deno.stdout),
+    "isTerminal",
+    () => true,
+  )
+  const stdinTerminalStub = stub(
+    Object.getPrototypeOf(Deno.stdin),
     "isTerminal",
     () => true,
   )
@@ -709,7 +720,8 @@ Deno.test("Issue Create Command - Interactive Project Prompt Uses Team Projects"
   } finally {
     selectStub.restore()
     inputStub.restore()
-    terminalStub.restore()
+    stdinTerminalStub.restore()
+    stdoutTerminalStub.restore()
     await cleanup()
   }
 })
@@ -802,8 +814,13 @@ Deno.test("Issue Create Command - Additional Fields Can Set Project", async () =
     },
   ], { LINEAR_TEAM_ID: "ENG" })
 
-  const terminalStub = stub(
+  const stdoutTerminalStub = stub(
     Object.getPrototypeOf(Deno.stdout),
+    "isTerminal",
+    () => true,
+  )
+  const stdinTerminalStub = stub(
+    Object.getPrototypeOf(Deno.stdin),
     "isTerminal",
     () => true,
   )
@@ -853,7 +870,8 @@ Deno.test("Issue Create Command - Additional Fields Can Set Project", async () =
     selectStub.restore()
     checkboxStub.restore()
     inputStub.restore()
-    terminalStub.restore()
+    stdinTerminalStub.restore()
+    stdoutTerminalStub.restore()
     await cleanup()
   }
 })
@@ -1284,8 +1302,13 @@ Deno.test("Issue Create Command - Auto Assign Mode Respects Linear User Setting 
     },
   ], { LINEAR_TEAM_ID: "ENG" })
 
-  const terminalStub = stub(
+  const stdoutTerminalStub = stub(
     Object.getPrototypeOf(Deno.stdout),
+    "isTerminal",
+    () => true,
+  )
+  const stdinTerminalStub = stub(
+    Object.getPrototypeOf(Deno.stdin),
     "isTerminal",
     () => true,
   )
@@ -1321,7 +1344,8 @@ Deno.test("Issue Create Command - Auto Assign Mode Respects Linear User Setting 
   } finally {
     selectStub.restore()
     inputStub.restore()
-    terminalStub.restore()
+    stdinTerminalStub.restore()
+    stdoutTerminalStub.restore()
     await cleanup()
   }
 })
@@ -1484,8 +1508,13 @@ Deno.test("Issue Create Command - Interactive Assignee Can Override Config Self 
     LINEAR_ISSUE_CREATE_ASSIGN_SELF: "always",
   })
 
-  const terminalStub = stub(
+  const stdoutTerminalStub = stub(
     Object.getPrototypeOf(Deno.stdout),
+    "isTerminal",
+    () => true,
+  )
+  const stdinTerminalStub = stub(
+    Object.getPrototypeOf(Deno.stdin),
     "isTerminal",
     () => true,
   )
@@ -1535,7 +1564,8 @@ Deno.test("Issue Create Command - Interactive Assignee Can Override Config Self 
     selectStub.restore()
     checkboxStub.restore()
     inputStub.restore()
-    terminalStub.restore()
+    stdinTerminalStub.restore()
+    stdoutTerminalStub.restore()
     await cleanup()
   }
 })

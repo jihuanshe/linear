@@ -1,5 +1,5 @@
 import { Command } from "@cliffy/command"
-import { Select } from "@cliffy/prompt"
+import { Select } from "../../utils/prompt.ts"
 import {
   getDefaultWorkspace,
   getWorkspaces,
