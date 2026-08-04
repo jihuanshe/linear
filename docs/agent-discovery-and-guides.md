@@ -648,11 +648,21 @@ This repository ships through direct commits to `main`; pushing a commit invokes
 - [ ] Commit 9 — add unified opt-in machine output.
 - [ ] Commit 10 — batch-resolve non-interactive issue mutation inputs.
 - [ ] Commit 11 — add conservative timeout, rate-limit, and query retry behavior.
+- [ ] Evidence-gated later work — add machine-output field projection only if measured output cost justifies it.
 - [ ] Later — move protected batch issue execution into first-class typed CLI commands before embedding its complete handbook.
 
 ## Proposed commit sequence
 
-Each commit should preserve a single reviewable and independently verifiable behavior boundary.
+Each commit should preserve a single reviewable and independently verifiable behavior boundary. The numbering names review boundaries; it does not force all work into one dependency chain.
+
+Two workstreams may proceed after commit 1 hardens the shared metadata and eval foundation:
+
+| Workstream              | Commits | Dependency                                                                                                                                                        |
+| ----------------------- | ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Discovery and knowledge | 2–8c    | Version probing, navigation, evals, embedded guides, and the thin external router build on each other in order.                                                   |
+| Execution protocol      | 9–11    | Independent of guide migration. Commit 9 fixes machine-error projection; commit 11 may develop transport policy in parallel but integrates against that contract. |
+
+Field projection remains an optimization backlog rather than a promised phase. Architecture constraints graduate into `AGENTS.md` with the commit that proves them; this roadmap must not describe an aspirational command/resolver/service split as an already-enforced repository invariant.
 
 ### Commit 1: harden and finalize progressive usage
 
@@ -864,38 +874,106 @@ Gate:
 
 Scope:
 
-- global JSON output context;
-- structured stderr errors;
-- compact JSON;
-- disable spinners and decoration in machine mode;
-- preserve GraphQL field names, nesting, and connection shape;
-- retain command-level `--json` compatibility;
-- keep machine output independent from consent.
+- add an explicit global JSON output context while preserving current human output as the default;
+- migrate commands that already support `--json` first and keep their command-level flags compatible;
+- return a stable `UNSUPPORTED_OUTPUT` error on unmigrated command paths rather than mixing human text into requested machine output;
+- make successful machine-mode stdout contain exactly one payload and no banner, spinner, pager, progress, ANSI decoration, warning, or trailing prose;
+- make failed machine-mode stdout empty and stderr contain exactly one structured error document with a stable code, message, optional suggestion, and retry metadata only when known;
+- begin with `VALIDATION_ERROR`, `NOT_FOUND`, `AUTH_REQUIRED`, `UNSUPPORTED_OUTPUT`, `RATE_LIMITED`, `NETWORK_ERROR`, `API_ERROR`, and `INTERNAL_ERROR` codes backed by the existing `CliError` boundary;
+- preserve GraphQL field names, nesting, connection shape, and command-specific payload semantics instead of wrapping successful data in a new generic envelope;
+- decide with explicit tests whether JSON is compact by default, whether a separate compact option remains useful, and whether an inherited `LINEAR_OUTPUT` environment variable is safe enough to support;
+- define whether help, usage, and version discovery participate in the global output context or retain their own explicit machine flags;
+- keep machine output, prompt suppression, confirmation-bypass flags, authentication, and user authorization as independent contracts.
+
+Non-goals:
+
+- no implication that machine mode authorizes a write;
+- no simultaneous migration of every command without a per-command payload contract;
+- no field projection;
+- no change to raw GraphQL response naming or pagination shape.
+
+Gate:
+
+- existing command-level JSON tests remain compatible;
+- cross-command subprocess tests separately capture stdout, stderr, exit status, and terminal decoration;
+- every machine-mode success parses as exactly one JSON value with empty stderr;
+- every machine-mode failure has empty stdout, one parseable error document on stderr, and a nonzero exit status;
+- unsupported command paths fail explicitly rather than falling back to human output.
 
 ### Commit 10: non-interactive issue mutation resolver
 
 Scope:
 
-- batch-resolve team, state, assignee, labels, project, milestone, cycle, and parent inputs for non-interactive create/update;
-- preserve UUID passthrough, ambiguity, not-found, and scope semantics;
-- prove request-count reduction.
+- define one non-interactive resolution policy shared by explicit non-interactive options and prompt-disabled execution without treating prompt suppression itself as a performance contract;
+- batch-resolve team, state, assignee, labels, project, milestone, cycle, and parent inputs for non-interactive create and update;
+- let create and update use small operation-specific resolvers rather than requiring one generic resolver abstraction;
+- preserve UUID passthrough, name/key/identifier matching, ambiguity, not-found, team/workspace scope, and current candidate-selection semantics;
+- keep interactive candidate selection and its incremental lookups unchanged;
+- fetch the target issue and necessary update context before resolving dependent update inputs;
+- reduce nominal non-interactive lookup traffic to a fixed one or two GraphQL requests before the mutation.
+
+Non-goals:
+
+- no behavior change to interactive resolution;
+- no weaker ambiguity or scope validation to achieve a lower request count;
+- no retry policy bundled into resolver work;
+- no repository-wide resolver/service rewrite.
+
+Gate:
+
+- request-count tests distinguish CLI invocations, nominal GraphQL requests, pagination, and retries;
+- create and update tests lock the fixed lookup bound independently;
+- regression tests cover every existing resolution semantic and prove invalid input fails before mutation;
+- the production command path, not a test-only reimplementation, performs the measured resolution.
 
 ### Commit 11: conservative network reliability
 
 Scope:
 
-- per-attempt timeout and overall deadline;
-- `Retry-After` handling;
-- exponential backoff with jitter;
-- query-only transient retries by default;
-- no automatic mutation retry without proven idempotency;
-- structured network and rate-limit errors.
+- add an abortable per-attempt timeout and an overall deadline that explicitly defines whether server-requested `Retry-After` waits count against it;
+- parse both delta-seconds and HTTP-date `Retry-After` forms, subject to a bounded client policy;
+- use exponential backoff with jitter for retryable query failures;
+- retry queries only for `429`, `502`, `503`, `504`, and narrowly classified transient network failures by default;
+- classify relevant HTTP 200 GraphQL error codes without treating authentication, permission, validation, or domain errors as transient;
+- never automatically retry a mutation unless that operation separately proves idempotency or supplies a supported idempotency key;
+- preserve the unknown outcome of a timed-out mutation instead of reporting that it definitely failed;
+- expose retryability, HTTP status, server delay, attempt count, and partial-outcome information through the structured error boundary when available.
+
+Non-goals:
+
+- no GraphQL text heuristics that can misclassify an operation as a query;
+- no blanket retry wrapper around `client.request`;
+- no silent delay beyond the documented overall deadline;
+- no special-casing tests by making production retry behavior deterministic.
+
+Gate:
+
+- fake-transport or local-server tests control the clock, sleep, and jitter deterministically;
+- tests cover both `Retry-After` forms, deadline exhaustion, cancellation, and GraphQL error classification;
+- nominal request-count tests remain separate from retry-attempt tests;
+- tests prove transient queries retry and mutations do not duplicate after HTTP failures, network errors, or timeout ambiguity.
+
+### Evidence-gated later work: machine-output field projection
+
+Consider built-in projection only after machine payload schemas and measured output costs are stable. Its purpose is reducing CLI-to-agent output, not reducing GraphQL requests or server response size; `jq` and precise `linear api` selections remain valid alternatives.
+
+If eval evidence justifies implementation:
+
+- support nested objects, arrays, and connections without flattening or renaming fields;
+- preserve `nodes`, `pageInfo`, and arbitrary `linear api` payload nesting;
+- fail on every requested path that does not exist rather than silently accepting partial typos;
+- test projection and compact formatting independently;
+- demonstrate a material discovery or execution-output byte reduction on representative cases.
+
+### Architecture constraints graduate with implementation
+
+Update repository guidance alongside the commit that makes a boundary true and testable. Machine-output purity belongs with commit 9, resolver semantics with commit 10, and retry/idempotency rules with commit 11. A command/resolver/service layering rule, including any claim that services accept only UUIDs, applies only to migrated modules whose code and tests enforce it; it must not be declared globally in advance.
 
 ### Later: first-class batch issue execution
 
 Move the existing protected batch-write workflow into typed CLI commands before embedding its complete operational handbook. Do not ship a guide that still requires locating an implementation script in a separately installed Skill.
 
-Commits 9–11 do not fundamentally depend on the Skill migration and may proceed in parallel after commit 1 if ownership and review capacity permit. They should remain separate from guide commits so machine output, resolver behavior, and retry safety are independently reviewable.
+Keep commits 9–11 independently reviewable from guide work and from one another. Commit 11 may develop transport behavior before commit 9 lands, but its machine-error projection must integrate after, or against a separately fixed version of, commit 9's structured error contract.
 
 ## Alternatives considered
 
