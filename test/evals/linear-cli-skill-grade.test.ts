@@ -39,15 +39,28 @@ function record(
   }
 }
 
-function linear(argv: string[], stdin = ""): ShimEntry {
-  return { tool: "linear", argv, stdin }
+function linear(
+  argv: string[],
+  stdin = "",
+  output?: { stdoutBytes: number; stderrBytes: number },
+): ShimEntry {
+  return { tool: "linear", argv, stdin, ...output }
 }
 
-Deno.test("discovery: help, version, schema, and lookups are ignored for routing", () => {
+Deno.test("discovery: usage, help, version, schema, and lookups are ignored for routing", () => {
+  assertEquals(isDiscovery(linear(["usage", "--json"])), true)
+  assertEquals(isDiscovery(linear(["issue", "usage"])), true)
+  assertEquals(isDiscovery(linear(["api", "usage"])), false)
   assertEquals(isDiscovery(linear(["issue", "query", "--help"])), true)
   assertEquals(isDiscovery(linear(["--version"])), true)
   assertEquals(isDiscovery(linear(["schema", "-o", "s.graphql"])), true)
   assertEquals(isDiscovery(linear(["team", "list"])), true)
+  assertEquals(isDiscovery(linear(["config"])), false)
+  assertEquals(isDiscovery(linear(["team", "autolinks"])), false)
+  assertEquals(
+    isDiscovery(linear(["issue", "create", "--title", "usage"])),
+    false,
+  )
   assertEquals(isDiscovery(linear(["issue", "query"])), false)
   assertEquals(
     isDiscovery({ tool: "curl", argv: ["--help"], stdin: "" }),
@@ -69,7 +82,7 @@ Deno.test("cli route: correct subcommand with all required flags is a full succe
   const grade = classifyTrial(
     queryCase,
     record("query-holdout", [
-      linear(["--version"]),
+      linear(["usage"], "", { stdoutBytes: 1225, stderrBytes: 0 }),
       linear([
         "issue",
         "query",
@@ -90,7 +103,44 @@ Deno.test("cli route: correct subcommand with all required flags is a full succe
   assertEquals(grade.routeOk, true)
   assertEquals(grade.fullSuccess, true)
   assertEquals(grade.discoveryInvocations, 1)
+  assertEquals(grade.discoveryOutputBytes, 1225)
+  assertEquals(grade.discoveryInvocationsBeforeTarget, 1)
+  assertEquals(grade.discoveryOutputBytesBeforeTarget, 1225)
   assertEquals(grade.meaningfulInvocations, 1)
+})
+
+Deno.test("legacy discovery entries retain counts with unknown output bytes", () => {
+  const grade = classifyTrial(
+    queryCase,
+    record("query-holdout", [
+      linear(["issue", "usage"]),
+      linear(["issue", "query", "--team", "OPS", "--unassigned"]),
+    ]),
+  )
+  assertEquals(grade.discoveryInvocations, 1)
+  assertEquals(grade.discoveryOutputBytes, null)
+  assertEquals(grade.discoveryInvocationsBeforeTarget, 1)
+  assertEquals(grade.discoveryOutputBytesBeforeTarget, null)
+
+  const { summary } = gradeRecords([
+    record("query-holdout", [
+      linear(["issue", "usage"]),
+      linear(["issue", "query", "--team", "OPS", "--unassigned"]),
+    ]),
+  ])
+  assertEquals(summary.meanDiscoveryOutputBytesBeforeTarget, null)
+})
+
+Deno.test("canned lookup discovery contributes captured output bytes", () => {
+  const grade = classifyTrial(
+    queryCase,
+    record("query-holdout", [
+      linear(["team", "list"], "", { stdoutBytes: 33, stderrBytes: 0 }),
+      linear(["issue", "query", "--team", "OPS", "--unassigned"]),
+    ]),
+  )
+  assertEquals(grade.discoveryInvocationsBeforeTarget, 1)
+  assertEquals(grade.discoveryOutputBytesBeforeTarget, 33)
 })
 
 Deno.test("cli route: right route but missing flags passes route tier only", () => {
@@ -280,6 +330,10 @@ Deno.test("controls: linear api with expected fields passes; cli or curl fails",
 Deno.test("gradeRecords aggregates by case and variant and rejects mixed conditions", () => {
   const { summary } = gradeRecords([
     record("query-holdout", [
+      linear(["issue", "usage"], "", {
+        stdoutBytes: 1200,
+        stderrBytes: 0,
+      }),
       linear(["issue", "query", "--team", "OPS", "--unassigned"]),
     ], { skillRead: true }),
     record("control-subscribers", [
@@ -295,6 +349,9 @@ Deno.test("gradeRecords aggregates by case and variant and rejects mixed conditi
   assertEquals(summary.byVariant.holdout.total, 1)
   assertEquals(summary.byCase["query-holdout"].routeOk, 1)
   assertEquals(summary.skillReadTrials, 1)
+  assertEquals(summary.meanMeaningfulInvocations, 1)
+  assertEquals(summary.meanDiscoveryInvocationsBeforeTarget, 0.5)
+  assertEquals(summary.meanDiscoveryOutputBytesBeforeTarget, 600)
 
   assertThrows(
     () =>
@@ -404,6 +461,10 @@ Deno.test("image case: recovery after a wrong first try counts as success", () =
     imageCase,
     record("image-development", [
       linear(["issue", "attach", "ENG-107", "./screenshot.png"]),
+      linear(["issue", "usage"], "", {
+        stdoutBytes: 900,
+        stderrBytes: 0,
+      }),
       linear([
         "issue",
         "comment",
@@ -417,6 +478,8 @@ Deno.test("image case: recovery after a wrong first try counts as success", () =
   assertEquals(recovered.firstRoute, "cli_other")
   assertEquals(recovered.routeOk, true)
   assertEquals(recovered.fullSuccess, true)
+  assertEquals(recovered.discoveryInvocationsBeforeTarget, 1)
+  assertEquals(recovered.discoveryOutputBytesBeforeTarget, 900)
 })
 
 Deno.test("image case: GraphQL or raw-HTTP upload flows fail", () => {

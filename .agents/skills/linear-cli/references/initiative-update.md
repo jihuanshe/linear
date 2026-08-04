@@ -20,6 +20,7 @@ Commands:
 
   create, c    <initiativeId>  - Create a new status update for an initiative
   list, l, ls  <initiativeId>  - List status updates for an initiative
+  usage                        - Show usage for linear initiative-update
 ```
 
 ## Subcommands
@@ -30,6 +31,9 @@ Commands:
 
 ```
 Usage:   linear initiative-update create <initiativeId>
+
+Writes: true
+Interactive: true
 
 Description:
 

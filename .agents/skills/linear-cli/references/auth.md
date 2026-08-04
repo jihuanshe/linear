@@ -25,6 +25,7 @@ Commands:
   token                 - Print the configured API token
   whoami                - Print information about the authenticated user
   migrate               - Migrate plaintext credentials to system keyring
+  usage                 - Show usage for linear auth
 ```
 
 ## Subcommands
@@ -35,6 +36,9 @@ Commands:
 
 ```
 Usage:   linear auth default [workspace]
+
+Writes: true
+Interactive: true
 
 Description:
 
@@ -70,6 +74,9 @@ Options:
 ```
 Usage:   linear auth login
 
+Writes: true
+Interactive: true
+
 Description:
 
   Add a workspace credential
@@ -89,6 +96,10 @@ Options:
 ```
 Usage:   linear auth logout [workspace]
 
+Writes: true
+Interactive: true
+Confirmation required unless: --force
+
 Description:
 
   Remove a workspace credential
@@ -106,6 +117,8 @@ Options:
 
 ```
 Usage:   linear auth migrate
+
+Writes: true
 
 Description:
 

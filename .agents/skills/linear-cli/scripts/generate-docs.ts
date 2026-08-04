@@ -24,8 +24,8 @@ const LINEAR_COMMAND = [
 // Files to preserve (not generated from help)
 const PRESERVED_FILES = ["organization-features.md"]
 
-// Commands to skip (shell completions, not useful for docs)
-const SKIP_COMMANDS = ["completions"]
+// Utility commands documented directly in the Skill, not repeated in references.
+const SKIP_COMMANDS = ["completions", "usage"]
 
 interface CommandInfo {
   name: string
@@ -152,7 +152,9 @@ async function discoverCommand(cmdPath: string[]): Promise<DiscoveryResult> {
   const description = descMatch ? descMatch[1].trim() : ""
 
   // Discover subcommands recursively
-  const subcommandNames = parseCommands(help)
+  const subcommandNames = parseCommands(help).filter(
+    (subcmd) => !SKIP_COMMANDS.includes(subcmd),
+  )
   const childResults = await Promise.all(
     subcommandNames.map((subcmd) => discoverCommand([...cmdPath, subcmd])),
   )

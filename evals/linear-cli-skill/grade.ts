@@ -23,6 +23,9 @@ export interface ShimEntry {
   tool: "linear" | "curl" | "npx" | "npm"
   argv: string[]
   stdin: string
+  /** Bytes emitted by a real CLI discovery invocation, when captured. */
+  stdoutBytes?: number
+  stderrBytes?: number
 }
 
 export interface TrialRecord {
@@ -62,6 +65,11 @@ export interface TrialGrade {
   skillRead: boolean
   meaningfulInvocations: number
   discoveryInvocations: number
+  /** Null for legacy records whose discovery output size was not captured. */
+  discoveryOutputBytes: number | null
+  discoveryInvocationsBeforeTarget: number
+  /** Null for legacy records whose pre-target discovery size was not captured. */
+  discoveryOutputBytesBeforeTarget: number | null
 }
 
 /**
@@ -73,12 +81,10 @@ const HTTP_BYPASS_PATTERN =
 
 const DISCOVERY_PREFIXES: string[][] = [
   ["schema"],
-  ["config"],
   ["team", "list"],
   ["team", "states"],
   ["team", "members"],
   ["team", "id"],
-  ["team", "autolinks"],
   ["user", "list"],
   ["label", "list"],
   ["project", "list"],
@@ -94,8 +100,26 @@ function startsWith(argv: string[], prefix: string[]): boolean {
   return prefix.every((token, i) => argv[i] === token)
 }
 
+function capturedOutputBytes(entries: ShimEntry[]): number | null {
+  return entries.some((entry) =>
+      entry.stdoutBytes == null || entry.stderrBytes == null
+    )
+    ? null
+    : entries.reduce(
+      (total, entry) =>
+        total + (entry.stdoutBytes ?? 0) + (entry.stderrBytes ?? 0),
+      0,
+    )
+}
+
 export function isDiscovery(entry: ShimEntry): boolean {
   if (entry.tool !== "linear") return false
+  if (
+    entry.argv[0] === "usage" ||
+    (entry.argv[0] !== "api" && entry.argv[1] === "usage")
+  ) {
+    return true
+  }
   if (
     entry.argv.some((arg) =>
       arg === "--help" || arg === "-h" || arg === "--version"
@@ -211,8 +235,20 @@ export function classifyTrial(
   evalCase: EvalCase,
   record: TrialRecord,
 ): TrialGrade {
+  const discovery = record.entries.filter(isDiscovery)
   const meaningful = record.entries.filter((entry) => !isDiscovery(entry))
-  const discoveryCount = record.entries.length - meaningful.length
+  const discoveryOutputBytes = capturedOutputBytes(discovery)
+  const targetIndex = record.entries.findIndex((entry) =>
+    !isDiscovery(entry) && entry.tool === "linear" &&
+    (evalCase.expect.route === "api"
+      ? entry.argv[0] === "api"
+      : evalCase.expect.routePrefixes.some((prefix) =>
+        startsWith(entry.argv, prefix)
+      ))
+  )
+  const discoveryBeforeTarget = record.entries
+    .slice(0, targetIndex === -1 ? record.entries.length : targetIndex)
+    .filter(isDiscovery)
 
   const usedApi = meaningful.some((entry) =>
     entry.tool === "linear" && entry.argv[0] === "api"
@@ -276,7 +312,12 @@ export function classifyTrial(
     usedHttp,
     skillRead: record.skillRead === true,
     meaningfulInvocations: meaningful.length,
-    discoveryInvocations: discoveryCount,
+    discoveryInvocations: discovery.length,
+    discoveryOutputBytes,
+    discoveryInvocationsBeforeTarget: discoveryBeforeTarget.length,
+    discoveryOutputBytesBeforeTarget: capturedOutputBytes(
+      discoveryBeforeTarget,
+    ),
   }
 }
 
@@ -344,6 +385,9 @@ export interface ConditionSummary {
   firstRoutes: Record<Route, number>
   skillReadTrials: number
   meanMeaningfulInvocations: number
+  meanDiscoveryInvocationsBeforeTarget: number
+  /** Null when any discovery invocation predates output byte capture. */
+  meanDiscoveryOutputBytesBeforeTarget: number | null
 }
 
 const caseById = new Map(CASES.map((evalCase) => [evalCase.id, evalCase]))
@@ -383,7 +427,11 @@ export function gradeRecords(records: TrialRecord[]): {
     firstRoutes: { cli: 0, cli_other: 0, api: 0, http: 0, none: 0 },
     skillReadTrials: 0,
     meanMeaningfulInvocations: 0,
+    meanDiscoveryInvocationsBeforeTarget: 0,
+    meanDiscoveryOutputBytesBeforeTarget: null,
   }
+  let discoveryOutputBytes = 0
+  let hasUnknownDiscoveryOutput = false
   const count = (bucket: OutcomeCounts, grade: TrialGrade): void => {
     bucket.total++
     if (grade.routeOk) bucket.routeOk++
@@ -417,10 +465,25 @@ export function gradeRecords(records: TrialRecord[]): {
     summary.firstRoutes[grade.firstRoute]++
     if (grade.skillRead) summary.skillReadTrials++
     summary.meanMeaningfulInvocations += grade.meaningfulInvocations
+    summary.meanDiscoveryInvocationsBeforeTarget +=
+      grade.discoveryInvocationsBeforeTarget
+    if (grade.discoveryOutputBytesBeforeTarget != null) {
+      discoveryOutputBytes += grade.discoveryOutputBytesBeforeTarget
+    } else {
+      hasUnknownDiscoveryOutput = true
+    }
   }
   summary.meanMeaningfulInvocations = Number(
     (summary.meanMeaningfulInvocations / grades.length).toFixed(2),
   )
+  summary.meanDiscoveryInvocationsBeforeTarget = Number(
+    (summary.meanDiscoveryInvocationsBeforeTarget / grades.length).toFixed(2),
+  )
+  if (!hasUnknownDiscoveryOutput) {
+    summary.meanDiscoveryOutputBytesBeforeTarget = Number(
+      (discoveryOutputBytes / grades.length).toFixed(2),
+    )
+  }
   return { grades, summary }
 }
 
@@ -461,6 +524,10 @@ export function summaryMarkdown(summary: ConditionSummary): string {
       ]
       : []),
     `- Mean non-discovery invocations per trial: ${summary.meanMeaningfulInvocations}`,
+    `- Mean discovery invocations before the target command: ${summary.meanDiscoveryInvocationsBeforeTarget}`,
+    `- Mean discovery output bytes before the target command: ${
+      summary.meanDiscoveryOutputBytesBeforeTarget ?? "n/a"
+    }`,
     "",
     "| Case | Route ok | Full success |",
     "| --- | --- | --- |",
@@ -546,6 +613,10 @@ export function comparisonMarkdown(
         `| CLI controls: correct dedicated route | ${baseline.cliControls.routeOk}/${baseline.cliControls.total} | ${post.cliControls.routeOk}/${post.cliControls.total} | — |`,
       ]
       : []),
+    `| Mean discovery invocations before target | ${baseline.meanDiscoveryInvocationsBeforeTarget} | ${post.meanDiscoveryInvocationsBeforeTarget} | — |`,
+    `| Mean discovery output bytes before target | ${
+      baseline.meanDiscoveryOutputBytesBeforeTarget ?? "n/a"
+    } | ${post.meanDiscoveryOutputBytesBeforeTarget ?? "n/a"} | — |`,
     "",
     summaryMarkdown(baseline),
     "",

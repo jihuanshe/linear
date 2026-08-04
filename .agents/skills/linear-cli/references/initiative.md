@@ -27,6 +27,7 @@ Commands:
   delete          [initiativeId]          - Permanently delete a Linear initiative
   add-project     <initiative> <project>  - Link a project to an initiative
   remove-project  <initiative> <project>  - Unlink a project from an initiative
+  usage                                   - Show usage for linear initiative
 ```
 
 ## Subcommands
@@ -37,6 +38,8 @@ Commands:
 
 ```
 Usage:   linear initiative add-project <initiative> <project>
+
+Writes: true
 
 Description:
 
@@ -55,6 +58,10 @@ Options:
 
 ```
 Usage:   linear initiative archive [initiativeId]
+
+Writes: true
+Interactive: true
+Confirmation required unless: --force
 
 Description:
 
@@ -76,6 +83,9 @@ Options:
 
 ```
 Usage:   linear initiative create
+
+Writes: true
+Interactive: true
 
 Description:
 
@@ -101,6 +111,10 @@ Options:
 
 ```
 Usage:   linear initiative delete [initiativeId]
+
+Writes: true
+Interactive: true
+Confirmation required unless: --force
 
 Description:
 
@@ -147,6 +161,10 @@ Options:
 ```
 Usage:   linear initiative remove-project <initiative> <project>
 
+Writes: true
+Interactive: true
+Confirmation required unless: --force
+
 Description:
 
   Unlink a project from an initiative
@@ -165,6 +183,10 @@ Options:
 ```
 Usage:   linear initiative unarchive <initiativeId>
 
+Writes: true
+Interactive: true
+Confirmation required unless: --force
+
 Description:
 
   Unarchive a Linear initiative
@@ -182,6 +204,9 @@ Options:
 
 ```
 Usage:   linear initiative update <initiativeId>
+
+Writes: true
+Interactive: true
 
 Description:
 

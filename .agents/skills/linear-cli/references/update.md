@@ -7,6 +7,8 @@
 ```
 Usage:   linear update
 
+Writes: true
+
 Description:
 
   Update the Linear CLI

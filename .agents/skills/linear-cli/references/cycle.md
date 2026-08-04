@@ -20,6 +20,7 @@ Commands:
 
   list                 - List cycles for a team
   view, v  <cycleRef>  - View cycle details
+  usage                - Show usage for linear cycle
 ```
 
 ## Subcommands

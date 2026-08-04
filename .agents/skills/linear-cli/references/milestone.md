@@ -24,6 +24,7 @@ Commands:
   create                - Create a new project milestone
   update   <id>         - Update an existing project milestone
   delete   <id>         - Delete a project milestone
+  usage                 - Show usage for linear milestone
 ```
 
 ## Subcommands
@@ -34,6 +35,8 @@ Commands:
 
 ```
 Usage:   linear milestone create --project <project> --name <name>
+
+Writes: true
 
 Description:
 
@@ -55,6 +58,10 @@ Options:
 
 ```
 Usage:   linear milestone delete <id>
+
+Writes: true
+Interactive: true
+Confirmation required unless: --force
 
 Description:
 
@@ -91,6 +98,8 @@ Options:
 
 ```
 Usage:   linear milestone update <id>
+
+Writes: true
 
 Description:
 

@@ -18,7 +18,8 @@ Options:
 
 Commands:
 
-  list  - List members of the workspace
+  list   - List members of the workspace
+  usage  - Show usage for linear user
 ```
 
 ## Subcommands

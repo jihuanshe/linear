@@ -23,6 +23,7 @@ Commands:
   create, c                - Create a new document
   update, u  <documentId>  - Update an existing document
   delete, d  [documentId]  - Delete a document (moves to trash)
+  usage                    - Show usage for linear document
 ```
 
 ## Subcommands
@@ -33,6 +34,9 @@ Commands:
 
 ```
 Usage:   linear document create
+
+Writes: true
+Interactive: true
 
 Description:
 
@@ -57,6 +61,10 @@ Options:
 
 ```
 Usage:   linear document delete [documentId]
+
+Writes: true
+Interactive: true
+Confirmation required unless: --yes
 
 Description:
 
@@ -99,6 +107,9 @@ Options:
 
 ```
 Usage:   linear document update <documentId>
+
+Writes: true
+Interactive: true
 
 Description:
 

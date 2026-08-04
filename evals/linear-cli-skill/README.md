@@ -10,9 +10,9 @@ For each case × trial, the runner:
 
 1. Creates a fresh trial dir with its own `CODEX_HOME` (copied codex `auth.json` + the skill variant under test, nothing else), a fake `HOME` (codex also discovers skills in `~/.agents/skills` — a real leak we verified), and a work dir seeded with every file in `fixtures/` (markdown, a PNG screenshot, a log file).
 2. Spawns `codex exec` with an explicit environment: `PATH` = the recording shims (`linear`, `curl`, `npx`, `npm`) + the codex/deno bin dirs + `/usr/bin:/bin`; no Linear credentials anywhere. By default the subject runs under codex's `workspace-write` sandbox, which denies network and out-of-workdir writes to everything it executes.
-3. Records the shim invocation log, codex's JSON event stream (for bypass detection and to verify the skill was actually read), the final answer, and whether fixtures were tampered with.
+3. Records the shim invocation log, discovery stdout/stderr byte counts, codex's JSON event stream (for bypass detection and to verify the skill was actually read), the final answer, and whether fixtures were tampered with.
 
-The `linear` shim passes `--help`/`--version`/`schema` through to the real CLI in this repo (accurate discovery, no network), returns canned successes for task commands, and fails closed on unknown subcommands. Canned output is consistency-aware: `issue view` reflects updates made earlier in the same trial (by scanning the trial's own log), query output honors the requested state/`--unassigned` filters, and `issue update`/`create` echo back what changed — otherwise subjects notice the fake world contradicting their edits and escalate to raw GraphQL to investigate, which contaminates the route signal (this exact artifact invalidated the first baseline run during harness development). Mutations never touch anything real; `curl`/`npx`/`npm` are logged and fail like a dead network.
+The `linear` shim passes `usage`/`--help`/`--version`/`schema` through to the real CLI in this repo (accurate discovery, no network), returns canned successes for task commands, and fails closed on unknown subcommands. Canned output is consistency-aware: `issue view` reflects updates made earlier in the same trial (by scanning the trial's own log), query output honors the requested state/`--unassigned` filters, and `issue update`/`create` echo back what changed — otherwise subjects notice the fake world contradicting their edits and escalate to raw GraphQL to investigate, which contaminates the route signal (this exact artifact invalidated the first baseline run during harness development). Mutations never touch anything real; `curl`/`npx`/`npm` are logged and fail like a dead network.
 
 ## Cases
 
@@ -32,6 +32,8 @@ Recovery counts: a trial that first runs `issue attach` and then a correct `issu
 
 - **routeOk** — some invocation matches the case's expected dedicated subcommand (lookups like `issue view` before an update don't hurt), and the trial never used `linear api`, curl/npx/npm, or an HTTP bypass visible in the event-stream commands. For controls: used `linear api`, not direct HTTP.
 - **fullSuccess** (primary outcome) — routeOk + the taught subcommand with all required flags (order/alias insensitive; file flags must point at the expected fixture) + fixtures unmodified. For controls: the GraphQL query mentions the required field family.
+
+The condition summary also reports mean discovery invocations and output bytes before the first invocation that reaches the expected dedicated command (or `linear api` for controls). The shim obtains these byte counts by capturing and replaying every `linear` invocation, including real CLI `usage`/`--help`/`--version`/`schema` output and canned lookup output, so the subject sees exactly the same streams. Historical result files remain valid; their discovery byte metric is reported as `n/a` when the old records contain discovery calls without byte counts.
 
 Pre-declared outcome rules, set before the baseline run:
 

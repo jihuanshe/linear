@@ -7,6 +7,9 @@
 ```
 Usage:   linear config
 
+Writes: true
+Interactive: true
+
 Description:
 
   Interactively generate .linear.toml configuration

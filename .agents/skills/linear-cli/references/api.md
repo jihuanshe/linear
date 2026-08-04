@@ -7,6 +7,9 @@
 ```
 Usage:   linear api [query]
 
+Writes: true
+Output modes: json
+
 Description:
 
   Make a raw GraphQL API request

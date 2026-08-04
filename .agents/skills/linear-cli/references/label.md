@@ -21,6 +21,7 @@ Commands:
   list                - List issue labels
   create              - Create a new issue label
   delete  <nameOrId>  - Delete an issue label
+  usage               - Show usage for linear label
 ```
 
 ## Subcommands
@@ -31,6 +32,9 @@ Commands:
 
 ```
 Usage:   linear label create
+
+Writes: true
+Interactive: true
 
 Description:
 
@@ -53,6 +57,10 @@ Options:
 
 ```
 Usage:   linear label delete <nameOrId>
+
+Writes: true
+Interactive: true
+Confirmation required unless: --force
 
 Description:
 

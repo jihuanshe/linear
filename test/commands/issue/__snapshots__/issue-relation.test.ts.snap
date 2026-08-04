@@ -5,6 +5,8 @@ stdout:
 "
 Usage: relation add <issueId> <relationType> <relatedIssueId>
 
+Writes: true
+
 Description:
 
   Add a relation between two issues

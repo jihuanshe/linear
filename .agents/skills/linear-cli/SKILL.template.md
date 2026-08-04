@@ -135,13 +135,21 @@ Compact command list, generated from `linear --help`:
 
 For curated examples of organization features (initiatives, labels, projects, bulk operations), see [organization-features](references/organization-features.md).
 
-## Discovering Options
+## Discovering Commands and Options
 
-To see available subcommands and flags, run `--help` on any command:
+Discover the command surface progressively instead of guessing or loading every reference:
 
 ```bash
-linear --help
-linear issue --help
+linear usage                 # concise top-level overview
+linear issue usage           # commands and flags for one domain
+linear issue usage --json    # the same metadata as structured JSON
+```
+
+Usage metadata reports whether a command can write state, may prompt, requires an explicit confirmation-bypass flag, and supports JSON output. Treat `writes: true` as a capability warning, never as consent to execute the command.
+
+Use `--help` when you need the full documentation for one leaf command:
+
+```bash
 linear issue list --help
 linear issue create --help
 ```

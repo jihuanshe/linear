@@ -20,6 +20,7 @@ Commands:
 
   create, c  <projectId>  - Create a new status update for a project
   list, l    <projectId>  - List status updates for a project
+  usage                   - Show usage for linear project-update
 ```
 
 ## Subcommands
@@ -30,6 +31,9 @@ Commands:
 
 ```
 Usage:   linear project-update create <projectId>
+
+Writes: true
+Interactive: true
 
 Description:
 

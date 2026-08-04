@@ -2,7 +2,7 @@
 # Shim `linear` binary for the skill eval.
 #
 # Records every invocation (argv + stdin for `api`) as a JSON line in
-# $LINEAR_SHIM_LOG, answers --help/--version/schema through the real CLI in
+# $LINEAR_SHIM_LOG, answers usage/--help/--version/schema through the real CLI in
 # $LINEAR_SHIM_REPO (help needs no auth or network), and returns short,
 # plausible canned successes for task commands. Never touches the network and
 # never mutates anything real.
@@ -10,36 +10,88 @@ set -u
 
 LOG="${LINEAR_SHIM_LOG:?LINEAR_SHIM_LOG must be set}"
 REPO="${LINEAR_SHIM_REPO:?LINEAR_SHIM_REPO must be set}"
+ARGS=("$@")
 
 # Capture GraphQL heredocs piped to `linear api` so grading can inspect the
 # query text. Other commands never read stdin.
 STDIN_DATA=""
-if [ "${1:-}" = "api" ] && [ ! -t 0 ]; then
+if [ "${LINEAR_SHIM_CAPTURED:-0}" = 1 ]; then
+  STDIN_DATA="${LINEAR_SHIM_STDIN_DATA:-}"
+elif [ "${1:-}" = "api" ] && [ ! -t 0 ]; then
   STDIN_DATA=$(cat)
 fi
 
-# Argv goes to jq on stdin, delimited by the ASCII unit separator (0x1f):
-# jq's --args treats dash-prefixed values (e.g. --team) as its own options,
-# and jq strings cannot represent NUL, so neither works for arbitrary argv.
-if [ "$#" -eq 0 ]; then
-  jq -cn --arg stdin "$STDIN_DATA" \
-    '{tool: "linear", argv: [], stdin: $stdin}' >> "$LOG"
-else
-  printf '%s\x1f' "$@" | jq -Rsc --arg stdin "$STDIN_DATA" \
-    '{tool: "linear", argv: split("\u001f")[:-1], stdin: $stdin}' >> "$LOG"
-fi
+record_invocation() {
+  local stdout_bytes="$1"
+  local stderr_bytes="$2"
+
+  # Argv is delimited by the ASCII unit separator (0x1f): jq's --args treats
+  # dash-prefixed values as options, and jq strings cannot represent NUL.
+  local argv_json
+  if [ "${#ARGS[@]}" -eq 0 ]; then
+    argv_json='[]'
+  else
+    argv_json=$(printf '%s\x1f' "${ARGS[@]}" | jq -Rsc 'split("\u001f")[:-1]')
+  fi
+  jq -cn --argjson argv "$argv_json" --arg stdin "$STDIN_DATA" \
+    --argjson stdoutBytes "$stdout_bytes" \
+    --argjson stderrBytes "$stderr_bytes" \
+    '{tool: "linear", argv: $argv, stdin: $stdin, stdoutBytes: $stdoutBytes, stderrBytes: $stderrBytes}' >> "$LOG"
+}
+
+cleanup_capture() {
+  rm -f "${STDOUT_FILE:-}" "${STDERR_FILE:-}"
+}
+
+finish_capture() {
+  local status="$1"
+  local stdout_bytes stderr_bytes
+  stdout_bytes=$(wc -c < "$STDOUT_FILE" | tr -d ' ')
+  stderr_bytes=$(wc -c < "$STDERR_FILE" | tr -d ' ')
+  record_invocation "$stdout_bytes" "$stderr_bytes"
+  cat "$STDOUT_FILE"
+  cat "$STDERR_FILE" >&2
+  cleanup_capture
+  trap - EXIT HUP INT TERM
+  exit "$status"
+}
 
 # Discovery goes to the real CLI so help output is accurate for the skill
-# variant's CLI version.
+# variant's CLI version. Capture and replay both streams so the eval can measure
+# discovery cost without changing what the subject sees.
+IS_DISCOVERY=0
 for arg in "$@"; do
   case "$arg" in
     --help | -h | --version)
-      NO_COLOR=1 exec deno run --quiet --allow-all "$REPO/src/main.ts" "$@"
+      IS_DISCOVERY=1
       ;;
   esac
 done
 if [ "${1:-}" = "schema" ]; then
-  NO_COLOR=1 exec deno run --quiet --allow-all "$REPO/src/main.ts" "$@"
+  IS_DISCOVERY=1
+fi
+if [ "${1:-}" = "usage" ] || { [ "${1:-}" != "api" ] && [ "${2:-}" = "usage" ]; }; then
+  IS_DISCOVERY=1
+fi
+if [ "$IS_DISCOVERY" = 1 ]; then
+  STDOUT_FILE=$(mktemp "${TMPDIR:-/tmp}/linear-eval-stdout.XXXXXX")
+  STDERR_FILE=$(mktemp "${TMPDIR:-/tmp}/linear-eval-stderr.XXXXXX")
+  trap cleanup_capture EXIT HUP INT TERM
+  NO_COLOR=1 deno run --quiet --allow-all "$REPO/src/main.ts" "$@" \
+    > "$STDOUT_FILE" 2> "$STDERR_FILE"
+  finish_capture "$?"
+fi
+
+# Run canned commands once in a child copy of this shim, then record and replay
+# their exact output. This gives every new linear entry byte counts, including
+# lookup-style discovery such as `team list`. The child skips this wrapper.
+if [ "${LINEAR_SHIM_CAPTURED:-0}" != 1 ]; then
+  STDOUT_FILE=$(mktemp "${TMPDIR:-/tmp}/linear-eval-stdout.XXXXXX")
+  STDERR_FILE=$(mktemp "${TMPDIR:-/tmp}/linear-eval-stderr.XXXXXX")
+  trap cleanup_capture EXIT HUP INT TERM
+  LINEAR_SHIM_CAPTURED=1 LINEAR_SHIM_STDIN_DATA="$STDIN_DATA" \
+    "$0" "$@" > "$STDOUT_FILE" 2> "$STDERR_FILE"
+  finish_capture "$?"
 fi
 
 has_flag() {

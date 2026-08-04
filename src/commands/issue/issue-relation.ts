@@ -9,6 +9,7 @@ import {
   NotFoundError,
   ValidationError,
 } from "../../utils/errors.ts"
+import { withUsageMetadata } from "../usage.ts"
 
 const RELATION_TYPES = ["blocks", "blocked-by", "related", "duplicate"] as const
 type RelationType = (typeof RELATION_TYPES)[number]
@@ -390,6 +391,6 @@ export const relationCommand = new Command()
   .action(function () {
     this.showHelp()
   })
-  .command("add", addRelationCommand)
-  .command("delete", deleteRelationCommand)
+  .command("add", withUsageMetadata(addRelationCommand, { writes: true }))
+  .command("delete", withUsageMetadata(deleteRelationCommand, { writes: true }))
   .command("list", listRelationsCommand)

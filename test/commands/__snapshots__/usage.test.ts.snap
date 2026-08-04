@@ -1,0 +1,2017 @@
+export const snapshot = {};
+
+snapshot[`usage --json has a stable domain contract 1`] = `
+{
+  command: {
+    aliases: [
+      "i",
+    ],
+    arguments: [],
+    confirmation: null,
+    description: "Manage Linear issues",
+    details: "linear issue usage",
+    hasSubcommands: true,
+    interactive: false,
+    name: "issue",
+    options: [],
+    outputModes: [
+      "human",
+    ],
+    path: "linear issue",
+    usage: "linear issue",
+    writes: false,
+  },
+  globalOptions: [
+    {
+      arguments: [],
+      description: "Show this help.",
+      flags: [
+        "-h",
+        "--help",
+      ],
+      name: "help",
+      repeatable: false,
+      staticallyRequired: false,
+    },
+    {
+      arguments: [
+        {
+          list: false,
+          name: "slug",
+          required: true,
+          type: "string",
+          variadic: false,
+        },
+      ],
+      description: "Target workspace (uses credentials)",
+      flags: [
+        "--workspace",
+      ],
+      name: "workspace",
+      repeatable: false,
+      staticallyRequired: false,
+    },
+  ],
+  schemaVersion: 1,
+  subcommands: [
+    {
+      aliases: [],
+      arguments: [],
+      confirmation: null,
+      description: "Print the issue based on the current git branch",
+      details: "linear issue id --help",
+      hasSubcommands: false,
+      interactive: false,
+      name: "id",
+      options: [],
+      outputModes: [
+        "human",
+      ],
+      path: "linear issue id",
+      usage: "linear issue id",
+      writes: false,
+    },
+    {
+      aliases: [
+        "list",
+        "l",
+      ],
+      arguments: [],
+      confirmation: null,
+      description: "List your issues",
+      details: "linear issue mine --help",
+      hasSubcommands: false,
+      interactive: false,
+      name: "mine",
+      options: [
+        {
+          arguments: [
+            {
+              list: false,
+              name: "state",
+              required: true,
+              type: "state",
+              variadic: false,
+            },
+          ],
+          default: [
+            "unstarted",
+          ],
+          description: "Filter by issue state (can be repeated for multiple states)",
+          flags: [
+            "-s",
+            "--state",
+          ],
+          name: "state",
+          repeatable: true,
+          staticallyRequired: false,
+        },
+        {
+          arguments: [],
+          description: "Show issues from all states",
+          flags: [
+            "--all-states",
+          ],
+          name: "all-states",
+          repeatable: false,
+          staticallyRequired: false,
+        },
+        {
+          arguments: [
+            {
+              list: false,
+              name: "sort",
+              required: true,
+              type: "sort",
+              variadic: false,
+            },
+          ],
+          description: "Sort order (default: priority, can also be set via LINEAR_ISSUE_SORT)",
+          flags: [
+            "--sort",
+          ],
+          name: "sort",
+          repeatable: false,
+          staticallyRequired: false,
+        },
+        {
+          arguments: [
+            {
+              list: false,
+              name: "team",
+              required: true,
+              type: "string",
+              variadic: false,
+            },
+          ],
+          description: "Team to list issues for (if not your default team)",
+          flags: [
+            "--team",
+          ],
+          name: "team",
+          repeatable: false,
+          staticallyRequired: false,
+        },
+        {
+          arguments: [
+            {
+              list: false,
+              name: "project",
+              required: true,
+              type: "string",
+              variadic: false,
+            },
+          ],
+          description: "Filter by project (UUID, slug ID, or name)",
+          flags: [
+            "--project",
+          ],
+          name: "project",
+          repeatable: false,
+          staticallyRequired: false,
+        },
+        {
+          arguments: [
+            {
+              list: false,
+              name: "projectLabel",
+              required: true,
+              type: "string",
+              variadic: false,
+            },
+          ],
+          description: "Filter by project label name (shows issues from all projects with this label)",
+          flags: [
+            "--project-label",
+          ],
+          name: "project-label",
+          repeatable: false,
+          staticallyRequired: false,
+        },
+        {
+          arguments: [
+            {
+              list: false,
+              name: "cycle",
+              required: true,
+              type: "string",
+              variadic: false,
+            },
+          ],
+          description: "Filter by cycle name, number, 'active'/'now', 'next', 'previous', or a relative offset like +1",
+          flags: [
+            "--cycle",
+          ],
+          name: "cycle",
+          repeatable: false,
+          staticallyRequired: false,
+        },
+        {
+          arguments: [
+            {
+              list: false,
+              name: "milestone",
+              required: true,
+              type: "string",
+              variadic: false,
+            },
+          ],
+          description: "Filter by project milestone (UUID, or name when --project is set)",
+          flags: [
+            "--milestone",
+          ],
+          name: "milestone",
+          repeatable: false,
+          staticallyRequired: false,
+        },
+        {
+          arguments: [
+            {
+              list: false,
+              name: "label",
+              required: true,
+              type: "string",
+              variadic: false,
+            },
+          ],
+          description: "Filter by label name (can be repeated for multiple labels)",
+          flags: [
+            "-l",
+            "--label",
+          ],
+          name: "label",
+          repeatable: true,
+          staticallyRequired: false,
+        },
+        {
+          arguments: [
+            {
+              list: false,
+              name: "limit",
+              required: true,
+              type: "number",
+              variadic: false,
+            },
+          ],
+          default: 50,
+          description: "Maximum number of issues to fetch (default: 50, use 0 for unlimited)",
+          flags: [
+            "--limit",
+          ],
+          name: "limit",
+          repeatable: false,
+          staticallyRequired: false,
+        },
+        {
+          arguments: [
+            {
+              list: false,
+              name: "date",
+              required: true,
+              type: "string",
+              variadic: false,
+            },
+          ],
+          description: "Filter issues created after this date (ISO 8601 or YYYY-MM-DD)",
+          flags: [
+            "--created-after",
+          ],
+          name: "created-after",
+          repeatable: false,
+          staticallyRequired: false,
+        },
+        {
+          arguments: [
+            {
+              list: false,
+              name: "date",
+              required: true,
+              type: "string",
+              variadic: false,
+            },
+          ],
+          description: "Filter issues updated after this date (ISO 8601 or YYYY-MM-DD)",
+          flags: [
+            "--updated-after",
+          ],
+          name: "updated-after",
+          repeatable: false,
+          staticallyRequired: false,
+        },
+        {
+          arguments: [],
+          description: "Open in web browser",
+          flags: [
+            "-w",
+            "--web",
+          ],
+          name: "web",
+          repeatable: false,
+          staticallyRequired: false,
+        },
+        {
+          arguments: [],
+          description: "Open in Linear.app",
+          flags: [
+            "-a",
+            "--app",
+          ],
+          name: "app",
+          repeatable: false,
+          staticallyRequired: false,
+        },
+        {
+          arguments: [],
+          description: "Disable automatic paging for long output",
+          flags: [
+            "--no-pager",
+          ],
+          name: "no-pager",
+          repeatable: false,
+          staticallyRequired: false,
+        },
+      ],
+      outputModes: [
+        "human",
+      ],
+      path: "linear issue mine",
+      usage: "linear issue mine [options]",
+      writes: false,
+    },
+    {
+      aliases: [
+        "q",
+      ],
+      arguments: [],
+      confirmation: null,
+      description: "Query issues with structured filters",
+      details: "linear issue query --help",
+      hasSubcommands: false,
+      interactive: false,
+      name: "query",
+      options: [
+        {
+          arguments: [
+            {
+              list: false,
+              name: "term",
+              required: true,
+              type: "string",
+              variadic: false,
+            },
+          ],
+          description: "Full-text search term",
+          flags: [
+            "--search",
+          ],
+          name: "search",
+          repeatable: false,
+          staticallyRequired: false,
+        },
+        {
+          arguments: [],
+          description: "Also search inside issue comments (requires --search)",
+          flags: [
+            "--search-comments",
+          ],
+          name: "search-comments",
+          repeatable: false,
+          staticallyRequired: false,
+        },
+        {
+          arguments: [
+            {
+              list: false,
+              name: "team",
+              required: true,
+              type: "string",
+              variadic: false,
+            },
+          ],
+          description: "Filter by team key (can be repeated for multiple teams)",
+          flags: [
+            "--team",
+          ],
+          name: "team",
+          repeatable: true,
+          staticallyRequired: false,
+        },
+        {
+          arguments: [],
+          description: "Query across all teams",
+          flags: [
+            "--all-teams",
+          ],
+          name: "all-teams",
+          repeatable: false,
+          staticallyRequired: false,
+        },
+        {
+          arguments: [
+            {
+              list: false,
+              name: "state",
+              required: true,
+              type: "state",
+              variadic: false,
+            },
+          ],
+          description: "Filter by issue state (can be repeated for multiple states)",
+          flags: [
+            "-s",
+            "--state",
+          ],
+          name: "state",
+          repeatable: true,
+          staticallyRequired: false,
+        },
+        {
+          arguments: [],
+          description: "Show issues from all states (this is the default)",
+          flags: [
+            "--all-states",
+          ],
+          name: "all-states",
+          repeatable: false,
+          staticallyRequired: false,
+        },
+        {
+          arguments: [
+            {
+              list: false,
+              name: "assignee",
+              required: true,
+              type: "string",
+              variadic: false,
+            },
+          ],
+          description: "Filter by assignee (username)",
+          flags: [
+            "--assignee",
+          ],
+          name: "assignee",
+          repeatable: false,
+          staticallyRequired: false,
+        },
+        {
+          arguments: [],
+          description: "Show issues for all assignees (this is the default)",
+          flags: [
+            "-A",
+            "--all-assignees",
+          ],
+          name: "all-assignees",
+          repeatable: false,
+          staticallyRequired: false,
+        },
+        {
+          arguments: [],
+          description: "Show only unassigned issues",
+          flags: [
+            "-U",
+            "--unassigned",
+          ],
+          name: "unassigned",
+          repeatable: false,
+          staticallyRequired: false,
+        },
+        {
+          arguments: [
+            {
+              list: false,
+              name: "sort",
+              required: true,
+              type: "sort",
+              variadic: false,
+            },
+          ],
+          description: "Sort order: manual or priority (default: priority, not available with --search)",
+          flags: [
+            "--sort",
+          ],
+          name: "sort",
+          repeatable: false,
+          staticallyRequired: false,
+        },
+        {
+          arguments: [
+            {
+              list: false,
+              name: "project",
+              required: true,
+              type: "string",
+              variadic: false,
+            },
+          ],
+          description: "Filter by project (UUID, slug ID, or name)",
+          flags: [
+            "--project",
+          ],
+          name: "project",
+          repeatable: false,
+          staticallyRequired: false,
+        },
+        {
+          arguments: [
+            {
+              list: false,
+              name: "projectLabel",
+              required: true,
+              type: "string",
+              variadic: false,
+            },
+          ],
+          description: "Filter by project label name (shows issues from all projects with this label)",
+          flags: [
+            "--project-label",
+          ],
+          name: "project-label",
+          repeatable: false,
+          staticallyRequired: false,
+        },
+        {
+          arguments: [
+            {
+              list: false,
+              name: "cycle",
+              required: true,
+              type: "string",
+              variadic: false,
+            },
+          ],
+          description: "Filter by cycle name, number, 'active'/'now', 'next', 'previous', or a relative offset like +1",
+          flags: [
+            "--cycle",
+          ],
+          name: "cycle",
+          repeatable: false,
+          staticallyRequired: false,
+        },
+        {
+          arguments: [
+            {
+              list: false,
+              name: "milestone",
+              required: true,
+              type: "string",
+              variadic: false,
+            },
+          ],
+          description: "Filter by project milestone (UUID, or name when --project is set)",
+          flags: [
+            "--milestone",
+          ],
+          name: "milestone",
+          repeatable: false,
+          staticallyRequired: false,
+        },
+        {
+          arguments: [
+            {
+              list: false,
+              name: "label",
+              required: true,
+              type: "string",
+              variadic: false,
+            },
+          ],
+          description: "Filter by label name (can be repeated for multiple labels)",
+          flags: [
+            "-l",
+            "--label",
+          ],
+          name: "label",
+          repeatable: true,
+          staticallyRequired: false,
+        },
+        {
+          arguments: [
+            {
+              list: false,
+              name: "limit",
+              required: true,
+              type: "number",
+              variadic: false,
+            },
+          ],
+          default: 50,
+          description: "Maximum number of issues to fetch (default: 50, use 0 for unlimited)",
+          flags: [
+            "--limit",
+          ],
+          name: "limit",
+          repeatable: false,
+          staticallyRequired: false,
+        },
+        {
+          arguments: [
+            {
+              list: false,
+              name: "date",
+              required: true,
+              type: "string",
+              variadic: false,
+            },
+          ],
+          description: "Filter issues created after this date (ISO 8601 or YYYY-MM-DD)",
+          flags: [
+            "--created-after",
+          ],
+          name: "created-after",
+          repeatable: false,
+          staticallyRequired: false,
+        },
+        {
+          arguments: [
+            {
+              list: false,
+              name: "date",
+              required: true,
+              type: "string",
+              variadic: false,
+            },
+          ],
+          description: "Filter issues updated after this date (ISO 8601 or YYYY-MM-DD)",
+          flags: [
+            "--updated-after",
+          ],
+          name: "updated-after",
+          repeatable: false,
+          staticallyRequired: false,
+        },
+        {
+          arguments: [],
+          description: "Include archived issues",
+          flags: [
+            "--include-archived",
+          ],
+          name: "include-archived",
+          repeatable: false,
+          staticallyRequired: false,
+        },
+        {
+          arguments: [],
+          description: "Output results as JSON",
+          flags: [
+            "-j",
+            "--json",
+          ],
+          name: "json",
+          repeatable: false,
+          staticallyRequired: false,
+        },
+        {
+          arguments: [],
+          description: "Disable automatic paging for long output",
+          flags: [
+            "--no-pager",
+          ],
+          name: "no-pager",
+          repeatable: false,
+          staticallyRequired: false,
+        },
+      ],
+      outputModes: [
+        "human",
+        "json",
+      ],
+      path: "linear issue query",
+      usage: "linear issue query [options]",
+      writes: false,
+    },
+    {
+      aliases: [],
+      arguments: [
+        {
+          list: false,
+          name: "issueId",
+          required: false,
+          type: "string",
+          variadic: false,
+        },
+      ],
+      confirmation: null,
+      description: "Print the issue title",
+      details: "linear issue title --help",
+      hasSubcommands: false,
+      interactive: false,
+      name: "title",
+      options: [],
+      outputModes: [
+        "human",
+      ],
+      path: "linear issue title",
+      usage: "linear issue title [issueId]",
+      writes: false,
+    },
+    {
+      aliases: [],
+      arguments: [
+        {
+          list: false,
+          name: "issueId",
+          required: false,
+          type: "string",
+          variadic: false,
+        },
+      ],
+      confirmation: null,
+      description: "Start working on an issue",
+      details: "linear issue start --help",
+      hasSubcommands: false,
+      interactive: true,
+      name: "start",
+      options: [
+        {
+          arguments: [],
+          description: "Show issues for all assignees",
+          flags: [
+            "-A",
+            "--all-assignees",
+          ],
+          name: "all-assignees",
+          repeatable: false,
+          staticallyRequired: false,
+        },
+        {
+          arguments: [],
+          description: "Show only unassigned issues",
+          flags: [
+            "-U",
+            "--unassigned",
+          ],
+          name: "unassigned",
+          repeatable: false,
+          staticallyRequired: false,
+        },
+        {
+          arguments: [
+            {
+              list: false,
+              name: "fromRef",
+              required: true,
+              type: "string",
+              variadic: false,
+            },
+          ],
+          description: "Git ref to create new branch from",
+          flags: [
+            "-f",
+            "--from-ref",
+          ],
+          name: "from-ref",
+          repeatable: false,
+          staticallyRequired: false,
+        },
+        {
+          arguments: [
+            {
+              list: false,
+              name: "branch",
+              required: true,
+              type: "string",
+              variadic: false,
+            },
+          ],
+          description: "Custom branch name to use instead of the issue identifier",
+          flags: [
+            "-b",
+            "--branch",
+          ],
+          name: "branch",
+          repeatable: false,
+          staticallyRequired: false,
+        },
+      ],
+      outputModes: [
+        "human",
+      ],
+      path: "linear issue start",
+      usage: "linear issue start [issueId] [options]",
+      writes: true,
+    },
+    {
+      aliases: [
+        "v",
+      ],
+      arguments: [
+        {
+          list: false,
+          name: "issueId",
+          required: false,
+          type: "string",
+          variadic: false,
+        },
+      ],
+      confirmation: null,
+      description: "View issue details (default) or open in browser/app",
+      details: "linear issue view --help",
+      hasSubcommands: false,
+      interactive: false,
+      name: "view",
+      options: [
+        {
+          arguments: [],
+          description: "Open in web browser",
+          flags: [
+            "-w",
+            "--web",
+          ],
+          name: "web",
+          repeatable: false,
+          staticallyRequired: false,
+        },
+        {
+          arguments: [],
+          description: "Open in Linear.app",
+          flags: [
+            "-a",
+            "--app",
+          ],
+          name: "app",
+          repeatable: false,
+          staticallyRequired: false,
+        },
+        {
+          arguments: [],
+          description: "Exclude comments from the output",
+          flags: [
+            "--no-comments",
+          ],
+          name: "no-comments",
+          repeatable: false,
+          staticallyRequired: false,
+        },
+        {
+          arguments: [],
+          description: "Include resolved comment threads in the output",
+          flags: [
+            "--show-resolved-threads",
+          ],
+          name: "show-resolved-threads",
+          repeatable: false,
+          staticallyRequired: false,
+        },
+        {
+          arguments: [],
+          description: "Disable automatic paging for long output",
+          flags: [
+            "--no-pager",
+          ],
+          name: "no-pager",
+          repeatable: false,
+          staticallyRequired: false,
+        },
+        {
+          arguments: [],
+          description: "Output issue data as JSON",
+          flags: [
+            "-j",
+            "--json",
+          ],
+          name: "json",
+          repeatable: false,
+          staticallyRequired: false,
+        },
+        {
+          arguments: [],
+          description: "Keep remote URLs instead of downloading files",
+          flags: [
+            "--no-download",
+          ],
+          name: "no-download",
+          repeatable: false,
+          staticallyRequired: false,
+        },
+      ],
+      outputModes: [
+        "human",
+        "json",
+      ],
+      path: "linear issue view",
+      usage: "linear issue view [issueId] [options]",
+      writes: false,
+    },
+    {
+      aliases: [],
+      arguments: [
+        {
+          list: false,
+          name: "issueId",
+          required: false,
+          type: "string",
+          variadic: false,
+        },
+      ],
+      confirmation: null,
+      description: "Print the issue URL",
+      details: "linear issue url --help",
+      hasSubcommands: false,
+      interactive: false,
+      name: "url",
+      options: [],
+      outputModes: [
+        "human",
+      ],
+      path: "linear issue url",
+      usage: "linear issue url [issueId]",
+      writes: false,
+    },
+    {
+      aliases: [],
+      arguments: [
+        {
+          list: false,
+          name: "issueId",
+          required: false,
+          type: "string",
+          variadic: false,
+        },
+      ],
+      confirmation: null,
+      description: "Print the issue title and Linear-issue trailer",
+      details: "linear issue describe --help",
+      hasSubcommands: false,
+      interactive: false,
+      name: "describe",
+      options: [
+        {
+          arguments: [],
+          description: "Use 'References' instead of 'Fixes' for the Linear issue link",
+          flags: [
+            "-r",
+            "--references",
+            "--ref",
+          ],
+          name: "references",
+          repeatable: false,
+          staticallyRequired: false,
+        },
+      ],
+      outputModes: [
+        "human",
+      ],
+      path: "linear issue describe",
+      usage: "linear issue describe [issueId] [options]",
+      writes: false,
+    },
+    {
+      aliases: [],
+      arguments: [
+        {
+          list: false,
+          name: "issueId",
+          required: false,
+          type: "string",
+          variadic: false,
+        },
+      ],
+      confirmation: null,
+      description: "Show all commits for a Linear issue (jj only)",
+      details: "linear issue commits --help",
+      hasSubcommands: false,
+      interactive: false,
+      name: "commits",
+      options: [],
+      outputModes: [
+        "human",
+      ],
+      path: "linear issue commits",
+      usage: "linear issue commits [issueId]",
+      writes: false,
+    },
+    {
+      aliases: [
+        "pr",
+      ],
+      arguments: [
+        {
+          list: false,
+          name: "issueId",
+          required: false,
+          type: "string",
+          variadic: false,
+        },
+      ],
+      confirmation: null,
+      description: "Create a GitHub pull request with issue details",
+      details: "linear issue pull-request --help",
+      hasSubcommands: false,
+      interactive: false,
+      name: "pull-request",
+      options: [
+        {
+          arguments: [
+            {
+              list: false,
+              name: "branch",
+              required: true,
+              type: "string",
+              variadic: false,
+            },
+          ],
+          description: "The branch into which you want your code merged",
+          flags: [
+            "--base",
+          ],
+          name: "base",
+          repeatable: false,
+          staticallyRequired: false,
+        },
+        {
+          arguments: [],
+          description: "Create the pull request as a draft",
+          flags: [
+            "--draft",
+          ],
+          name: "draft",
+          repeatable: false,
+          staticallyRequired: false,
+        },
+        {
+          arguments: [
+            {
+              list: false,
+              name: "title",
+              required: true,
+              type: "string",
+              variadic: false,
+            },
+          ],
+          description: "Optional title for the pull request (Linear issue ID will be prefixed)",
+          flags: [
+            "-t",
+            "--title",
+          ],
+          name: "title",
+          repeatable: false,
+          staticallyRequired: false,
+        },
+        {
+          arguments: [],
+          description: "Open the pull request in the browser after creating it",
+          flags: [
+            "--web",
+          ],
+          name: "web",
+          repeatable: false,
+          staticallyRequired: false,
+        },
+        {
+          arguments: [
+            {
+              list: false,
+              name: "branch",
+              required: true,
+              type: "string",
+              variadic: false,
+            },
+          ],
+          description: "The branch that contains commits for your pull request",
+          flags: [
+            "--head",
+          ],
+          name: "head",
+          repeatable: false,
+          staticallyRequired: false,
+        },
+      ],
+      outputModes: [
+        "human",
+      ],
+      path: "linear issue pull-request",
+      usage: "linear issue pull-request [issueId] [options]",
+      writes: true,
+    },
+    {
+      aliases: [
+        "d",
+      ],
+      arguments: [
+        {
+          list: false,
+          name: "issueId",
+          required: false,
+          type: "string",
+          variadic: false,
+        },
+      ],
+      confirmation: {
+        requiredUnless: "--confirm",
+      },
+      description: "Delete an issue by identifier or UUID",
+      details: "linear issue delete --help",
+      hasSubcommands: false,
+      interactive: true,
+      name: "delete",
+      options: [
+        {
+          arguments: [],
+          description: "Skip confirmation prompt",
+          flags: [
+            "-y",
+            "--confirm",
+          ],
+          name: "confirm",
+          repeatable: false,
+          staticallyRequired: false,
+        },
+        {
+          arguments: [
+            {
+              list: false,
+              name: "ids",
+              required: true,
+              type: "string",
+              variadic: true,
+            },
+          ],
+          description: "Delete multiple issues by identifier or UUID",
+          flags: [
+            "--bulk",
+          ],
+          name: "bulk",
+          repeatable: false,
+          staticallyRequired: false,
+        },
+        {
+          arguments: [
+            {
+              list: false,
+              name: "file",
+              required: true,
+              type: "string",
+              variadic: false,
+            },
+          ],
+          description: "Read issue identifiers or UUIDs from a file (one per line)",
+          flags: [
+            "--bulk-file",
+          ],
+          name: "bulk-file",
+          repeatable: false,
+          staticallyRequired: false,
+        },
+        {
+          arguments: [],
+          description: "Read issue identifiers or UUIDs from stdin",
+          flags: [
+            "--bulk-stdin",
+          ],
+          name: "bulk-stdin",
+          repeatable: false,
+          staticallyRequired: false,
+        },
+      ],
+      outputModes: [
+        "human",
+      ],
+      path: "linear issue delete",
+      usage: "linear issue delete [issueId] [options]",
+      writes: true,
+    },
+    {
+      aliases: [],
+      arguments: [],
+      confirmation: null,
+      description: "Create a linear issue",
+      details: "linear issue create --help",
+      hasSubcommands: false,
+      interactive: true,
+      name: "create",
+      options: [
+        {
+          arguments: [],
+          description: "Start the issue after creation",
+          flags: [
+            "--start",
+          ],
+          name: "start",
+          repeatable: false,
+          staticallyRequired: false,
+        },
+        {
+          arguments: [
+            {
+              list: false,
+              name: "assignee",
+              required: true,
+              type: "string",
+              variadic: false,
+            },
+          ],
+          description: "Assign the issue to 'self' or someone (by username or name)",
+          flags: [
+            "-a",
+            "--assignee",
+          ],
+          name: "assignee",
+          repeatable: false,
+          staticallyRequired: false,
+        },
+        {
+          arguments: [
+            {
+              list: false,
+              name: "dueDate",
+              required: true,
+              type: "string",
+              variadic: false,
+            },
+          ],
+          description: "Due date of the issue",
+          flags: [
+            "--due-date",
+          ],
+          name: "due-date",
+          repeatable: false,
+          staticallyRequired: false,
+        },
+        {
+          arguments: [
+            {
+              list: false,
+              name: "parent",
+              required: true,
+              type: "string",
+              variadic: false,
+            },
+          ],
+          description: "Parent issue (if any) as a team_number code",
+          flags: [
+            "--parent",
+          ],
+          name: "parent",
+          repeatable: false,
+          staticallyRequired: false,
+        },
+        {
+          arguments: [
+            {
+              list: false,
+              name: "priority",
+              required: true,
+              type: "number",
+              variadic: false,
+            },
+          ],
+          description: "Priority of the issue (1-4, descending priority)",
+          flags: [
+            "-p",
+            "--priority",
+          ],
+          name: "priority",
+          repeatable: false,
+          staticallyRequired: false,
+        },
+        {
+          arguments: [
+            {
+              list: false,
+              name: "estimate",
+              required: true,
+              type: "number",
+              variadic: false,
+            },
+          ],
+          description: "Points estimate of the issue",
+          flags: [
+            "--estimate",
+          ],
+          name: "estimate",
+          repeatable: false,
+          staticallyRequired: false,
+        },
+        {
+          arguments: [
+            {
+              list: false,
+              name: "description",
+              required: true,
+              type: "string",
+              variadic: false,
+            },
+          ],
+          description: "Description of the issue",
+          flags: [
+            "-d",
+            "--description",
+          ],
+          name: "description",
+          repeatable: false,
+          staticallyRequired: false,
+        },
+        {
+          arguments: [
+            {
+              list: false,
+              name: "path",
+              required: true,
+              type: "string",
+              variadic: false,
+            },
+          ],
+          description: "Read description from a file (preferred for markdown content)",
+          flags: [
+            "--description-file",
+          ],
+          name: "description-file",
+          repeatable: false,
+          staticallyRequired: false,
+        },
+        {
+          arguments: [
+            {
+              list: false,
+              name: "label",
+              required: true,
+              type: "string",
+              variadic: false,
+            },
+          ],
+          description: "Issue label associated with the issue. May be repeated.",
+          flags: [
+            "-l",
+            "--label",
+          ],
+          name: "label",
+          repeatable: true,
+          staticallyRequired: false,
+        },
+        {
+          arguments: [
+            {
+              list: false,
+              name: "team",
+              required: true,
+              type: "string",
+              variadic: false,
+            },
+          ],
+          description: "Team associated with the issue (if not your default team)",
+          flags: [
+            "--team",
+          ],
+          name: "team",
+          repeatable: false,
+          staticallyRequired: false,
+        },
+        {
+          arguments: [
+            {
+              list: false,
+              name: "project",
+              required: true,
+              type: "string",
+              variadic: false,
+            },
+          ],
+          description: "Project for the issue (UUID, slug ID, or name)",
+          flags: [
+            "--project",
+          ],
+          name: "project",
+          repeatable: false,
+          staticallyRequired: false,
+        },
+        {
+          arguments: [
+            {
+              list: false,
+              name: "state",
+              required: true,
+              type: "string",
+              variadic: false,
+            },
+          ],
+          description: "Workflow state for the issue (by name or type)",
+          flags: [
+            "-s",
+            "--state",
+          ],
+          name: "state",
+          repeatable: false,
+          staticallyRequired: false,
+        },
+        {
+          arguments: [
+            {
+              list: false,
+              name: "milestone",
+              required: true,
+              type: "string",
+              variadic: false,
+            },
+          ],
+          description: "Project milestone (UUID, or name when --project is set)",
+          flags: [
+            "--milestone",
+          ],
+          name: "milestone",
+          repeatable: false,
+          staticallyRequired: false,
+        },
+        {
+          arguments: [
+            {
+              list: false,
+              name: "cycle",
+              required: true,
+              type: "string",
+              variadic: false,
+            },
+          ],
+          description: "Cycle name, number, 'active'/'now', 'next', 'previous', or a relative offset like +1 (use --cycle=-1 for negatives)",
+          flags: [
+            "--cycle",
+          ],
+          name: "cycle",
+          repeatable: false,
+          staticallyRequired: false,
+        },
+        {
+          arguments: [],
+          description: "Do not use default template for the issue",
+          flags: [
+            "--no-use-default-template",
+          ],
+          name: "no-use-default-template",
+          repeatable: false,
+          staticallyRequired: false,
+        },
+        {
+          arguments: [],
+          description: "Disable interactive prompts",
+          flags: [
+            "--no-interactive",
+          ],
+          name: "no-interactive",
+          repeatable: false,
+          staticallyRequired: false,
+        },
+        {
+          arguments: [
+            {
+              list: false,
+              name: "title",
+              required: true,
+              type: "string",
+              variadic: false,
+            },
+          ],
+          description: "Title of the issue",
+          flags: [
+            "-t",
+            "--title",
+          ],
+          name: "title",
+          repeatable: false,
+          staticallyRequired: false,
+        },
+      ],
+      outputModes: [
+        "human",
+      ],
+      path: "linear issue create",
+      usage: "linear issue create [options]",
+      writes: true,
+    },
+    {
+      aliases: [],
+      arguments: [
+        {
+          list: false,
+          name: "issueId",
+          required: false,
+          type: "string",
+          variadic: false,
+        },
+      ],
+      confirmation: null,
+      description: "Update a linear issue",
+      details: "linear issue update --help",
+      hasSubcommands: false,
+      interactive: false,
+      name: "update",
+      options: [
+        {
+          arguments: [
+            {
+              list: false,
+              name: "assignee",
+              required: true,
+              type: "string",
+              variadic: false,
+            },
+          ],
+          description: "Assign the issue to 'self' or someone (by username or name)",
+          flags: [
+            "-a",
+            "--assignee",
+          ],
+          name: "assignee",
+          repeatable: false,
+          staticallyRequired: false,
+        },
+        {
+          arguments: [],
+          description: "Clear the issue's assignee (cannot be combined with --assignee)",
+          flags: [
+            "--unassign",
+          ],
+          name: "unassign",
+          repeatable: false,
+          staticallyRequired: false,
+        },
+        {
+          arguments: [
+            {
+              list: false,
+              name: "dueDate",
+              required: true,
+              type: "string",
+              variadic: false,
+            },
+          ],
+          description: "Due date of the issue",
+          flags: [
+            "--due-date",
+          ],
+          name: "due-date",
+          repeatable: false,
+          staticallyRequired: false,
+        },
+        {
+          arguments: [
+            {
+              list: false,
+              name: "parent",
+              required: true,
+              type: "string",
+              variadic: false,
+            },
+          ],
+          description: "Parent issue (if any) as a team_number code",
+          flags: [
+            "--parent",
+          ],
+          name: "parent",
+          repeatable: false,
+          staticallyRequired: false,
+        },
+        {
+          arguments: [
+            {
+              list: false,
+              name: "priority",
+              required: true,
+              type: "number",
+              variadic: false,
+            },
+          ],
+          description: "Priority of the issue (1-4, descending priority)",
+          flags: [
+            "-p",
+            "--priority",
+          ],
+          name: "priority",
+          repeatable: false,
+          staticallyRequired: false,
+        },
+        {
+          arguments: [
+            {
+              list: false,
+              name: "estimate",
+              required: true,
+              type: "number",
+              variadic: false,
+            },
+          ],
+          description: "Points estimate of the issue",
+          flags: [
+            "--estimate",
+          ],
+          name: "estimate",
+          repeatable: false,
+          staticallyRequired: false,
+        },
+        {
+          arguments: [
+            {
+              list: false,
+              name: "description",
+              required: true,
+              type: "string",
+              variadic: false,
+            },
+          ],
+          description: "Description of the issue",
+          flags: [
+            "-d",
+            "--description",
+          ],
+          name: "description",
+          repeatable: false,
+          staticallyRequired: false,
+        },
+        {
+          arguments: [
+            {
+              list: false,
+              name: "path",
+              required: true,
+              type: "string",
+              variadic: false,
+            },
+          ],
+          description: "Read description from a file (preferred for markdown content)",
+          flags: [
+            "--description-file",
+          ],
+          name: "description-file",
+          repeatable: false,
+          staticallyRequired: false,
+        },
+        {
+          arguments: [
+            {
+              list: false,
+              name: "label",
+              required: true,
+              type: "string",
+              variadic: false,
+            },
+          ],
+          description: "Replace all issue labels. May be repeated.",
+          flags: [
+            "-l",
+            "--label",
+          ],
+          name: "label",
+          repeatable: true,
+          staticallyRequired: false,
+        },
+        {
+          arguments: [
+            {
+              list: false,
+              name: "label",
+              required: true,
+              type: "string",
+              variadic: false,
+            },
+          ],
+          description: "Add an issue label without replacing existing labels. May be repeated.",
+          flags: [
+            "--add-label",
+          ],
+          name: "add-label",
+          repeatable: true,
+          staticallyRequired: false,
+        },
+        {
+          arguments: [
+            {
+              list: false,
+              name: "label",
+              required: true,
+              type: "string",
+              variadic: false,
+            },
+          ],
+          description: "Remove an issue label without replacing other labels. May be repeated.",
+          flags: [
+            "--remove-label",
+          ],
+          name: "remove-label",
+          repeatable: true,
+          staticallyRequired: false,
+        },
+        {
+          arguments: [
+            {
+              list: false,
+              name: "team",
+              required: true,
+              type: "string",
+              variadic: false,
+            },
+          ],
+          description: "Team associated with the issue (if not your default team)",
+          flags: [
+            "--team",
+          ],
+          name: "team",
+          repeatable: false,
+          staticallyRequired: false,
+        },
+        {
+          arguments: [
+            {
+              list: false,
+              name: "project",
+              required: true,
+              type: "string",
+              variadic: false,
+            },
+          ],
+          description: "Project to assign the issue to (UUID, slug ID, or name)",
+          flags: [
+            "--project",
+          ],
+          name: "project",
+          repeatable: false,
+          staticallyRequired: false,
+        },
+        {
+          arguments: [
+            {
+              list: false,
+              name: "state",
+              required: true,
+              type: "string",
+              variadic: false,
+            },
+          ],
+          description: "Workflow state for the issue (by name or type)",
+          flags: [
+            "-s",
+            "--state",
+          ],
+          name: "state",
+          repeatable: false,
+          staticallyRequired: false,
+        },
+        {
+          arguments: [
+            {
+              list: false,
+              name: "milestone",
+              required: true,
+              type: "string",
+              variadic: false,
+            },
+          ],
+          description: "Project milestone (UUID, or name when --project is set or the issue already has a project)",
+          flags: [
+            "--milestone",
+          ],
+          name: "milestone",
+          repeatable: false,
+          staticallyRequired: false,
+        },
+        {
+          arguments: [
+            {
+              list: false,
+              name: "cycle",
+              required: true,
+              type: "string",
+              variadic: false,
+            },
+          ],
+          description: "Cycle name, number, 'active'/'now', 'next', 'previous', or a relative offset like +1 (use --cycle=-1 for negatives). Use --clear-cycle to remove the issue from its cycle",
+          flags: [
+            "--cycle",
+          ],
+          name: "cycle",
+          repeatable: false,
+          staticallyRequired: false,
+        },
+        {
+          arguments: [],
+          description: "Remove the issue from its cycle",
+          flags: [
+            "--clear-cycle",
+          ],
+          name: "clear-cycle",
+          repeatable: false,
+          staticallyRequired: false,
+        },
+        {
+          arguments: [
+            {
+              list: false,
+              name: "title",
+              required: true,
+              type: "string",
+              variadic: false,
+            },
+          ],
+          description: "Title of the issue",
+          flags: [
+            "-t",
+            "--title",
+          ],
+          name: "title",
+          repeatable: false,
+          staticallyRequired: false,
+        },
+        {
+          arguments: [],
+          description: "Output the mutation result, including resulting labels, as JSON",
+          flags: [
+            "-j",
+            "--json",
+          ],
+          name: "json",
+          repeatable: false,
+          staticallyRequired: false,
+        },
+      ],
+      outputModes: [
+        "human",
+        "json",
+      ],
+      path: "linear issue update",
+      usage: "linear issue update [issueId] [options]",
+      writes: true,
+    },
+    {
+      aliases: [],
+      arguments: [],
+      confirmation: null,
+      description: "Manage issue comments",
+      details: "linear issue comment --help",
+      hasSubcommands: true,
+      interactive: false,
+      name: "comment",
+      options: [],
+      outputModes: [
+        "human",
+      ],
+      path: "linear issue comment",
+      usage: "linear issue comment",
+      writes: false,
+    },
+    {
+      aliases: [],
+      arguments: [
+        {
+          list: false,
+          name: "issueId",
+          required: true,
+          type: "string",
+          variadic: false,
+        },
+        {
+          list: false,
+          name: "filepath",
+          required: true,
+          type: "string",
+          variadic: false,
+        },
+      ],
+      confirmation: null,
+      description: "Create a sidebar link attachment on an issue (images do not render inline)",
+      details: "linear issue attach --help",
+      hasSubcommands: false,
+      interactive: false,
+      name: "attach",
+      options: [
+        {
+          arguments: [
+            {
+              list: false,
+              name: "title",
+              required: true,
+              type: "string",
+              variadic: false,
+            },
+          ],
+          description: "Custom title for the attachment",
+          flags: [
+            "-t",
+            "--title",
+          ],
+          name: "title",
+          repeatable: false,
+          staticallyRequired: false,
+        },
+        {
+          arguments: [
+            {
+              list: false,
+              name: "body",
+              required: true,
+              type: "string",
+              variadic: false,
+            },
+          ],
+          description: "Create a linked comment with this body; the file remains a sidebar attachment",
+          flags: [
+            "-c",
+            "--comment",
+          ],
+          name: "comment",
+          repeatable: false,
+          staticallyRequired: false,
+        },
+        {
+          arguments: [],
+          description: "Upload images to a public, unauthenticated URL (default: private, workspace-members only)",
+          flags: [
+            "--public",
+          ],
+          name: "public",
+          repeatable: false,
+          staticallyRequired: false,
+        },
+      ],
+      outputModes: [
+        "human",
+      ],
+      path: "linear issue attach",
+      usage: "linear issue attach <issueId> <filepath> [options]",
+      writes: true,
+    },
+    {
+      aliases: [],
+      arguments: [
+        {
+          list: false,
+          name: "urlOrIssueId",
+          required: true,
+          type: "string",
+          variadic: false,
+        },
+        {
+          list: false,
+          name: "url",
+          required: false,
+          type: "string",
+          variadic: false,
+        },
+      ],
+      confirmation: null,
+      description: "Link a URL to an issue",
+      details: "linear issue link --help",
+      hasSubcommands: false,
+      interactive: false,
+      name: "link",
+      options: [
+        {
+          arguments: [
+            {
+              list: false,
+              name: "title",
+              required: true,
+              type: "string",
+              variadic: false,
+            },
+          ],
+          description: "Custom title for the link",
+          flags: [
+            "-t",
+            "--title",
+          ],
+          name: "title",
+          repeatable: false,
+          staticallyRequired: false,
+        },
+      ],
+      outputModes: [
+        "human",
+      ],
+      path: "linear issue link",
+      usage: "linear issue link <urlOrIssueId> [url] [options]",
+      writes: true,
+    },
+    {
+      aliases: [],
+      arguments: [],
+      confirmation: null,
+      description: "Manage issue relations (dependencies)",
+      details: "linear issue relation --help",
+      hasSubcommands: true,
+      interactive: false,
+      name: "relation",
+      options: [],
+      outputModes: [
+        "human",
+      ],
+      path: "linear issue relation",
+      usage: "linear issue relation",
+      writes: false,
+    },
+    {
+      aliases: [],
+      arguments: [],
+      confirmation: null,
+      description: "Manage agent sessions for an issue",
+      details: "linear issue agent-session --help",
+      hasSubcommands: true,
+      interactive: false,
+      name: "agent-session",
+      options: [],
+      outputModes: [
+        "human",
+      ],
+      path: "linear issue agent-session",
+      usage: "linear issue agent-session",
+      writes: false,
+    },
+  ],
+}
+`;

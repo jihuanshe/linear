@@ -25,6 +25,7 @@ Commands:
   autolinks             - Configure GitHub repository autolinks for Linear issues with this team prefix
   members    [teamKey]  - List team members
   states     [teamKey]  - List workflow states for a team
+  usage                 - Show usage for linear team
 ```
 
 ## Subcommands
@@ -35,6 +36,8 @@ Commands:
 
 ```
 Usage:   linear team autolinks
+
+Writes: true
 
 Description:
 
@@ -52,6 +55,9 @@ Options:
 
 ```
 Usage:   linear team create
+
+Writes: true
+Interactive: true
 
 Description:
 
@@ -74,6 +80,10 @@ Options:
 
 ```
 Usage:   linear team delete <teamKey>
+
+Writes: true
+Interactive: true
+Confirmation required unless: --force
 
 Description:
 

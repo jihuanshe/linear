@@ -36,6 +36,7 @@ Commands:
   link              <urlOrIssueId> [url]  - Link a URL to an issue
   relation                                - Manage issue relations (dependencies)
   agent-session                           - Manage agent sessions for an issue
+  usage                                   - Show usage for linear issue
 ```
 
 ## Subcommands
@@ -104,6 +105,8 @@ Options:
 ```
 Usage:   linear issue attach <issueId> <filepath>
 
+Writes: true
+
 Description:
 
   Create a sidebar link attachment on an issue (images do not render inline)
@@ -148,6 +151,9 @@ Commands:
 ```
 Usage:   linear issue comment add [issueId]
 
+Writes: true
+Interactive: true
+
 Description:
 
   Add a comment or reply; images uploaded with --attach render inline
@@ -167,6 +173,10 @@ Options:
 
 ```
 Usage:   linear issue comment delete <commentId>
+
+Writes: true
+Interactive: true
+Confirmation required unless: --confirm
 
 Description:
 
@@ -199,6 +209,9 @@ Options:
 
 ```
 Usage:   linear issue comment update <commentId>
+
+Writes: true
+Interactive: true
 
 Description:
 
@@ -236,6 +249,9 @@ Options:
 ```
 Usage:   linear issue create
 
+Writes: true
+Interactive: true
+
 Description:
 
   Create a linear issue
@@ -270,6 +286,10 @@ Options:
 
 ```
 Usage:   linear issue delete [issueId]
+
+Writes: true
+Interactive: true
+Confirmation required unless: --confirm
 
 Description:
 
@@ -326,6 +346,8 @@ Options:
 
 ```
 Usage:   linear issue link <urlOrIssueId> [url]
+
+Writes: true
 
 Description:
 
@@ -391,6 +413,8 @@ Options:
 
 ```
 Usage:   linear issue pull-request [issueId]
+
+Writes: true
 
 Description:
 
@@ -483,6 +507,8 @@ Commands:
 ```
 Usage:   linear issue relation add <issueId> <relationType> <relatedIssueId>
 
+Writes: true
+
 Description:
 
   Add a relation between two issues
@@ -504,6 +530,8 @@ Examples:
 
 ```
 Usage:   linear issue relation delete <issueId> <relationType> <relatedIssueId>
+
+Writes: true
 
 Description:
 
@@ -536,6 +564,9 @@ Options:
 
 ```
 Usage:   linear issue start [issueId]
+
+Writes: true
+Interactive: true
 
 Description:
 
@@ -574,6 +605,8 @@ Options:
 
 ```
 Usage:   linear issue update [issueId]
+
+Writes: true
 
 Description:
 

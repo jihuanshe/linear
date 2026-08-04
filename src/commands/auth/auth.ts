@@ -7,16 +7,30 @@ import { logoutCommand } from "./auth-logout.ts"
 import { migrateCommand } from "./auth-migrate.ts"
 import { tokenCommand } from "./auth-token.ts"
 import { whoamiCommand } from "./auth-whoami.ts"
+import { withUsageMetadata } from "../usage.ts"
 
 export const authCommand = new Command()
   .description("Manage Linear authentication")
   .action(function () {
     this.showHelp()
   })
-  .command("login", loginCommand)
-  .command("logout", logoutCommand)
+  .command(
+    "login",
+    withUsageMetadata(loginCommand, { writes: true, interactive: true }),
+  )
+  .command(
+    "logout",
+    withUsageMetadata(logoutCommand, {
+      writes: true,
+      interactive: true,
+      confirmationRequiredUnless: "--force",
+    }),
+  )
   .command("list", listCommand)
-  .command("default", defaultCommand)
+  .command(
+    "default",
+    withUsageMetadata(defaultCommand, { writes: true, interactive: true }),
+  )
   .command("token", tokenCommand)
   .command("whoami", whoamiCommand)
-  .command("migrate", migrateCommand)
+  .command("migrate", withUsageMetadata(migrateCommand, { writes: true }))

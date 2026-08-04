@@ -23,6 +23,7 @@ Commands:
   create                - Create a new Linear project
   update   <projectId>  - Update a Linear project
   delete   <projectId>  - Delete (trash) a Linear project
+  usage                 - Show usage for linear project
 ```
 
 ## Subcommands
@@ -33,6 +34,9 @@ Commands:
 
 ```
 Usage:   linear project create
+
+Writes: true
+Interactive: true
 
 Description:
 
@@ -68,6 +72,10 @@ Options:
 
 ```
 Usage:   linear project delete <projectId>
+
+Writes: true
+Interactive: true
+Confirmation required unless: --force
 
 Description:
 
@@ -110,6 +118,8 @@ Options:
 
 ```
 Usage:   linear project update <projectId>
+
+Writes: true
 
 Description:
 
