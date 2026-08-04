@@ -1,4 +1,5 @@
 import { Command } from "@cliffy/command"
+import { withUsageMetadata } from "../usage.ts"
 import { Confirm, isPromptDisabled, Secret } from "../../utils/prompt.ts"
 import { yellow } from "@std/fmt/colors"
 import { gql } from "../../__codegen__/gql.ts"
@@ -31,7 +32,10 @@ const viewerQuery = gql(`
   }
 `)
 
-export const loginCommand = new Command()
+export const loginCommand = withUsageMetadata(new Command(), {
+  writes: true,
+  interactive: true,
+})
   .name("login")
   .description("Add a workspace credential")
   .option("-k, --key <key:string>", "API key (prompted if not provided)")

@@ -5,6 +5,8 @@ stdout:
 "
 Usage: autolinks
 
+Writes: true
+
 Description:
 
   Configure GitHub repository autolinks for Linear issues with this team prefix

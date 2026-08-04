@@ -1,9 +1,12 @@
 import { Command } from "@cliffy/command"
+import { withUsageMetadata } from "../usage.ts"
 import { fetchIssueDetails, getIssueIdentifier } from "../../utils/linear.ts"
 import { shouldShowSpinner } from "../../utils/hyperlink.ts"
 import { CliError, handleError, ValidationError } from "../../utils/errors.ts"
 
-export const pullRequestCommand = new Command()
+export const pullRequestCommand = withUsageMetadata(new Command(), {
+  writes: true,
+})
   .name("pull-request")
   .description("Create a GitHub pull request with issue details")
   .alias("pr")

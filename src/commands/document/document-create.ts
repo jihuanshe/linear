@@ -1,4 +1,5 @@
 import { Command } from "@cliffy/command"
+import { withUsageMetadata } from "../usage.ts"
 import { Input, Select } from "../../utils/prompt.ts"
 import { gql } from "../../__codegen__/gql.ts"
 import type { DocumentCreateInput } from "../../__codegen__/graphql.ts"
@@ -38,7 +39,10 @@ async function readContentFromStdin(): Promise<string | undefined> {
   }
 }
 
-export const createCommand = new Command()
+export const createCommand = withUsageMetadata(new Command(), {
+  writes: true,
+  interactive: true,
+})
   .name("create")
   .description("Create a new document")
   .alias("c")

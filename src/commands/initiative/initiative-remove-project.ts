@@ -1,4 +1,5 @@
 import { Command } from "@cliffy/command"
+import { withUsageMetadata } from "../usage.ts"
 import { Confirm } from "../../utils/prompt.ts"
 import { gql } from "../../__codegen__/gql.ts"
 import { getGraphQLClient } from "../../utils/graphql.ts"
@@ -190,7 +191,11 @@ async function resolveProjectId(
   return undefined
 }
 
-export const removeProjectCommand = new Command()
+export const removeProjectCommand = withUsageMetadata(new Command(), {
+  writes: true,
+  interactive: true,
+  confirmationRequiredUnless: "--force",
+})
   .name("remove-project")
   .description("Unlink a project from an initiative")
   .arguments("<initiative:string> <project:string>")

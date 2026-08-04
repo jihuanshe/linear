@@ -17,7 +17,7 @@ import { configCommand } from "./commands/config.ts"
 import { schemaCommand } from "./commands/schema.ts"
 import { apiCommand } from "./commands/api.ts"
 import { updateCommand } from "./commands/update.ts"
-import { createUsageCommand, withUsageMetadata } from "./commands/usage.ts"
+import { createUsageCommand } from "./commands/usage.ts"
 import { setCliWorkspace } from "./config.ts"
 import { supportsStdoutStyling } from "./utils/terminal.ts"
 
@@ -73,17 +73,11 @@ Environment Variables:
   .alias("l")
   .command("document", documentCommand)
   .command("completions", new CompletionsCommand())
-  .command(
-    "config",
-    withUsageMetadata(configCommand, { writes: true, interactive: true }),
-  )
+  .command("config", configCommand)
   .alias("configure")
   .command("schema", schemaCommand)
-  .command(
-    "api",
-    withUsageMetadata(apiCommand, { writes: true, outputModes: ["json"] }),
-  )
-  .command("update", withUsageMetadata(updateCommand, { writes: true }))
+  .command("api", apiCommand)
+  .command("update", updateCommand)
 
 for (const command of cli.getCommands()) {
   if (command.getName() !== "completions" && command.hasCommands()) {

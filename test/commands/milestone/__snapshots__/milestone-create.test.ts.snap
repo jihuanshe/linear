@@ -5,6 +5,8 @@ stdout:
 "
 Usage: create --project <project> --name <name>
 
+Writes: true
+
 Description:
 
   Create a new project milestone

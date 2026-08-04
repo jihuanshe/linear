@@ -1,4 +1,5 @@
 import { Command } from "@cliffy/command"
+import { withUsageMetadata } from "../usage.ts"
 import { gql } from "../../__codegen__/gql.ts"
 import type { AttachmentCreateInput } from "../../__codegen__/graphql.ts"
 import { getGraphQLClient } from "../../utils/graphql.ts"
@@ -21,7 +22,7 @@ function quoteForShell(value: string): string {
   return `'${value.replaceAll("'", "'\\''")}'`
 }
 
-export const attachCommand = new Command()
+export const attachCommand = withUsageMetadata(new Command(), { writes: true })
   .name("attach")
   .description(
     "Create a sidebar link attachment on an issue (images do not render inline)",

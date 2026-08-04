@@ -1,4 +1,5 @@
 import { Command } from "@cliffy/command"
+import { withUsageMetadata } from "../usage.ts"
 import { assertPromptAllowed, Confirm } from "../../utils/prompt.ts"
 import { gql } from "../../__codegen__/gql.ts"
 import { getGraphQLClient } from "../../utils/graphql.ts"
@@ -21,7 +22,11 @@ interface IssueDeleteResult extends BulkOperationResult {
   identifier?: string
 }
 
-export const deleteCommand = new Command()
+export const deleteCommand = withUsageMetadata(new Command(), {
+  writes: true,
+  interactive: true,
+  confirmationRequiredUnless: "--confirm",
+})
   .name("delete")
   .description("Delete an issue by identifier or UUID")
   .alias("d")

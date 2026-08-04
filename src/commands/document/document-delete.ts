@@ -1,4 +1,5 @@
 import { Command } from "@cliffy/command"
+import { withUsageMetadata } from "../usage.ts"
 import { Confirm } from "../../utils/prompt.ts"
 import { gql } from "../../__codegen__/gql.ts"
 import { getGraphQLClient } from "../../utils/graphql.ts"
@@ -20,7 +21,11 @@ interface DocumentDeleteResult extends BulkOperationResult {
   title?: string
 }
 
-export const deleteCommand = new Command()
+export const deleteCommand = withUsageMetadata(new Command(), {
+  writes: true,
+  interactive: true,
+  confirmationRequiredUnless: "--yes",
+})
   .name("delete")
   .description("Delete a document (moves to trash)")
   .alias("d")

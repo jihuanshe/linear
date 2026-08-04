@@ -1,6 +1,6 @@
 # Agent interface architecture and delivery roadmap
 
-Status: accepted architecture roadmap, revised after an independent design review. The progressive `usage` baseline described below is implemented; metadata co-location and completeness hardening is the next commit before guide work begins. The guide system and Skill migration are not yet implemented.
+Status: accepted architecture roadmap, revised after an independent design review. The progressive `usage` baseline and its metadata hardening are implemented; the distribution/version/capability probe is the next commit. The guide system and Skill migration are not yet implemented.
 
 ## Executive summary
 
@@ -190,18 +190,18 @@ Measured phase-one output sizes provide an initial discovery budget:
 | --------------------------- | -----: |
 | `linear usage`              |  1,247 |
 | `linear usage --json`       | 12,010 |
-| `linear issue usage`        |  9,938 |
-| `linear issue usage --json` | 52,508 |
+| `linear issue usage`        |  9,973 |
+| `linear issue usage --json` | 52,505 |
 
 The concise root view is suitable as a default entry point. The issue-domain JSON is useful for structured tooling but too large to recommend as an unconditional first read; agents should progress to one domain or leaf only when needed.
 
-Remaining phase-one hardening:
+Completed phase-one hardening:
 
-- move supplemental metadata annotations from parent wiring files into leaf command modules;
-- add an exact writes-command completeness test;
-- freeze the human metadata labels rendered by Cliffy because they are visible in help, generated references, and eval input;
-- document that an omitted option `default` means either no static default or a dynamic/non-serializable default, not necessarily that the runtime has no default;
-- declare usage JSON readers tolerant of additive fields. Schema version 1 remains valid for additive fields; removal or retyping requires a version increment.
+- supplemental metadata annotations live in leaf command modules with their definitions and actions, not in parent wiring files;
+- an exact completeness test, including hidden commands, pins all 43 canonical paths that can write persistent remote or user-configured local state. `issue view` is included because downloads can target the configured `attachment_dir`; transient cache writes and explicit exports are excluded;
+- tests freeze the `Writes`, `Interactive`, `Confirmation required unless`, and `Output modes` Cliffy labels as well as the lowercase labels in human `usage` output;
+- an omitted option `default` means either no static default representable in usage JSON v1 or a dynamic/non-serializable default, not necessarily that the runtime has no default;
+- usage JSON v1 readers ignore additive fields. Schema version 1 remains valid for additions; removing or retyping an existing field requires an increment.
 
 ### Root navigation
 
@@ -635,7 +635,7 @@ Three trials per case have limited statistical power. Formal A/B/C rules must pr
 This repository ships through direct commits to `main`; pushing a commit invokes the rolling `Ship main` workflow. The sequence below denotes independently reviewable commits, not GitHub pull requests. Each Orb should start from the latest `main`, own one unchecked item, run that item's gate, and avoid combining independent items merely to reduce commit count.
 
 - [x] Establish the phase-one baseline: progressive usage, command capability metadata, discovery byte accounting, generated-reference alignment, and this architecture document.
-- [ ] Commit 1 — harden and finalize progressive usage metadata.
+- [x] Commit 1 — harden and finalize progressive usage metadata.
 - [ ] Commit 2 — add a stable distribution/version/capability probe.
 - [ ] Commit 3 — improve root and eligible-domain zero-argument navigation.
 - [ ] Commit 4 — run and document the exploratory full-versus-router eval.

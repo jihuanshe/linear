@@ -23,7 +23,7 @@ function getApiRelationType(
   return type
 }
 
-const addRelationCommand = new Command()
+const addRelationCommand = withUsageMetadata(new Command(), { writes: true })
   .name("add")
   .description("Add a relation between two issues")
   .arguments("<issueId:string> <relationType:string> <relatedIssueId:string>")
@@ -148,7 +148,7 @@ const addRelationCommand = new Command()
     }
   })
 
-const deleteRelationCommand = new Command()
+const deleteRelationCommand = withUsageMetadata(new Command(), { writes: true })
   .name("delete")
   .description("Delete a relation between two issues")
   .arguments("<issueId:string> <relationType:string> <relatedIssueId:string>")
@@ -391,6 +391,6 @@ export const relationCommand = new Command()
   .action(function () {
     this.showHelp()
   })
-  .command("add", withUsageMetadata(addRelationCommand, { writes: true }))
-  .command("delete", withUsageMetadata(deleteRelationCommand, { writes: true }))
+  .command("add", addRelationCommand)
+  .command("delete", deleteRelationCommand)
   .command("list", listRelationsCommand)

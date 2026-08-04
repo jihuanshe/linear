@@ -1,4 +1,5 @@
 import { Command } from "@cliffy/command"
+import { withUsageMetadata } from "../usage.ts"
 import { Input, Select } from "../../utils/prompt.ts"
 import { gql } from "../../__codegen__/gql.ts"
 import type { InitiativeUpdateCreateInput } from "../../__codegen__/graphql.ts"
@@ -96,7 +97,10 @@ async function resolveInitiativeId(
   return undefined
 }
 
-export const createCommand = new Command()
+export const createCommand = withUsageMetadata(new Command(), {
+  writes: true,
+  interactive: true,
+})
   .name("create")
   .description("Create a new status update for an initiative")
   .alias("c")

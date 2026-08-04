@@ -1,10 +1,13 @@
 import { Command } from "@cliffy/command"
+import { withUsageMetadata } from "../usage.ts"
 import { getTeamKey } from "../../utils/linear.ts"
 import { getOption } from "../../config.ts"
 import { CliError, handleError, ValidationError } from "../../utils/errors.ts"
 import { LINEAR_WEB_BASE_URL } from "../../const.ts"
 
-export const autolinksCommand = new Command()
+export const autolinksCommand = withUsageMetadata(new Command(), {
+  writes: true,
+})
   .name("autolinks")
   .description(
     "Configure GitHub repository autolinks for Linear issues with this team prefix",

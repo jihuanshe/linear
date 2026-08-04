@@ -1,4 +1,5 @@
 import { Command } from "@cliffy/command"
+import { withUsageMetadata } from "../usage.ts"
 import { Confirm, Input } from "../../utils/prompt.ts"
 import { gql } from "../../__codegen__/gql.ts"
 import { getGraphQLClient } from "../../utils/graphql.ts"
@@ -21,7 +22,11 @@ interface InitiativeDeleteResult extends BulkOperationResult {
   name: string
 }
 
-export const deleteCommand = new Command()
+export const deleteCommand = withUsageMetadata(new Command(), {
+  writes: true,
+  interactive: true,
+  confirmationRequiredUnless: "--force",
+})
   .name("delete")
   .description("Permanently delete a Linear initiative")
   .arguments("[initiativeId:string]")

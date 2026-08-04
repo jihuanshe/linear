@@ -666,6 +666,8 @@ Options:
 ```
 Usage:   linear issue view [issueId]
 
+Writes: true
+
 Description:
 
   View issue details (default) or open in browser/app

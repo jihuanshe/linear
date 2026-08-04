@@ -5,6 +5,9 @@ stdout:
 "
 Usage: create
 
+Writes: true     
+Interactive: true
+
 Description:
 
   Create a new document

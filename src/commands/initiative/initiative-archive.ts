@@ -1,4 +1,5 @@
 import { Command } from "@cliffy/command"
+import { withUsageMetadata } from "../usage.ts"
 import { Confirm } from "../../utils/prompt.ts"
 import { gql } from "../../__codegen__/gql.ts"
 import { getGraphQLClient } from "../../utils/graphql.ts"
@@ -21,7 +22,11 @@ interface InitiativeArchiveResult extends BulkOperationResult {
   name: string
 }
 
-export const archiveCommand = new Command()
+export const archiveCommand = withUsageMetadata(new Command(), {
+  writes: true,
+  interactive: true,
+  confirmationRequiredUnless: "--force",
+})
   .name("archive")
   .description("Archive a Linear initiative")
   .arguments("[initiativeId:string]")

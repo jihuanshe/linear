@@ -5,6 +5,8 @@ stdout:
 '
 Usage: link <urlOrIssueId> [url]
 
+Writes: true
+
 Description:
 
   Link a URL to an issue

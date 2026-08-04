@@ -2,7 +2,6 @@ import { Command } from "@cliffy/command"
 
 import { createCommand } from "./initiative-update-create.ts"
 import { listCommand } from "./initiative-update-list.ts"
-import { withUsageMetadata } from "../usage.ts"
 
 export const initiativeUpdateCommand = new Command()
   .name("initiative-update")
@@ -10,9 +9,6 @@ export const initiativeUpdateCommand = new Command()
   .action(function () {
     this.showHelp()
   })
-  .command(
-    "create",
-    withUsageMetadata(createCommand, { writes: true, interactive: true }),
-  )
+  .command("create", createCommand)
   .command("list", listCommand)
   .alias("ls")

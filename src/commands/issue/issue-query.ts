@@ -1,4 +1,5 @@
 import { Command, EnumType } from "@cliffy/command"
+import { withUsageMetadata } from "../usage.ts"
 import { unicodeWidth } from "@std/cli"
 import { rgb24 } from "@std/fmt/colors"
 import { resolveIssueSort } from "../../config.ts"
@@ -43,7 +44,9 @@ const StateType = new EnumType([
   "canceled",
 ])
 
-export const queryCommand = new Command()
+export const queryCommand = withUsageMetadata(new Command(), {
+  interactive: true,
+})
   .name("query")
   .description("Query issues with structured filters")
   .type("sort", SortType)

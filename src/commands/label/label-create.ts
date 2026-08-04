@@ -1,4 +1,5 @@
 import { Command } from "@cliffy/command"
+import { withUsageMetadata } from "../usage.ts"
 import { Input, Select } from "../../utils/prompt.ts"
 import { gql } from "../../__codegen__/gql.ts"
 import { getGraphQLClient } from "../../utils/graphql.ts"
@@ -43,7 +44,10 @@ const DEFAULT_COLORS = [
   { name: "Gray", value: "#6B6F76" },
 ]
 
-export const createCommand = new Command()
+export const createCommand = withUsageMetadata(new Command(), {
+  writes: true,
+  interactive: true,
+})
   .name("create")
   .description("Create a new issue label")
   .option("-n, --name <name:string>", "Label name (required)")

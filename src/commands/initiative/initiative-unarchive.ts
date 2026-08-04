@@ -1,4 +1,5 @@
 import { Command } from "@cliffy/command"
+import { withUsageMetadata } from "../usage.ts"
 import { Confirm } from "../../utils/prompt.ts"
 import { gql } from "../../__codegen__/gql.ts"
 import { getGraphQLClient } from "../../utils/graphql.ts"
@@ -10,7 +11,11 @@ import {
   ValidationError,
 } from "../../utils/errors.ts"
 
-export const unarchiveCommand = new Command()
+export const unarchiveCommand = withUsageMetadata(new Command(), {
+  writes: true,
+  interactive: true,
+  confirmationRequiredUnless: "--force",
+})
   .name("unarchive")
   .description("Unarchive a Linear initiative")
   .arguments("<initiativeId:string>")

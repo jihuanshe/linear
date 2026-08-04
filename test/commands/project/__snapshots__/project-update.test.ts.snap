@@ -5,6 +5,8 @@ stdout:
 "
 Usage: update <projectId>
 
+Writes: true
+
 Description:
 
   Update a Linear project

@@ -1,4 +1,5 @@
 import { Command } from "@cliffy/command"
+import { withUsageMetadata } from "../usage.ts"
 import { gql } from "../../__codegen__/gql.ts"
 import { getGraphQLClient } from "../../utils/graphql.ts"
 import { resolveProjectId } from "../../utils/linear.ts"
@@ -23,7 +24,7 @@ const UpdateProjectMilestone = gql(`
   }
 `)
 
-export const updateCommand = new Command()
+export const updateCommand = withUsageMetadata(new Command(), { writes: true })
   .name("update")
   .description("Update an existing project milestone")
   .arguments("<id:string>")

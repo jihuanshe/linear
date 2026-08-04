@@ -5,6 +5,10 @@ stdout:
 "
 Usage: delete [documentId]
 
+Writes: true                       
+Interactive: true                  
+Confirmation required unless: --yes
+
 Description:
 
   Delete a document (moves to trash)

@@ -1,4 +1,5 @@
 import { Command } from "@cliffy/command"
+import { withUsageMetadata } from "../usage.ts"
 import { gql } from "../../__codegen__/gql.ts"
 import type { IssueUpdateInput } from "../../__codegen__/graphql.ts"
 import { getGraphQLClient } from "../../utils/graphql.ts"
@@ -25,7 +26,7 @@ import {
   ValidationError,
 } from "../../utils/errors.ts"
 
-export const updateCommand = new Command()
+export const updateCommand = withUsageMetadata(new Command(), { writes: true })
   .name("update")
   .description("Update a linear issue")
   .arguments("[issueId:string]")

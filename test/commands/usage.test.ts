@@ -1,5 +1,10 @@
 import { Command } from "@cliffy/command"
-import { assertEquals, assertExists, assertStringIncludes } from "@std/assert"
+import {
+  assertEquals,
+  assertExists,
+  assertMatch,
+  assertStringIncludes,
+} from "@std/assert"
 import { fromFileUrl } from "@std/path"
 import { assertSnapshot } from "@std/testing/snapshot"
 import { cli } from "../../src/cli.ts"
@@ -9,6 +14,52 @@ import {
 } from "../../src/commands/usage.ts"
 
 const main = fromFileUrl(new URL("../../src/main.ts", import.meta.url))
+
+const CANONICAL_WRITES_COMMAND_PATHS = [
+  "linear api",
+  "linear auth default",
+  "linear auth login",
+  "linear auth logout",
+  "linear auth migrate",
+  "linear config",
+  "linear document create",
+  "linear document delete",
+  "linear document update",
+  "linear initiative add-project",
+  "linear initiative archive",
+  "linear initiative create",
+  "linear initiative delete",
+  "linear initiative remove-project",
+  "linear initiative unarchive",
+  "linear initiative update",
+  "linear initiative-update create",
+  "linear issue attach",
+  "linear issue comment add",
+  "linear issue comment delete",
+  "linear issue comment update",
+  "linear issue create",
+  "linear issue delete",
+  "linear issue link",
+  "linear issue pull-request",
+  "linear issue relation add",
+  "linear issue relation delete",
+  "linear issue start",
+  "linear issue update",
+  "linear issue view",
+  "linear label create",
+  "linear label delete",
+  "linear milestone create",
+  "linear milestone delete",
+  "linear milestone update",
+  "linear project create",
+  "linear project delete",
+  "linear project update",
+  "linear project-update create",
+  "linear team autolinks",
+  "linear team create",
+  "linear team delete",
+  "linear update",
+]
 
 async function run(args: string[]) {
   const root = await Deno.makeTempDir()
@@ -42,6 +93,7 @@ Deno.test("usage provides a concise top-level overview", async () => {
   assertEquals(result.stderr, "")
   assertStringIncludes(result.stdout, "linear — Handy linear commands")
   assertStringIncludes(result.stdout, "issue, i")
+  assertStringIncludes(result.stdout, "[writes; json]")
   assertStringIncludes(result.stdout, "detail: linear <domain> usage")
   assertStringIncludes(result.stdout, "machine-readable: linear usage --json")
 })
@@ -95,10 +147,32 @@ Deno.test("domain usage includes direct command options", async () => {
   assertStringIncludes(result.stdout, "create options:")
   assertStringIncludes(result.stdout, "--no-interactive")
   assertStringIncludes(result.stdout, "[writes; interactive]")
-  assertStringIncludes(result.stdout, "confirm: --confirm")
+  assertStringIncludes(
+    result.stdout,
+    "[writes; interactive; confirm: --confirm]",
+  )
+  assertStringIncludes(result.stdout, "[interactive; json]")
   assertStringIncludes(
     result.stdout,
     "machine-readable: linear issue usage --json",
+  )
+})
+
+Deno.test("Cliffy help keeps canonical human metadata labels", async () => {
+  const deleteResult = await run(["issue", "delete", "--help"])
+  assertEquals(deleteResult.code, 0, deleteResult.stderr)
+  assertEquals(deleteResult.stderr, "")
+  assertMatch(
+    deleteResult.stdout,
+    /\nWrites: true\s*\nInteractive: true\s*\nConfirmation required unless: --confirm\s*\n/,
+  )
+
+  const apiResult = await run(["api", "--help"])
+  assertEquals(apiResult.code, 0, apiResult.stderr)
+  assertEquals(apiResult.stderr, "")
+  assertMatch(
+    apiResult.stdout,
+    /\nWrites: true\s*\nOutput modes: json\s*\n/,
   )
 })
 
@@ -212,11 +286,96 @@ Deno.test("usage distinguishes list arguments from repeatable options", () => {
   )
 })
 
-Deno.test("usage --json has a stable domain contract", async (t) => {
+Deno.test("usage omits defaults that are not static JSON values", () => {
+  const command = new Command()
+    .name("sample")
+    .description("Sample command")
+    .option("--static <value:string>", "Static default", {
+      default: "static",
+    })
+    .option("--dynamic <value:string>", "Dynamic default", {
+      default: () => "runtime",
+    })
+    .option("--unset <value:string>", "No default")
+  const sourceOptions = command.getBaseOptions()
+  const options = buildUsageDocument(command).command.options
+
+  assertEquals(
+    options.find((option) => option.name === "static")?.default,
+    "static",
+  )
+  const dynamicOption = options.find((option) => option.name === "dynamic")
+  const unsetOption = options.find((option) => option.name === "unset")
+  assertExists(dynamicOption)
+  assertExists(unsetOption)
+  assertEquals("default" in dynamicOption, false)
+  assertEquals("default" in unsetOption, false)
+  const dynamicDefault = sourceOptions.find((option) =>
+    option.name === "dynamic"
+  )?.default
+  assertEquals(typeof dynamicDefault, "function")
+  if (typeof dynamicDefault === "function") {
+    assertEquals(dynamicDefault(), "runtime")
+  }
+})
+
+Deno.test("a usage JSON v1 reader ignores additive fields", () => {
+  const document = buildUsageDocument(
+    new Command()
+      .name("sample")
+      .description("Sample command")
+      .option("--count <count:number>", "Count", { default: 1 }),
+  )
+  const withAdditions = {
+    ...document,
+    futureDocumentField: true,
+    command: {
+      ...document.command,
+      futureCommandField: "new",
+      options: document.command.options.map((option) => ({
+        ...option,
+        futureOptionField: null,
+      })),
+    },
+  }
+  const readV1 = (value: unknown) => {
+    const parsed = value as UsageDocument
+    return {
+      schemaVersion: parsed.schemaVersion,
+      path: parsed.command.path,
+      writes: parsed.command.writes,
+      options: parsed.command.options.map((option) => ({
+        name: option.name,
+        default: option.default,
+      })),
+    }
+  }
+
+  assertEquals(
+    readV1(JSON.parse(JSON.stringify(withAdditions))),
+    readV1(JSON.parse(JSON.stringify(document))),
+  )
+})
+
+Deno.test("usage JSON v1 freezes its existing fields and types", async (t) => {
   const result = await run(["issue", "usage", "--json"])
   assertEquals(result.code, 0, result.stderr)
   assertEquals(result.stderr, "")
+  // Additive fields may update this snapshot without changing schemaVersion.
+  // Removing a field or changing its type requires a version increment.
   await assertSnapshot(t, JSON.parse(result.stdout))
+})
+
+Deno.test("writes metadata exactly matches canonical write commands", () => {
+  const queue = [...cli.getCommands(true)]
+  const actual: string[] = []
+  for (const command of queue) {
+    queue.push(...command.getCommands(true))
+    const metadata = buildUsageDocument(command).command
+    if (metadata.writes) actual.push(metadata.path)
+  }
+
+  assertEquals(actual.sort(), CANONICAL_WRITES_COMMAND_PATHS)
 })
 
 Deno.test("usage metadata stays aligned with the registered command tree", () => {
@@ -229,9 +388,9 @@ Deno.test("usage metadata stays aligned with the registered command tree", () =>
     assertEquals(command.details, `${command.path} usage`)
   }
 
-  const queue = [...cli.getCommands()]
+  const queue = [...cli.getCommands(true)]
   for (const command of queue) {
-    queue.push(...command.getCommands())
+    queue.push(...command.getCommands(true))
     const metadata = buildUsageDocument(command).command
     const confirmationOption = command.getBaseOptions().find((option) =>
       /skip confirmation prompt/i.test(option.description)

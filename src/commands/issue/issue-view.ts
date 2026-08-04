@@ -1,4 +1,5 @@
 import { Command } from "@cliffy/command"
+import { withUsageMetadata } from "../usage.ts"
 import { renderMarkdown } from "../../utils/markdown.ts"
 import type { Extension } from "@littletof/charmd"
 import {
@@ -37,7 +38,7 @@ import {
   replaceImageUrls,
 } from "../../utils/markdown-images.ts"
 
-export const viewCommand = new Command()
+export const viewCommand = withUsageMetadata(new Command(), { writes: true })
   .name("view")
   .description("View issue details (default) or open in browser/app")
   .alias("v")

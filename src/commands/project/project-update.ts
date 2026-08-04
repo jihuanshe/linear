@@ -1,4 +1,5 @@
 import { Command } from "@cliffy/command"
+import { withUsageMetadata } from "../usage.ts"
 import { gql } from "../../__codegen__/gql.ts"
 import type { ProjectUpdateInput } from "../../__codegen__/graphql.ts"
 import { getGraphQLClient } from "../../utils/graphql.ts"
@@ -58,7 +59,7 @@ const STATUS_TYPE_MAPPING: Record<string, string> = {
   "backlog": "backlog",
 }
 
-export const updateCommand = new Command()
+export const updateCommand = withUsageMetadata(new Command(), { writes: true })
   .name("update")
   .description("Update a Linear project")
   .arguments("<projectId:string>")

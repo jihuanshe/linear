@@ -1,10 +1,15 @@
 import { Command } from "@cliffy/command"
+import { withUsageMetadata } from "../usage.ts"
 import { gql } from "../../__codegen__/gql.ts"
 import { getGraphQLClient } from "../../utils/graphql.ts"
 import { CliError, handleError } from "../../utils/errors.ts"
 import { assertPromptAllowed, Confirm } from "../../utils/prompt.ts"
 
-export const commentDeleteCommand = new Command()
+export const commentDeleteCommand = withUsageMetadata(new Command(), {
+  writes: true,
+  interactive: true,
+  confirmationRequiredUnless: "--confirm",
+})
   .name("delete")
   .description("Delete a comment")
   .arguments("<commentId:string>")

@@ -1,4 +1,5 @@
 import { Command } from "@cliffy/command"
+import { withUsageMetadata } from "./usage.ts"
 import { prompt, Select } from "../utils/prompt.ts"
 import { join } from "@std/path"
 import { gql } from "../__codegen__/gql.ts"
@@ -24,7 +25,10 @@ const configQuery = gql(`
   }
 `)
 
-export const configCommand = new Command()
+export const configCommand = withUsageMetadata(new Command(), {
+  writes: true,
+  interactive: true,
+})
   .name("config")
   .description("Interactively generate .linear.toml configuration")
   .action(async () => {

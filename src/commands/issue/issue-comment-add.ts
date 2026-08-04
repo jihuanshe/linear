@@ -1,4 +1,5 @@
 import { Command } from "@cliffy/command"
+import { withUsageMetadata } from "../usage.ts"
 import { Input } from "../../utils/prompt.ts"
 import { gql } from "../../__codegen__/gql.ts"
 import { getGraphQLClient } from "../../utils/graphql.ts"
@@ -13,7 +14,10 @@ import {
 import { shouldShowSpinner } from "../../utils/hyperlink.ts"
 import { CliError, handleError, ValidationError } from "../../utils/errors.ts"
 
-export const commentAddCommand = new Command()
+export const commentAddCommand = withUsageMetadata(new Command(), {
+  writes: true,
+  interactive: true,
+})
   .name("add")
   .description(
     "Add a comment or reply; images uploaded with --attach render inline",

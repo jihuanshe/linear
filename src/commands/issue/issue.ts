@@ -17,7 +17,6 @@ import { titleCommand } from "./issue-title.ts"
 import { updateCommand } from "./issue-update.ts"
 import { urlCommand } from "./issue-url.ts"
 import { viewCommand } from "./issue-view.ts"
-import { withUsageMetadata } from "../usage.ts"
 
 export const issueCommand = new Command()
   .description("Manage Linear issues")
@@ -25,39 +24,23 @@ export const issueCommand = new Command()
     this.showHelp()
   })
   .command("id", idCommand)
-  .command("mine", withUsageMetadata(mineCommand, { interactive: true }))
+  .command("mine", mineCommand)
   .alias("list")
   .alias("l")
-  .command("query", withUsageMetadata(queryCommand, { interactive: true }))
+  .command("query", queryCommand)
   .alias("q")
   .command("title", titleCommand)
-  .command(
-    "start",
-    withUsageMetadata(startCommand, { writes: true, interactive: true }),
-  )
+  .command("start", startCommand)
   .command("view", viewCommand)
   .command("url", urlCommand)
   .command("describe", describeCommand)
   .command("commits", commitsCommand)
-  .command(
-    "pull-request",
-    withUsageMetadata(pullRequestCommand, { writes: true }),
-  )
-  .command(
-    "delete",
-    withUsageMetadata(deleteCommand, {
-      writes: true,
-      interactive: true,
-      confirmationRequiredUnless: "--confirm",
-    }),
-  )
-  .command(
-    "create",
-    withUsageMetadata(createCommand, { writes: true, interactive: true }),
-  )
-  .command("update", withUsageMetadata(updateCommand, { writes: true }))
+  .command("pull-request", pullRequestCommand)
+  .command("delete", deleteCommand)
+  .command("create", createCommand)
+  .command("update", updateCommand)
   .command("comment", commentCommand)
-  .command("attach", withUsageMetadata(attachCommand, { writes: true }))
-  .command("link", withUsageMetadata(linkCommand, { writes: true }))
+  .command("attach", attachCommand)
+  .command("link", linkCommand)
   .command("relation", relationCommand)
   .command("agent-session", agentSessionCommand)

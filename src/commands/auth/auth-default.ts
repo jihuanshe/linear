@@ -1,4 +1,5 @@
 import { Command } from "@cliffy/command"
+import { withUsageMetadata } from "../usage.ts"
 import { Select } from "../../utils/prompt.ts"
 import {
   getDefaultWorkspace,
@@ -8,7 +9,10 @@ import {
 } from "../../credentials.ts"
 import { AuthError, handleError, NotFoundError } from "../../utils/errors.ts"
 
-export const defaultCommand = new Command()
+export const defaultCommand = withUsageMetadata(new Command(), {
+  writes: true,
+  interactive: true,
+})
   .name("default")
   .description("Set the default workspace")
   .arguments("[workspace:string]")

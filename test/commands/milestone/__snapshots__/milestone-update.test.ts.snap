@@ -5,6 +5,8 @@ stdout:
 "
 Usage: update <id>
 
+Writes: true
+
 Description:
 
   Update an existing project milestone

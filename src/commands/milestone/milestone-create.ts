@@ -1,4 +1,5 @@
 import { Command } from "@cliffy/command"
+import { withUsageMetadata } from "../usage.ts"
 import { gql } from "../../__codegen__/gql.ts"
 import { getGraphQLClient } from "../../utils/graphql.ts"
 import { resolveProjectId } from "../../utils/linear.ts"
@@ -22,7 +23,7 @@ const CreateProjectMilestone = gql(`
   }
 `)
 
-export const createCommand = new Command()
+export const createCommand = withUsageMetadata(new Command(), { writes: true })
   .name("create")
   .description("Create a new project milestone")
   .option(

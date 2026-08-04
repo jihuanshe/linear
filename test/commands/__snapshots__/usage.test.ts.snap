@@ -1,6 +1,6 @@
 export const snapshot = {};
 
-snapshot[`usage --json has a stable domain contract 1`] = `
+snapshot[`usage JSON v1 freezes its existing fields and types 1`] = `
 {
   command: {
     aliases: [
@@ -890,7 +890,7 @@ snapshot[`usage --json has a stable domain contract 1`] = `
       ],
       path: "linear issue view",
       usage: "linear issue view [issueId] [options]",
-      writes: false,
+      writes: true,
     },
     {
       aliases: [],

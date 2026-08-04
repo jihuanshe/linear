@@ -1,4 +1,5 @@
 import { Command } from "@cliffy/command"
+import { withUsageMetadata } from "../usage.ts"
 import { assertPromptAllowed, Confirm, Select } from "../../utils/prompt.ts"
 import { gql } from "../../__codegen__/gql.ts"
 import type { GetTeamIssuesForMoveQuery } from "../../__codegen__/graphql.ts"
@@ -28,7 +29,11 @@ const GetTeamIssuesForMove = gql(`
   }
 `)
 
-export const deleteCommand = new Command()
+export const deleteCommand = withUsageMetadata(new Command(), {
+  writes: true,
+  interactive: true,
+  confirmationRequiredUnless: "--force",
+})
   .name("delete")
   .description("Delete a Linear team")
   .arguments("<teamKey:string>")

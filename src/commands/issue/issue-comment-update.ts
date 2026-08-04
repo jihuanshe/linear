@@ -1,10 +1,14 @@
 import { Command } from "@cliffy/command"
+import { withUsageMetadata } from "../usage.ts"
 import { Input } from "../../utils/prompt.ts"
 import { gql } from "../../__codegen__/gql.ts"
 import { getGraphQLClient } from "../../utils/graphql.ts"
 import { CliError, handleError, ValidationError } from "../../utils/errors.ts"
 
-export const commentUpdateCommand = new Command()
+export const commentUpdateCommand = withUsageMetadata(new Command(), {
+  writes: true,
+  interactive: true,
+})
   .name("update")
   .description("Update an existing comment")
   .arguments("<commentId:string>")

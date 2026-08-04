@@ -42,6 +42,10 @@ export interface UsageOptionMetadata {
   arguments: UsageArgumentMetadata[]
   staticallyRequired: boolean
   repeatable: boolean
+  /**
+   * A static default representable in usage JSON v1. Absence does not prove
+   * that the command has no runtime-computed default.
+   */
   default?: JsonValue
 }
 
@@ -61,6 +65,10 @@ export interface UsageCommandMetadata {
   outputModes: UsageOutputMode[]
 }
 
+/**
+ * Usage JSON v1 is additive: readers must ignore unknown fields. Removing an
+ * existing field or changing its type requires a schemaVersion increment.
+ */
 export interface UsageDocument {
   schemaVersion: 1
   command: UsageCommandMetadata
@@ -86,9 +94,9 @@ const META_OUTPUT_MODES = "Output modes"
 
 /**
  * Add semantics Cliffy's arguments and options cannot express themselves.
- * `writes` covers commands that can mutate persistent remote or local state;
- * writing to an explicit export destination, such as `schema --output`, does
- * not count.
+ * `writes` covers commands that can mutate persistent remote or user-configured
+ * local state. Transient cache writes and explicit export destinations, such as
+ * `schema --output`, do not count.
  */
 export function withUsageMetadata<T extends UsageMetadataTarget>(
   command: T,

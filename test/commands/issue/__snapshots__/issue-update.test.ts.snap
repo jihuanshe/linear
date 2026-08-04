@@ -5,6 +5,8 @@ stdout:
 "
 Usage: update [issueId]
 
+Writes: true
+
 Description:
 
   Update a linear issue

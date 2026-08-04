@@ -49,6 +49,8 @@ stdout:
 "
 Usage: attach <issueId> <filepath>
 
+Writes: true
+
 Description:
 
   Create a sidebar link attachment on an issue (images do not render inline)

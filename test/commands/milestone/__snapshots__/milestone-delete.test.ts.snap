@@ -5,6 +5,10 @@ stdout:
 "
 Usage: delete <id>
 
+Writes: true                         
+Interactive: true                    
+Confirmation required unless: --force
+
 Description:
 
   Delete a project milestone

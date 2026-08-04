@@ -1,4 +1,5 @@
 import { Command } from "@cliffy/command"
+import { withUsageMetadata } from "../usage.ts"
 import { gql } from "../../__codegen__/gql.ts"
 import { getGraphQLClient } from "../../utils/graphql.ts"
 import { shouldShowSpinner } from "../../utils/hyperlink.ts"
@@ -171,7 +172,9 @@ async function resolveProjectId(
   return undefined
 }
 
-export const addProjectCommand = new Command()
+export const addProjectCommand = withUsageMetadata(new Command(), {
+  writes: true,
+})
   .name("add-project")
   .description("Link a project to an initiative")
   .arguments("<initiative:string> <project:string>")

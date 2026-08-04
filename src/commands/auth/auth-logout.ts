@@ -1,4 +1,5 @@
 import { Command } from "@cliffy/command"
+import { withUsageMetadata } from "../usage.ts"
 import { Confirm, Select } from "../../utils/prompt.ts"
 import {
   getDefaultWorkspace,
@@ -8,7 +9,11 @@ import {
 } from "../../credentials.ts"
 import { AuthError, handleError, NotFoundError } from "../../utils/errors.ts"
 
-export const logoutCommand = new Command()
+export const logoutCommand = withUsageMetadata(new Command(), {
+  writes: true,
+  interactive: true,
+  confirmationRequiredUnless: "--force",
+})
   .name("logout")
   .description("Remove a workspace credential")
   .arguments("[workspace:string]")

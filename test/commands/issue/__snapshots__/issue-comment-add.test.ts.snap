@@ -23,6 +23,9 @@ stdout:
 "
 Usage: add [issueId]
 
+Writes: true     
+Interactive: true
+
 Description:
 
   Add a comment or reply; images uploaded with --attach render inline

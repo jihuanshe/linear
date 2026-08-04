@@ -1,4 +1,5 @@
 import { Command } from "@cliffy/command"
+import { withUsageMetadata } from "../usage.ts"
 import { Confirm, Select } from "../../utils/prompt.ts"
 import { gql } from "../../__codegen__/gql.ts"
 import type { GetLabelByNameQuery } from "../../__codegen__/graphql.ts"
@@ -132,7 +133,11 @@ async function resolveLabelId(
   return labels[0]
 }
 
-export const deleteCommand = new Command()
+export const deleteCommand = withUsageMetadata(new Command(), {
+  writes: true,
+  interactive: true,
+  confirmationRequiredUnless: "--force",
+})
   .name("delete")
   .description("Delete an issue label")
   .arguments("<nameOrId:string>")

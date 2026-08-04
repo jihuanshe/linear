@@ -5,6 +5,8 @@ stdout:
 \`
 Usage: mine
 
+Interactive: true
+
 Description:
 
   List your issues

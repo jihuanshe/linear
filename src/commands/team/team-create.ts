@@ -1,11 +1,15 @@
 import { Command } from "@cliffy/command"
+import { withUsageMetadata } from "../usage.ts"
 import { Input, Select } from "../../utils/prompt.ts"
 import { gql } from "../../__codegen__/gql.ts"
 import { getGraphQLClient } from "../../utils/graphql.ts"
 import { shouldShowSpinner } from "../../utils/hyperlink.ts"
 import { CliError, handleError, ValidationError } from "../../utils/errors.ts"
 
-export const createCommand = new Command()
+export const createCommand = withUsageMetadata(new Command(), {
+  writes: true,
+  interactive: true,
+})
   .name("create")
   .description("Create a linear team")
   .option("-n, --name <name:string>", "Name of the team")

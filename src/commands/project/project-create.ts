@@ -1,4 +1,5 @@
 import { Command } from "@cliffy/command"
+import { withUsageMetadata } from "../usage.ts"
 import { Input, Select } from "../../utils/prompt.ts"
 import { gql } from "../../__codegen__/gql.ts"
 import type { ProjectCreateInput } from "../../__codegen__/graphql.ts"
@@ -158,7 +159,10 @@ export async function resolveProjectContent(
   }
 }
 
-export const createCommand = new Command()
+export const createCommand = withUsageMetadata(new Command(), {
+  writes: true,
+  interactive: true,
+})
   .name("create")
   .description("Create a new Linear project")
   .option("-n, --name <name:string>", "Project name (required)")

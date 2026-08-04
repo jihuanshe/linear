@@ -1,4 +1,5 @@
 import { Command } from "@cliffy/command"
+import { withUsageMetadata } from "../usage.ts"
 import { gql } from "../../__codegen__/gql.ts"
 import type { DocumentInlineCommentGuardQuery } from "../../__codegen__/graphql.ts"
 import { getGraphQLClient } from "../../utils/graphql.ts"
@@ -167,7 +168,10 @@ async function readContentFromStdin(): Promise<string | undefined> {
   }
 }
 
-export const updateCommand = new Command()
+export const updateCommand = withUsageMetadata(new Command(), {
+  writes: true,
+  interactive: true,
+})
   .name("update")
   .description("Update an existing document")
   .alias("u")

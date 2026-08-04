@@ -1,4 +1,5 @@
 import { Command } from "@cliffy/command"
+import { withUsageMetadata } from "../usage.ts"
 import { gql } from "../../__codegen__/gql.ts"
 import { getGraphQLClient } from "../../utils/graphql.ts"
 import { getIssueId, getIssueIdentifier } from "../../utils/linear.ts"
@@ -15,7 +16,7 @@ function looksLikeUrl(value: string): boolean {
   return value.startsWith("http://") || value.startsWith("https://")
 }
 
-export const linkCommand = new Command()
+export const linkCommand = withUsageMetadata(new Command(), { writes: true })
   .name("link")
   .description("Link a URL to an issue")
   .arguments("<urlOrIssueId:string> [url:string]")

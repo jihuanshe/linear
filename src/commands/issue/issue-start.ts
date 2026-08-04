@@ -1,4 +1,5 @@
 import { Command } from "@cliffy/command"
+import { withUsageMetadata } from "../usage.ts"
 import { Select } from "../../utils/prompt.ts"
 import { getPriorityDisplay } from "../../utils/display.ts"
 import {
@@ -13,7 +14,10 @@ import {
   ValidationError,
 } from "../../utils/errors.ts"
 
-export const startCommand = new Command()
+export const startCommand = withUsageMetadata(new Command(), {
+  writes: true,
+  interactive: true,
+})
   .name("start")
   .description("Start working on an issue")
   .arguments("[issueId:string]")

@@ -5,6 +5,10 @@ stdout:
 "
 Usage: delete <projectId>
 
+Writes: true                         
+Interactive: true                    
+Confirmation required unless: --force
+
 Description:
 
   Delete (trash) a Linear project

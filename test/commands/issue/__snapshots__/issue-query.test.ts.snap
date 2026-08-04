@@ -5,6 +5,8 @@ stdout:
 \`
 Usage: query
 
+Interactive: true
+
 Description:
 
   Query issues with structured filters

@@ -1,4 +1,5 @@
 import { Command } from "@cliffy/command"
+import { withUsageMetadata } from "./usage.ts"
 import { encodeHex } from "@std/encoding/hex"
 import { isAbsolute, join, relative, resolve } from "@std/path"
 import denoConfig from "../../deno.json" with { type: "json" }
@@ -429,7 +430,7 @@ export async function updateStandaloneInstallation(
   }
 }
 
-export const updateCommand = new Command()
+export const updateCommand = withUsageMetadata(new Command(), { writes: true })
   .name("update")
   .description("Update the Linear CLI")
   .option(

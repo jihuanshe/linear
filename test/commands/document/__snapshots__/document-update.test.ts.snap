@@ -5,6 +5,9 @@ stdout:
 "
 Usage: update <documentId>
 
+Writes: true     
+Interactive: true
+
 Description:
 
   Update an existing document

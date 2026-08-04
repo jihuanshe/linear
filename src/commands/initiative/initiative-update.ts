@@ -1,4 +1,5 @@
 import { Command } from "@cliffy/command"
+import { withUsageMetadata } from "../usage.ts"
 import { Input, Select } from "../../utils/prompt.ts"
 import { gql } from "../../__codegen__/gql.ts"
 import { getGraphQLClient } from "../../utils/graphql.ts"
@@ -14,7 +15,10 @@ const INITIATIVE_STATUSES = [
   { name: "Paused", value: "paused" },
 ]
 
-export const updateCommand = new Command()
+export const updateCommand = withUsageMetadata(new Command(), {
+  writes: true,
+  interactive: true,
+})
   .name("update")
   .description("Update a Linear initiative")
   .arguments("<initiativeId:string>")

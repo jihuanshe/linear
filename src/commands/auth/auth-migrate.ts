@@ -1,9 +1,10 @@
 import { Command } from "@cliffy/command"
+import { withUsageMetadata } from "../usage.ts"
 import { isUsingInlineFormat, migrateToKeyring } from "../../credentials.ts"
 import * as keyring from "../../keyring/index.ts"
 import { CliError, handleError } from "../../utils/errors.ts"
 
-export const migrateCommand = new Command()
+export const migrateCommand = withUsageMetadata(new Command(), { writes: true })
   .name("migrate")
   .description("Migrate plaintext credentials to system keyring")
   .action(async () => {

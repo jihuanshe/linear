@@ -4,6 +4,7 @@ import {
   Type,
   ValidationError,
 } from "@cliffy/command"
+import { withUsageMetadata } from "./usage.ts"
 import denoConfig from "../../deno.json" with { type: "json" }
 import { getGraphQLEndpoint, getResolvedApiKey } from "../utils/graphql.ts"
 import {
@@ -24,7 +25,10 @@ class VariableType extends Type<[string, string]> {
   }
 }
 
-export const apiCommand = new Command()
+export const apiCommand = withUsageMetadata(new Command(), {
+  writes: true,
+  outputModes: ["json"],
+})
   .name("api")
   .description("Make a raw GraphQL API request")
   .type("variable", new VariableType())
