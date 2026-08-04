@@ -1,351 +1,292 @@
-# linear cli
+# Linear CLI
 
-a cli to list, start and create issues in the [linear](https://linear.app/) issue tracker. git and [jj](https://www.jj-vcs.dev/) aware to keep you in the right views in linear. allows jumping to the web or the linear desktop app similar to `gh`.
+A human- and AI-agent-friendly, Git- and Jujutsu-aware command-line interface for [Linear](https://linear.app/).
 
-**works great with AI agents** — the CLI includes a [skill](#skills) that lets agents create issues, update status, and manage your Linear workflow alongside your code.
+Use it to inspect issues, start work, update Linear state, create pull requests, and automate Linear workflows without leaving the terminal.
 
-here's how it works:
+> [!IMPORTANT]
+> This repository, [`jihuanshe/linear`](https://github.com/jihuanshe/linear), is a downstream fork of [`schpet/linear-cli`](https://github.com/schpet/linear-cli).
+>
+> The original project was created by [Peter Schilling](https://github.com/schpet) and its contributors. Its CLI design, Git and Jujutsu integration, interactive workflows, and most of the command surface form the foundation of this fork.
+>
+> This fork is maintained by [Jihuanshe](https://github.com/jihuanshe) and may intentionally diverge from upstream. It focuses on predictable automation, machine-readable output, explicit mutation contracts, and safe use by AI agents.
 
-```bash
-linear config               # setup your repo, it writes a config file
+This project is not an official Linear product and is not affiliated with or endorsed by Linear.
 
-linear issue mine           # list unstarted issues assigned to you
-linear issue query --all-teams  # query issues across all teams
-linear issue query --search "login bug"  # search issues in your configured team
-linear issue start          # choose an issue to start, creates a branch
-linear issue start ABC-123  # start a specific issue
-linear issue view           # see current branch's issue as markdown
-linear issue pr             # makes a PR with title/body preset, using gh cli
-linear issue create         # create a new issue
-```
+## Why this fork exists
 
-it aims to be a complement to the web and desktop apps that lets you stay on the command line in an interactive or scripted way.
+The upstream CLI provides a productive terminal workflow for humans:
 
-## screencast demos
+- infer the current Linear issue from Git branches or Jujutsu commit trailers;
+- list, inspect, create, and update Linear entities;
+- start an issue and create or switch to its branch;
+- create GitHub pull requests with Linear context;
+- open the correct Linear web or desktop view;
+- work interactively without repeatedly switching to the Linear UI.
 
-<details>
-<summary><code>linear issue create</code></summary>
+This downstream fork preserves those workflows while making the CLI easier to use as a stable tool boundary for AI agents and unattended automation.
 
-<img width="600" src="docs/cast-issue-create.svg?1" alt="screencast showing the linear issue create command, interactively adding issue details">
+Its current priorities are:
 
-</details>
+- structured JSON output with GraphQL-compatible field names and nesting;
+- stable connection output in the form `{ "nodes": [], "pageInfo": {} }`;
+- bounded pagination with explicit `--limit` behavior;
+- clean stdout for machine-readable results;
+- diagnostics, warnings, and errors on stderr;
+- predictable exit codes for syntax, validation, and runtime failures;
+- no colors, spinner, pager, or prompt leakage in non-interactive pipelines;
+- global prompt suppression through `LINEAR_PROMPT_DISABLED=1`;
+- explicit confirmation for destructive operations;
+- incremental patch-style updates where replacement would be unnecessarily destructive;
+- tested rolling binaries built directly from `main`.
 
-<details>
-<summary><code>linear issue start</code></summary>
+It deliberately does **not** provide an all-in-one "agent mode." JSON output, terminal styling, pagination, prompting, and mutation consent remain separate contracts.
 
-<img width="600" src="docs/cast-issue-start.svg?1" alt="screencast showing the linear issue start command, interactively choosing an issue to start">
+## Quick start
 
-</details>
+### Install with mise
 
-## install
-
-### mise (recommended)
-
-install the latest tested build from `main` using [mise](https://mise.jdx.dev/):
+Install the latest verified build from `main`:
 
 ```bash
 mise use -g "github:jihuanshe/linear[minimum_release_age=0s]@latest"
 linear --version
 ```
 
-mise selects the matching macOS, Linux, or Windows binary from GitHub Releases. deno and node are not required at runtime.
+mise selects the matching binary for macOS, Linux, or Windows. Deno and Node.js are not required at runtime.
 
-`minimum_release_age=0s` applies only to this tool and makes a newly shipped `main` build available immediately; mise otherwise hides GitHub releases for 24 hours by default.
+`minimum_release_age=0s` applies only to this tool. It allows a newly shipped `main` build to be installed immediately; mise otherwise hides new GitHub releases for 24 hours by default.
 
-releases are built from tested `main` commits and use versions in the form `0.0.<commit timestamp>-g<short commit>`; pin one of these versions instead of `latest` when reproducibility matters.
+Releases use versions of the form:
 
-### binaries
+```text
+0.0.<commit timestamp>-g<short commit>
+```
 
-https://github.com/jihuanshe/linear/releases/latest
+Use `latest` to follow verified `main`, or pin an exact version when reproducibility matters.
 
-### local dev
+Prebuilt binaries and checksums are also available from [GitHub Releases](https://github.com/jihuanshe/linear/releases/latest).
+
+### Authenticate
+
+Create a Linear personal API key at [Linear settings](https://linear.app/settings/account/security), then run:
+
+```bash
+linear auth login
+```
+
+To verify the selected account:
+
+```bash
+linear auth whoami
+linear auth whoami --json
+```
+
+See [Authentication](docs/authentication.md) for environment-variable and multi-workspace configuration.
+
+### Configure a repository
+
+From a project repository:
+
+```bash
+linear config
+```
+
+This creates a `.linear.toml` containing the default Linear workspace and team.
+
+## Human workflow
+
+```bash
+linear issue mine
+linear issue query --search "login bug"
+linear issue view ENG-123
+linear issue start ENG-123
+linear issue update ENG-123 --state "In Progress"
+linear issue pr
+```
+
+The current issue can be inferred from:
+
+- a Git branch containing an identifier such as `eng-123-fix-login`; or
+- a `Linear-issue` trailer in the current or an ancestor Jujutsu commit.
+
+Interactive commands remain available when stdin is a terminal and prompting has not been disabled.
+
+## Agent and automation workflow
+
+For unattended execution, disable all interactive prompts:
+
+```bash
+export LINEAR_PROMPT_DISABLED=1
+```
+
+This setting:
+
+- prevents the CLI from displaying a prompt or reading a response from stdin;
+- lets fully specified commands continue normally;
+- causes commands with missing input or confirmation to fail explicitly;
+- never selects a prompt default;
+- never implies consent;
+- never replaces `--force`, `--confirm`, or another explicit mutation flag.
+
+Examples of read-only machine usage:
+
+```bash
+linear auth whoami --json
+linear team list --json --limit 20
+linear project list --all-teams --json --limit 20
+linear issue query --all-teams --json --limit 50
+```
+
+Mutations should specify both the target and intended change:
+
+```bash
+linear issue update ENG-123 \
+  --state "In Review" \
+  --add-label reviewed \
+  --json
+```
+
+Incremental options such as `--add-label` and `--remove-label` avoid replacing unrelated existing values.
+
+For destructive operations, use the command-specific confirmation contract shown by `--help`:
+
+```bash
+linear issue delete ENG-123 --confirm
+```
+
+Do not treat `LINEAR_PROMPT_DISABLED=1` as authorization to mutate or delete Linear data.
+
+## Command groups
+
+| Group               | Purpose                                                  |
+| ------------------- | -------------------------------------------------------- |
+| `linear auth`       | Authentication and workspace credentials                 |
+| `linear issue`      | Query, inspect, create, update, start, and delete issues |
+| `linear team`       | Teams, members, states, and repository autolinks         |
+| `linear project`    | Project discovery and management                         |
+| `linear milestone`  | Project milestone management                             |
+| `linear document`   | Linear document workflows                                |
+| `linear initiative` | Initiative discovery                                     |
+| `linear cycle`      | Cycle discovery and issue filtering                      |
+| `linear label`      | Workspace and team labels                                |
+| `linear user`       | Workspace member discovery                               |
+| `linear api`        | Execute an explicit Linear GraphQL operation             |
+
+Discover the current command contract from the installed binary:
+
+```bash
+linear --help
+linear issue --help
+linear issue query --help
+```
+
+Generated command documentation is available under [`.agents/skills/linear-cli/references`](.agents/skills/linear-cli/references/commands.md).
+
+## Configuration
+
+Configuration can be supplied through environment variables or `.linear.toml`. Environment variables take precedence.
+
+| Setting                   | Environment variable              | TOML key                   |
+| ------------------------- | --------------------------------- | -------------------------- |
+| Default team              | `LINEAR_TEAM_ID`                  | `team_id`                  |
+| Workspace slug            | `LINEAR_WORKSPACE`                | `workspace`                |
+| Issue sorting             | `LINEAR_ISSUE_SORT`               | `issue_sort`               |
+| Ask for project on create | `LINEAR_ISSUE_CREATE_ASK_PROJECT` | `issue_create_ask_project` |
+| Default self-assignment   | `LINEAR_ISSUE_CREATE_ASSIGN_SELF` | `issue_create_assign_self` |
+| Version control system    | `LINEAR_VCS`                      | `vcs`                      |
+| Download inline images    | `LINEAR_DOWNLOAD_IMAGES`          | `download_images`          |
+
+Prompting is controlled independently:
+
+```bash
+LINEAR_PROMPT_DISABLED=1
+```
+
+Configuration files are resolved in this order:
+
+1. `./linear.toml` or `./.linear.toml`;
+2. repository-root `linear.toml` or `.linear.toml`;
+3. repository-root `.config/linear.toml`;
+4. the platform user configuration directory.
+
+## Attachments and public images
+
+Attachments are private to the Linear workspace by default:
+
+```bash
+linear issue attach ENG-123 ./screenshot.png
+linear issue comment add ENG-123 --attach ./screenshot.png
+```
+
+Passing `--public` uploads supported raster images to a public `public.linear.app` URL:
+
+```bash
+linear issue comment add ENG-123 \
+  --attach ./screenshot.png \
+  --public
+```
+
+Anyone with that URL can access the image without authenticating. The CLI therefore requires this behavior to be selected explicitly.
+
+## Agent Skills
+
+The repository uses the standard [Agent Skills](https://agentskills.io/) layout:
+
+- [`.agents/skills/linear-cli`](.agents/skills/linear-cli/SKILL.md) teaches compatible agents this fork's commands and safety contracts.
+- [`.agents/skills/releasing`](.agents/skills/releasing/SKILL.md) documents the contributor release workflow for this repository.
+
+Compatible agents discover these Skills automatically when working in this checkout. To install only the Linear management Skill elsewhere with the cross-agent Skills CLI:
+
+```bash
+npx skills add jihuanshe/linear@linear-cli
+```
+
+Agents must use the installed `jihuanshe/linear` binary. They should not fall back to the upstream npm package because its available commands and automation contracts may differ from this fork.
+
+## Development
+
+This is a Deno project. The supported development runtime is declared in `mise.toml`.
 
 ```bash
 git clone https://github.com/jihuanshe/linear
 cd linear
-deno task install
+./.agents/setup
 ```
 
-## setup
-
-1. create an API key at [linear.app/settings/account/security](https://linear.app/settings/account/security)[^1]
-
-2. authenticate with the CLI:
-
-   ```sh
-   linear auth login
-   ```
-
-3. configure your project:
-
-   ```sh
-   cd my-project-repo
-   linear config
-   ```
-
-see [docs/authentication.md](docs/authentication.md) for multi-workspace support and other authentication options.
-
-the CLI works with both git and jj version control systems:
-
-- **git**: works best when your branches include Linear issue IDs (e.g. `eng-123-my-feature`). use `linear issue start` or linear UI's 'copy git branch name' button and [related automations](https://linear.app/docs/account-preferences#git-related-automations).
-- **jj**: detects issues from `Linear-issue` trailers in your commit descriptions. use `linear issue start` to automatically add the trailer, or add it manually with `jj describe`, e.g. `jj describe "$(linear issue describe ABC-123)"`
-
-## commands
-
-### issue commands
-
-the current issue is determined by:
-
-- **git**: the issue id in the current branch name (e.g. `eng-123-my-feature`)
-- **jj**: the `Linear-issue` trailer in the current or ancestor commits
-
-note that [Linear's GitHub integration](https://linear.app/docs/github#branch-format) will suggest git branch names.
-
-```bash
-linear issue view      # view current issue details in terminal
-linear issue view ABC-123
-linear issue view 123
-linear issue view -w   # open issue in web browser
-linear issue view -a   # open issue in Linear.app
-linear issue id        # prints the issue id from current branch (e.g., "ENG-123")
-linear issue title     # prints just the issue title
-linear issue url       # prints the Linear.app URL for the issue
-linear issue pr        # creates a GitHub PR with issue details via `gh pr create`
-linear issue list      # list your issues in a table view (supports -s/--state and --sort)
-linear issue list --project "My Project" --milestone "Phase 1"  # filter by milestone
-linear issue list -w   # open issue list in web browser
-linear issue list -a   # open issue list in Linear.app
-linear issue query --search "login bug"  # search issues by text in your configured team
-linear issue query --search "oauth timeout" --team ENG --json  # structured search output for agents
-linear issue query --all-teams --json --limit 0  # export all issues as JSON
-linear issue start     # create/switch to issue branch and mark as started
-linear issue create    # create a new issue (interactive prompts)
-linear issue create -t "title" -d "description"  # create with flags
-linear issue create --project "My Project" --milestone "Phase 1"  # create with milestone
-linear issue update ENG-123 --state "In Review"  # update an issue with explicit fields
-linear issue update ENG-123 --milestone "Phase 2"  # set milestone on existing issue
-linear issue update ENG-123 --add-label bug  # add without replacing existing labels
-linear issue delete ENG-123 --confirm  # delete by identifier (UUID is also accepted)
-linear issue comment list          # list comments on current issue
-linear issue comment add           # add a comment to current issue
-linear issue comment add -p <id>   # reply to a specific comment
-linear issue comment update <id>   # update a comment
-linear issue commits               # show all commits for an issue (jj only)
-```
-
-#### attaching files
-
-attach files to an issue or comment. uploads are **private** by default (readable only by workspace members), matching the Linear web app.
-
-```bash
-linear issue attach ENG-123 ./screenshot.png            # attach a file to an issue
-linear issue attach ENG-123 ./doc.pdf -t "Spec"         # custom attachment title
-linear issue attach ENG-123 ./img.png -c "see this"     # add a linked comment
-linear issue comment add ENG-123 -a ./screenshot.png    # attach a file to a comment
-linear issue comment add ENG-123 -a ./a.png -a ./b.png  # attach multiple files
-```
-
-by default attachments are private. pass `--public` to upload raster images (png/jpeg/gif/webp/bmp/tiff) to a public `public.linear.app` URL readable by **anyone, unauthenticated** — useful for sharing outside the workspace, but a warning is printed since it bypasses workspace access controls. non-image files cannot be made public.
-
-```bash
-linear issue attach ENG-123 ./screenshot.png --public           # public image URL
-linear issue comment add ENG-123 -a ./screenshot.png --public   # public image URL
-```
-
-### team commands
-
-```bash
-linear team list       # list teams
-linear team id         # print out the team id (e.g. for scripts)
-linear team members    # list team members
-linear team members --all --json  # include inactive members, as JSON
-linear team create     # create a new team
-linear team autolinks  # configure GitHub repository autolinks for Linear issues
-```
-
-### user commands
-
-```bash
-linear user list        # list everyone in the workspace
-linear user list --all  # include deactivated members
-linear user list --json # machine-readable output
-```
-
-### project commands
-
-```bash
-linear project list    # list projects
-linear project view    # view project details
-linear project create --name "API v2" --team ENG --content-file overview.md
-linear project create --name "Mobile launch" --team APP --priority high --label Launch --member jane@example.com
-```
-
-### milestone commands
-
-```bash
-linear milestone list --project <projectId>     # list milestones for a project
-linear m list --project <projectId>             # list milestones (alias)
-linear milestone view <milestoneId>             # view milestone details
-linear m view <milestoneId>                     # view milestone (alias)
-linear milestone create --project <projectId> --name "Q1 Goals" --target-date "2026-03-31"  # create a milestone
-linear m create --project <projectId>           # create a milestone (interactive)
-linear milestone update <milestoneId> --name "New Name"  # update milestone name
-linear m update <milestoneId> --target-date "2026-04-15"  # update target date
-linear milestone delete <milestoneId>           # delete a milestone
-linear m delete <milestoneId> --force           # delete without confirmation
-```
-
-### document commands
-
-manage Linear documents from the command line. documents can be attached to projects or issues, or exist at the workspace level.
-
-```bash
-# list documents
-linear document list                            # list all accessible documents
-linear docs list                                # alias for document
-linear document list --project <projectId>      # filter by project
-linear document list --issue TC-123             # filter by issue
-linear document list --json                     # output as JSON
-
-# view a document
-linear document view <slug>                     # view document rendered in terminal
-linear document view <slug> --raw               # output raw markdown (for piping)
-linear document view <slug> --web               # open in browser
-linear document view <slug> --json              # output as JSON, including document comments
-
-# create a document
-linear document create --title "My Doc" --content "# Hello"           # inline content
-linear document create --title "Spec" --content-file ./spec.md        # from file
-linear document create --title "Doc" --project <projectId>            # attach to project
-linear document create --title "Notes" --issue TC-123                 # attach to issue
-cat spec.md | linear document create --title "Spec"                   # from stdin
-
-# update a document
-linear document update <slug> --title "New Title"                     # update title
-linear document update <slug> --content-file ./updated.md             # update content
-linear document update <slug> --edit                                  # open in $EDITOR
-linear document update <slug> --content-file ./updated.md --force     # bypass comment-anchor guard
-
-# delete a document
-linear document delete <slug>                   # soft delete (move to trash)
-linear document delete <slug> --permanent       # permanent delete
-linear document delete --bulk <slug1> <slug2>   # bulk delete
-```
-
-content updates are refused by default when a document has active inline Linear comments, because replacing markdown can detach or hide those anchors. top-level document comments do not block updates. review the inline comment first, then rerun with `--force` if you intentionally want to replace the content anyway.
-
-### other commands
-
-```bash
-linear --help          # show all commands
-linear --version       # show version
-linear config          # setup the project
-linear completions     # generate shell completions
-```
-
-## configuration options
-
-the CLI supports configuration via environment variables or a `.linear.toml` config file. environment variables take precedence over config file values.
-
-| option          | env var                           | toml key                   | example                            | description                                           |
-| --------------- | --------------------------------- | -------------------------- | ---------------------------------- | ----------------------------------------------------- |
-| Team ID         | `LINEAR_TEAM_ID`                  | `team_id`                  | `"ENG"`                            | default team for operations                           |
-| Workspace       | `LINEAR_WORKSPACE`                | `workspace`                | `"mycompany"`                      | workspace slug for web/app URLs                       |
-| Issue sort      | `LINEAR_ISSUE_SORT`               | `issue_sort`               | `"priority"` or `"manual"`         | how to sort issue lists                               |
-| Ask project     | `LINEAR_ISSUE_CREATE_ASK_PROJECT` | `issue_create_ask_project` | `true` or `false`                  | ask for a project during interactive `issue create`   |
-| Assign self     | `LINEAR_ISSUE_CREATE_ASSIGN_SELF` | `issue_create_assign_self` | `"always"`, `"auto"`, or `"never"` | control default self-assignment during issue creation |
-| VCS             | `LINEAR_VCS`                      | `vcs`                      | `"git"` or `"jj"`                  | version control system (default: git)                 |
-| Download images | `LINEAR_DOWNLOAD_IMAGES`          | `download_images`          | `true` or `false`                  | download images when viewing issues                   |
-
-### non-interactive commands
-
-set `LINEAR_PROMPT_DISABLED=1` (or `true`) to prevent the CLI from displaying any interactive prompt or reading a response from stdin. commands whose inputs are fully specified by flags continue normally; commands that still require input fail before prompting, write the error to stderr, and exit with code 1. this setting never confirms an operation or implies `--force`.
-
-unset the variable, leave it empty, or set it to `0`/`false` to allow prompts. other values are configuration errors when a command attempts to prompt.
-
-the config file can be placed at (checked in order, first found is used):
-
-- `./linear.toml` or `./.linear.toml` (current directory)
-- `<repo-root>/linear.toml` or `<repo-root>/.linear.toml` (repository root)
-- `<repo-root>/.config/linear.toml`
-- `$XDG_CONFIG_HOME/linear/linear.toml` or `~/.config/linear/linear.toml` (Unix)
-- `%APPDATA%\linear\linear.toml` (Windows)
-
-## skills
-
-linear-cli includes a skill that helps AI agents use the CLI effectively. for use cases outside the CLI, it includes instructions to interact directly with the graphql api, including authentication.
-
-### claude code
-
-install the skill using [claude code's plugin system](https://code.claude.com/docs/en/skills):
-
-```bash
-# from claude code
-/plugin marketplace add jihuanshe/linear
-/plugin install linear-cli@linear-cli
-
-# from bash
-claude plugin marketplace add jihuanshe/linear
-claude plugin install linear-cli@linear-cli
-
-# to update
-claude plugin marketplace update linear-cli
-claude plugin update linear-cli@linear-cli
-```
-
-### skills.sh for other agents
-
-install the skill using [skills.sh](https://skills.sh):
-
-```bash
-npx skills add jihuanshe/linear
-```
-
-view the skill at [skills.sh/jihuanshe/linear/linear-cli](https://skills.sh/jihuanshe/linear/linear-cli)
-
-## development
-
-run the same source checks used for `main` releases before pushing:
+Run the complete local verification gate:
 
 ```bash
 deno task verify
 ```
 
-### updating skill documentation
+That runs GraphQL code generation, formatting checks, linting, type checking, and the test suite.
 
-the skill documentation in `skills/linear-cli/` is automatically generated from the CLI help text. after making changes to commands or help text, regenerate the docs:
+When command help changes, regenerate the Agent Skill references:
 
 ```bash
 deno task generate-skill-docs
 ```
 
-this will:
+Verified pushes to `main` are built for five platforms and published through the [`Ship main`](.github/workflows/ship-main.yml) workflow. Source-controlled versions remain `0.0.0-dev`; the workflow derives the published version from the commit timestamp and SHA.
 
-- discover all commands and subcommands from `linear --help`
-- generate reference documentation for each command
-- update the `SKILL.md` file from `SKILL.template.md`
+## Upstream and credits
 
-**important:** the CI checks will fail if the generated docs are out of date, so make sure to run this before committing changes that affect command structure or help text.
+This repository is a downstream fork of [`schpet/linear-cli`](https://github.com/schpet/linear-cli).
 
-### code formatting
+The original project was created by Peter Schilling. Many features, command designs, tests, documentation sections, and integrations in this repository were created by the [upstream contributors](https://github.com/schpet/linear-cli/graphs/contributors).
 
-ensure code is formatted consistently:
+The downstream changelog summarizes this fork's changes without copying the upstream release history. Exact rolling-build history remains available in this repository's Git history and GitHub Releases.
 
-```bash
-deno fmt
-```
+When reporting an issue:
 
-the project uses deno's built-in formatter with configuration in `deno.json`. formatting is checked in CI.
+- report fork-specific automation, release, JSON, or safety-contract problems to [`jihuanshe/linear`](https://github.com/jihuanshe/linear/issues);
+- if a problem also reproduces in the unmodified upstream project, consider reporting it to [`schpet/linear-cli`](https://github.com/schpet/linear-cli/issues).
 
-## why
+## License
 
-linear's UI is incredibly good but it slows me down. i find the following pretty grating to experience frequently:
+Distributed under the ISC License.
 
-- switching context from my repo to linear
-- not being on the right view when i open linear
-- linear suggests a git branch, but i have to do the work of creating or switching to that branch
-- linear's suggested git branch doesn't account for it already existing or having a merged pull request
+Copyright (c) Peter Schilling and contributors.
 
-this cli solves this. it knows what you're working on (via git branches or jj commit trailers), does the work of managing your version control state, and will write your pull request details for you.
-
-[^1]: creating an API key requires member access, it is not available for guest accounts.
+See [LICENSE](LICENSE) for the full license text.
