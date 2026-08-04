@@ -1,45 +1,47 @@
-## basics
+# Repository Workflow
 
-- this is a deno app
-- after editing any graphql documents, run `deno task codegen` to get the updated types after it's updated, `const result = await client.request(query, { teamId });` should work and be typed (and not require explicit types)
-- graphql/schema.graphql has the graphql schema document for linear's api
-- for diagnostics, use `deno check` and `deno lint` (do not use tsc or rely on LSP for this)
-- when coloring or styling terminal text, use deno's @std/fmt/colors package
-- prefer `foo == null` and `foo != null` over `foo === undefined` and `foo !== undefined`
-- import: use dynamic import only when necessary, the static form is preferable
-- avoid the typescript `any` type - prefer strict typing, if you can't find a good way to fix a type issue (particularly with graphql data or documents) explain the problem instead of working around it
-- for `--json` output, preserve GraphQL field names and nesting instead of inventing CLI-specific JSON shapes
-- for paginated `--json` output, preserve connection shape and concatenate `nodes` rather than flattening or renaming fields
+## Sources of truth
 
-## permissions
+| Concern                              | Source                                                                        |
+| ------------------------------------ | ----------------------------------------------------------------------------- |
+| Runtime version and developer tasks  | `mise.toml`, `deno.json`                                                      |
+| Orb bootstrap and source wrapper     | `.agents/setup`, `.agents/resume`                                             |
+| Linear GraphQL schema and generation | `graphql/schema.graphql`, `codegen.ts`                                        |
+| Production code and mirrored tests   | `src/`, `test/`                                                               |
+| Deno permission changes              | `docs/deno-permissions.md`                                                    |
+| Linear CLI Skill source              | `.agents/skills/linear-cli/SKILL.template.md`                                 |
+| Generated Linear CLI Skill           | `.agents/skills/linear-cli/SKILL.md`, `.agents/skills/linear-cli/references/` |
+| Release procedure                    | `.agents/skills/releasing/SKILL.md`                                           |
+| CI release implementation            | `.github/workflows/ship-main.yml`                                             |
+| Cumulative downstream changes        | `CHANGELOG.md`                                                                |
 
-- deno permissions (--allow-env, --allow-net, etc.) are configured in multiple files that must stay in sync
-- see [docs/deno-permissions.md](docs/deno-permissions.md) for the full list of files to update when adding new permissions
-- key files: `deno.json` (tasks), `.github/workflows/ship-main.yml` (release builds), test files
+`AGENTS.md` is the repository guidance source. `CLAUDE.md` is only a compatibility pointer to this file.
 
-## error handling
+## Development loop
 
-- never fail silently - if something goes wrong or a lookup fails, throw an error with a helpful message
-- when user-provided input (flags, args) doesn't match expected values, error immediately with guidance on how to fix it
-- avoid falling back to defaults when explicit user input is invalid; explicit input should either work or error
-- use custom error classes from src/utils/errors.ts:
-  - `ValidationError(message, { suggestion })` for bad input
-  - `NotFoundError(entityType, identifier)` for missing entities
-  - `AuthError(message)` for auth issues
-  - `CliError(userMessage, { suggestion, cause })` for others
-- wrap command actions in try-catch with `handleError(error, "Failed to <action>")`
-- errors display clean messages to stderr with ✗ prefix, stack traces only shown when `LINEAR_DEBUG=1`
+1. Use Deno `2.9.4`. In an Orb, run `.agents/setup` only when the toolchain is missing or broken; elsewhere use `mise install`.
+2. Read the owning module and its mirrored tests before editing. Command tests follow the source path, for example `src/commands/issue/issue-view.ts` maps to `test/commands/issue/issue-view.test.ts`.
+3. Add or update tests for behavior changes. Use `deno task test`, or `deno task update-snapshots` only when intentionally updating snapshots. Set `NO_COLOR=1` for snapshot tests.
+4. After changing `graphql/schema.graphql` or a `gql` document in `src/`, run `deno task generate-graphql-types`. Generated GraphQL files are ignored and must not be committed.
+5. After changing the command tree, help output, or `SKILL.template.md`, run `deno task generate-skill-docs` and commit the generated Skill files.
+6. During development run the narrowest relevant test or diagnostic. Use `deno check`, `deno lint`, and Deno tasks; do not use `tsc` or rely on LSP diagnostics.
 
-## cli flags
+## Implementation contracts
 
-- never use the same short flag alias (e.g. `-w`) on both a global option and a command-level option — cliffy resolves global options first, so the command-level alias will be shadowed
-- before adding a short flag, grep the codebase for that letter to ensure it's not already in use at a conflicting scope
+- Prefer static imports. Use dynamic imports only when required.
+- Avoid `any`. Keep GraphQL request results inferred; `client.request(query, variables)` must not need explicit result types.
+- Prefer `foo == null` and `foo != null` over separate `undefined` checks.
+- Use `@std/fmt/colors` for terminal styling.
+- Preserve GraphQL field names and nesting in `--json` output. Paginated JSON retains the connection shape, concatenates `nodes`, and does not flatten or rename fields.
+- Before adding a short flag, search global and command options; Cliffy resolves global aliases first.
+- Explicit invalid input must fail with guidance, never fall back or fail silently.
+- Use `ValidationError`, `NotFoundError`, `AuthError`, or `CliError` from `src/utils/errors.ts`. Wrap command actions with `handleError(error, "Failed to <action>")`.
+- Errors go to stderr with the `✗` prefix. Stack traces require `LINEAR_DEBUG=1`.
+- When changing Deno permissions, follow the inventory and search procedure in `docs/deno-permissions.md`.
 
-## tests
+## Verification and release
 
-- tests on commands should mirror the directory structure of the src, e.g.
-  - src/commands/issue/issue-view.ts
-  - test/commands/issue/issue-view.test.ts
-- use `deno task test` instead of `deno test`, use `deno task snapshot` to update snapshots
-- use the NO_COLOR variable for snapshot tests so they don't include ansi escape codes
-- new feature should get tests
+- `deno task verify-source` is the source verification task: GraphQL type generation, format check, lint, type check, and all non-Keyring tests.
+- `deno task verify-release` is the complete local release gate: source verification plus generated Skill verification.
+- Do not push or release without explicit user authorization. When asked to ship, load and follow `.agents/skills/releasing/SKILL.md`; it is the only release procedure.
+- The CI release workflow intentionally does not repeat the local release gate. It runs the Linux Keyring integration test, builds five platforms, verifies release assets, attests them, and publishes the GitHub Release.

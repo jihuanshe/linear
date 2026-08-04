@@ -2,12 +2,24 @@
 
 This CLI uses `--allow-all` for simplicity. Linear issues can contain images and attachments from arbitrary external domains, making fine-grained `--allow-net` restrictions impractical.
 
-## Files with Permission Flags
+## Permission surfaces
 
-| File                              | Purpose                         |
-| --------------------------------- | ------------------------------- |
-| `deno.json`                       | `dev`, `install`, `test` tasks  |
-| `.github/workflows/ship-main.yml` | Binary compilation for releases |
+| Surface                           | Purpose                                                                       |
+| --------------------------------- | ----------------------------------------------------------------------------- |
+| `deno.json`                       | Development, installation, test, codegen, documentation, and evaluation tasks |
+| `.agents/resume`                  | Checkout-local `linear` source wrapper                                        |
+| `.github/workflows/ship-main.yml` | Release compilation                                                           |
+| `test/`                           | Child Deno processes used by command and snapshot tests                       |
+| `evals/linear-cli-skill/`         | Skill evaluation runner and CLI shim                                          |
+
+Before changing permissions, locate every active flag instead of relying only on this table:
+
+```bash
+rg -n --glob '!deno.lock' -- '--allow-|--deny-' \
+  deno.json .agents .github test evals
+```
+
+Update every entry point that executes the affected code path, then run `deno task verify-source`.
 
 ## Why `--allow-all`?
 

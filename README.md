@@ -38,7 +38,7 @@ Its current priorities are:
 - global prompt suppression through `LINEAR_PROMPT_DISABLED=1`;
 - explicit confirmation for destructive operations;
 - incremental patch-style updates where replacement would be unnecessarily destructive;
-- tested rolling binaries built directly from `main`.
+- rolling binaries built directly from `main`.
 
 It deliberately does **not** provide an all-in-one "agent mode." JSON output, terminal styling, pagination, prompting, and mutation consent remain separate contracts.
 
@@ -46,7 +46,7 @@ It deliberately does **not** provide an all-in-one "agent mode." JSON output, te
 
 ### Install with mise
 
-Install the latest verified build from `main`:
+Install the latest published build from `main`:
 
 ```bash
 mise use -g "github:jihuanshe/linear[minimum_release_age=0s]@latest"
@@ -63,7 +63,7 @@ Releases use versions of the form:
 0.0.<commit timestamp>-g<short commit>
 ```
 
-Use `latest` to follow verified `main`, or pin an exact version when reproducibility matters.
+Use `latest` to follow published `main` builds, or pin an exact version when reproducibility matters.
 
 Prebuilt binaries and checksums are also available from [GitHub Releases](https://github.com/jihuanshe/linear/releases/latest).
 
@@ -256,29 +256,37 @@ Agents must use the installed `jihuanshe/linear` binary. They should not fall ba
 
 ## Development
 
-This is a Deno project. The supported development runtime is declared in `mise.toml`.
+This is a Deno project. `AGENTS.md` is the development contract, `deno.json` is the task source, and `mise.toml` pins the supported runtime.
 
 ```bash
 git clone https://github.com/jihuanshe/linear
 cd linear
-./.agents/setup
+mise install
 ```
 
-Run the complete local verification gate:
+Amp Orbs use `.agents/setup` and `.agents/resume` instead of the host's mise installation.
+
+Run source verification during development:
 
 ```bash
-deno task verify
+deno task verify-source
 ```
 
-That runs GraphQL code generation, formatting checks, linting, type checking, and the test suite.
+That runs GraphQL code generation, formatting checks, linting, type checking, and all non-Keyring tests.
 
-When command help changes, regenerate the Agent Skill references:
+When the command tree, help output, or Skill template changes, regenerate the Linear CLI Skill:
 
 ```bash
 deno task generate-skill-docs
 ```
 
-Verified pushes to `main` are built for five platforms and published through the [`Ship main`](.github/workflows/ship-main.yml) workflow. Source-controlled versions remain `0.0.0-dev`; the workflow derives the published version from the commit timestamp and SHA.
+Before a release, run the complete local release gate:
+
+```bash
+deno task verify-release
+```
+
+The [release Skill](.agents/skills/releasing/SKILL.md) is the release procedure. An authorized push to `main` starts [`Ship main`](.github/workflows/ship-main.yml), which runs Linux Keyring integration, builds five platforms, verifies and attests the assets, and publishes the GitHub Release. Source-controlled versions remain `0.0.0-dev`; published versions come from the commit timestamp and SHA.
 
 ## Upstream and credits
 

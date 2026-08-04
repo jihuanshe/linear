@@ -56,10 +56,10 @@ Requires a logged-in `codex` CLI. Costs real model tokens (~36 low-effort runs p
 
 ```bash
 # baseline against the committed Skill
-deno task skill-eval --condition baseline --skill-dir .agents/skills/linear-cli
+deno task evaluate-skill --condition baseline --skill-dir .agents/skills/linear-cli
 
 # after changing the Skill
-deno task skill-eval --condition post-change --skill-dir .agents/skills/linear-cli
+deno task evaluate-skill --condition post-change --skill-dir .agents/skills/linear-cli
 
 # grade + compare
 deno run --allow-read --allow-write evals/linear-cli-skill/grade.ts \
