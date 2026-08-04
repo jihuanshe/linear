@@ -8,18 +8,19 @@
     "frozen": true
   },
   "tasks": {
-    "dev": "deno task codegen && deno run --allow-all --quiet src/main.ts ",
-    "install": "deno task codegen && deno install --compile --frozen --lock=./deno.lock -c ./deno.json --allow-all --quiet -g -f -n linear ./src/main.ts",
+    "dev": "deno task generate-graphql-types && deno run --allow-all --quiet src/main.ts ",
+    "install": "deno task generate-graphql-types && deno install --compile --frozen --lock=./deno.lock -c ./deno.json --allow-all --quiet -g -f -n linear ./src/main.ts",
     "uninstall": "deno uninstall -g linear",
-    "sync-schema": "deno task dev schema -o graphql/schema.graphql && deno task codegen",
-    "codegen": "deno run --allow-all npm:@graphql-codegen/cli@7.2.0/graphql-codegen-esm",
-    "check": "deno check src/main.ts",
+    "generate-graphql-types": "deno run --allow-all npm:@graphql-codegen/cli@7.2.0/graphql-codegen-esm",
+    "sync-graphql-schema": "deno task dev schema -o graphql/schema.graphql && deno task generate-graphql-types",
+    "generate-skill-docs": "deno task generate-graphql-types && deno run --allow-run --allow-read --allow-write .agents/skills/linear-cli/scripts/generate-docs.ts",
+    "check-types": "deno check src/main.ts",
     "test": "deno test --allow-all --quiet",
-    "snapshot": "deno test --allow-all -- --update",
-    "validate": "deno task check && deno fmt && deno lint",
-    "verify": "deno task codegen && deno fmt --check && deno lint && deno task check && deno task test --ignore=test/keyring.integration.test.ts",
-    "generate-skill-docs": "deno task codegen && deno run --allow-run --allow-read --allow-write .agents/skills/linear-cli/scripts/generate-docs.ts",
-    "skill-eval": "deno run --allow-all evals/linear-cli-skill/run.ts"
+    "update-snapshots": "deno test --allow-all -- --update",
+    "evaluate-skill": "deno run --allow-all evals/linear-cli-skill/run.ts",
+    "verify-source": "deno task generate-graphql-types && deno fmt --check && deno lint && deno task check-types && deno task test --ignore=test/keyring.integration.test.ts",
+    "verify-skill-docs": "deno task generate-skill-docs --check",
+    "verify-release": "NO_COLOR=1 deno task verify-source && deno task verify-skill-docs"
   },
   "imports": {
     "@cliffy/ansi": "jsr:@cliffy/ansi@^1.2.1",

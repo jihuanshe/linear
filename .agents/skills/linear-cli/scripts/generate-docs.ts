@@ -299,6 +299,12 @@ async function writeReferences(commands: CommandInfo[]): Promise<void> {
 }
 
 async function main() {
+  const args = new Set(Deno.args)
+  const check = args.delete("--check")
+  if (args.size > 0) {
+    throw new Error(`Unknown argument(s): ${[...args].join(", ")}`)
+  }
+
   console.log("Generating Linear CLI documentation...")
 
   // Verify that the CLI in this checkout can start.
@@ -362,6 +368,29 @@ async function main() {
         fmtResult.stderr || "unknown error"
       }`,
     )
+  }
+
+  if (check) {
+    const statusResult = await run([
+      "git",
+      "status",
+      "--porcelain=v1",
+      "--untracked-files=all",
+      "--",
+      ".agents/skills/linear-cli",
+    ])
+    if (!statusResult.success) {
+      throw new Error(
+        `Failed to inspect generated files: ${
+          statusResult.stderr || "unknown error"
+        }`,
+      )
+    }
+    if (statusResult.stdout) {
+      throw new Error(
+        `Generated Agent Skill documentation is out of date:\n${statusResult.stdout}`,
+      )
+    }
   }
 
   console.log(`\nDone! Generated ${commands.length + 2} files.`)

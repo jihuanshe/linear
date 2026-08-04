@@ -17,12 +17,10 @@ env:
   NO_COLOR: "1"
 
 jobs:
-  build:
-    name: Verify and build
+  keyring:
+    name: Verify keyring integration
     runs-on: ubuntu-latest
-    timeout-minutes: 30
-    outputs:
-      version: ${{ steps.version.outputs.version }}
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
         with:
@@ -40,13 +38,11 @@ jobs:
           restore-keys: |
             deno-${{ runner.os }}-${{ env.DENO_VERSION }}-
 
-      - name: Verify source
-        run: deno task verify
-
       - name: Set up Secret Service
         run: |
           sudo apt-get update
-          sudo apt-get install -y dbus-x11 gnome-keyring libsecret-tools zip
+          sudo apt-get install -y --no-install-recommends \
+            dbus-x11 gnome-keyring libsecret-tools
           eval "$(dbus-launch --sh-syntax)"
           echo "DBUS_SESSION_BUS_ADDRESS=$DBUS_SESSION_BUS_ADDRESS" >> "$GITHUB_ENV"
           echo "test-password" | gnome-keyring-daemon --unlock --components=secrets
@@ -56,27 +52,44 @@ jobs:
           LINEAR_KEYRING_INTEGRATION: "1"
         run: deno task test test/keyring.integration.test.ts
 
-      - name: Verify generated skill documentation
-        run: |
-          deno run --allow-run --allow-read --allow-write \
-            .agents/skills/linear-cli/scripts/generate-docs.ts
-          skill_status="$(
-            git status --porcelain=v1 --untracked-files=all -- \
-              .agents/skills/linear-cli
-          )"
-          if [[ -n "$skill_status" ]]; then
-            echo "Generated Agent Skill documentation is out of date:" >&2
-            echo "$skill_status" >&2
-            exit 1
-          fi
+  build:
+    name: Build ${{ matrix.target }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      matrix:
+        target:
+          - aarch64-apple-darwin
+          - x86_64-apple-darwin
+          - aarch64-unknown-linux-gnu
+          - x86_64-unknown-linux-gnu
+          - x86_64-pc-windows-msvc
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
 
-      - id: version
-        name: Set release version
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: ${{ env.DENO_VERSION }}
+
+      - name: Cache Deno dependencies
+        uses: actions/cache@v6
+        with:
+          path: ~/.cache/deno
+          key: deno-${{ runner.os }}-${{ env.DENO_VERSION }}-${{ hashFiles('deno.lock') }}
+          restore-keys: |
+            deno-${{ runner.os }}-${{ env.DENO_VERSION }}-
+
+      - name: Generate GraphQL types
+        run: deno task generate-graphql-types
+
+      - name: Set release version
         shell: bash
         run: |
           timestamp="$(git show -s --format=%ct "$GITHUB_SHA")"
           version="0.0.${timestamp}-g${GITHUB_SHA::7}"
-          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "VERSION=$version" >> "$GITHUB_ENV"
           VERSION="$version" deno eval '
             const path = "deno.json"
             const config = JSON.parse(await Deno.readTextFile(path))
@@ -87,78 +100,71 @@ jobs:
       - name: Compile release assets
         shell: bash
         env:
-          VERSION: ${{ steps.version.outputs.version }}
+          TARGET: ${{ matrix.target }}
         run: |
           set -euo pipefail
-          targets=(
-            aarch64-apple-darwin
-            x86_64-apple-darwin
-            aarch64-unknown-linux-gnu
-            x86_64-unknown-linux-gnu
-            x86_64-pc-windows-msvc
-          )
+          started_at="$SECONDS"
+          output_dir="target/distrib/$TARGET"
+          mkdir -p release "$output_dir"
 
-          mkdir -p release target/distrib
-          for target in "${targets[@]}"; do
-            output_dir="target/distrib/$target"
-            mkdir -p "$output_dir"
-
-            if [[ "$target" == "x86_64-pc-windows-msvc" ]]; then
-              binary="linear.exe"
-              archive="release/linear-$target.zip"
-              self_update_asset="release/linear-self-update-$target.exe"
-            else
-              binary="linear"
-              archive="release/linear-$target.tar.xz"
-              self_update_asset="release/linear-self-update-$target"
-            fi
-
-            deno compile \
-              --allow-all \
-              --frozen \
-              --lock=deno.lock \
-              --quiet \
-              --target="$target" \
-              --output="$output_dir/$binary" \
-              src/main.ts
-
-            # Keep a raw binary for `linear update`. The self-update prefix
-            # prevents it from outranking the archive in mise asset selection.
-            cp "$output_dir/$binary" "$self_update_asset"
-            if [[ "$target" == "x86_64-pc-windows-msvc" ]]; then
-              (cd "$output_dir" && zip -q "$GITHUB_WORKSPACE/$archive" "$binary")
-            else
-              tar -C "$output_dir" -cJf "$archive" "$binary"
-            fi
-          done
-
-          actual_version="$(target/distrib/x86_64-unknown-linux-gnu/linear --version)"
-          if [[ "$actual_version" != "linear $VERSION" ]]; then
-            echo "Expected linear $VERSION, got $actual_version" >&2
-            exit 1
+          if [[ "$TARGET" == "x86_64-pc-windows-msvc" ]]; then
+            binary="linear.exe"
+            archive="release/linear-$TARGET.zip"
+            self_update_asset="release/linear-self-update-$TARGET.exe"
+          else
+            binary="linear"
+            archive="release/linear-$TARGET.tar.xz"
+            self_update_asset="release/linear-self-update-$TARGET"
           fi
 
-          mapfile -t release_artifacts < <(
-            find release -maxdepth 1 -type f \
-              \( -name '*.tar.xz' -o -name '*.zip' -o -name 'linear-self-update-*' \) \
-              -printf '%f\n' | sort
+          deno compile \
+            --allow-all \
+            --frozen \
+            --lock=deno.lock \
+            --quiet \
+            --target="$TARGET" \
+            --output="$output_dir/$binary" \
+            src/main.ts
+
+          # Keep a raw binary for `linear update`. The self-update prefix
+          # prevents it from outranking the archive in mise asset selection.
+          cp "$output_dir/$binary" "$self_update_asset"
+          if [[ "$TARGET" == "x86_64-pc-windows-msvc" ]]; then
+            (cd "$output_dir" && zip -q "$GITHUB_WORKSPACE/$archive" "$binary")
+          else
+            tar -C "$output_dir" -cJf "$archive" "$binary"
+          fi
+
+          if [[ "$TARGET" == "x86_64-unknown-linux-gnu" ]]; then
+            actual_version="$("$output_dir/$binary" --version)"
+            if [[ "$actual_version" != "linear $VERSION" ]]; then
+              echo "Expected linear $VERSION, got $actual_version" >&2
+              exit 1
+            fi
+          fi
+
+          archive="${archive#release/}"
+          self_update_asset="${self_update_asset#release/}"
+          (
+            cd release
+            sha256sum "$archive" > "$archive.sha256"
+            sha256sum "$self_update_asset" > "$self_update_asset.sha256"
           )
-          for artifact in "${release_artifacts[@]}"; do
-            (cd release && sha256sum "$artifact" > "$artifact.sha256")
-          done
-          (cd release && sha256sum "${release_artifacts[@]}" > sha256.sum)
+          echo "Built $TARGET in $((SECONDS - started_at))s"
 
       - name: Upload release assets
         uses: actions/upload-artifact@v7
         with:
-          name: release-assets
+          name: release-assets-${{ matrix.target }}
           path: release/
           if-no-files-found: error
           retention-days: 1
 
   release:
     name: Publish release
-    needs: build
+    needs:
+      - keyring
+      - build
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
@@ -167,16 +173,53 @@ jobs:
       id-token: write
     env:
       GH_TOKEN: ${{ github.token }}
-      VERSION: ${{ needs.build.outputs.version }}
     steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Set release version
+        shell: bash
+        run: |
+          timestamp="$(git show -s --format=%ct "$GITHUB_SHA")"
+          version="0.0.${timestamp}-g${GITHUB_SHA::7}"
+          echo "VERSION=$version" >> "$GITHUB_ENV"
+
       - name: Download release assets
         uses: actions/download-artifact@v8
         with:
-          name: release-assets
+          pattern: release-assets-*
+          merge-multiple: true
           path: artifacts
 
       - name: Verify checksums
-        run: cd artifacts && sha256sum --check sha256.sum
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapfile -d '' -t checksums < <(
+            find artifacts -maxdepth 1 -type f -name '*.sha256' -print0
+          )
+          if ((${#checksums[@]} != 10)); then
+            echo "Expected 10 checksum files, got ${#checksums[@]}" >&2
+            exit 1
+          fi
+          for checksum in "${checksums[@]}"; do
+            (
+              cd artifacts
+              sha256sum --check "$(basename "$checksum")"
+            )
+          done
+
+          mapfile -t release_artifacts < <(
+            find artifacts -maxdepth 1 -type f \
+              \( -name '*.tar.xz' -o -name '*.zip' -o -name 'linear-self-update-*' \) \
+              ! -name '*.sha256' -printf '%f\n' | sort
+          )
+          if ((${#release_artifacts[@]} != 10)); then
+            echo "Expected 10 distributables, got ${#release_artifacts[@]}" >&2
+            exit 1
+          fi
+          (cd artifacts && sha256sum "${release_artifacts[@]}" > sha256.sum)
 
       - id: prepare
         name: Prepare draft release
@@ -226,7 +269,9 @@ jobs:
           subject-path: |
             artifacts/*.tar.xz
             artifacts/*.zip
-            artifacts/linear-self-update-*
+            artifacts/linear-self-update-*-darwin
+            artifacts/linear-self-update-*-linux-gnu
+            artifacts/linear-self-update-*-windows-msvc.exe
 
       - name: Publish release
         if: steps.prepare.outputs.skip != 'true'
