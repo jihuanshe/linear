@@ -9,6 +9,16 @@ const config: CodegenConfig = {
       plugins: [],
       config: {
         enumsAsTypes: true,
+        scalars: {
+          DateTime: "string",
+          DateTimeOrDuration: "string",
+          Duration: "string",
+          JSON: "unknown",
+          JSONObject: "unknown",
+          TimelessDate: "string",
+          TimelessDateOrDuration: "string",
+          UUID: "string",
+        },
       },
       presetConfig: {
         gqlTagName: "gql",

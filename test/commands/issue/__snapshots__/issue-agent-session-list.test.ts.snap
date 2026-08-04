@@ -11,10 +11,9 @@ Description:
 
 Options:
 
-  -h, --help            - Show this help.                                                                     
-  -j, --json            - Output as JSON                                                                      
-  --status    <status>  - Filter by session status  (Values: "pending", "active", "complete", "awaitingInput",
-                                                    "error", "stale")                                         
+  -h, --help            - Show this help.                                                                                       
+  -j, --json            - Output as JSON                                                                                        
+  --status    <status>  - Filter by session status  (Values: "pending", "active", "complete", "awaitingInput", "error", "stale")
 
 '
 stderr:

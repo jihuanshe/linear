@@ -55,11 +55,10 @@ Description:
 
 Options:
 
-  -h, --help              - Show this help.                                                                
-  -t, --title    <title>  - Custom title for the attachment                                                
-  -c, --comment  <body>   - Create a linked comment with this body; the file remains a sidebar attachment  
-  --public                - Upload images to a public, unauthenticated URL (default: private,              
-                            workspace-members only)                                                        
+  -h, --help              - Show this help.                                                                            
+  -t, --title    <title>  - Custom title for the attachment                                                            
+  -c, --comment  <body>   - Create a linked comment with this body; the file remains a sidebar attachment              
+  --public                - Upload images to a public, unauthenticated URL (default: private, workspace-members only)  
 
 "
 stderr:

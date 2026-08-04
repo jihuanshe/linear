@@ -25,7 +25,7 @@ This changelog records the cumulative downstream changes in [`jihuanshe/linear`]
 
 ### Development and distribution
 
-- Added a reproducible Amp Orb setup around Deno `2.7.9`, with checkout-isolated CLI installs and dependency caching.
+- Added a reproducible Amp Orb setup around Deno `2.9.4`, with checkout-isolated CLI installs and dependency caching.
 - Added a full verification gate covering GraphQL generation, formatting, linting, type checking, unit tests, keyring integration, and generated Skill documentation.
 - Ship every verified `main` commit as five public GitHub binaries named `0.0.<commit timestamp>-g<short commit>`, with checksums and build provenance.
 - Cancel stale overlapping release runs so only the newest pushed `main` commit continues building.
