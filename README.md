@@ -39,50 +39,28 @@ it aims to be a complement to the web and desktop apps that lets you stay on the
 
 ## install
 
-### homebrew
+### mise (recommended)
 
-```
-brew install schpet/tap/linear
-```
-
-### deno via jsr
+install the latest tested build from `main` using [mise](https://mise.jdx.dev/):
 
 ```bash
-deno install -A --reload -f -g -n linear jsr:@schpet/linear-cli
+mise use -g github:jihuanshe/linear@latest
+linear --version
 ```
 
-### npm / bun / pnpm
+mise selects the matching macOS, Linux, or Windows binary from GitHub Releases. deno and node are not required at runtime.
 
-install as a dev dependency to pin a version in your project:
-
-```bash
-npm install -D @schpet/linear-cli
-# or
-bun add -D @schpet/linear-cli
-# or
-pnpm add -D @schpet/linear-cli
-```
-
-then run via your package manager:
-
-```bash
-npx linear issue list
-bunx linear issue list
-```
-
-> **note:** this package ships pre-built binaries
-
-package on npm: [@schpet/linear-cli](https://www.npmjs.com/package/@schpet/linear-cli)
+releases are built from tested `main` commits and use versions in the form `0.0.<commit timestamp>-g<short commit>`; pin one of these versions instead of `latest` when reproducibility matters.
 
 ### binaries
 
-https://github.com/schpet/linear-cli/releases/latest
+https://github.com/jihuanshe/linear/releases/latest
 
 ### local dev
 
 ```bash
-git clone https://github.com/schpet/linear-cli
-cd linear-cli
+git clone https://github.com/jihuanshe/linear
+cd linear
 deno task install
 ```
 
@@ -301,11 +279,11 @@ install the skill using [claude code's plugin system](https://code.claude.com/do
 
 ```bash
 # from claude code
-/plugin marketplace add schpet/linear-cli
+/plugin marketplace add jihuanshe/linear
 /plugin install linear-cli@linear-cli
 
 # from bash
-claude plugin marketplace add schpet/linear-cli
+claude plugin marketplace add jihuanshe/linear
 claude plugin install linear-cli@linear-cli
 
 # to update
@@ -318,12 +296,18 @@ claude plugin update linear-cli@linear-cli
 install the skill using [skills.sh](https://skills.sh):
 
 ```bash
-npx skills add schpet/linear-cli
+npx skills add jihuanshe/linear
 ```
 
-view the skill at [skills.sh/schpet/linear-cli/linear-cli](https://skills.sh/schpet/linear-cli/linear-cli)
+view the skill at [skills.sh/jihuanshe/linear/linear-cli](https://skills.sh/jihuanshe/linear/linear-cli)
 
 ## development
+
+run the same source checks used for `main` releases before pushing:
+
+```bash
+deno task verify
+```
 
 ### updating skill documentation
 

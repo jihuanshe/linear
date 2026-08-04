@@ -1,19 +1,17 @@
 {
   "name": "linear-cli",
   "owner": {
-    "name": "schpet"
+    "name": "jihuanshe"
   },
   "description": "marketplace for linear-cli claude code plugin",
-  "version": "2.3.0",
   "plugins": [
     {
       "name": "linear-cli",
       "description": "skill for using the linear-cli to manage Linear issues",
-      "version": "2.3.0",
       "author": {
-        "name": "schpet"
+        "name": "jihuanshe"
       },
-      "homepage": "https://github.com/schpet/linear-cli",
+      "homepage": "https://github.com/jihuanshe/linear",
       "source": "./",
       "skills": [
         "./skills/linear-cli"

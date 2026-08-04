@@ -1,5 +1,5 @@
 #!/bin/bash
-# Shim `npx` for the skill eval: the skill suggests `npx @schpet/linear-cli`
+# Shim `npx` for the skill eval: package-manager fallbacks are treated as bypasses.
 # when `linear` is missing; here `linear` is always present, so any npx use is
 # recorded and fails fast without touching the network.
 set -u

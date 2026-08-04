@@ -132,7 +132,7 @@ export const configCommand = new Command()
       }
 
       const tomlContent = `# linear cli
-# https://github.com/schpet/linear-cli
+# https://github.com/jihuanshe/linear
 
 workspace = "${workspace}"
 team_id = "${teamKey}"

@@ -15,7 +15,7 @@
 
 - deno permissions (--allow-env, --allow-net, etc.) are configured in multiple files that must stay in sync
 - see [docs/deno-permissions.md](docs/deno-permissions.md) for the full list of files to update when adding new permissions
-- key files: `deno.json` (tasks), `dist-workspace.toml` (release builds), test files
+- key files: `deno.json` (tasks), `.github/workflows/ship-main.yml` (release builds), test files
 
 ## error handling
 

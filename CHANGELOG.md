@@ -12,6 +12,9 @@
 
 ### Changed
 
+- Releases now ship every verified `main` commit as five cross-platform GitHub binaries named `0.0.<commit timestamp>-g<short commit>`, with checksums and build provenance
+- Installation and agent guidance now use mise with `github:jihuanshe/linear` instead of the upstream npm, JSR, Homebrew, and cargo-dist release paths
+- Overlapping `main` release runs cancel older builds so only the newest pushed commit remains active
 - `label list --workspace-labels` now selects workspace-level labels without conflicting with the global `--workspace <slug>` credential selector. Replace the old `label list --workspace` spelling with `label list --workspace-labels`
 - `team delete --dry-run` never prompts or mutates and fails when required migration input is missing
 - `team delete --move-issues` reports each identifier mapping as soon as the issue is moved, preserving completed mappings if a later move fails

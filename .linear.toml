@@ -1,6 +1,6 @@
 # linear cli
-# https://github.com/schpet/linear-cli
+# https://github.com/jihuanshe/linear
 
-workspace = "schpet"
-team_id = "CLI"
+workspace = "jihuanshe"
+team_id = "JHS"
 issue_sort = "priority"

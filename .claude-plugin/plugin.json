@@ -1,11 +1,10 @@
 {
   "name": "linear-cli",
   "description": "Manage Linear issues from the command line",
-  "version": "2.3.0",
   "author": {
-    "name": "schpet"
+    "name": "jihuanshe"
   },
-  "homepage": "https://github.com/schpet/linear-cli",
+  "homepage": "https://github.com/jihuanshe/linear",
   "skills": [
     "./skills/linear-cli"
   ]

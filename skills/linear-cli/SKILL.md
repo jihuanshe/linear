@@ -16,14 +16,8 @@ The `linear` command must be available on PATH. To check:
 linear --version
 ```
 
-If not installed globally, you can run it without installing via npx:
-
-```bash
-npx @schpet/linear-cli --version
-```
-
-All subsequent commands can be prefixed with `npx @schpet/linear-cli` in place of `linear`. Otherwise, follow the install instructions at:\
-https://github.com/schpet/linear-cli?tab=readme-ov-file#install
+If it is unavailable, stop and ask the user to install this fork. Do not fall back to the upstream npm package, which may expose different commands and safety contracts. Installation instructions:\
+https://github.com/jihuanshe/linear?tab=readme-ov-file#install
 
 For unattended execution, set `LINEAR_PROMPT_DISABLED=1`. The CLI will fail instead of prompting when required inputs or confirmation flags are missing. This does not imply consent and never replaces `--force`.
 
