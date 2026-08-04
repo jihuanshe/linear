@@ -1,6 +1,7 @@
 import { Command } from "@cliffy/command"
 import { Input, Select } from "../../utils/prompt.ts"
 import { gql } from "../../__codegen__/gql.ts"
+import type { InitiativeUpdateCreateInput } from "../../__codegen__/graphql.ts"
 import { readIdsFromStdin } from "../../utils/bulk.ts"
 import { getEditor, openEditor } from "../../utils/editor.ts"
 import {
@@ -38,8 +39,7 @@ async function readContentFromStdin(): Promise<string | undefined> {
  * Resolve initiative ID from UUID, slug, or name
  */
 async function resolveInitiativeId(
-  // deno-lint-ignore no-explicit-any
-  client: any,
+  client: ReturnType<typeof getGraphQLClient>,
   idOrSlugOrName: string,
 ): Promise<string | undefined> {
   // Try as UUID first
@@ -288,8 +288,7 @@ async function promptInteractiveCreate(initiativeName: string): Promise<{
 }
 
 async function createInitiativeUpdate(
-  // deno-lint-ignore no-explicit-any
-  client: any,
+  client: ReturnType<typeof getGraphQLClient>,
   options: {
     initiativeId: string
     body?: string
@@ -323,8 +322,7 @@ async function createInitiativeUpdate(
   `)
 
   // Build input - only include fields that are provided
-  // deno-lint-ignore no-explicit-any
-  const input: Record<string, any> = {
+  const input: InitiativeUpdateCreateInput = {
     initiativeId,
   }
 

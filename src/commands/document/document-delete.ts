@@ -69,8 +69,7 @@ export const deleteCommand = new Command()
   )
 
 async function handleSingleDelete(
-  // deno-lint-ignore no-explicit-any
-  client: any,
+  client: ReturnType<typeof getGraphQLClient>,
   documentId: string,
   options: { yes?: boolean },
 ): Promise<void> {
@@ -132,8 +131,7 @@ async function handleSingleDelete(
 }
 
 async function handleBulkDelete(
-  // deno-lint-ignore no-explicit-any
-  client: any,
+  client: ReturnType<typeof getGraphQLClient>,
   options: {
     bulk?: string[]
     bulkFile?: string

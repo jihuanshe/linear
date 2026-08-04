@@ -1,5 +1,6 @@
 import { Command } from "@cliffy/command"
 import { gql } from "../../__codegen__/gql.ts"
+import type { ListDocumentsQueryVariables } from "../../__codegen__/graphql.ts"
 import { getGraphQLClient } from "../../utils/graphql.ts"
 import {
   getTimeAgo,
@@ -7,8 +8,9 @@ import {
   printStyled,
   printStyledHeader,
 } from "../../utils/display.ts"
+import { getIssueId } from "../../utils/linear.ts"
 import { shouldShowSpinner } from "../../utils/hyperlink.ts"
-import { handleError } from "../../utils/errors.ts"
+import { handleError, NotFoundError } from "../../utils/errors.ts"
 
 const ListDocuments = gql(`
   query ListDocuments($filter: DocumentFilter, $first: Int) {
@@ -55,20 +57,25 @@ export const listCommand = new Command()
 
     try {
       // Build filter based on options
-      // deno-lint-ignore no-explicit-any
-      let filter: any = undefined
+      let filter:
+        | NonNullable<ListDocumentsQueryVariables["filter"]>
+        | undefined = undefined
 
       if (project) {
         filter = {
-          ...filter,
+          ...(filter ?? {}),
           project: { slugId: { eq: project } },
         }
       }
 
       if (issue) {
+        const issueId = await getIssueId(issue.toUpperCase())
+        if (!issueId) {
+          throw new NotFoundError("Issue", issue)
+        }
         filter = {
-          ...filter,
-          issue: { identifier: { eq: issue.toUpperCase() } },
+          ...(filter ?? {}),
+          issue: { id: { eq: issueId } },
         }
       }
 

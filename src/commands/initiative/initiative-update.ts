@@ -225,8 +225,7 @@ export const updateCommand = new Command()
   )
 
 async function resolveInitiativeId(
-  // deno-lint-ignore no-explicit-any
-  client: any,
+  client: ReturnType<typeof getGraphQLClient>,
   idOrSlugOrName: string,
 ): Promise<string | undefined> {
   // Try as UUID first

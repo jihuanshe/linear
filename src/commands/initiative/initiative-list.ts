@@ -2,6 +2,7 @@ import { Command } from "@cliffy/command"
 import { unicodeWidth } from "@std/cli"
 import { open } from "@opensrc/deno-open"
 import { gql } from "../../__codegen__/gql.ts"
+import type { GetInitiativesQueryVariables } from "../../__codegen__/graphql.ts"
 import { getGraphQLClient } from "../../utils/graphql.ts"
 import {
   padDisplay,
@@ -124,8 +125,7 @@ export const listCommand = new Command()
 
     try {
       // Build filter
-      // deno-lint-ignore no-explicit-any
-      const filter: any = {}
+      const filter: NonNullable<GetInitiativesQueryVariables["filter"]> = {}
 
       // Status filter
       if (status) {

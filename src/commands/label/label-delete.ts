@@ -1,6 +1,7 @@
 import { Command } from "@cliffy/command"
 import { Confirm, Select } from "../../utils/prompt.ts"
 import { gql } from "../../__codegen__/gql.ts"
+import type { GetLabelByNameQuery } from "../../__codegen__/graphql.ts"
 import { getGraphQLClient } from "../../utils/graphql.ts"
 import { getTeamKey } from "../../utils/linear.ts"
 import { shouldShowSpinner } from "../../utils/hyperlink.ts"
@@ -20,7 +21,7 @@ const DeleteIssueLabel = gql(`
 `)
 
 const GetLabelByName = gql(`
-  query GetLabelByName($name: String!, $teamKey: String) {
+  query GetLabelByName($name: String!) {
     issueLabels(
       filter: {
         name: { eqIgnoreCase: $name }
@@ -53,16 +54,10 @@ const GetLabelById = gql(`
   }
 `)
 
-interface Label {
-  id: string
-  name: string
-  color: string
-  team?: { key: string; name: string } | null
-}
+type Label = GetLabelByNameQuery["issueLabels"]["nodes"][number]
 
 async function resolveLabelId(
-  // deno-lint-ignore no-explicit-any
-  client: any,
+  client: ReturnType<typeof getGraphQLClient>,
   nameOrId: string,
   teamKey?: string,
 ): Promise<Label | undefined> {
@@ -75,7 +70,7 @@ async function resolveLabelId(
     try {
       const result = await client.request(GetLabelById, { id: nameOrId })
       if (result.issueLabel) {
-        return result.issueLabel as Label
+        return result.issueLabel
       }
     } catch {
       // Continue to name lookup
@@ -86,7 +81,7 @@ async function resolveLabelId(
   let labels: Label[] = []
   try {
     const result = await client.request(GetLabelByName, { name: nameOrId })
-    labels = (result.issueLabels?.nodes || []) as Label[]
+    labels = result.issueLabels.nodes
   } catch {
     // Query failed, label not found
     return undefined

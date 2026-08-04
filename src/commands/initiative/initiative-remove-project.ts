@@ -35,8 +35,7 @@ const RemoveProjectFromInitiative = gql(`
 `)
 
 async function resolveInitiativeId(
-  // deno-lint-ignore no-explicit-any
-  client: any,
+  client: ReturnType<typeof getGraphQLClient>,
   idOrSlugOrName: string,
 ): Promise<{ id: string; name: string } | undefined> {
   // Try as UUID first
@@ -114,8 +113,7 @@ async function resolveInitiativeId(
 }
 
 async function resolveProjectId(
-  // deno-lint-ignore no-explicit-any
-  client: any,
+  client: ReturnType<typeof getGraphQLClient>,
   idOrSlugOrName: string,
 ): Promise<{ id: string; name: string } | undefined> {
   // Try as UUID first

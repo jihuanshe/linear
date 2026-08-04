@@ -37,7 +37,6 @@ await cliffySnapshotTest({
                     agentSession: {
                       id: "session-1",
                       status: "active",
-                      type: "commentThread",
                       createdAt: "2026-03-20T10:00:00.000Z",
                       startedAt: "2026-03-20T10:00:05.000Z",
                       endedAt: null,
@@ -50,7 +49,6 @@ await cliffySnapshotTest({
                     agentSession: {
                       id: "session-2",
                       status: "complete",
-                      type: "commentThread",
                       createdAt: "2026-03-19T15:30:00.000Z",
                       startedAt: "2026-03-19T15:30:05.000Z",
                       endedAt: "2026-03-19T16:00:00.000Z",
@@ -144,7 +142,6 @@ await cliffySnapshotTest({
                     agentSession: {
                       id: "session-1",
                       status: "active",
-                      type: "commentThread",
                       createdAt: "2026-03-20T10:00:00.000Z",
                       startedAt: "2026-03-20T10:00:05.000Z",
                       endedAt: null,
@@ -157,7 +154,6 @@ await cliffySnapshotTest({
                     agentSession: {
                       id: "session-2",
                       status: "complete",
-                      type: "commentThread",
                       createdAt: "2026-03-19T15:30:00.000Z",
                       startedAt: "2026-03-19T15:30:05.000Z",
                       endedAt: "2026-03-19T16:00:00.000Z",

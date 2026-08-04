@@ -1,7 +1,10 @@
 import { Command } from "@cliffy/command"
 import { unicodeWidth } from "@std/cli"
 import { gql } from "../../__codegen__/gql.ts"
-import type { GetIssueLabelsQuery } from "../../__codegen__/graphql.ts"
+import type {
+  GetIssueLabelsQuery,
+  GetIssueLabelsQueryVariables,
+} from "../../__codegen__/graphql.ts"
 import { getGraphQLClient } from "../../utils/graphql.ts"
 import { padDisplay, printStyledHeader } from "../../utils/display.ts"
 import { getTeamKey } from "../../utils/linear.ts"
@@ -68,8 +71,7 @@ export const listCommand = new Command()
       const client = getGraphQLClient()
 
       // Build filter based on options
-      // deno-lint-ignore no-explicit-any
-      let filter: any = {}
+      let filter: NonNullable<GetIssueLabelsQueryVariables["filter"]> = {}
 
       if (workspaceLabels) {
         // Only workspace labels (no team)

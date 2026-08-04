@@ -1,6 +1,7 @@
 import { Command } from "@cliffy/command"
 import { Input, Select } from "../../utils/prompt.ts"
 import { gql } from "../../__codegen__/gql.ts"
+import type { DocumentCreateInput } from "../../__codegen__/graphql.ts"
 import { getGraphQLClient } from "../../utils/graphql.ts"
 import { resolveProjectId } from "../../utils/linear.ts"
 import { getEditor, openEditor } from "../../utils/editor.ts"
@@ -83,20 +84,15 @@ export const createCommand = new Command()
             throw new ValidationError("Title is required")
           }
 
-          const input: Record<string, string | undefined> = {
+          const input: DocumentCreateInput = {
             title: result.title,
-            content: result.content,
-            icon: result.icon,
-            projectId: result.projectId,
-            issueId: result.issueId,
+            ...(result.content != null ? { content: result.content } : {}),
+            ...(result.icon != null ? { icon: result.icon } : {}),
+            ...(result.projectId != null
+              ? { projectId: result.projectId }
+              : {}),
+            ...(result.issueId != null ? { issueId: result.issueId } : {}),
           }
-
-          // Remove undefined values
-          Object.keys(input).forEach((key) => {
-            if (input[key] === undefined) {
-              delete input[key]
-            }
-          })
 
           await createDocument(client, input)
           return
@@ -165,20 +161,13 @@ export const createCommand = new Command()
         }
 
         // Build input
-        const input: Record<string, string | undefined> = {
+        const input: DocumentCreateInput = {
           title,
-          content: finalContent,
-          icon,
-          projectId,
-          issueId,
+          ...(finalContent != null ? { content: finalContent } : {}),
+          ...(icon != null ? { icon } : {}),
+          ...(projectId != null ? { projectId } : {}),
+          ...(issueId != null ? { issueId } : {}),
         }
-
-        // Remove undefined values
-        Object.keys(input).forEach((key) => {
-          if (input[key] === undefined) {
-            delete input[key]
-          }
-        })
 
         await createDocument(client, input)
       } catch (error) {
@@ -298,8 +287,7 @@ async function promptInteractiveCreate(): Promise<{
 }
 
 async function resolveIssueId(
-  // deno-lint-ignore no-explicit-any
-  client: any,
+  client: ReturnType<typeof getGraphQLClient>,
   issueIdentifier: string,
 ): Promise<string | undefined> {
   const issueQuery = gql(`
@@ -324,9 +312,8 @@ async function resolveIssueId(
 }
 
 async function createDocument(
-  // deno-lint-ignore no-explicit-any
-  client: any,
-  input: Record<string, string | undefined>,
+  client: ReturnType<typeof getGraphQLClient>,
+  input: DocumentCreateInput,
 ): Promise<void> {
   const createMutation = gql(`
     mutation CreateDocument($input: DocumentCreateInput!) {

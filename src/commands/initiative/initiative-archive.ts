@@ -65,8 +65,7 @@ export const archiveCommand = new Command()
   )
 
 async function handleSingleArchive(
-  // deno-lint-ignore no-explicit-any
-  client: any,
+  client: ReturnType<typeof getGraphQLClient>,
   initiativeId: string,
   options: { force?: boolean },
 ): Promise<void> {
@@ -158,8 +157,7 @@ async function handleSingleArchive(
 }
 
 async function handleBulkArchive(
-  // deno-lint-ignore no-explicit-any
-  client: any,
+  client: ReturnType<typeof getGraphQLClient>,
   options: {
     bulk?: string[]
     bulkFile?: string
@@ -295,8 +293,7 @@ async function handleBulkArchive(
 }
 
 async function resolveInitiativeId(
-  // deno-lint-ignore no-explicit-any
-  client: any,
+  client: ReturnType<typeof getGraphQLClient>,
   idOrSlugOrName: string,
 ): Promise<string | undefined> {
   // Try as UUID first

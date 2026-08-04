@@ -106,3 +106,49 @@ await snapshotTest({
     }
   },
 })
+
+await snapshotTest({
+  name: "Document List Command - Filter By Issue JSON Output",
+  meta: import.meta,
+  colors: false,
+  args: ["--issue", "eng-123", "--json"],
+  denoArgs: commonDenoArgs,
+  async fn() {
+    const server = new MockLinearServer([
+      {
+        queryName: "GetIssueId",
+        variables: { id: "ENG-123" },
+        response: {
+          data: { issue: { id: "issue-uuid" } },
+        },
+      },
+      {
+        queryName: "ListDocuments",
+        variables: {
+          filter: { issue: { id: { eq: "issue-uuid" } } },
+          first: 50,
+        },
+        response: {
+          data: {
+            documents: {
+              nodes: [],
+              pageInfo: { hasNextPage: false, endCursor: null },
+            },
+          },
+        },
+      },
+    ])
+
+    try {
+      await server.start()
+      Deno.env.set("LINEAR_GRAPHQL_ENDPOINT", server.getEndpoint())
+      Deno.env.set("LINEAR_API_KEY", "Bearer test-token")
+
+      await listCommand.parse()
+    } finally {
+      await server.stop()
+      Deno.env.delete("LINEAR_GRAPHQL_ENDPOINT")
+      Deno.env.delete("LINEAR_API_KEY")
+    }
+  },
+})

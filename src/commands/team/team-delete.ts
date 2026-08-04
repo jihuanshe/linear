@@ -1,6 +1,7 @@
 import { Command } from "@cliffy/command"
 import { assertPromptAllowed, Confirm, Select } from "../../utils/prompt.ts"
 import { gql } from "../../__codegen__/gql.ts"
+import type { GetTeamIssuesForMoveQuery } from "../../__codegen__/graphql.ts"
 import { getGraphQLClient } from "../../utils/graphql.ts"
 import { getAllTeams, getTeamIdByKey } from "../../utils/linear.ts"
 import {
@@ -189,23 +190,14 @@ async function moveIssuesToTeam(
   targetTeamId: string,
 ) {
   // Fetch all issues from source team
-  type IssueNode = { id: string; identifier: string }
-  type PageInfo = { hasNextPage: boolean; endCursor?: string | null }
-  type TeamIssuesResult = {
-    team?: {
-      issues?: {
-        nodes?: IssueNode[]
-        pageInfo?: PageInfo
-      } | null
-    } | null
-  }
+  type IssueNode = GetTeamIssuesForMoveQuery["team"]["issues"]["nodes"][number]
 
   const allIssues: IssueNode[] = []
   let hasNextPage = true
   let after: string | undefined = undefined
 
   while (hasNextPage) {
-    const result: TeamIssuesResult = await client.request(
+    const result: GetTeamIssuesForMoveQuery = await client.request(
       GetTeamIssuesForMove,
       {
         teamId: sourceTeamId,
@@ -214,11 +206,11 @@ async function moveIssuesToTeam(
       },
     )
 
-    const issues = result.team?.issues?.nodes || []
+    const issues = result.team.issues.nodes
     allIssues.push(...issues)
 
-    hasNextPage = result.team?.issues?.pageInfo?.hasNextPage || false
-    after = result.team?.issues?.pageInfo?.endCursor ?? undefined
+    hasNextPage = result.team.issues.pageInfo.hasNextPage
+    after = result.team.issues.pageInfo.endCursor ?? undefined
   }
 
   // Update each issue to move to target team. Print each mapping as soon as it

@@ -265,8 +265,7 @@ async function promptInteractiveCreate(): Promise<{
 }
 
 async function createProjectUpdate(
-  // deno-lint-ignore no-explicit-any
-  client: any,
+  client: ReturnType<typeof getGraphQLClient>,
   input: {
     projectId: string
     body?: string

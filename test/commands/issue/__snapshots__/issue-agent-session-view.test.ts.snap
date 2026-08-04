@@ -25,7 +25,6 @@ stdout:
 
 **ID:** session-1
 **Status:** active
-**Type:** commentThread
 **Agent:** Linear Assistant
 **Creator:** Alice
 **Issue:** ENG-412 - Fix auth token refresh
@@ -53,7 +52,6 @@ stdout:
 
 **ID:** session-2
 **Status:** complete
-**Type:** commentThread
 **Agent:** Linear Assistant
 **Creator:** Bob
 **Issue:** ENG-398 - Add dark mode toggle
@@ -62,7 +60,7 @@ stdout:
 **Started:** 1/1/2020
 **Ended:** 1/1/2020
 
-**External Link:** https://github.com/org/repo/pull/42
+**Pull request:** https://github.com/org/repo/pull/42
 
 ## Summary
 
@@ -77,14 +75,13 @@ stdout:
 '{
   "id": "session-3",
   "status": "stale",
-  "type": "commentThread",
   "createdAt": "2020-01-02T10:00:00Z",
   "updatedAt": "2020-01-02T10:30:00Z",
   "startedAt": "2020-01-02T10:00:05Z",
   "endedAt": null,
   "dismissedAt": null,
   "summary": "Session JSON output",
-  "externalLink": null,
+  "externalLinks": [],
   "creator": {
     "name": "Casey"
   },
