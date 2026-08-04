@@ -1,6 +1,6 @@
 # Agent discovery and version-matched guides
 
-Status: proposed architecture, revised after an independent design review. The progressive `usage` foundation described below is implemented in the current phase-one changes, but metadata co-location and completeness follow-ups remain before that phase lands. The guide system and Skill migration are not yet implemented.
+Status: accepted architecture roadmap, revised after an independent design review. The progressive `usage` baseline described below is implemented; metadata co-location and completeness hardening is the next commit before guide work begins. The guide system and Skill migration are not yet implemented.
 
 ## Executive summary
 
@@ -95,7 +95,7 @@ The [`lark` router Skill](https://github.com/jihuanshe/skills/blob/main/skills-s
 
 ## Design review decisions
 
-An independent review of the current phase-one diff and this architecture accepted the four-layer ownership model and required the following changes before implementation continues:
+An independent review of the phase-one baseline and this architecture accepted the four-layer ownership model and identified the following decisions for subsequent commits:
 
 1. Supplemental command capability metadata must be co-located with each leaf command definition rather than added at parent registration sites. An exact writes-command completeness test must make omissions fail visibly.
 2. Internal guide search is not part of the initial guide system. With four guides, `list`, `read`, and `path` plus filesystem tools are sufficient. Search is evidence-gated.
@@ -166,7 +166,7 @@ The current family should not be migrated uniformly:
 
 ### Phase-one foundation
 
-The current phase-one changes add:
+The phase-one baseline adds:
 
 ```bash
 linear usage
@@ -195,7 +195,7 @@ Measured phase-one output sizes provide an initial discovery budget:
 
 The concise root view is suitable as a default entry point. The issue-domain JSON is useful for structured tooling but too large to recommend as an unconditional first read; agents should progress to one domain or leaf only when needed.
 
-Before phase one lands:
+Remaining phase-one hardening:
 
 - move supplemental metadata annotations from parent wiring files into leaf command modules;
 - add an exact writes-command completeness test;
