@@ -1,4 +1,4 @@
-# Deno Permissions Configuration
+# Deno permission policy and change procedure
 
 This CLI uses `--allow-all` for simplicity. Linear issues can contain images and attachments from arbitrary external domains, making fine-grained `--allow-net` restrictions impractical.
 

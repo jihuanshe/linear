@@ -1,4 +1,4 @@
-# authentication
+# Authentication and workspace credentials
 
 the CLI supports multiple authentication methods with the following precedence:
 
