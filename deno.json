@@ -11,7 +11,7 @@
     "dev": "deno task codegen && deno run --allow-all --quiet src/main.ts ",
     "install": "deno task codegen && deno install --compile --frozen --lock=./deno.lock -c ./deno.json --allow-all --quiet -g -f -n linear ./src/main.ts",
     "uninstall": "deno uninstall -g linear",
-    "sync-schema": "deno task dev schema -o graphql/schema.graphql",
+    "sync-schema": "deno task dev schema -o graphql/schema.graphql && deno task codegen",
     "codegen": "deno run --allow-all npm:@graphql-codegen/cli/graphql-codegen-esm",
     "check": "deno check src/main.ts",
     "test": "deno test --allow-all --quiet",

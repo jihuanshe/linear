@@ -32,7 +32,7 @@ export const schemaCommand = new Command()
         content = JSON.stringify(result, null, 2)
       } else {
         const schema = lexicographicSortSchema(buildClientSchema(result))
-        content = printSchema(schema)
+        content = printSchema(schema).replace(/[ \t]+$/gm, "")
       }
 
       if (output) {
