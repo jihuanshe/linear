@@ -13,7 +13,7 @@ permissions:
   contents: read
 
 env:
-  DENO_VERSION: "2.7.9"
+  DENO_VERSION: "2.9.4"
   NO_COLOR: "1"
 
 jobs:
@@ -24,7 +24,7 @@ jobs:
     outputs:
       version: ${{ steps.version.outputs.version }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           persist-credentials: false
 
@@ -33,7 +33,7 @@ jobs:
           deno-version: ${{ env.DENO_VERSION }}
 
       - name: Cache Deno dependencies
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/.cache/deno
           key: deno-${{ runner.os }}-${{ env.DENO_VERSION }}-${{ hashFiles('deno.lock') }}
@@ -144,7 +144,7 @@ jobs:
           (cd release && sha256sum "${archives[@]}" > sha256.sum)
 
       - name: Upload release assets
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: release-assets
           path: release/
@@ -165,7 +165,7 @@ jobs:
       VERSION: ${{ needs.build.outputs.version }}
     steps:
       - name: Download release assets
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: release-assets
           path: artifacts
@@ -216,7 +216,7 @@ jobs:
 
       - name: Attest release assets
         if: steps.prepare.outputs.skip != 'true'
-        uses: actions/attest-build-provenance@v3
+        uses: actions/attest-build-provenance@v4
         with:
           subject-path: |
             artifacts/*.tar.xz
