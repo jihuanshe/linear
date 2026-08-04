@@ -39,12 +39,13 @@ for (
 ) {
   Deno.test(`stream-scoped colors: ${name}`, () => {
     withTerminalEnv({}, () => {
+      const effectiveInitial = initial && !Deno.noColor
       setColorEnabled(initial)
       assertEquals(
         withTerminalColors(stream, () => getColorEnabled()),
-        expected,
+        expected && !Deno.noColor,
       )
-      assertEquals(getColorEnabled(), initial)
+      assertEquals(getColorEnabled(), effectiveInitial)
     })
   })
 }

@@ -23,7 +23,21 @@ if [[ ! -x "$deno_bin" ]]; then
 fi
 
 mkdir -p "$bin_dir"
-ln -sfn "$deno_bin" "$bin_dir/deno"
+rm -f "$bin_dir/deno"
+cat > "$bin_dir/deno" <<EOF
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Deno treats FORCE_COLOR as enabled whenever it exists, including when its
+# value is "0". Preserve an explicit opt-in while honoring environments that
+# use FORCE_COLOR=0 to request machine-clean output.
+if [[ "\${FORCE_COLOR-}" == "0" ]]; then
+  unset FORCE_COLOR
+fi
+
+exec "$deno_bin" "\$@"
+EOF
+chmod 0755 "$bin_dir/deno"
 export PATH="$bin_dir:$PATH"
 
 profile_file=""
@@ -52,9 +66,9 @@ fi
 
 echo "Caching locked dependencies"
 cd "$repo_root"
-"$deno_bin" install --frozen --quiet
+"$bin_dir/deno" install --frozen --quiet
 
 echo "Installing linear CLI from this checkout"
-DENO_INSTALL_ROOT="$checkout_root" "$deno_bin" task install
+DENO_INSTALL_ROOT="$checkout_root" "$bin_dir/deno" task install
 
 echo "Deno $deno_version is ready"

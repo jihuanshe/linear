@@ -14,11 +14,13 @@ permissions:
 
 env:
   DENO_VERSION: "2.7.9"
+  NO_COLOR: "1"
 
 jobs:
   build:
     name: Verify and build
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     outputs:
       version: ${{ steps.version.outputs.version }}
     steps:
@@ -29,6 +31,14 @@ jobs:
       - uses: denoland/setup-deno@v2
         with:
           deno-version: ${{ env.DENO_VERSION }}
+
+      - name: Cache Deno dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/deno
+          key: deno-${{ runner.os }}-${{ env.DENO_VERSION }}-${{ hashFiles('deno.lock') }}
+          restore-keys: |
+            deno-${{ runner.os }}-${{ env.DENO_VERSION }}-
 
       - name: Verify source
         run: deno task verify
@@ -48,7 +58,8 @@ jobs:
 
       - name: Verify generated skill documentation
         run: |
-          deno task generate-skill-docs
+          deno run --allow-run --allow-read --allow-write \
+            .agents/skills/linear-cli/scripts/generate-docs.ts
           skill_status="$(
             git status --porcelain=v1 --untracked-files=all -- \
               .agents/skills/linear-cli
@@ -144,6 +155,7 @@ jobs:
     name: Publish release
     needs: build
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       attestations: write
       contents: write
