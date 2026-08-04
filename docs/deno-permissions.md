@@ -4,10 +4,10 @@ This CLI uses `--allow-all` for simplicity. Linear issues can contain images and
 
 ## Files with Permission Flags
 
-| File                  | Purpose                         |
-| --------------------- | ------------------------------- |
-| `deno.json`           | `dev`, `install`, `test` tasks  |
-| `dist-workspace.toml` | Binary compilation for releases |
+| File                              | Purpose                         |
+| --------------------------------- | ------------------------------- |
+| `deno.json`                       | `dev`, `install`, `test` tasks  |
+| `.github/workflows/ship-main.yml` | Binary compilation for releases |
 
 ## Why `--allow-all`?
 

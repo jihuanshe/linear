@@ -1,0 +1,222 @@
+name: Ship main
+
+on:
+  push:
+    branches:
+      - main
+
+concurrency:
+  group: ship-main
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  DENO_VERSION: "2.7.9"
+
+jobs:
+  build:
+    name: Verify and build
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          persist-credentials: false
+
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: ${{ env.DENO_VERSION }}
+
+      - name: Verify source
+        run: deno task verify
+
+      - name: Set up Secret Service
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y dbus-x11 gnome-keyring libsecret-tools zip
+          eval "$(dbus-launch --sh-syntax)"
+          echo "DBUS_SESSION_BUS_ADDRESS=$DBUS_SESSION_BUS_ADDRESS" >> "$GITHUB_ENV"
+          echo "test-password" | gnome-keyring-daemon --unlock --components=secrets
+
+      - name: Run keyring integration test
+        env:
+          LINEAR_KEYRING_INTEGRATION: "1"
+        run: deno task test test/keyring.integration.test.ts
+
+      - name: Verify generated skill documentation
+        run: |
+          deno task install
+          PATH="$HOME/.deno/bin:$PATH" deno task generate-skill-docs
+          git diff --exit-code -- skills/linear-cli
+
+      - id: version
+        name: Set release version
+        shell: bash
+        run: |
+          timestamp="$(git show -s --format=%ct "$GITHUB_SHA")"
+          version="0.0.${timestamp}-g${GITHUB_SHA::7}"
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          VERSION="$version" deno eval '
+            const path = "deno.json"
+            const config = JSON.parse(await Deno.readTextFile(path))
+            config.version = Deno.env.get("VERSION")
+            await Deno.writeTextFile(path, `${JSON.stringify(config, null, 2)}\n`)
+          '
+
+      - name: Compile release assets
+        shell: bash
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          targets=(
+            aarch64-apple-darwin
+            x86_64-apple-darwin
+            aarch64-unknown-linux-gnu
+            x86_64-unknown-linux-gnu
+            x86_64-pc-windows-msvc
+          )
+
+          mkdir -p release target/distrib
+          for target in "${targets[@]}"; do
+            output_dir="target/distrib/$target"
+            mkdir -p "$output_dir"
+
+            if [[ "$target" == "x86_64-pc-windows-msvc" ]]; then
+              binary="linear.exe"
+              archive="release/linear-$target.zip"
+            else
+              binary="linear"
+              archive="release/linear-$target.tar.xz"
+            fi
+
+            deno compile \
+              --allow-all \
+              --frozen \
+              --lock=deno.lock \
+              --quiet \
+              --target="$target" \
+              --output="$output_dir/$binary" \
+              src/main.ts
+
+            if [[ "$target" == "x86_64-pc-windows-msvc" ]]; then
+              (cd "$output_dir" && zip -q "$GITHUB_WORKSPACE/$archive" "$binary")
+            else
+              tar -C "$output_dir" -cJf "$archive" "$binary"
+            fi
+          done
+
+          actual_version="$(target/distrib/x86_64-unknown-linux-gnu/linear --version)"
+          if [[ "$actual_version" != "linear $VERSION" ]]; then
+            echo "Expected linear $VERSION, got $actual_version" >&2
+            exit 1
+          fi
+
+          mapfile -t archives < <(
+            find release -maxdepth 1 -type f \
+              \( -name '*.tar.xz' -o -name '*.zip' \) \
+              -printf '%f\n' | sort
+          )
+          for archive in "${archives[@]}"; do
+            (cd release && sha256sum "$archive" > "$archive.sha256")
+          done
+          (cd release && sha256sum "${archives[@]}" > sha256.sum)
+
+      - name: Upload release assets
+        uses: actions/upload-artifact@v6
+        with:
+          name: release-assets
+          path: release/
+          if-no-files-found: error
+          retention-days: 1
+
+  release:
+    name: Publish release
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      attestations: write
+      contents: write
+      id-token: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      VERSION: ${{ needs.build.outputs.version }}
+    steps:
+      - name: Download release assets
+        uses: actions/download-artifact@v7
+        with:
+          name: release-assets
+          path: artifacts
+
+      - name: Verify checksums
+        run: cd artifacts && sha256sum --check sha256.sum
+
+      - id: prepare
+        name: Prepare draft release
+        shell: bash
+        run: |
+          set -euo pipefail
+          if gh release view "$VERSION" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            target="$(
+              gh release view "$VERSION" \
+                --repo "$GITHUB_REPOSITORY" \
+                --json targetCommitish \
+                --jq .targetCommitish
+            )"
+            if [[ "$target" != "$GITHUB_SHA" ]]; then
+              echo "Release $VERSION points to $target, not $GITHUB_SHA" >&2
+              exit 1
+            fi
+
+            is_draft="$(
+              gh release view "$VERSION" \
+                --repo "$GITHUB_REPOSITORY" \
+                --json isDraft \
+                --jq .isDraft
+            )"
+            if [[ "$is_draft" != "true" ]]; then
+              echo "skip=true" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+
+            gh release upload "$VERSION" artifacts/* \
+              --repo "$GITHUB_REPOSITORY" \
+              --clobber
+          else
+            gh release create "$VERSION" artifacts/* \
+              --repo "$GITHUB_REPOSITORY" \
+              --target "$GITHUB_SHA" \
+              --title "$VERSION" \
+              --generate-notes \
+              --draft
+          fi
+          echo "skip=false" >> "$GITHUB_OUTPUT"
+
+      - name: Attest release assets
+        if: steps.prepare.outputs.skip != 'true'
+        uses: actions/attest-build-provenance@v3
+        with:
+          subject-path: |
+            artifacts/*.tar.xz
+            artifacts/*.zip
+
+      - name: Publish release
+        if: steps.prepare.outputs.skip != 'true'
+        run: |
+          gh release edit "$VERSION" \
+            --repo "$GITHUB_REPOSITORY" \
+            --draft=false \
+            --latest
+
+      - name: Add release summary
+        run: |
+          url="$(
+            gh release view "$VERSION" \
+              --repo "$GITHUB_REPOSITORY" \
+              --json url \
+              --jq .url
+          )"
+          echo "Released [$VERSION]($url)" >> "$GITHUB_STEP_SUMMARY"

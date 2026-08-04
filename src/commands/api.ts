@@ -68,7 +68,7 @@ export const apiCommand = new Command()
       const headers = {
         "Content-Type": "application/json",
         Authorization: apiKey,
-        "User-Agent": `schpet-linear-cli/${denoConfig.version}`,
+        "User-Agent": `jihuanshe-linear/${denoConfig.version}`,
       }
 
       if (options.paginate) {
