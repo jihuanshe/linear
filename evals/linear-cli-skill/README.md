@@ -1,6 +1,6 @@
 # linear-cli skill eval
 
-Measures whether the agent skill in `skills/linear-cli/` leads a coding agent to use dedicated CLI subcommands instead of falling back to `linear api` (raw GraphQL) for common tasks — the concern raised in [#207](https://github.com/schpet/linear-cli/issues/207).
+Measures whether the Agent Skill in `.agents/skills/linear-cli/` leads a coding agent to use dedicated CLI subcommands instead of falling back to `linear api` (raw GraphQL) for common tasks — the concern raised in [#207](https://github.com/schpet/linear-cli/issues/207).
 
 The subject agent is the [OpenAI Codex CLI](https://developers.openai.com/codex/cli) (`codex exec`), run once per trial in an isolated environment with a shimmed `linear` binary that records every invocation and returns canned successes. Grading is deterministic — no LLM judging.
 
@@ -55,11 +55,11 @@ The shim's canned task output is **version-matched infrastructure**, not part of
 Requires a logged-in `codex` CLI. Costs real model tokens (~36 low-effort runs per condition); never run in CI.
 
 ```bash
-# baseline against the committed skill
-deno task skill-eval --condition baseline --skill-dir skills/linear-cli
+# baseline against the committed Skill
+deno task skill-eval --condition baseline --skill-dir .agents/skills/linear-cli
 
-# after changing the skill
-deno task skill-eval --condition post-change --skill-dir skills/linear-cli
+# after changing the Skill
+deno task skill-eval --condition post-change --skill-dir .agents/skills/linear-cli
 
 # grade + compare
 deno run --allow-read --allow-write evals/linear-cli-skill/grade.ts \

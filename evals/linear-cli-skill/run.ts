@@ -5,7 +5,7 @@
  * fully isolated environment:
  *
  * - a fresh per-trial CODEX_HOME containing only a copied auth.json and the
- *   skill variant under test (so the globally installed linear-cli skill
+ *   Skill variant under test (so the globally installed linear-cli Skill
  *   can't leak in via ~/.codex/skills)
  * - a fresh per-trial fake HOME (codex also discovers skills in
  *   ~/.agents/skills)
@@ -21,7 +21,7 @@
  * are observable. Trial records feed grade.ts.
  *
  * Usage:
- *   deno run --allow-all run.ts --condition baseline --skill-dir skills/linear-cli \
+ *   deno run --allow-all run.ts --condition baseline --skill-dir .agents/skills/linear-cli \
  *     [--trials 3] [--cases id,id] [--concurrency 2] [--effort low] \
  *     [--model gpt-x] [--sandbox workspace-write|yolo] [--out results/baseline.jsonl]
  */

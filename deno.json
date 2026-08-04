@@ -18,7 +18,7 @@
     "snapshot": "deno test --allow-all -- --update",
     "validate": "deno task check && deno fmt && deno lint",
     "verify": "deno task codegen && deno fmt --check && deno lint && deno task check && deno task test --ignore=test/keyring.integration.test.ts",
-    "generate-skill-docs": "deno run --allow-run --allow-read --allow-write skills/linear-cli/scripts/generate-docs.ts",
+    "generate-skill-docs": "deno task codegen && deno run --allow-run --allow-read --allow-write .agents/skills/linear-cli/scripts/generate-docs.ts",
     "skill-eval": "deno run --allow-all evals/linear-cli-skill/run.ts"
   },
   "imports": {

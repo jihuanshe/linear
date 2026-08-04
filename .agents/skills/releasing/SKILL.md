@@ -12,15 +12,14 @@ Ship the current `main` commit. This repository does not manually bump CLI versi
 - Keep `deno.json` at `0.0.0-dev` in source control.
 - `.github/workflows/ship-main.yml` derives `0.0.<commit timestamp>-g<short commit>` from the pushed commit.
 - A successful `main` push creates the tag and GitHub Release automatically.
-- Do not run `changelog release`, `svbump`, `just tag`, or `git push --tags`.
+- Do not manually bump versions, create release tags, or push tags.
 - Do not create npm, JSR, Homebrew, or cargo-dist releases.
-- Claude plugin metadata intentionally omits explicit versions so git commit SHAs drive plugin updates.
 
 ## Before Push
 
 1. Confirm the checkout is on `main`, the remote is `jihuanshe/linear`, and inspect all committed and uncommitted changes.
 2. Fetch `origin/main`. If it is ahead, rebase before pushing; stop for substantive conflicts.
-3. Keep user-facing changes in the `[Unreleased]` section of `CHANGELOG.md`. Do not turn that section into a numbered release.
+3. Keep the downstream change summary in `CHANGELOG.md` accurate. Do not create a numbered changelog entry for every rolling build.
 4. Run the local release gate:
 
    ```bash

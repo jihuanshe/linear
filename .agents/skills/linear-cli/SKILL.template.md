@@ -1,7 +1,6 @@
 ---
 name: linear-cli
-description: Manage Linear issues from the command line using the linear cli. This skill allows automating linear management.
-allowed-tools: Bash(linear:*), Bash(curl:*)
+description: Manages Linear issues, projects, teams, and related workflows with the jihuanshe/linear CLI. Use when an agent needs to inspect or change Linear data from the command line.
 ---
 
 # Linear CLI
@@ -127,129 +126,12 @@ linear issue comment add ENG-123 --body-file /tmp/comment.md
 Compact command list, generated from `linear --help`:
 
 ```bash
-linear api
-
-linear auth
-linear auth default
-linear auth list
-linear auth login
-linear auth logout
-linear auth migrate
-linear auth token
-linear auth whoami
-
-linear config
-
-linear cycle
-linear cycle list
-linear cycle view
-
-linear document
-linear document create
-linear document delete
-linear document list
-linear document update
-linear document view
-
-linear initiative
-linear initiative add-project
-linear initiative archive
-linear initiative create
-linear initiative delete
-linear initiative list
-linear initiative remove-project
-linear initiative unarchive
-linear initiative update
-linear initiative view
-
-linear initiative-update
-linear initiative-update create
-linear initiative-update list
-
-linear issue
-linear issue agent-session
-linear issue agent-session list
-linear issue agent-session view
-linear issue attach
-linear issue comment
-linear issue comment add
-linear issue comment delete
-linear issue comment list
-linear issue comment update
-linear issue commits
-linear issue create
-linear issue delete
-linear issue describe
-linear issue id
-linear issue link
-linear issue mine
-linear issue pull-request
-linear issue query
-linear issue relation
-linear issue relation add
-linear issue relation delete
-linear issue relation list
-linear issue start
-linear issue title
-linear issue update
-linear issue url
-linear issue view
-
-linear label
-linear label create
-linear label delete
-linear label list
-
-linear milestone
-linear milestone create
-linear milestone delete
-linear milestone list
-linear milestone update
-linear milestone view
-
-linear project
-linear project create
-linear project delete
-linear project list
-linear project update
-linear project view
-
-linear project-update
-linear project-update create
-linear project-update list
-
-linear schema
-
-linear team
-linear team autolinks
-linear team create
-linear team delete
-linear team id
-linear team list
-linear team members
-linear team states
-
-linear user
-linear user list
+{{COMMANDS}}
 ```
 
 ## Reference Documentation
 
-- [api](references/api.md) - Make a raw GraphQL API request
-- [auth](references/auth.md) - Manage Linear authentication
-- [config](references/config.md) - Interactively generate .linear.toml configuration
-- [cycle](references/cycle.md) - Manage Linear team cycles
-- [document](references/document.md) - Manage Linear documents
-- [initiative](references/initiative.md) - Manage Linear initiatives
-- [initiative-update](references/initiative-update.md) - Manage initiative status updates (timeline posts)
-- [issue](references/issue.md) - Manage Linear issues
-- [label](references/label.md) - Manage Linear issue labels
-- [milestone](references/milestone.md) - Manage Linear project milestones
-- [project](references/project.md) - Manage Linear projects
-- [project-update](references/project-update.md) - Manage project status updates
-- [schema](references/schema.md) - Print the GraphQL schema to stdout
-- [team](references/team.md) - Manage Linear teams
-- [user](references/user.md) - Manage Linear users
+{{REFERENCE_TOC}}
 
 For curated examples of organization features (initiatives, labels, projects, bulk operations), see [organization-features](references/organization-features.md).
 

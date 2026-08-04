@@ -5,13 +5,21 @@
  * Run periodically as the CLI evolves to keep skill references up to date.
  */
 
-import { dirname, join } from "@std/path"
+import { dirname, fromFileUrl, join } from "@std/path"
 
-const SCRIPT_DIR = dirname(new URL(import.meta.url).pathname)
+const SCRIPT_DIR = dirname(fromFileUrl(import.meta.url))
 const SKILL_DIR = join(SCRIPT_DIR, "..")
+const REPO_ROOT = join(SKILL_DIR, "..", "..", "..")
 const REFERENCES_DIR = join(SKILL_DIR, "references")
 const SKILL_MD = join(SKILL_DIR, "SKILL.md")
 const SKILL_TEMPLATE = join(SKILL_DIR, "SKILL.template.md")
+const LINEAR_COMMAND = [
+  Deno.execPath(),
+  "run",
+  "--allow-all",
+  "--quiet",
+  join(REPO_ROOT, "src", "main.ts"),
+]
 
 // Files to preserve (not generated from help)
 const PRESERVED_FILES = ["organization-features.md"]
@@ -46,6 +54,7 @@ async function run(cmd: string[]): Promise<RunResult> {
   try {
     const command = new Deno.Command(cmd[0], {
       args: cmd.slice(1),
+      cwd: REPO_ROOT,
       stdout: "piped",
       stderr: "piped",
       env: { NO_COLOR: "1" }, // Disable ANSI colors
@@ -116,7 +125,7 @@ function parseCommands(helpText: string): string[] {
 }
 
 async function getCommandHelp(cmdPath: string[]): Promise<HelpResult> {
-  const result = await run(["linear", ...cmdPath, "--help"])
+  const result = await run([...LINEAR_COMMAND, ...cmdPath, "--help"])
   if (!result.success) {
     const label = ["linear", ...cmdPath].join(" ")
     return {
@@ -285,12 +294,12 @@ async function writeReferences(commands: CommandInfo[]): Promise<void> {
 async function main() {
   console.log("Generating Linear CLI documentation...")
 
-  // Check linear is available
-  const versionResult = await run(["linear", "--version"])
+  // Verify that the CLI in this checkout can start.
+  const versionResult = await run([...LINEAR_COMMAND, "--version"])
   if (!versionResult.success) {
     throw new Error(
-      `linear CLI not found or failed to run: ${
-        versionResult.stderr || "is it installed?"
+      `linear CLI source failed to run: ${
+        versionResult.stderr || "unknown error"
       }`,
     )
   }
