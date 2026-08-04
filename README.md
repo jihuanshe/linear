@@ -44,11 +44,13 @@ it aims to be a complement to the web and desktop apps that lets you stay on the
 install the latest tested build from `main` using [mise](https://mise.jdx.dev/):
 
 ```bash
-mise use -g github:jihuanshe/linear@latest
+mise use -g "github:jihuanshe/linear[minimum_release_age=0s]@latest"
 linear --version
 ```
 
 mise selects the matching macOS, Linux, or Windows binary from GitHub Releases. deno and node are not required at runtime.
+
+`minimum_release_age=0s` applies only to this tool and makes a newly shipped `main` build available immediately; mise otherwise hides GitHub releases for 24 hours by default.
 
 releases are built from tested `main` commits and use versions in the form `0.0.<commit timestamp>-g<short commit>`; pin one of these versions instead of `latest` when reproducibility matters.
 

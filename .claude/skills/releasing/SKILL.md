@@ -53,8 +53,10 @@ gh release view --json tagName,targetCommitish,isDraft,isPrerelease,url,assets
 The release must be published, non-prerelease, and marked latest. Test the public installation path when mise is available:
 
 ```bash
-mise x github:jihuanshe/linear@latest -- linear --version
+mise x "github:jihuanshe/linear[minimum_release_age=0s]@latest" -- linear --version
 ```
+
+The tool-scoped `minimum_release_age=0s` is required because mise otherwise hides GitHub releases for 24 hours, which conflicts with immediate rolling `main` releases.
 
 ## Failure Handling
 
