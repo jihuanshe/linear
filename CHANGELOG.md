@@ -9,6 +9,7 @@ This changelog records the cumulative downstream changes in [`jihuanshe/linear`]
 - Added `LINEAR_PROMPT_DISABLED=1` to make interactive prompts fail instead of reading stdin. It never selects a default, grants consent, or replaces an explicit mutation flag.
 - Made non-TTY, `NO_COLOR`, `TERM=dumb`, and `CLICOLOR=0` output colorless, while keeping stdout data separate from stderr diagnostics and pager decisions.
 - Standardized usage errors on stderr with exit code `2`; validation and runtime failures continue to use exit code `1`.
+- Added progressive `linear usage` and `linear <domain> usage` discovery, with optional JSON describing command arguments, options, aliases, write and interaction capabilities, confirmation requirements, and output modes.
 - Added machine-readable output for `auth whoami`, `team list`, `project list`, `project view`, and `issue update`.
 - Preserved GraphQL field names and connection shape in JSON. Paginated lists concatenate `nodes`, retain `pageInfo`, validate `--limit`, and stop at a requested bound without losing the continuation cursor.
 - Kept JSON, terminal styling, pagination, prompting, and mutation consent as independent contracts instead of introducing an all-in-one agent mode.

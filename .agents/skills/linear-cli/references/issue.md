@@ -373,6 +373,8 @@ Examples:
 ```
 Usage:   linear issue mine
 
+Interactive: true
+
 Description:
 
   List your issues
@@ -437,6 +439,8 @@ Options:
 
 ```
 Usage:   linear issue query
+
+Interactive: true
 
 Description:
 

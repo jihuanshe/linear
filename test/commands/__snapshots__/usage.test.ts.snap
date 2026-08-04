@@ -81,7 +81,7 @@ snapshot[`usage --json has a stable domain contract 1`] = `
       description: "List your issues",
       details: "linear issue mine --help",
       hasSubcommands: false,
-      interactive: false,
+      interactive: true,
       name: "mine",
       options: [
         {
@@ -347,7 +347,7 @@ snapshot[`usage --json has a stable domain contract 1`] = `
       description: "Query issues with structured filters",
       details: "linear issue query --help",
       hasSubcommands: false,
-      interactive: false,
+      interactive: true,
       name: "query",
       options: [
         {

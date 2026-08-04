@@ -117,6 +117,7 @@ Deno.test("domain usage --json preserves arguments, aliases, and option types", 
   const mine = document.subcommands.find((command) => command.name === "mine")
   assertEquals(mine?.aliases, ["list", "l"])
   assertEquals(mine?.writes, false)
+  assertEquals(mine?.interactive, true)
   assertEquals(
     mine?.options.some((option) =>
       ["assignee", "all-assignees", "unassigned"].includes(option.name)
@@ -166,6 +167,7 @@ Deno.test("domain usage --json preserves arguments, aliases, and option types", 
   })
 
   const query = document.subcommands.find((command) => command.name === "query")
+  assertEquals(query?.interactive, true)
   assertEquals(query?.outputModes, ["human", "json"])
 })
 

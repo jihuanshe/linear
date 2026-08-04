@@ -84,7 +84,12 @@ const META_INTERACTIVE = "Interactive"
 const META_CONFIRMATION = "Confirmation required unless"
 const META_OUTPUT_MODES = "Output modes"
 
-/** Add semantics Cliffy's arguments and options cannot express themselves. */
+/**
+ * Add semantics Cliffy's arguments and options cannot express themselves.
+ * `writes` covers commands that can mutate persistent remote or local state;
+ * writing to an explicit export destination, such as `schema --output`, does
+ * not count.
+ */
 export function withUsageMetadata<T extends UsageMetadataTarget>(
   command: T,
   metadata: UsageMetadataAnnotation,
