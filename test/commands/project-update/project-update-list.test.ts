@@ -60,3 +60,15 @@ await cliffySnapshotTest({
     }
   },
 })
+
+await cliffySnapshotTest({
+  name: "Project Update List Command - Rejects Invalid Limit",
+  meta: import.meta,
+  colors: false,
+  args: ["550e8400-e29b-41d4-a716-446655440000", "--limit", "0"],
+  denoArgs: commonDenoArgs,
+  canFail: true,
+  async fn() {
+    await listCommand.parse()
+  },
+})

@@ -7,7 +7,11 @@ import {
   printStyledHeader,
   truncateText,
 } from "../../utils/display.ts"
-import { handleError, NotFoundError } from "../../utils/errors.ts"
+import {
+  handleError,
+  NotFoundError,
+  ValidationError,
+} from "../../utils/errors.ts"
 import { getGraphQLClient } from "../../utils/graphql.ts"
 import { shouldShowSpinner } from "../../utils/hyperlink.ts"
 
@@ -91,7 +95,9 @@ export const listCommand = new Command()
   .alias("l")
   .arguments("<initiativeId:string>")
   .option("-j, --json", "Output as JSON")
-  .option("--limit <limit:number>", "Limit results", { default: 10 })
+  .option("--limit <limit:number>", "Maximum results (positive integer)", {
+    default: 10,
+  })
   .action(async ({ json, limit }, initiativeId) => {
     const { Spinner } = await import("@std/cli/unstable-spinner")
     const showSpinner = shouldShowSpinner() && !json
@@ -99,6 +105,10 @@ export const listCommand = new Command()
     spinner?.start()
 
     try {
+      if (!Number.isSafeInteger(limit) || limit < 1) {
+        throw new ValidationError("--limit must be a positive integer")
+      }
+
       const client = getGraphQLClient()
 
       // Resolve initiative ID
@@ -123,6 +133,10 @@ export const listCommand = new Command()
                 user {
                   name
                 }
+              }
+              pageInfo {
+                hasNextPage
+                endCursor
               }
             }
           }

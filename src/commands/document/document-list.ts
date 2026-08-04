@@ -10,7 +10,11 @@ import {
 } from "../../utils/display.ts"
 import { getIssueId } from "../../utils/linear.ts"
 import { shouldShowSpinner } from "../../utils/hyperlink.ts"
-import { handleError, NotFoundError } from "../../utils/errors.ts"
+import {
+  handleError,
+  NotFoundError,
+  ValidationError,
+} from "../../utils/errors.ts"
 
 const ListDocuments = gql(`
   query ListDocuments($filter: DocumentFilter, $first: Int) {
@@ -48,7 +52,9 @@ export const listCommand = new Command()
   .option("--project <project:string>", "Filter by project (slug or name)")
   .option("--issue <issue:string>", "Filter by issue (identifier like TC-123)")
   .option("--json", "Output as JSON")
-  .option("--limit <limit:number>", "Limit results", { default: 50 })
+  .option("--limit <limit:number>", "Maximum results (positive integer)", {
+    default: 50,
+  })
   .action(async ({ project, issue, json, limit }) => {
     const { Spinner } = await import("@std/cli/unstable-spinner")
     const showSpinner = shouldShowSpinner() && !json
@@ -56,6 +62,10 @@ export const listCommand = new Command()
     spinner?.start()
 
     try {
+      if (!Number.isSafeInteger(limit) || limit < 1) {
+        throw new ValidationError("--limit must be a positive integer")
+      }
+
       // Build filter based on options
       let filter:
         | NonNullable<ListDocumentsQueryVariables["filter"]>

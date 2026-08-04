@@ -102,7 +102,7 @@ stderr:
 
 snapshot[`API Command - Paginate 1`] = `
 stdout:
-'[{"title":"Issue 1"},{"title":"Issue 2"},{"title":"Issue 3"}]'
+'{"data":{"issues":{"nodes":[{"title":"Issue 1"},{"title":"Issue 2"},{"title":"Issue 3"}],"pageInfo":{"hasNextPage":false,"endCursor":null}}}}'
 stderr:
 ""
 `;
@@ -132,7 +132,7 @@ stderr:
 
 snapshot[`API Command - Paginate Single Page 1`] = `
 stdout:
-'[{"title":"Only Issue"}]'
+'{"data":{"issues":{"nodes":[{"title":"Only Issue"}],"pageInfo":{"hasNextPage":false,"endCursor":null}}}}'
 stderr:
 ""
 `;
@@ -209,7 +209,7 @@ stderr:
 
 snapshot[`API Command - Paginate With Nested Connections 1`] = `
 stdout:
-'[{"title":"Parent Issue","subIssues":{"nodes":[{"title":"Child Issue"}],"pageInfo":{"hasNextPage":false,"endCursor":null}}}]'
+'{"data":{"issues":{"nodes":[{"title":"Parent Issue","subIssues":{"nodes":[{"title":"Child Issue"}],"pageInfo":{"hasNextPage":false,"endCursor":null}}}],"pageInfo":{"hasNextPage":false,"endCursor":null}}}}'
 stderr:
 ""
 `;

@@ -228,7 +228,10 @@ export async function updateIssueState(
   `)
 
   const client = getGraphQLClient()
-  await client.request(mutation, { issueId, stateId })
+  const result = await client.request(mutation, { issueId, stateId })
+  if (!result.issueUpdate.success) {
+    throw new CliError("Failed to update issue state")
+  }
 }
 
 const issueDetailsWithCommentsQuery = gql(/* GraphQL */ `

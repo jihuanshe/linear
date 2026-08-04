@@ -15,7 +15,7 @@ Options:
   --project   <project>  - Filter by project (slug or name)                       
   --issue     <issue>    - Filter by issue (identifier like TC-123)               
   --json                 - Output as JSON                                         
-  --limit     <limit>    - Limit results                             (Default: 50)
+  --limit     <limit>    - Maximum results (positive integer)        (Default: 50)
 
 "
 stderr:
@@ -72,4 +72,12 @@ stdout:
 '
 stderr:
 ""
+`;
+
+snapshot[`Document List Command - Rejects Invalid Limit 1`] = `
+stdout:
+""
+stderr:
+"✗ Failed to list documents: --limit must be a positive integer
+"
 `;

@@ -457,6 +457,14 @@ export const createCommand = new Command()
           memberIds.push(memberId)
         }
 
+        let initiativeId: string | undefined
+        if (initiative) {
+          initiativeId = await resolveInitiativeId(client, initiative)
+          if (!initiativeId) {
+            throw new NotFoundError("Initiative", initiative)
+          }
+        }
+
         if (startDate && !/^\d{4}-\d{2}-\d{2}$/.test(startDate)) {
           throw new ValidationError("Start date must be in YYYY-MM-DD format")
         }
@@ -502,41 +510,34 @@ export const createCommand = new Command()
             throw new CliError("Failed to create project: no project returned")
           }
 
-          // Add to initiative if specified (before JSON output so warnings go to stderr)
-          if (initiative) {
-            const initiativeId = await resolveInitiativeId(client, initiative)
-            if (!initiativeId) {
-              console.error(`\nWarning: Initiative not found: ${initiative}`)
-              console.error("Project was created but not added to initiative.")
-            } else {
-              try {
-                const linkResult = await client.request(
-                  AddProjectToInitiative,
-                  {
-                    input: {
-                      initiativeId,
-                      projectId: project.id,
-                    },
+          if (initiative && initiativeId) {
+            try {
+              const linkResult = await client.request(
+                AddProjectToInitiative,
+                {
+                  input: {
+                    initiativeId,
+                    projectId: project.id,
                   },
-                )
+                },
+              )
 
-                if (
-                  linkResult.initiativeToProjectCreate.success && !jsonOutput
-                ) {
-                  console.log(`✓ Added to initiative: ${initiative}`)
-                } else if (
-                  !linkResult.initiativeToProjectCreate.success
-                ) {
-                  console.error(
-                    `\nWarning: Failed to add project to initiative`,
-                  )
-                }
-              } catch (error) {
-                console.error(
-                  `\nWarning: Failed to add project to initiative:`,
-                  error,
-                )
+              if (!linkResult.initiativeToProjectCreate.success) {
+                throw new CliError("Linear rejected the initiative link")
               }
+            } catch (error) {
+              throw new CliError(
+                `Project ${project.name} was created, but could not be added to initiative ${initiative}`,
+                {
+                  suggestion:
+                    `The project ID is ${project.id}. Add it to the initiative manually; do not create the project again.`,
+                  cause: error,
+                },
+              )
+            }
+
+            if (!jsonOutput) {
+              console.log(`✓ Added to initiative: ${initiative}`)
             }
           }
 

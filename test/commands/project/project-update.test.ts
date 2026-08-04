@@ -504,3 +504,52 @@ Deno.test("Project Update Command - requires at least one option", async () => {
   )
   assertEquals(errorLogs.some((l) => l.includes("--label")), true)
 })
+
+Deno.test("Project Update Command - rejects a missing result entity", async () => {
+  const server = new MockLinearServer([
+    {
+      queryName: "UpdateProject",
+      response: {
+        data: {
+          projectUpdate: {
+            success: true,
+            project: null,
+          },
+        },
+      },
+    },
+  ])
+  const errorLogs: string[] = []
+  const errorStub = stub(console, "error", (...args: unknown[]) => {
+    errorLogs.push(args.map(String).join(" "))
+  })
+  const exitStub = stub(Deno, "exit", (_code?: number) => {
+    throw new Error("EXIT")
+  })
+
+  try {
+    await server.start()
+    Deno.env.set("LINEAR_GRAPHQL_ENDPOINT", server.getEndpoint())
+    Deno.env.set("LINEAR_API_KEY", "Bearer test-token")
+    await updateCommand.parse([
+      "550e8400-e29b-41d4-a716-446655440009",
+      "--name",
+      "Updated Project",
+    ])
+  } catch (error) {
+    if (!(error instanceof Error) || error.message !== "EXIT") throw error
+  } finally {
+    exitStub.restore()
+    errorStub.restore()
+    await server.stop()
+    Deno.env.delete("LINEAR_GRAPHQL_ENDPOINT")
+    Deno.env.delete("LINEAR_API_KEY")
+  }
+
+  assertEquals(
+    errorLogs.some((line) =>
+      line.includes("Project update returned no project")
+    ),
+    true,
+  )
+})

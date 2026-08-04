@@ -10,7 +10,11 @@ import {
 } from "../../utils/display.ts"
 import { resolveProjectId } from "../../utils/linear.ts"
 import { shouldShowSpinner } from "../../utils/hyperlink.ts"
-import { handleError, NotFoundError } from "../../utils/errors.ts"
+import {
+  handleError,
+  NotFoundError,
+  ValidationError,
+} from "../../utils/errors.ts"
 
 const ListProjectUpdatesQuery = gql(`
   query ListProjectUpdates($id: String!, $first: Int) {
@@ -44,7 +48,9 @@ export const listCommand = new Command()
   .alias("l")
   .arguments("<projectId:string>")
   .option("--json", "Output as JSON")
-  .option("--limit <limit:number>", "Limit results", { default: 10 })
+  .option("--limit <limit:number>", "Maximum results (positive integer)", {
+    default: 10,
+  })
   .action(async ({ json, limit }, projectId) => {
     const { Spinner } = await import("@std/cli/unstable-spinner")
     const showSpinner = shouldShowSpinner() && !json
@@ -52,6 +58,10 @@ export const listCommand = new Command()
     spinner?.start()
 
     try {
+      if (!Number.isSafeInteger(limit) || limit < 1) {
+        throw new ValidationError("--limit must be a positive integer")
+      }
+
       // Resolve project ID
       const resolvedProjectId = await resolveProjectId(projectId)
 

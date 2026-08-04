@@ -10,6 +10,7 @@ import { getOption } from "../config.ts"
 import { encodeBase64 } from "@std/encoding/base64"
 import { getNoIssueFoundMessage, startVcsWork } from "./vcs.ts"
 import { LINEAR_WEB_BASE_URL } from "../const.ts"
+import { CliError } from "./errors.ts"
 
 export async function openIssuePage(
   providedId?: string,
@@ -104,6 +105,13 @@ export async function startWorkOnIssue(
     await updateIssueState(issueId, state.id)
     console.log(`✓ Issue state updated to '${state.name}'`)
   } catch (error) {
-    console.error("Failed to update issue state:", error)
+    throw new CliError(
+      "VCS work started, but the Linear issue state was not updated",
+      {
+        suggestion:
+          "The branch or Jujutsu change already exists. Update the Linear issue state manually before retrying other setup steps.",
+        cause: error,
+      },
+    )
   }
 }

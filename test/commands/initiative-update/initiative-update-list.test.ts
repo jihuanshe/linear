@@ -35,6 +35,10 @@ await cliffySnapshotTest({
                     },
                   },
                 ],
+                pageInfo: {
+                  hasNextPage: false,
+                  endCursor: null,
+                },
               },
             },
           },
@@ -53,5 +57,17 @@ await cliffySnapshotTest({
       Deno.env.delete("LINEAR_GRAPHQL_ENDPOINT")
       Deno.env.delete("LINEAR_API_KEY")
     }
+  },
+})
+
+await cliffySnapshotTest({
+  name: "Initiative Update List Command - Rejects Invalid Limit",
+  meta: import.meta,
+  colors: false,
+  args: ["550e8400-e29b-41d4-a716-446655440000", "--limit", "0"],
+  denoArgs: commonDenoArgs,
+  canFail: true,
+  async fn() {
+    await listCommand.parse()
   },
 })

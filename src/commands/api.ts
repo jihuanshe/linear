@@ -143,6 +143,9 @@ async function executePaginated(
 ): Promise<void> {
   const allNodes: unknown[] = []
   let cursor: string | undefined
+  let mergedResponse: Record<string, unknown> | undefined
+  let connectionPath: string[] | undefined
+  let finalPageInfo: Record<string, unknown> | undefined
 
   for (;;) {
     const vars = { ...variables, after: cursor ?? null }
@@ -204,6 +207,15 @@ async function executePaginated(
     }
 
     allNodes.push(...pageResult.nodes)
+    mergedResponse ??= parsed
+    connectionPath ??= pageResult.connectionPath
+    finalPageInfo = pageResult.pageInfo
+
+    if (!samePath(connectionPath, pageResult.connectionPath)) {
+      throw new CliError(
+        "Paginated response changed its connection path between pages",
+      )
+    }
 
     if (!pageResult.hasNextPage || !pageResult.endCursor) {
       break
@@ -212,8 +224,14 @@ async function executePaginated(
     cursor = pageResult.endCursor
   }
 
-  if (!silent) {
-    outputJSON(allNodes, JSON.stringify(allNodes))
+  if (!silent && mergedResponse && connectionPath && finalPageInfo) {
+    replaceConnectionPage(
+      mergedResponse,
+      connectionPath,
+      allNodes,
+      finalPageInfo,
+    )
+    outputJSON(mergedResponse, JSON.stringify(mergedResponse))
   }
 }
 
@@ -222,6 +240,7 @@ interface PageResult {
   hasNextPage: boolean
   endCursor: string | null
   connectionPath: string[]
+  pageInfo: Record<string, unknown>
 }
 
 function extractPageInfo(
@@ -250,6 +269,7 @@ function findPageInfo(
       hasNextPage: Boolean(pageInfo.hasNextPage),
       endCursor: (pageInfo.endCursor as string) ?? null,
       connectionPath: path,
+      pageInfo,
     }
   }
 
@@ -259,6 +279,36 @@ function findPageInfo(
   }
 
   return null
+}
+
+function samePath(left: string[], right: string[]): boolean {
+  return left.length === right.length &&
+    left.every((segment, index) => segment === right[index])
+}
+
+function replaceConnectionPage(
+  response: Record<string, unknown>,
+  path: string[],
+  nodes: unknown[],
+  pageInfo: Record<string, unknown>,
+): void {
+  let value: unknown = response
+  for (const segment of path) {
+    if (value == null || typeof value !== "object") {
+      throw new CliError(
+        "Could not locate the paginated connection in response",
+      )
+    }
+    value = (value as Record<string, unknown>)[segment]
+  }
+
+  if (value == null || typeof value !== "object") {
+    throw new CliError("Could not locate the paginated connection in response")
+  }
+
+  const connection = value as Record<string, unknown>
+  connection.nodes = nodes
+  connection.pageInfo = pageInfo
 }
 
 function countConnections(obj: unknown): number {

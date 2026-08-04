@@ -152,3 +152,15 @@ await snapshotTest({
     }
   },
 })
+
+await snapshotTest({
+  name: "Document List Command - Rejects Invalid Limit",
+  meta: import.meta,
+  colors: false,
+  args: ["--limit", "0"],
+  denoArgs: commonDenoArgs,
+  canFail: true,
+  async fn() {
+    await listCommand.parse()
+  },
+})

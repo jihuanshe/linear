@@ -230,11 +230,13 @@ export const updateCommand = new Command()
         }
 
         const project = result.projectUpdate.project
-        if (project) {
-          console.log(`✓ Updated project: ${project.name}`)
-          if (project.url) {
-            console.log(project.url)
-          }
+        if (!project) {
+          throw new CliError("Project update returned no project")
+        }
+
+        console.log(`✓ Updated project: ${project.name}`)
+        if (project.url) {
+          console.log(project.url)
         }
       } catch (error) {
         spinner?.stop()

@@ -29,3 +29,11 @@ stdout:
 stderr:
 ""
 `;
+
+snapshot[`Project Update List Command - Rejects Invalid Limit 1`] = `
+stdout:
+""
+stderr:
+"✗ Failed to fetch project updates: --limit must be a positive integer
+"
+`;

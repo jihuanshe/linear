@@ -6,10 +6,15 @@ import {
   resolveProjectId,
   resolveWorkflowState,
   searchIssuesByTerm,
+  updateIssueState,
   type WorkflowState,
   workflowStateNotFoundError,
 } from "../../src/utils/linear.ts"
-import { NotFoundError, ValidationError } from "../../src/utils/errors.ts"
+import {
+  CliError,
+  NotFoundError,
+  ValidationError,
+} from "../../src/utils/errors.ts"
 import { setupMockLinearServer } from "../utils/test-helpers.ts"
 
 Deno.test("getIssueId - handles full issue identifiers", async () => {
@@ -372,4 +377,24 @@ Deno.test("workflowStateNotFoundError - handles a team with no states", () => {
     error.suggestion,
     "Team ENG has no workflow states. Run `linear team states ENG`.",
   )
+})
+
+Deno.test("updateIssueState - rejects an unsuccessful mutation", async () => {
+  const { cleanup } = await setupMockLinearServer([
+    {
+      queryName: "UpdateIssueState",
+      variables: { issueId: "issue-id", stateId: "state-id" },
+      response: { data: { issueUpdate: { success: false } } },
+    },
+  ])
+
+  try {
+    await assertRejects(
+      () => updateIssueState("issue-id", "state-id"),
+      CliError,
+      "Failed to update issue state",
+    )
+  } finally {
+    await cleanup()
+  }
 })
