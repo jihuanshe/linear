@@ -126,6 +126,12 @@ Deno.test("usage --json exposes the top-level command tree", async () => {
   assertEquals(api?.writes, true)
   assertEquals(api?.interactive, false)
   assertEquals(api?.outputModes, ["json"])
+  const version = document.subcommands.find((command) =>
+    command.name === "version"
+  )
+  assertEquals(version?.writes, false)
+  assertEquals(version?.interactive, false)
+  assertEquals(version?.outputModes, ["human", "json"])
   const config = document.subcommands.find((command) =>
     command.name === "config"
   )

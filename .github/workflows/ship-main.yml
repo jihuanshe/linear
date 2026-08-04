@@ -141,6 +141,22 @@ jobs:
               echo "Expected linear $VERSION, got $actual_version" >&2
               exit 1
             fi
+
+            probe="$("$output_dir/$binary" version --json)"
+            PROBE="$probe" EXPECTED_VERSION="$VERSION" deno eval '
+              const probe = JSON.parse(Deno.env.get("PROBE"))
+              const expectedVersion = Deno.env.get("EXPECTED_VERSION")
+              if (
+                probe.schemaVersion !== 1 ||
+                probe.distribution !== "jihuanshe/linear" ||
+                probe.version !== expectedVersion ||
+                !Array.isArray(probe.capabilities) ||
+                !probe.capabilities.includes("usage-v1")
+              ) {
+                console.error("Unexpected version probe", probe)
+                Deno.exit(1)
+              }
+            '
           fi
 
           archive="${archive#release/}"

@@ -17,6 +17,7 @@ import { configCommand } from "./commands/config.ts"
 import { schemaCommand } from "./commands/schema.ts"
 import { apiCommand } from "./commands/api.ts"
 import { updateCommand } from "./commands/update.ts"
+import { versionCommand } from "./commands/version.ts"
 import { createUsageCommand } from "./commands/usage.ts"
 import { setCliWorkspace } from "./config.ts"
 import { supportsStdoutStyling } from "./utils/terminal.ts"
@@ -78,6 +79,7 @@ Environment Variables:
   .command("schema", schemaCommand)
   .command("api", apiCommand)
   .command("update", updateCommand)
+  .command("version", versionCommand)
 
 for (const command of cli.getCommands()) {
   if (command.getName() !== "completions" && command.hasCommands()) {

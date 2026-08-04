@@ -18,6 +18,7 @@
 - [team](./team.md) - Manage Linear teams
 - [update](./update.md) - Update the Linear CLI
 - [user](./user.md) - Manage Linear users
+- [version](./version.md) - Show build identity and protocol capabilities
 
 ## Quick Reference
 

@@ -51,9 +51,12 @@ Install the latest published build from `main`:
 ```bash
 mise use -g "github:jihuanshe/linear[minimum_release_age=0s]@latest"
 linear --version
+linear version --json
 ```
 
 mise selects the matching binary for macOS, Linux, or Windows. Deno and Node.js are not required at runtime.
+
+`linear --version` preserves the conventional plain version string. `linear version --json` additionally identifies the `jihuanshe/linear` distribution and its additive protocol capabilities without authentication or network access. It identifies the build, not whether mise or another manager owns the executable.
 
 `minimum_release_age=0s` applies only to this tool. It allows a newly shipped `main` build to be installed immediately; mise otherwise hides new GitHub releases for 24 hours by default.
 
@@ -182,10 +185,13 @@ Do not treat `LINEAR_PROMPT_DISABLED=1` as authorization to mutate or delete Lin
 | `linear label`      | Workspace and team labels                                |
 | `linear user`       | Workspace member discovery                               |
 | `linear api`        | Execute an explicit Linear GraphQL operation             |
+| `linear version`    | Inspect build identity and protocol capabilities         |
 
 Discover the current command contract from the installed binary:
 
 ```bash
+linear version --json
+linear usage
 linear --help
 linear issue --help
 linear issue query --help

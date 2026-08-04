@@ -53,6 +53,7 @@ Deno.test("discovery: usage, help, version, schema, and lookups are ignored for 
   assertEquals(isDiscovery(linear(["api", "usage"])), false)
   assertEquals(isDiscovery(linear(["issue", "query", "--help"])), true)
   assertEquals(isDiscovery(linear(["--version"])), true)
+  assertEquals(isDiscovery(linear(["version", "--json"])), true)
   assertEquals(isDiscovery(linear(["schema", "-o", "s.graphql"])), true)
   assertEquals(isDiscovery(linear(["team", "list"])), true)
   assertEquals(isDiscovery(linear(["config"])), false)

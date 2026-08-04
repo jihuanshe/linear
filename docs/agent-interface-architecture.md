@@ -1,6 +1,6 @@
 # Agent interface architecture and delivery roadmap
 
-Status: accepted architecture roadmap, revised after an independent design review. The progressive `usage` baseline and its metadata hardening are implemented; the distribution/version/capability probe is the next commit. The guide system and Skill migration are not yet implemented.
+Status: accepted architecture roadmap, revised after an independent design review. The progressive `usage` baseline, metadata hardening, and distribution/version/capability probe are implemented; zero-argument navigation is the next commit. The guide system and Skill migration are not yet implemented.
 
 ## Executive summary
 
@@ -477,19 +477,19 @@ The target is approximately 50–100 lines, but task success and safety matter m
 
 The future `jihuanshe/skills` rewrite must retain a bootstrap route. Before relying on this fork's commands or safety contract, the host Skill should establish that the resolved `linear` executable is a compatible `jihuanshe/linear` build.
 
-The current plain version probe is:
+The existing conventional version probe is:
 
 ```bash
 linear -V
 ```
 
-A plain version string does not prove distribution identity or installation ownership. The CLI should add a stable, read-only machine probe before the external router is rewritten, for example:
+A plain version string does not prove distribution identity or installation ownership. The stable, read-only machine probe is:
 
 ```bash
 linear version --json
 ```
 
-with a contract such as:
+with this v1 contract:
 
 ```json
 {
@@ -499,6 +499,8 @@ with a contract such as:
   "capabilities": ["usage-v1"]
 }
 ```
+
+Version JSON v1 is additive. Readers require `schemaVersion: 1`, the exact `jihuanshe/linear` distribution, and every capability needed for their route; they ignore unknown fields and capability identifiers. The initial capability vocabulary is `usage-v1`. Missing, unparseable, distribution-incompatible, schema-incompatible, or capability-incomplete probes route to the host's access/bootstrap workflow rather than guessing from the version string.
 
 The probe identifies the build, not the package manager. Installation ownership still requires evidence from `mise which linear`, `type -a linear`, the resolved executable path, or the organization manager.
 
@@ -636,7 +638,7 @@ This repository ships through direct commits to `main`; pushing a commit invokes
 
 - [x] Establish the phase-one baseline: progressive usage, command capability metadata, discovery byte accounting, generated-reference alignment, and this architecture document.
 - [x] Commit 1 — harden and finalize progressive usage metadata.
-- [ ] Commit 2 — add a stable distribution/version/capability probe.
+- [x] Commit 2 — add a stable distribution/version/capability probe.
 - [ ] Commit 3 — improve root and eligible-domain zero-argument navigation.
 - [ ] Commit 4 — run and document the exploratory full-versus-router eval.
 - [ ] Commit 5 — embed the minimal evidence-driven guide corpus and add `guides list/read`.
@@ -1010,17 +1012,16 @@ Rejected. It would recreate the duplicate manual and host-format coupling this d
 The implementation commits must resolve these with tests or measured evidence:
 
 1. Whether `guides` or singular `guide` best matches the existing command naming style.
-2. The final version-probe command name and minimum additive capability vocabulary.
-3. The exact zero-argument navigation content and byte budget.
-4. Whether static text imports pass every publication and release diagnostic; the fallback is a generated resource module.
-5. The cross-platform cache directory, checksum manifest, and safest concurrent materialization algorithm.
-6. Whether a cache-backed `guides path` is sufficient or an explicit `guides export` has a named consumer.
-7. Which contextual errors benefit from a guide link after guide-aware evals, without making errors noisy.
-8. Which material in `linear-request-intake` is genuinely product-owned versus organization and host policy.
-9. Whether Jihuanshe-managed hosts remain Rotom-owned or intentionally migrate to direct mise; this must be decided with the Rotom contract, not only in this repository.
-10. Which source-specific uninstall procedures the rewritten `linear-access` can prove safely; unknown/manual installations continue to require user review.
-11. Whether the existing external Skill release process needs synchronization beyond a stable thin router.
-12. Whether retrieval evidence ever justifies internal search; only then decide lexical tokenization, bilingual indexing, or BM25.
+2. The exact zero-argument navigation content and byte budget.
+3. Whether static text imports pass every publication and release diagnostic; the fallback is a generated resource module.
+4. The cross-platform cache directory, checksum manifest, and safest concurrent materialization algorithm.
+5. Whether a cache-backed `guides path` is sufficient or an explicit `guides export` has a named consumer.
+6. Which contextual errors benefit from a guide link after guide-aware evals, without making errors noisy.
+7. Which material in `linear-request-intake` is genuinely product-owned versus organization and host policy.
+8. Whether Jihuanshe-managed hosts remain Rotom-owned or intentionally migrate to direct mise; this must be decided with the Rotom contract, not only in this repository.
+9. Which source-specific uninstall procedures the rewritten `linear-access` can prove safely; unknown/manual installations continue to require user review.
+10. Whether the existing external Skill release process needs synchronization beyond a stable thin router.
+11. Whether retrieval evidence ever justifies internal search; only then decide lexical tokenization, bilingual indexing, or BM25.
 
 ## Definition of done
 

@@ -115,6 +115,7 @@ function capturedOutputBytes(entries: ShimEntry[]): number | null {
 export function isDiscovery(entry: ShimEntry): boolean {
   if (entry.tool !== "linear") return false
   if (
+    entry.argv[0] === "version" ||
     entry.argv[0] === "usage" ||
     (entry.argv[0] !== "api" && entry.argv[1] === "usage")
   ) {

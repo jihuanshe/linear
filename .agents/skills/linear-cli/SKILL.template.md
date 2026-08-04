@@ -12,10 +12,10 @@ A CLI to manage Linear issues from the command line, with git and jj integration
 The `linear` command must be available on PATH. To check:
 
 ```bash
-linear --version
+linear version --json
 ```
 
-If it is unavailable, stop and ask the user to install this fork. Do not fall back to the upstream npm package, which may expose different commands and safety contracts. Installation instructions:\
+Continue only when `schemaVersion` is `1`, `distribution` is `jihuanshe/linear`, and `capabilities` includes `usage-v1`. Ignore unknown additive fields and capability identifiers. If the probe is missing, invalid, schema-incompatible, reports another distribution, or lacks a required capability, stop and use the host's Linear access/bootstrap workflow. If no such workflow is available, ask the user to install this fork. Do not fall back to the upstream npm package, which may expose different commands and safety contracts. Installation instructions:\
 https://github.com/jihuanshe/linear?tab=readme-ov-file#install
 
 For unattended execution, set `LINEAR_PROMPT_DISABLED=1`. The CLI will fail instead of prompting when required inputs or confirmation flags are missing. This does not imply consent and never replaces `--force`.

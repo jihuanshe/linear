@@ -2,8 +2,8 @@
 # Shim `linear` binary for the skill eval.
 #
 # Records every invocation (argv + stdin for `api`) as a JSON line in
-# $LINEAR_SHIM_LOG, answers usage/--help/--version/schema through the real CLI in
-# $LINEAR_SHIM_REPO (help needs no auth or network), and returns short,
+# $LINEAR_SHIM_LOG, answers version/usage/--help/--version/schema through the
+# real CLI in $LINEAR_SHIM_REPO (help needs no auth or network), and returns short,
 # plausible canned successes for task commands. Never touches the network and
 # never mutates anything real.
 set -u
@@ -68,6 +68,9 @@ for arg in "$@"; do
   esac
 done
 if [ "${1:-}" = "schema" ]; then
+  IS_DISCOVERY=1
+fi
+if [ "${1:-}" = "version" ]; then
   IS_DISCOVERY=1
 fi
 if [ "${1:-}" = "usage" ] || { [ "${1:-}" != "api" ] && [ "${2:-}" = "usage" ]; }; then
