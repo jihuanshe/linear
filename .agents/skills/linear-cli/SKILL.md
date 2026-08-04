@@ -228,6 +228,8 @@ linear team list
 linear team members
 linear team states
 
+linear update
+
 linear user
 linear user list
 ```
@@ -248,6 +250,7 @@ linear user list
 - [project-update](references/project-update.md) - Manage project status updates
 - [schema](references/schema.md) - Print the GraphQL schema to stdout
 - [team](references/team.md) - Manage Linear teams
+- [update](references/update.md) - Update the Linear CLI
 - [user](references/user.md) - Manage Linear users
 
 For curated examples of organization features (initiatives, labels, projects, bulk operations), see [organization-features](references/organization-features.md).

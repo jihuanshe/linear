@@ -67,6 +67,16 @@ Use `latest` to follow verified `main`, or pin an exact version when reproducibi
 
 Prebuilt binaries and checksums are also available from [GitHub Releases](https://github.com/jihuanshe/linear/releases/latest).
 
+### Update
+
+Update the installed CLI with the same installation method:
+
+```bash
+linear update
+```
+
+For a mise-managed installation, this runs a tool-scoped `mise up` and respects the configured version selector. Use `linear update --bump` only when you intentionally want mise to rewrite a pinned selector. For a binary downloaded directly from GitHub Releases, `linear update` downloads the matching binary, checks its SHA-256 checksum, and replaces the current executable.
+
 ### Authenticate
 
 Create a Linear personal API key at [Linear settings](https://linear.app/settings/account/security), then run:

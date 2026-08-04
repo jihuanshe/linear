@@ -106,9 +106,11 @@ jobs:
             if [[ "$target" == "x86_64-pc-windows-msvc" ]]; then
               binary="linear.exe"
               archive="release/linear-$target.zip"
+              self_update_asset="release/linear-self-update-$target.exe"
             else
               binary="linear"
               archive="release/linear-$target.tar.xz"
+              self_update_asset="release/linear-self-update-$target"
             fi
 
             deno compile \
@@ -120,6 +122,9 @@ jobs:
               --output="$output_dir/$binary" \
               src/main.ts
 
+            # Keep a raw binary for `linear update`. The self-update prefix
+            # prevents it from outranking the archive in mise asset selection.
+            cp "$output_dir/$binary" "$self_update_asset"
             if [[ "$target" == "x86_64-pc-windows-msvc" ]]; then
               (cd "$output_dir" && zip -q "$GITHUB_WORKSPACE/$archive" "$binary")
             else
@@ -133,15 +138,15 @@ jobs:
             exit 1
           fi
 
-          mapfile -t archives < <(
+          mapfile -t release_artifacts < <(
             find release -maxdepth 1 -type f \
-              \( -name '*.tar.xz' -o -name '*.zip' \) \
+              \( -name '*.tar.xz' -o -name '*.zip' -o -name 'linear-self-update-*' \) \
               -printf '%f\n' | sort
           )
-          for archive in "${archives[@]}"; do
-            (cd release && sha256sum "$archive" > "$archive.sha256")
+          for artifact in "${release_artifacts[@]}"; do
+            (cd release && sha256sum "$artifact" > "$artifact.sha256")
           done
-          (cd release && sha256sum "${archives[@]}" > sha256.sum)
+          (cd release && sha256sum "${release_artifacts[@]}" > sha256.sum)
 
       - name: Upload release assets
         uses: actions/upload-artifact@v7
@@ -221,6 +226,7 @@ jobs:
           subject-path: |
             artifacts/*.tar.xz
             artifacts/*.zip
+            artifacts/linear-self-update-*
 
       - name: Publish release
         if: steps.prepare.outputs.skip != 'true'

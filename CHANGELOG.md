@@ -30,6 +30,7 @@ This changelog records the cumulative downstream changes in [`jihuanshe/linear`]
 - Ship every verified `main` commit as five public GitHub binaries named `0.0.<commit timestamp>-g<short commit>`, with checksums and build provenance.
 - Cancel stale overlapping release runs so only the newest pushed `main` commit continues building.
 - Documented mise installation from `github:jihuanshe/linear`; source-controlled versions remain `0.0.0-dev`.
+- Added `linear update`, delegating mise-managed installs back to mise while checksum-validating and atomically replacing binaries downloaded directly from GitHub Releases.
 
 ### Repository and documentation
 

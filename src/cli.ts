@@ -16,6 +16,7 @@ import { documentCommand } from "./commands/document/document.ts"
 import { configCommand } from "./commands/config.ts"
 import { schemaCommand } from "./commands/schema.ts"
 import { apiCommand } from "./commands/api.ts"
+import { updateCommand } from "./commands/update.ts"
 import { setCliWorkspace } from "./config.ts"
 import { supportsStdoutStyling } from "./utils/terminal.ts"
 
@@ -75,3 +76,4 @@ Environment Variables:
   .alias("configure")
   .command("schema", schemaCommand)
   .command("api", apiCommand)
+  .command("update", updateCommand)

@@ -16,6 +16,7 @@
 - [project-update](./project-update.md) - Manage project status updates
 - [schema](./schema.md) - Print the GraphQL schema to stdout
 - [team](./team.md) - Manage Linear teams
+- [update](./update.md) - Update the Linear CLI
 - [user](./user.md) - Manage Linear users
 
 ## Quick Reference
