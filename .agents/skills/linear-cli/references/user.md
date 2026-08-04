@@ -13,8 +13,8 @@ Description:
 
 Options:
 
-  -h, --help           - Show this help.                      
-  --workspace  <slug>  - Target workspace (uses credentials)  
+  -h, --help           - Show this help.
+  --workspace  <slug>  - Target workspace (uses credentials)
 
 Commands:
 
@@ -36,8 +36,8 @@ Description:
 
 Options:
 
-  -h, --help           - Show this help.                      
-  --workspace  <slug>  - Target workspace (uses credentials)  
-  -a, --all            - Include inactive members             
+  -h, --help           - Show this help.
+  --workspace  <slug>  - Target workspace (uses credentials)
+  -a, --all            - Include inactive members
   -j, --json           - Output as JSON
 ```

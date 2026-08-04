@@ -13,16 +13,16 @@ Description:
 
 Options:
 
-  -h, --help           - Show this help.                      
-  --workspace  <slug>  - Target workspace (uses credentials)  
+  -h, --help           - Show this help.
+  --workspace  <slug>  - Target workspace (uses credentials)
 
 Commands:
 
-  list                  - List milestones for a project                                                 
-  view, v  <milestone>  - View milestone details. By default lists the first 10 attached issues from the
-                          first page of 50; use --all to paginate the full set.                         
-  create                - Create a new project milestone                                                
-  update   <id>         - Update an existing project milestone                                          
+  list                  - List milestones for a project
+  view, v  <milestone>  - View milestone details. By default lists the first 10 attached issues from the first page of 50; use --all to paginate the
+                          full set.
+  create                - Create a new project milestone
+  update   <id>         - Update an existing project milestone
   delete   <id>         - Delete a project milestone
 ```
 
@@ -41,11 +41,11 @@ Description:
 
 Options:
 
-  -h, --help                    - Show this help.                                
-  --workspace    <slug>         - Target workspace (uses credentials)            
+  -h, --help                    - Show this help.
+  --workspace    <slug>         - Target workspace (uses credentials)
   --project      <project>      - Project (UUID, slug ID, or name)     (required)
   --name         <name>         - Milestone name                       (required)
-  --description  <description>  - Milestone description                          
+  --description  <description>  - Milestone description
   --target-date  <date>         - Target date (YYYY-MM-DD)
 ```
 
@@ -62,8 +62,8 @@ Description:
 
 Options:
 
-  -h, --help           - Show this help.                      
-  --workspace  <slug>  - Target workspace (uses credentials)  
+  -h, --help           - Show this help.
+  --workspace  <slug>  - Target workspace (uses credentials)
   -f, --force          - Skip confirmation prompt
 ```
 
@@ -80,8 +80,8 @@ Description:
 
 Options:
 
-  -h, --help              - Show this help.                                
-  --workspace  <slug>     - Target workspace (uses credentials)            
+  -h, --help              - Show this help.
+  --workspace  <slug>     - Target workspace (uses credentials)
   --project    <project>  - Project (UUID, slug ID, or name)     (required)
 ```
 
@@ -98,12 +98,12 @@ Description:
 
 Options:
 
-  -h, --help                    - Show this help.                                       
-  --workspace    <slug>         - Target workspace (uses credentials)                   
-  --name         <name>         - Milestone name                                        
-  --description  <description>  - Milestone description                                 
-  --target-date  <date>         - Target date (YYYY-MM-DD)                              
-  --sort-order   <value>        - Sort order relative to other milestones               
+  -h, --help                    - Show this help.
+  --workspace    <slug>         - Target workspace (uses credentials)
+  --name         <name>         - Milestone name
+  --description  <description>  - Milestone description
+  --target-date  <date>         - Target date (YYYY-MM-DD)
+  --sort-order   <value>        - Sort order relative to other milestones
   --project      <project>      - Move to a different project (UUID, slug ID, or name)
 ```
 
@@ -120,8 +120,8 @@ Description:
 
 Options:
 
-  -h, --help              - Show this help.                                                                   
-  --workspace  <slug>     - Target workspace (uses credentials)                                               
-  --all                   - Fetch and list every issue attached to the milestone (paginates the Linear API).  
+  -h, --help              - Show this help.
+  --workspace  <slug>     - Target workspace (uses credentials)
+  --all                   - Fetch and list every issue attached to the milestone (paginates the Linear API).
   --project    <project>  - Project for resolving a milestone name (UUID, slug ID, or name)
 ```

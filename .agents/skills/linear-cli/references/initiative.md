@@ -13,19 +13,19 @@ Description:
 
 Options:
 
-  -h, --help           - Show this help.                      
-  --workspace  <slug>  - Target workspace (uses credentials)  
+  -h, --help           - Show this help.
+  --workspace  <slug>  - Target workspace (uses credentials)
 
 Commands:
 
-  list, ls                                - List initiatives                      
-  view, v         <initiativeId>          - View initiative details               
-  create                                  - Create a new Linear initiative        
-  archive         [initiativeId]          - Archive a Linear initiative           
-  update          <initiativeId>          - Update a Linear initiative            
-  unarchive       <initiativeId>          - Unarchive a Linear initiative         
+  list, ls                                - List initiatives
+  view, v         <initiativeId>          - View initiative details
+  create                                  - Create a new Linear initiative
+  archive         [initiativeId]          - Archive a Linear initiative
+  update          <initiativeId>          - Update a Linear initiative
+  unarchive       <initiativeId>          - Unarchive a Linear initiative
   delete          [initiativeId]          - Permanently delete a Linear initiative
-  add-project     <initiative> <project>  - Link a project to an initiative       
+  add-project     <initiative> <project>  - Link a project to an initiative
   remove-project  <initiative> <project>  - Unlink a project from an initiative
 ```
 
@@ -44,8 +44,8 @@ Description:
 
 Options:
 
-  -h, --help                 - Show this help.                      
-  --workspace   <slug>       - Target workspace (uses credentials)  
+  -h, --help                 - Show this help.
+  --workspace   <slug>       - Target workspace (uses credentials)
   --sort-order  <sortOrder>  - Sort order within initiative
 ```
 
@@ -62,11 +62,11 @@ Description:
 
 Options:
 
-  -h, --help              - Show this help.                                    
-  --workspace   <slug>    - Target workspace (uses credentials)                
-  -y, --force             - Skip confirmation prompt                           
-  --bulk        <ids...>  - Archive multiple initiatives by ID, slug, or name  
-  --bulk-file   <file>    - Read initiative IDs from a file (one per line)     
+  -h, --help              - Show this help.
+  --workspace   <slug>    - Target workspace (uses credentials)
+  -y, --force             - Skip confirmation prompt
+  --bulk        <ids...>  - Archive multiple initiatives by ID, slug, or name
+  --bulk-file   <file>    - Read initiative IDs from a file (one per line)
   --bulk-stdin            - Read initiative IDs from stdin
 ```
 
@@ -83,15 +83,15 @@ Description:
 
 Options:
 
-  -h, --help                        - Show this help.                                        
-  --workspace        <slug>         - Target workspace (uses credentials)                    
-  -n, --name         <name>         - Initiative name (required)                             
-  -d, --description  <description>  - Initiative description                                 
-  -s, --status       <status>       - Status: planned, active, completed (default: planned)  
-  -o, --owner        <owner>        - Owner (username, email, or @me for yourself)           
-  --target-date      <targetDate>   - Target completion date (YYYY-MM-DD)                    
-  -c, --color        <color>        - Color hex code (e.g., #5E6AD2)                         
-  --icon             <icon>         - Icon name                                              
+  -h, --help                        - Show this help.
+  --workspace        <slug>         - Target workspace (uses credentials)
+  -n, --name         <name>         - Initiative name (required)
+  -d, --description  <description>  - Initiative description
+  -s, --status       <status>       - Status: planned, active, completed (default: planned)
+  -o, --owner        <owner>        - Owner (username, email, or @me for yourself)
+  --target-date      <targetDate>   - Target completion date (YYYY-MM-DD)
+  -c, --color        <color>        - Color hex code (e.g., #5E6AD2)
+  --icon             <icon>         - Icon name
   -i, --interactive                 - Interactive mode (default if no flags provided)
 ```
 
@@ -108,11 +108,11 @@ Description:
 
 Options:
 
-  -h, --help              - Show this help.                                   
-  --workspace   <slug>    - Target workspace (uses credentials)               
-  -y, --force             - Skip confirmation prompt                          
-  --bulk        <ids...>  - Delete multiple initiatives by ID, slug, or name  
-  --bulk-file   <file>    - Read initiative IDs from a file (one per line)    
+  -h, --help              - Show this help.
+  --workspace   <slug>    - Target workspace (uses credentials)
+  -y, --force             - Skip confirmation prompt
+  --bulk        <ids...>  - Delete multiple initiatives by ID, slug, or name
+  --bulk-file   <file>    - Read initiative IDs from a file (one per line)
   --bulk-stdin            - Read initiative IDs from stdin
 ```
 
@@ -129,14 +129,14 @@ Description:
 
 Options:
 
-  -h, --help                - Show this help.                                
-  --workspace     <slug>    - Target workspace (uses credentials)            
-  -s, --status    <status>  - Filter by status (active, planned, completed)  
-  --all-statuses            - Show all statuses (default: active only)       
-  -o, --owner     <owner>   - Filter by owner (username or email)            
-  -w, --web                 - Open initiatives page in web browser           
-  -a, --app                 - Open initiatives page in Linear.app            
-  -j, --json                - Output as JSON                                 
+  -h, --help                - Show this help.
+  --workspace     <slug>    - Target workspace (uses credentials)
+  -s, --status    <status>  - Filter by status (active, planned, completed)
+  --all-statuses            - Show all statuses (default: active only)
+  -o, --owner     <owner>   - Filter by owner (username or email)
+  -w, --web                 - Open initiatives page in web browser
+  -a, --app                 - Open initiatives page in Linear.app
+  -j, --json                - Output as JSON
   --archived                - Include archived initiatives
 ```
 
@@ -153,8 +153,8 @@ Description:
 
 Options:
 
-  -h, --help           - Show this help.                      
-  --workspace  <slug>  - Target workspace (uses credentials)  
+  -h, --help           - Show this help.
+  --workspace  <slug>  - Target workspace (uses credentials)
   -y, --force          - Skip confirmation prompt
 ```
 
@@ -171,8 +171,8 @@ Description:
 
 Options:
 
-  -h, --help           - Show this help.                      
-  --workspace  <slug>  - Target workspace (uses credentials)  
+  -h, --help           - Show this help.
+  --workspace  <slug>  - Target workspace (uses credentials)
   -y, --force          - Skip confirmation prompt
 ```
 
@@ -189,15 +189,15 @@ Description:
 
 Options:
 
-  -h, --help                        - Show this help.                                  
-  --workspace        <slug>         - Target workspace (uses credentials)              
-  -n, --name         <name>         - New name for the initiative                      
-  -d, --description  <description>  - New description                                  
-  --status           <status>       - New status (planned, active, completed, paused)  
-  --owner            <owner>        - New owner (username, email, or @me)              
-  --target-date      <targetDate>   - Target completion date (YYYY-MM-DD)              
-  --color            <color>        - Initiative color (hex, e.g., #5E6AD2)            
-  --icon             <icon>         - Initiative icon name                             
+  -h, --help                        - Show this help.
+  --workspace        <slug>         - Target workspace (uses credentials)
+  -n, --name         <name>         - New name for the initiative
+  -d, --description  <description>  - New description
+  --status           <status>       - New status (planned, active, completed, paused)
+  --owner            <owner>        - New owner (username, email, or @me)
+  --target-date      <targetDate>   - Target completion date (YYYY-MM-DD)
+  --color            <color>        - Initiative color (hex, e.g., #5E6AD2)
+  --icon             <icon>         - Initiative icon name
   -i, --interactive                 - Interactive mode for updates
 ```
 
@@ -214,9 +214,9 @@ Description:
 
 Options:
 
-  -h, --help           - Show this help.                      
-  --workspace  <slug>  - Target workspace (uses credentials)  
-  -w, --web            - Open in web browser                  
-  -a, --app            - Open in Linear.app                   
+  -h, --help           - Show this help.
+  --workspace  <slug>  - Target workspace (uses credentials)
+  -w, --web            - Open in web browser
+  -a, --app            - Open in Linear.app
   -j, --json           - Output as JSON
 ```

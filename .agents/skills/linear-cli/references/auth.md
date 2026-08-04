@@ -13,17 +13,17 @@ Description:
 
 Options:
 
-  -h, --help           - Show this help.                      
-  --workspace  <slug>  - Target workspace (uses credentials)  
+  -h, --help           - Show this help.
+  --workspace  <slug>  - Target workspace (uses credentials)
 
 Commands:
 
-  login                 - Add a workspace credential                     
-  logout   [workspace]  - Remove a workspace credential                  
-  list                  - List configured workspaces                     
-  default  [workspace]  - Set the default workspace                      
-  token                 - Print the configured API token                 
-  whoami                - Print information about the authenticated user 
+  login                 - Add a workspace credential
+  logout   [workspace]  - Remove a workspace credential
+  list                  - List configured workspaces
+  default  [workspace]  - Set the default workspace
+  token                 - Print the configured API token
+  whoami                - Print information about the authenticated user
   migrate               - Migrate plaintext credentials to system keyring
 ```
 
@@ -42,7 +42,7 @@ Description:
 
 Options:
 
-  -h, --help           - Show this help.                      
+  -h, --help           - Show this help.
   --workspace  <slug>  - Target workspace (uses credentials)
 ```
 
@@ -59,7 +59,7 @@ Description:
 
 Options:
 
-  -h, --help           - Show this help.                      
+  -h, --help           - Show this help.
   --workspace  <slug>  - Target workspace (uses credentials)
 ```
 
@@ -76,9 +76,9 @@ Description:
 
 Options:
 
-  -h, --help           - Show this help.                                              
-  --workspace  <slug>  - Target workspace (uses credentials)                          
-  -k, --key    <key>   - API key (prompted if not provided)                           
+  -h, --help           - Show this help.
+  --workspace  <slug>  - Target workspace (uses credentials)
+  -k, --key    <key>   - API key (prompted if not provided)
   --plaintext          - Store API key in credentials file instead of system keyring
 ```
 
@@ -95,8 +95,8 @@ Description:
 
 Options:
 
-  -h, --help           - Show this help.                      
-  --workspace  <slug>  - Target workspace (uses credentials)  
+  -h, --help           - Show this help.
+  --workspace  <slug>  - Target workspace (uses credentials)
   -f, --force          - Skip confirmation prompt
 ```
 
@@ -113,7 +113,7 @@ Description:
 
 Options:
 
-  -h, --help           - Show this help.                      
+  -h, --help           - Show this help.
   --workspace  <slug>  - Target workspace (uses credentials)
 ```
 
@@ -130,7 +130,7 @@ Description:
 
 Options:
 
-  -h, --help           - Show this help.                      
+  -h, --help           - Show this help.
   --workspace  <slug>  - Target workspace (uses credentials)
 ```
 
@@ -147,7 +147,7 @@ Description:
 
 Options:
 
-  -h, --help           - Show this help.                      
-  --workspace  <slug>  - Target workspace (uses credentials)  
+  -h, --help           - Show this help.
+  --workspace  <slug>  - Target workspace (uses credentials)
   -j, --json           - Output as JSON
 ```

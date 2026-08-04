@@ -81,6 +81,10 @@ function stripAnsi(str: string): string {
   return str.replace(/\x1b\[[0-9;]*m/g, "")
 }
 
+function stripTrailingWhitespace(str: string): string {
+  return str.replace(/[ \t]+$/gm, "")
+}
+
 function stripVersion(str: string): string {
   // Remove "Version: X.Y.Z" lines from help output to avoid churn on version bumps
   return str.replace(/^Version:.*\n?/gm, "").replace(/\n+$/, "")
@@ -133,7 +137,10 @@ async function getCommandHelp(cmdPath: string[]): Promise<HelpResult> {
       failure: `\`${label} --help\` failed: ${result.stderr || "no output"}`,
     }
   }
-  return { help: stripVersion(stripAnsi(result.stdout)), failure: null }
+  return {
+    help: stripVersion(stripTrailingWhitespace(stripAnsi(result.stdout))),
+    failure: null,
+  }
 }
 
 async function discoverCommand(cmdPath: string[]): Promise<DiscoveryResult> {

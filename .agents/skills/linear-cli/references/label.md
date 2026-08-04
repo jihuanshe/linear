@@ -13,12 +13,12 @@ Description:
 
 Options:
 
-  -h, --help           - Show this help.                      
-  --workspace  <slug>  - Target workspace (uses credentials)  
+  -h, --help           - Show this help.
+  --workspace  <slug>  - Target workspace (uses credentials)
 
 Commands:
 
-  list                - List issue labels       
+  list                - List issue labels
   create              - Create a new issue label
   delete  <nameOrId>  - Delete an issue label
 ```
@@ -38,12 +38,12 @@ Description:
 
 Options:
 
-  -h, --help                        - Show this help.                                              
-  --workspace        <slug>         - Target workspace (uses credentials)                          
-  -n, --name         <name>         - Label name (required)                                        
-  -c, --color        <color>        - Color hex code (e.g., #EB5757)                               
-  -d, --description  <description>  - Label description                                            
-  -t, --team         <teamKey>      - Team key for team-specific label (omit for workspace label)  
+  -h, --help                        - Show this help.
+  --workspace        <slug>         - Target workspace (uses credentials)
+  -n, --name         <name>         - Label name (required)
+  -c, --color        <color>        - Color hex code (e.g., #EB5757)
+  -d, --description  <description>  - Label description
+  -t, --team         <teamKey>      - Team key for team-specific label (omit for workspace label)
   -i, --interactive                 - Interactive mode (default if no flags provided)
 ```
 
@@ -60,9 +60,9 @@ Description:
 
 Options:
 
-  -h, --help              - Show this help.                                 
-  --workspace  <slug>     - Target workspace (uses credentials)             
-  -t, --team   <teamKey>  - Team key to disambiguate labels with same name  
+  -h, --help              - Show this help.
+  --workspace  <slug>     - Target workspace (uses credentials)
+  -t, --team   <teamKey>  - Team key to disambiguate labels with same name
   -f, --force             - Skip confirmation prompt
 ```
 
@@ -79,10 +79,10 @@ Description:
 
 Options:
 
-  -h, --help                     - Show this help.                                                    
-  --workspace         <slug>     - Target workspace (uses credentials)                                
-  --team              <teamKey>  - Show labels available to a team, including workspace-level labels  
-  --workspace-labels             - Show only workspace-level labels (not team-specific)               
-  --all                          - Show all labels (both workspace and team)                          
+  -h, --help                     - Show this help.
+  --workspace         <slug>     - Target workspace (uses credentials)
+  --team              <teamKey>  - Show labels available to a team, including workspace-level labels
+  --workspace-labels             - Show only workspace-level labels (not team-specific)
+  --all                          - Show all labels (both workspace and team)
   -j, --json                     - Output as JSON
 ```
