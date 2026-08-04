@@ -48,7 +48,6 @@
     "npm:@types/node@*": "24.2.0",
     "npm:graphql-request@^7.4.0": "7.4.0_graphql@16.13.2",
     "npm:graphql@^16.13.2": "16.13.2",
-    "npm:lefthook@^2.1.4": "2.1.4",
     "npm:remark-gfm@4": "4.0.1",
     "npm:remark-parse@11": "11.0.0",
     "npm:remark-stringify@11": "11.0.0",
@@ -1659,73 +1658,6 @@
       "integrity": "sha512-XmOWe7eyHYH14cLdVPoyg+GOH3rYX++KpzrylJwSW98t3Nk+U8XOl8FWKOgwtzdb8lXGf6zYwDUzeHMWfxasyg==",
       "bin": true
     },
-    "lefthook-darwin-arm64@2.1.4": {
-      "integrity": "sha512-BUAAE9+rUrjr39a+wH/1zHmGrDdwUQ2Yq/z6BQbM/yUb9qtXBRcQ5eOXxApqWW177VhGBpX31aqIlfAZ5Q7wzw==",
-      "os": ["darwin"],
-      "cpu": ["arm64"]
-    },
-    "lefthook-darwin-x64@2.1.4": {
-      "integrity": "sha512-K1ncIMEe84fe+ss1hQNO7rIvqiKy2TJvTFpkypvqFodT7mJXZn7GLKYTIXdIuyPAYthRa9DwFnx5uMoHwD2F1Q==",
-      "os": ["darwin"],
-      "cpu": ["x64"]
-    },
-    "lefthook-freebsd-arm64@2.1.4": {
-      "integrity": "sha512-PVUhjOhVN71YaYsVdQyNbFZ4a2jFB2Tg5hKrrn9kaWpx64aLz/XivLjwr8sEuTaP1GRlEWBpW6Bhrcsyo39qFw==",
-      "os": ["freebsd"],
-      "cpu": ["arm64"]
-    },
-    "lefthook-freebsd-x64@2.1.4": {
-      "integrity": "sha512-ZWV9o/LeyWNEBoVO+BhLqxH3rGTba05nkm5NvMjEFSj7LbUNUDbQmupZwtHl1OMGJO66eZP0CalzRfUH6GhBxQ==",
-      "os": ["freebsd"],
-      "cpu": ["x64"]
-    },
-    "lefthook-linux-arm64@2.1.4": {
-      "integrity": "sha512-iWN0pGnTjrIvNIcSI1vQBJXUbybTqJ5CLMniPA0olabMXQfPDrdMKVQe+mgdwHK+E3/Y0H0ZNL3lnOj6Sk6szA==",
-      "os": ["linux"],
-      "cpu": ["arm64"]
-    },
-    "lefthook-linux-x64@2.1.4": {
-      "integrity": "sha512-96bTBE/JdYgqWYAJDh+/e/0MaxJ25XTOAk7iy/fKoZ1ugf6S0W9bEFbnCFNooXOcxNVTan5xWKfcjJmPIKtsJA==",
-      "os": ["linux"],
-      "cpu": ["x64"]
-    },
-    "lefthook-openbsd-arm64@2.1.4": {
-      "integrity": "sha512-oYUoK6AIJNEr9lUSpIMj6g7sWzotvtc3ryw7yoOyQM6uqmEduw73URV/qGoUcm4nqqmR93ZalZwR2r3Gd61zvw==",
-      "os": ["openbsd"],
-      "cpu": ["arm64"]
-    },
-    "lefthook-openbsd-x64@2.1.4": {
-      "integrity": "sha512-i/Dv9Jcm68y9cggr1PhyUhOabBGP9+hzQPoiyOhKks7y9qrJl79A8XfG6LHekSuYc2VpiSu5wdnnrE1cj2nfTg==",
-      "os": ["openbsd"],
-      "cpu": ["x64"]
-    },
-    "lefthook-windows-arm64@2.1.4": {
-      "integrity": "sha512-hSww7z+QX4YMnw2lK7DMrs3+w7NtxksuMKOkCKGyxUAC/0m1LAICo0ZbtdDtZ7agxRQQQ/SEbzFRhU5ysNcbjA==",
-      "os": ["win32"],
-      "cpu": ["arm64"]
-    },
-    "lefthook-windows-x64@2.1.4": {
-      "integrity": "sha512-eE68LwnogxwcPgGsbVGPGxmghyMGmU9SdGwcc+uhGnUxPz1jL89oECMWJNc36zjVK24umNeDAzB5KA3lw1MuWw==",
-      "os": ["win32"],
-      "cpu": ["x64"]
-    },
-    "lefthook@2.1.4": {
-      "integrity": "sha512-JNfJ5gAn0KADvJ1I6/xMcx70+/6TL6U9gqGkKvPw5RNMfatC7jIg0Evl97HN846xmfz959BV70l8r3QsBJk30w==",
-      "optionalDependencies": [
-        "lefthook-darwin-arm64",
-        "lefthook-darwin-x64",
-        "lefthook-freebsd-arm64",
-        "lefthook-freebsd-x64",
-        "lefthook-linux-arm64",
-        "lefthook-linux-x64",
-        "lefthook-openbsd-arm64",
-        "lefthook-openbsd-x64",
-        "lefthook-windows-arm64",
-        "lefthook-windows-x64"
-      ],
-      "scripts": true,
-      "bin": true
-    },
     "lines-and-columns@1.2.4": {
       "integrity": "sha512-7ylylesZQ/PV29jhEDl3Ufjo6ZX7gCqJr5F7PKrqc93v7fzSymt1BpwEU8nAUXs8qzzvqhbjhK5QZg6Mt/HkBg=="
     },
@@ -2688,7 +2620,6 @@
       "npm:@types/mdast@^4.0.4",
       "npm:graphql-request@^7.4.0",
       "npm:graphql@^16.13.2",
-      "npm:lefthook@^2.1.4",
       "npm:remark-gfm@4",
       "npm:remark-parse@11",
       "npm:remark-stringify@11",

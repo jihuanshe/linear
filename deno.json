@@ -2,7 +2,7 @@
   "$schema": "https://raw.githubusercontent.com/denoland/deno/main/cli/schemas/config-file.v1.json",
   "version": "0.0.0-dev",
   "exports": "./src/main.ts",
-  "license": "MIT",
+  "license": "ISC",
   "lock": {
     "path": "./deno.lock",
     "frozen": true
@@ -16,7 +16,6 @@
     "check": "deno check src/main.ts",
     "test": "deno test --allow-all --quiet",
     "snapshot": "deno test --allow-all -- --update",
-    "lefthook-install": "deno run --allow-run --allow-read --allow-write --allow-env npm:lefthook install",
     "validate": "deno task check && deno fmt && deno lint",
     "verify": "deno task codegen && deno fmt --check && deno lint && deno task check && deno task test --ignore=test/keyring.integration.test.ts",
     "generate-skill-docs": "deno run --allow-run --allow-read --allow-write skills/linear-cli/scripts/generate-docs.ts",
@@ -46,7 +45,6 @@
     "graphql": "npm:graphql@^16.13.2",
     "./__generated__/graphql": "./src/__codegen__/graphql.ts",
     "graphql-request": "npm:graphql-request@^7.4.0",
-    "lefthook": "npm:lefthook@^2.1.4",
     "remark-gfm": "npm:remark-gfm@^4.0.0",
     "remark-parse": "npm:remark-parse@^11.0.0",
     "remark-stringify": "npm:remark-stringify@^11.0.0",
