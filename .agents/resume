@@ -8,7 +8,40 @@ repo_id="$(printf '%s' "$repo_root" | sha256sum | cut -c1-16)"
 bin_dir="$tool_root/checkouts/$repo_id/bin"
 deno_bin="$tool_root/deno/$deno_version/deno"
 
-if [[ -x "$deno_bin" ]]; then
-  mkdir -p "$bin_dir"
-  ln -sfn "$deno_bin" "$bin_dir/deno"
+if [[ ! -x "$deno_bin" ]]; then
+  echo "Deno $deno_version is missing; run .agents/setup to repair the Orb toolchain" >&2
+  exit 1
 fi
+
+mkdir -p "$bin_dir"
+rm -f "$bin_dir/deno" "$bin_dir/linear"
+
+cat > "$bin_dir/deno" <<EOF
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Deno treats FORCE_COLOR as enabled whenever it exists, including when its
+# value is "0". Preserve an explicit opt-in while honoring environments that
+# use FORCE_COLOR=0 to request machine-clean output.
+if [[ "\${FORCE_COLOR-}" == "0" ]]; then
+  unset FORCE_COLOR
+fi
+
+exec "$deno_bin" "\$@"
+EOF
+
+cat > "$bin_dir/linear" <<EOF
+#!/usr/bin/env bash
+set -euo pipefail
+
+exec "$bin_dir/deno" run \
+  --config="$repo_root/deno.json" \
+  --frozen \
+  --lock="$repo_root/deno.lock" \
+  --allow-all \
+  --quiet \
+  "$repo_root/src/main.ts" \
+  "\$@"
+EOF
+
+chmod 0755 "$bin_dir/deno" "$bin_dir/linear"
