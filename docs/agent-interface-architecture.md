@@ -1,4 +1,4 @@
-# Agent discovery and version-matched guides
+# Agent interface architecture and delivery roadmap
 
 Status: accepted architecture roadmap, revised after an independent design review. The progressive `usage` baseline described below is implemented; metadata co-location and completeness hardening is the next commit before guide work begins. The guide system and Skill migration are not yet implemented.
 
