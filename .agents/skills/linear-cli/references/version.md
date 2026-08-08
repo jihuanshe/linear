@@ -7,6 +7,8 @@
 ```
 Usage:   linear version
 
+Related guides: core
+
 Description:
 
   Show build identity and protocol capabilities

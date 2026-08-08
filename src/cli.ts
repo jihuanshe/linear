@@ -20,6 +20,7 @@ import { apiCommand } from "./commands/api.ts"
 import { updateCommand } from "./commands/update.ts"
 import { versionCommand } from "./commands/version.ts"
 import { createUsageAction, createUsageCommand } from "./commands/usage.ts"
+import { guidesForCommandPath } from "./guides/guides.ts"
 import { setCliWorkspace } from "./config.ts"
 import { supportsStdoutStyling } from "./utils/terminal.ts"
 
@@ -87,3 +88,32 @@ for (const command of cli.getCommands()) {
   }
 }
 cli.command("usage", createUsageCommand(cli, false))
+
+// Leaf help carries a "Related guides" breadcrumb derived from guide
+// frontmatter (src/guides/guides.ts owns the relationship); domains render
+// theirs in their usage view instead. A breadcrumb names the guide and never
+// embeds its body.
+interface GuideAnnotatable {
+  getPath(): string
+  hasCommands(): boolean
+  getCommands(): GuideAnnotatable[]
+  meta(name: string, value: string): unknown
+}
+
+function annotateRelatedGuides(command: GuideAnnotatable): void {
+  if (command.hasCommands()) {
+    for (const child of command.getCommands()) {
+      annotateRelatedGuides(child)
+    }
+    return
+  }
+  const related = guidesForCommandPath(command.getPath())
+  if (related.length > 0) {
+    command.meta(
+      "Related guides",
+      related.map((guide) => guide.name).join(", "),
+    )
+  }
+}
+
+annotateRelatedGuides(cli)

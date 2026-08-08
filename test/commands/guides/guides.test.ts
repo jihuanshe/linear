@@ -132,6 +132,51 @@ Deno.test("guide metadata references only canonical commands and real guides", (
   }
 })
 
+Deno.test("domain usage lists related guides without embedding bodies", async () => {
+  const result = await run(["issue", "usage"])
+
+  assertEquals(result.code, 0, result.stderr)
+  assertStringIncludes(result.stdout, "related guides:")
+  assertStringIncludes(result.stdout, "issue-authoring")
+  assertStringIncludes(result.stdout, "guides: linear guides read <name>")
+  assertEquals(result.stdout.includes("# "), false)
+})
+
+Deno.test("leaf help shows a Related guides breadcrumb", async () => {
+  const update = await run(["issue", "update", "--help"])
+  assertEquals(update.code, 0, update.stderr)
+  assertStringIncludes(
+    update.stdout,
+    "Related guides: core, automation, issue-authoring",
+  )
+
+  const api = await run(["api", "--help"])
+  assertEquals(api.code, 0, api.stderr)
+  assertStringIncludes(api.stdout, "Related guides: graphql")
+})
+
+Deno.test("usage JSON exposes guide metadata additively", async () => {
+  const result = await run(["issue", "usage", "--json"])
+
+  assertEquals(result.code, 0, result.stderr)
+  const document = JSON.parse(result.stdout)
+  const domainGuides = document.command.guides.map(
+    (guide: { name: string }) => guide.name,
+  )
+  assertEquals(domainGuides.includes("issue-authoring"), true)
+
+  const update = document.subcommands.find(
+    (command: { name: string }) => command.name === "update",
+  )
+  assertEquals(
+    update.guides.map((guide: { name: string }) => guide.name),
+    ["core", "automation", "issue-authoring"],
+  )
+  for (const field of ["name", "path", "writes", "outputModes"]) {
+    assertEquals(field in update, true, `${field} missing from usage JSON`)
+  }
+})
+
 Deno.test("guide commands never write and stay network-free", () => {
   const guides = cli.getCommand("guides")
   if (guides == null) throw new Error("guides command not registered")

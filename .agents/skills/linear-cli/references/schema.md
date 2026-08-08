@@ -7,6 +7,8 @@
 ```
 Usage:   linear schema
 
+Related guides: graphql
+
 Description:
 
   Print the GraphQL schema to stdout

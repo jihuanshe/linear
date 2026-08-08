@@ -1,4 +1,5 @@
 import { type Argument, Command, type Option } from "@cliffy/command"
+import { guidesForCommandPath } from "../guides/guides.ts"
 
 export interface UsageCommandSource {
   getName(): string
@@ -35,6 +36,11 @@ export interface UsageConfirmationMetadata {
   requiredUnless: string
 }
 
+export interface UsageGuideMetadata {
+  name: string
+  description: string
+}
+
 export interface UsageOptionMetadata {
   name: string
   flags: string[]
@@ -63,6 +69,11 @@ export interface UsageCommandMetadata {
   interactive: boolean
   confirmation: UsageConfirmationMetadata | null
   outputModes: UsageOutputMode[]
+  /**
+   * Related guides derived from guide frontmatter; omitted when none relate.
+   * Additive within usage JSON schemaVersion 1.
+   */
+  guides?: UsageGuideMetadata[]
 }
 
 /**
@@ -222,7 +233,12 @@ function commandMetadata(command: UsageCommandSource): UsageCommandMetadata {
   const subcommands = visibleSubcommands(command)
   const meta = command.getMeta()
   const confirmationRequiredUnless = meta[META_CONFIRMATION]
+  const relatedGuides = guidesForCommandPath(path).map((guide) => ({
+    name: guide.name,
+    description: guide.description,
+  }))
   return {
+    ...(relatedGuides.length === 0 ? {} : { guides: relatedGuides }),
     name: command.getName(),
     path,
     usage: commandUsage(command),
@@ -332,6 +348,14 @@ export function formatUsage(
         })),
       )
     }
+    appendRows(
+      lines,
+      "related guides",
+      (document.command.guides ?? []).map((guide) => ({
+        label: guide.name,
+        description: guide.description,
+      })),
+    )
   }
 
   lines.push(
@@ -343,6 +367,10 @@ export function formatUsage(
   )
   if (document.subcommands.some((command) => command.name === "guides")) {
     lines.push("workflows: linear guides list; linear guides read <name>")
+  } else if (
+    includeSubcommandOptions && (document.command.guides ?? []).length > 0
+  ) {
+    lines.push("guides: linear guides read <name>")
   }
   return lines.join("\n")
 }

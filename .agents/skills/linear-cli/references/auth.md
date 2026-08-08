@@ -137,6 +137,8 @@ Options:
 ```
 Usage:   linear auth token
 
+Related guides: graphql
+
 Description:
 
   Print the configured API token

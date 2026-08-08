@@ -138,3 +138,23 @@ export function listGuides(): Guide[] {
 export function getGuide(name: string): Guide | undefined {
   return guides.find((guide) => guide.metadata.name === name)
 }
+
+/**
+ * Command-to-guide relationships are derived from guide frontmatter alone; no
+ * command registers its own guide list. `path` accepts a canonical Cliffy
+ * path such as "linear issue update". A guide relates when it names that
+ * command exactly or names a command underneath it, so a domain path
+ * aggregates its subtree without a second registry. The root path returns
+ * nothing: root navigation already points at `linear guides`.
+ */
+export function guidesForCommandPath(path: string): GuideMetadata[] {
+  const normalized = path.replace(/^linear ?/, "")
+  if (normalized === "") return []
+  return guides
+    .filter((guide) =>
+      guide.metadata.commands.some((command) =>
+        command === normalized || command.startsWith(`${normalized} `)
+      )
+    )
+    .map((guide) => guide.metadata)
+}
