@@ -1,6 +1,6 @@
 # Agent 接口架构与交付路线图
 
-状态：已接受的架构与实施计划，经独立设计评审和真实 Issue 交接事故修订。渐进式 `usage` 基线、元数据加固和分发/版本/capability 探针已实现；零参数导航是下一个 commit。指南系统、完整 Issue 交付协议和 Skill 迁移尚未实现。
+状态：已接受的架构与实施计划，经独立设计评审和真实 Issue 交接事故修订。渐进式 `usage` 基线、元数据加固和分发/版本/capability 探针已实现；零参数导航是下一个 commit。指南系统、Issue 交付原语和 Skill 迁移尚未实现。
 
 ## 执行摘要
 
@@ -26,13 +26,13 @@ Embedded guides
         |
         v
 Execution protocol
-  complete Issue plan/apply, typed commands, structured output,
+  Issue delivery manifest, preview/apply, existing commands, structured output,
   schema-assisted raw GraphQL fallback
 ```
 
 关键变化不只是让某个 Skill 变短，而是移除相互竞争的外部路由，并把可复用的 Linear 行为迁移到拥有它的版本化程序中。
 
-Issue 是这里最重要的交付边界。标题或正文 mutation 成功，不等于任务已经被可靠交接。CLI 必须让 agent 和人类能在写入前审核由正文、评论、附件、链接和关系组成的完整 Issue，并在部分成功后恢复和读回最终结果。指南负责提高判断质量，执行协议负责防止交付物在多条命令之间散落。
+Issue 是这里最重要的交付边界。标题或正文 mutation 成功，不等于任务已经被可靠交接。CLI 应让 agent 和人类能在一次预览中看到 Issue 字段、Comment 正文中的上传文件、Linear Attachments 和 IssueRelations，并在写入前验证输入、写入后得到逐项结果。指南负责提供正确上下文，交付命令负责避免多条 shell 命令之间的遗漏。
 
 ## 动机
 
@@ -82,7 +82,7 @@ Use --help to see available commands
 
 ### agent-browser
 
-`agent-browser` 结合了有用的无参数 `Start here` 区块、版本匹配的内嵌 Skill、完整的叶子命令帮助，以及用于文件系统访问的 `skills path`。它表明运行时指南与物化路径可以共存：结构化发现服务于可移植性，而文件保留了 agent 和 Unix 的搜索便利。
+`agent-browser` 结合了有用的无参数 `Start here` 区块、版本匹配的内嵌 Skill 和完整的叶子命令帮助。它表明 CLI 可以按需提供与版本匹配的指导，而不要求宿主 Skill 复制命令手册。
 
 ## 设计原则
 
@@ -93,13 +93,13 @@ Use --help to see available commands
 5. **机器模式绝不授予同意。** `writes: true`、JSON 输出、`LINEAR_PROMPT_DISABLED=1`、`--force`、`--confirm` 和 `--yes` 描述的是能力或执行机制，不是授权。
 6. **专用命令先于逃生通道。** 优先使用专门构建的命令，其次是 schema 辅助的 `linear api`，只有当 CLI 无法提供所需控制时才使用直接 HTTP。
 7. **文档辅助安全；代码强制安全。** 指南可以解释标签替换、破坏性操作和文档锚点，但运行时校验和确认仍是最终防线。
-8. **可搜索性是接口，不是存储的偶然产物。** 文件系统 grep 有用，但 agent 不应需要知道宿主特定的 Skill 安装路径。
+8. **可发现性是接口，不是安装布局的偶然产物。** Agent 不应需要知道宿主特定的 Skill 安装路径。
 9. **保持离线与确定性。** 指南发现不得要求网络访问、embedding 或外部服务。
-10. **只在有证据后增加复杂度。** 从小的指南语料和 `list`/`read`/`path` 开始。只有当评测显示需要时，才增加内部搜索、更丰富的排序或内嵌的专家工作流。
+10. **只在有证据后增加复杂度。** 从小的指南语料和 `list`/`read` 开始。只有当评测显示需要时，才增加搜索、文件系统投影、更丰富的排序或内嵌的专家工作流。
 11. **保留意图，而不是模板。** Issue 指导应帮助不熟悉情况的人或 agent 恢复目标、证据、关闭原因和任何下一跳。它不得要求不增加信息的仪式性章节。
 12. **状态是路由信号，不是证明。** 一个已完成的 Issue 告诉 agent 去复查关联工作；它不证明源码、部署或某条临时兼容路径已经可以变更。
-13. **Issue 是完整交付单元，不是一组字段 mutation。** 正文、评论、附件、链接和关系必须能一起预览、执行、恢复和读回；批量操作复用同一个单 Issue 模型。
-14. **区分事实源与发现渠道。** 下游消费者、缓存、日志或分析可以暴露问题，但不会因此自动成为修复 owner 或验收面。Issue 应围绕待治理的事实和负责系统组织上下文。
+13. **一起预览和执行，不等于同步整个远端状态。** Issue 字段、Comment 正文中的上传文件、Attachments 和 IssueRelations 应使用同一份交付清单；未提及的既有对象保持不变。
+14. **区分事实源与发现渠道。** 下游消费者、缓存、日志或分析可以暴露问题，但不会因此自动成为负责修复的系统或团队。Issue 应围绕待治理的事实及其验证方式组织上下文。
 15. **原始证据优先于创建者记忆。** 一个 hash、本机路径、聊天中的隐式附件或分析摘要不能替代接手者实际需要的原始文件和持久链接。
 
 ## 设计评审决定
@@ -107,12 +107,12 @@ Use --help to see available commands
 对第一阶段基线和本架构的一次独立评审接受了四层所有权模型，并为后续 commit 确定了以下决定：
 
 1. 补充的命令能力元数据必须与每个叶子命令定义放在一起，而不是加在父级注册处。一个精确的写命令完整性测试必须让遗漏显式失败。
-2. 内部指南搜索不属于初始指南系统。只有四份指南时，`list`、`read`、`path` 加上文件系统工具已经足够。搜索由证据门控。
+2. 内部指南搜索不属于初始指南系统。只有四份指南时，`list` 和 `read` 已经足够。搜索或文件系统投影由证据门控。
 3. 静态文本导入是首选的嵌入机制。Deno 2.9.4 可以在交叉编译的二进制中嵌入 `import ... with { type: "text" }` 资源，无需生成内容模块。
 4. 单命令语义事实属于该命令的描述和帮助。指南拥有真正跨命令的工作流；外部激活 Skill 不得重复那些帮助在执行前就能暴露的事实。
-5. 一次探索性的「当前家族对比单一激活」评测必须在零参数导航之后、指南编写之前运行。其失败用例成为第一批指南语料的需求。正式迁移对比只在访问诊断、Issue authoring、完整单 Issue 交付协议和类型化批量工作流都有 CLI 拥有者之后运行。
+5. 一次探索性的「当前家族对比单一激活」评测必须在零参数导航之后、指南编写之前运行。其失败用例成为第一批指南语料的需求。正式迁移对比只在访问诊断、Issue authoring、文件驱动的 Issue 交付和 batch 都有 CLI 拥有者之后运行。
 6. 本地生成参考的移除与最终对 `jihuanshe/skills` 的原子化替换是两个独立的评审边界。
-7. 技术审计结果不等于已审核的 Issue。创建 Issue，或对叙事、证据、链接、关系做任何 add/update/remove 时，必须审核完整交付；只修改状态、优先级、标签或 assignee 等明确 allowlist 中的机械字段时，不应被迫经过重型 authoring 流程。
+7. 技术审计结果不等于写给接手者的 Issue。CLI 应提供 authoring 指导和完整预览，但不判断用户是否完成了业务思考，也不把机械字段更新强制送入一套审批流程。
 
 这些决定收窄了第一版指南实现，并把实证发现提前到序列中更早的位置。
 
@@ -141,19 +141,19 @@ Use --help to see available commands
 - stdout/stderr、JSON、退出状态和无人值守自动化契约；
 - 专用命令与原始 GraphQL 的选择；
 - 编写并验证多步操作；
-- 在创建 Issue 或实质性改变叙事、证据、链接或关系之前澄清请求、收集证据，并将其塑造成一个或多个可独立接手的 Issue；
-- 区分权威事实源、发现渠道、下游影响、修复 owner 和独立验收面；
+- 在创建或更新 Issue 时澄清请求、收集证据，并将其塑造成一个或多个可独立接手的 Issue；
+- 区分权威事实源、发现渠道、下游影响、负责修复的系统或团队，以及如何验证完成；
 - 判断原始证据是否已经通过持久附件或链接进入 Issue，而不是留在本机或原聊天；
 - Markdown 文件 flag；
 - 完整标签集替换与增量标签变更的区别；
 - 编写能在交接中存活的 Issue：使用持久链接，并在工作继续时以关闭原因加可点击的下一跳收尾；
 - schema 发现、变量、分页和 GraphQL 兜底；
-- 完整 Issue spec 的 plan/apply、冲突、检查点、恢复和读回语义；
-- 复用单 Issue spec 的类型化批量执行。
+- Issue delivery manifest 的 plan/apply、逐项结果、checkpoint 和保守续跑语义；
+- 单次和 batch 复用同一个 manifest。
 
 这些内容由产品拥有且往往依赖版本，但它们跨越多个命令，放不进 flag 描述。
 
-能由单个命令完整陈述的事实必须留在该命令的描述中。例如，`issue mine` 限定当前用户、`issue attach` 创建侧栏附件，应当能直接从这些命令的帮助中发现。指南可以解释更广的查询或附件工作流，但不得成为叶子事实的唯一或重复拥有者。
+能由单个命令完整陈述的事实必须留在该命令的描述中。例如，`issue mine` 限定当前用户、`issue attach` 创建 Linear Attachment，应当能直接从这些命令的帮助中发现。指南可以解释更广的查询或附件工作流，但不得成为叶子事实的唯一或重复拥有者。
 
 ### 留在 CLI 之外的内容
 
@@ -176,7 +176,7 @@ Use --help to see available commands
 | `linear-cli`               | 重命名或替换为单一的外部 `linear` 激活 Skill。在 CLI 发现和内嵌工作流通过评测后，移除其命令手册。                  |
 | `linear-access`            | 将诊断、认证和修复迁入 CLI 命令与内嵌指导。在单一激活 Skill 中只保留二进制缺失的引导事实，然后删除本 Skill。       |
 | `linear-request-intake`    | 将澄清、事实归属、证据质量、Issue 拆解和撰写指导迁入 CLI 的 Issue authoring 工作流。在语义用例通过后删除本 Skill。 |
-| `linear-issue-batch-write` | 将 plan/apply、冲突、检查点和恢复迁入一等类型化 CLI 命令和一份内嵌指南。在行为与恢复评测通过后删除本 Skill。       |
+| `linear-issue-batch-write` | 将 plan/apply、冲突、检查点和恢复迁入一等 CLI 命令和一份内嵌指南。在行为与恢复评测通过后删除本 Skill。             |
 
 ## 渐进式命令发现
 
@@ -273,7 +273,7 @@ Related guides:
 适合的场景包括：
 
 - 替换完整标签集；
-- 混淆侧栏附件与内联附件；
+- 混淆 Linear Attachment 与 Comment 正文中的上传文件；
 - 文档锚点安全；
 - 批量冲突或恢复步骤。
 
@@ -353,88 +353,20 @@ linear guides
 linear guides list
 linear guides list --json
 linear guides read <name>
-linear guides path
 ```
 
 `linear guides` 应当是简洁列表视图的别名。
-
-在基于缓存的 path 行为得到验证后，可以增加一个显式导出命令：
-
-```bash
-linear guides export <directory>
-```
 
 ### 输出契约
 
 - `guides list` 向 stdout 写入简洁的人类索引。
 - `guides list --json` 保留稳定的名称、描述、关键词和相关规范命令路径。
 - `guides read` 只向 stdout 写入所选 Markdown 正文。
-- `guides path` 只向 stdout 写入一个绝对目录路径，以便与 shell 工具组合。
-- 物化过程的提示信息（如有）进入 stderr。
 - 任何指南命令都不要求认证或网络访问。
 
-### 文件系统物化
+## 搜索与文件系统投影延后
 
-`linear guides path` 应当把内嵌 Markdown 惰性物化到一个带版本的用户缓存，并打印该目录：
-
-```bash
-GUIDES="$(linear guides path)"
-rg -n "inline|attachment|image" "$GUIDES"
-```
-
-缓存应使用操作系统的标准缓存目录并包含 CLI 版本，例如：
-
-```text
-<cache>/linear/guides/<version>/
-  core.md
-  automation.md
-  issue-authoring.md
-  graphql.md
-  manifest.json
-```
-
-物化要求：
-
-- 内嵌名称不能构造嵌套或穿越路径；
-- 文件以原子方式写入；
-- 一个 manifest 记录 CLI 版本和内容校验和；
-- 完好的缓存被复用；
-- 不匹配或不完整的缓存被安全重建；
-- 默认绝不修改当前工作目录；
-- 指南内容不包含凭据或 workspace 数据。
-
-`guides export <directory>`（如果加入）默认应拒绝覆盖无关内容，并要求显式的覆盖选项。它是逐字节的资源投影，不是 Skill 生成系统。
-
-### 为什么物化路径属于初始接口
-
-文件系统物化保留了强大的 Unix 与 agent 便利：agent 可以使用 `rg`、`fd`、`sed` 和 `cat`，而无需知道宿主特定的 Skill 安装目录。在初始的四指南语料下，简洁的结构化列表加物化路径即可覆盖概览和全文发现，无需引入搜索引擎。
-
-内部搜索仍是面向没有 `rg` 的环境的一个潜在可移植性特性，但它必须由观察到的检索失败来证明，而不是预先假设。
-
-## 延后的搜索设计
-
-初始指南系统不实现 `guides search`。探索性和正式评测应记录 `guides list`、命令面包屑、直接阅读、以及 `guides path` 加文件系统工具是否检索不到相关知识。只有当这些失败足够重要，或某个具名消费者无法依赖文件系统工具时，才增加内部搜索。
-
-如果内部搜索变得有理由，从对指南章节的确定性加权词法匹配开始：
-
-| 匹配               | 相对优先级 |
-| ------------------ | ---------: |
-| 指南名精确匹配     |       最高 |
-| 标题精确或前缀匹配 |         高 |
-| 关键词             |         高 |
-| 相关命令路径       |       中高 |
-| 章节标题           |         中 |
-| 正文子串/词元      |       普通 |
-
-索引单元应当是 Markdown 章节，而不是整份指南，这样结果可以指向 `issue-authoring > Replacing labels`，而不只是 `issue-authoring`。
-
-归一化 ASCII 大小写和标点。对中文和混合语言查询，保留整段子串匹配，索引 CJK 二元组，并允许在指南元数据中维护少量精选的双语关键词。如果 `Intl.Segmenter` 在受支持的构建中行为确定，可以作为补充。
-
-### 可能的后续 BM25 升级
-
-当语料增长到基础排序产生歧义结果时，BM25 才是合理的。它应当仍是离线的章节级索引，并可为标题、关键词和相关命令匹配加权。
-
-不要从 embedding、向量数据库、外部服务或依赖网络的语义搜索开始。
+初始指南系统不实现 `guides search`、`guides path` 或 `guides export`。探索性和正式评测只需记录 `guides list`、命令面包屑和直接阅读是否足以找到相关知识。出现具名失败后，再根据实际消费者选择搜索或文件系统投影，并单独设计接口。
 
 ## 命令元数据中的指南可发现性
 
@@ -444,7 +376,7 @@ rg -n "inline|attachment|image" "$GUIDES"
 - 领域 usage 列出直接相关的指南；
 - 叶子帮助列出一到两个相关指南；
 - `usage --json` 包含简洁的指南元数据；
-- `guides list/read/path` 使用同一套内嵌语料和索引。
+- `guides list/read` 使用同一套内嵌语料和索引。
 
 示意的 `usage --json` 扩展：
 
@@ -471,180 +403,147 @@ rg -n "inline|attachment|image" "$GUIDES"
 
 Usage JSON 遵循宽容读取方策略：同一 schema 版本内可以出现未知的新增字段。因此加入 `guides` 仍保持 `schemaVersion: 1`；移除或改变现有字段的类型需要递增版本。测试必须断言在指南元数据出现时，所有现有 v1 字段保持不变。
 
-## 完整 Issue 交付协议
+## Issue 交付原语
 
 ### 事故揭示的边界
 
-一次真实的数据治理交接暴露了当前接口的核心缺口：技术审计提供了大量正确细节，但 Issue 被写成了审计者自己的速记和下游消费方需求，接手者无法判断真正需要治理的业务事实、负责系统和独立验收面。图片后来被补充了，原始 Replay 却最初只留下摘要、hash 和创建者机器上的上下文；批量更新成功修改了正文，但评论、附件和链接仍靠 agent 手工拼接。
+一次真实的数据治理交接暴露了当前接口的核心缺口：技术审计提供了大量正确细节，但 Issue 被写成了审计者自己的速记和下游消费方需求，接手者无法判断真正需要治理的业务事实、负责系统和如何验证完成。图片后来被补充了，原始 Replay 却最初只留下摘要、hash 和创建者机器上的上下文；批量更新成功修改了正文，但评论和文件仍靠 agent 手工拼接。
 
-这不是固定模板缺失，也不能只靠更长的 Skill 解决。当前 CLI 把完整交付拆成彼此独立的 mutation：
+这不是固定模板缺失，也不能只靠更长的 Skill 解决。CLI 需要一个文件驱动的多步骤 Issue 交付命令，使 Issue 字段、Comment 正文中的上传文件、Linear Attachments 和 IssueRelations 能一起预览、写前校验、执行并逐项报告。
 
-```text
-issue create/update
-  + issue comment add --attach
-  + issue attach
-  + issue link
-  + issue view
-```
+### 与 Linear 上游模型对齐
 
-每条命令都可以正确工作，但组合后的 Issue 没有统一的计划、恢复和验收边界。CLI 需要一个声明式的完整 Issue 协议；`issue-authoring` 指南需要让 agent 先判断应当交付什么。
+V1 使用 Linear GraphQL 已有对象，不再发明平行集合：
 
-### `issue-authoring` 的语义责任
+- `comments[].files` 对应上传文件并把 asset URL 写入 Comment Markdown；它不是 Linear `Attachment`；
+- `attachments` 对应 Linear `Attachment`。输入可以来自本地文件或 URL；现有 `issue attach` 和 `issue link` 最终都创建这个对象；
+- `relations` 对应 Linear `IssueRelation`；
+- Issue 的 title、description、state、priority、labels、assignee 等继续使用现有 create/update 字段。
 
-指南不替 agent 判断业务事实，也不规定所有 Issue 使用同一套章节。它应在创建 Issue，或对叙事、证据、链接、关系做任何 add/update/remove 之前，帮助 agent 回答：
+Attachment 的 URL 在同一 Issue 内具有上游定义的唯一性，重复 URL 会更新既有 Attachment。这个约束不代表其他 mutation 也能安全重复提交；V1 不据此发明通用幂等协议。
 
-- 接手者是谁，Issue 应当让他采取什么动作；
-- 哪个系统、仓库、数据库或数据集拥有待修复的权威事实；
-- 当前现象来自权威生产面，还是下游消费者、缓存、日志、Replay 或派生分析；
-- 下游现象在本 Issue 中是业务影响、诊断证据，还是实际修复目标；
-- 修复 owner 与独立验收面分别是什么；
+### `issue-authoring` 指南
+
+指南为人和 agent 提供写好 Issue 所需的上下文，不充当强制审批流程，也不要求生成中间文档。它应帮助回答：
+
+- 接手者需要做什么；
+- 哪个系统、仓库或数据集拥有待修复的权威事实；
+- 当前现象是直接事实，还是来自下游消费者、缓存、日志、Replay 或派生分析；
+- 哪个系统或团队负责修复，以及如何验证完成；
 - 哪些是已验证事实，哪些仍是推测；
-- 是否仍依赖创建者电脑、当前聊天、无法访问的 URL 或尚未上传的原始证据；
-- 宿主策略指定的 reviewer 是否已经审核由正文、评论、附件、链接和关系组成的完整交付；reviewer 可以是人或 agent，这项审核不授予写入权限。
+- 关键证据是否已经通过接手者可访问的文件或 URL 交付，而不是只留在当前聊天或创建者电脑。
 
-对数据治理的一般化判断是：发现问题的系统不自动拥有修复。一个下游分析发现主数据异常时，Issue 应围绕主数据事实、负责维护入口和该系统的正式查询面组织；下游分析只作为影响和证据。反过来，如果未知标识只存在于第三方或引擎内部，且没有权威证据证明它代表正式业务实体，就不应为了让下游解析成功而污染主数据。
+发现问题的系统不自动拥有修复。一个下游分析发现主数据异常时，Issue 应围绕主数据事实、负责维护入口和正式查询结果组织；下游分析只是影响和证据。反过来，如果未知标识只存在于第三方或引擎内部，且没有权威证据证明它代表正式业务实体，就不应为了让下游解析成功而污染主数据。
 
-原始证据必须按接手者的复查需要交付：图片、Replay、日志、trace、HAR、视频、数据样本或 SQL 导出若是判断所必需，就应成为可访问附件，并说明来源、用途、复查方式，以及它证明什么、不证明什么。文件名、hash 和本机路径可以补充完整性信息，但不能替代文件。
+图片、Replay、日志、trace、HAR、视频、数据样本或 SQL 导出若是复查所必需，就应实际进入 Issue，并说明来源、用途、复查方法，以及它证明什么、不证明什么。文件名、hash 和本机路径可以补充完整性信息，但不能替代文件。
 
-写后还应检查：
+### Issue delivery manifest
 
-- 正文、评论、附件、链接和关系是否能脱离原聊天被理解；
-- 实际上传的原始文件是否可访问；
-- 既有评论是否残留与新正文冲突的结论或错误 owner；
-- 验收是否错误要求无关下游团队执行动作；
-- 关闭原因是否清楚，仍有工作时是否提供可点击的下一跳。
-
-这些是判断标准，不是必须原样出现在 Issue 中的字段。仅修改状态、优先级、标签或 assignee 等 allowlist 中的机械字段，不需要虚构一轮 authoring 审核；创建 Issue，或改变结论性评论、关键证据、owner/next-hop 链接、blocking/duplicate/related 关系等交付含义时，不能因为输入来自「技术审计」或「批量 update」而绕过它。完整审核是 authoring 质量门禁；写入授权仍完全来自宿主策略。
-
-### Canonical 单 Issue spec
-
-CLI 应定义一个可版本化的单 Issue spec，成为单次和批量交付共同的输入模型。第一版只需覆盖完整交付所必需的现有能力，例如：
+单次与批量交付共享一个版本化清单。示意结构：
 
 ```json
 {
   "schemaVersion": 1,
   "workspace": "jihuanshe",
-  "operation": "update",
-  "issue": {
-    "identifier": "DATA-606",
-    "title": "调查回放中未知卡牌编号的来源（附原始证据）",
-    "descriptionFile": "description.md"
-  },
-  "comments": [
+  "issues": [
     {
-      "bodyFile": "replay-evidence.md",
+      "operation": "update",
+      "identifier": "DATA-606",
+      "set": {
+        "title": "调查回放中未知卡牌编号的来源（附原始证据）",
+        "descriptionFile": "description.md"
+      },
+      "comments": [
+        {
+          "bodyFile": "replay-evidence.md",
+          "files": [
+            { "path": "replay-a.yrp" },
+            { "path": "replay-b.yrp" }
+          ]
+        }
+      ],
       "attachments": [
-        { "path": "replay-a.yrp" },
-        { "path": "replay-b.yrp" }
+        {
+          "kind": "url",
+          "url": "https://example.com/source-evidence",
+          "title": "Source evidence"
+        }
+      ],
+      "relations": [
+        { "type": "related", "issue": "DATA-580" }
       ]
     }
-  ],
-  "attachments": [],
-  "links": []
+  ]
 }
 ```
 
-实际 schema 还可以表达已有 create/update 字段、内联与侧栏附件、关系和并发基线，但应遵守以下边界：
+Markdown 和二进制内容通过相对于 manifest 的文件路径输入，避免 shell quoting、参数长度和漏传附件。V1 不提供既有 Comment、Attachment 或 IssueRelation 的显式 update/remove；提交 Attachment 时仍遵循 Linear 的同一 Issue 内 URL upsert 语义。清单未提及的其他既有内容保持不变。已有的直接 update/delete 命令继续处理明确的单项修改。
 
-- Markdown 和二进制内容通过文件引用输入，避免 shell quoting 和参数长度问题；
-- spec 使用相对路径，并相对于 spec 文件解析；远端 Issue 中不得保留这些本机路径；
-- 附件是一等交付物，不是 manifest 外的 sidecar；
-- 每个受管理项具有稳定逻辑 key；create 在 API 支持时携带 plan 生成并持久化的 caller UUID，update/remove 显式携带远端 ID 或无歧义自然键与 base fingerprint；
-- comments、attachments、links 和 relations 默认采用 additive/unmanaged 语义：spec 未提及的既有项一律保留；
-- update/remove 必须显式声明；删除属于破坏性操作，继续受宿主授权和 CLI 确认约束；
-- v1 未实现管理的集合仍应在 plan 和读回中展示为 unmanaged，而不是声称已经替换或清理；
-- schema 表达期望远端状态和需要执行的操作，不嵌入 AI 推理或固定 Markdown 模板；
-- spec 中的 workspace 和目标 Issue 必须能在第一笔写入前确定；
-- create 与 update 共享一个模型，机械字段变更可以使用该模型的简化子集；
-- batch 只在同一 spec 外增加数组、检查点和冲突策略。
-
-### `plan` 契约
+### `plan`
 
 命令名可在实现时按现有 CLI 风格定稿；设计语义以如下形式表示：
 
 ```bash
-linear issue plan --file issue.json
+linear issue delivery plan --file delivery.json
 ```
 
 `plan` 必须：
 
-1. 对远端零写入；允许必要的只读查询。
-2. 展示接手者最终会看到的标题、正文、评论、附件、链接和关系，而不只显示 `changes: ["description"]`。
-3. 对 update 展示 current、冻结的 base 和 desired，并同时呈现既有评论、附件、链接与关系，帮助发现冲突上下文。
-4. 在第一笔写入前验证每个本地文件的存在性、可读性、大小、MIME、附件位置和路径安全性。
-5. 列出将执行的 create/update/comment/attachment/link/relation 子操作及其稳定计划标识。
-6. 明确报告 CLI 可确定发现的不可交接输入，例如缺失/不可读文件、显式 unresolved evidence reference、未绑定的附件项，或待发布文本中的本机绝对路径。
-7. 提供稳定的机器结果，让人类或 agent 可以审核同一份完整计划，而不需要重新拼装多条命令输出。
+1. 对远端零写入；允许只读解析 workspace、Issue、字段值和 IssueRelation target。
+2. 展示本次请求将设置的 Issue 字段、将新增的 Comment 及其上传文件、将提交的 Attachments 和将新增的 IssueRelations；同 URL 的 Attachment 可能更新既有对象。
+3. 在第一笔 mutation 前验证整个 manifest 的全部本地文件，包括存在性、可读性、大小和 MIME。
+4. 对 update 只比较本次要修改的字段，沿用现有 batch 对 workspace、目标 Issue、team、workflow state 和字段变化的保护；无关评论或 Attachment 变化不制造冲突。
+5. 输出确定的执行顺序、解析结果、文件 size/MIME/SHA-256 和结构化机器结果。
 
-CLI 无法知道聊天中是否还有未写入 spec 的证据，也不应尝试推断事实源或 owner；这些由宿主 agent 在 `issue-authoring` 指导下判断。`plan` 不替用户授权写入。
+`plan` 是可选的零副作用预览，不是每次写入前的强制仪式。调用者已经明确目标时，可以直接执行 `apply`；`apply` 自己仍须在第一笔 mutation 前完成同样的输入验证。V1 不冻结完整 Issue 历史，也不替用户授权写入。
 
-### 审核工件绑定
-
-`plan` 应生成一个 content-addressed plan artifact，而不是只打印瞬时预览。该工件至少冻结：
-
-- canonicalized spec 与每个输入文件的 digest；
-- workspace、目标 Issue 和完整远端 base snapshot/fingerprint；
-- 每个 create/update/comment/attachment/link/relation 操作的稳定 ID；
-- 计划时观测到的 unmanaged 远端集合；
-- CLI build/schema 版本和最终 plan digest。
-
-`apply` 必须消费该 plan artifact，或要求等价的 `--expect-plan <digest>`。首次 apply 时，任一本地输入发生变化、远端 base 漂移或 target/workspace 不一致，都应拒绝执行并要求重新 plan；不能静默执行一份未经审核的新计划。恢复同一计划时，远端必然可能包含该计划已成功的步骤，因此不再要求整体等于原始 base，而是结合 immutable plan 与 ledger 逐 operation 对账：远端可以处于该操作的 base、desired，或由稳定 ID 证明的已创建状态；只有无法归因于本计划的变化才是 drift/conflict。这项绑定证明执行内容与审核内容一致，不表示 CLI 获得了写入授权。
-
-### `apply`、恢复与完整读回
+### `apply`、部分成功与续跑
 
 示意执行入口：
 
 ```bash
-linear issue apply --plan issue.plan.json --confirm-workspace jihuanshe
+linear issue delivery apply \
+  --file delivery.json \
+  --confirm-workspace jihuanshe
 ```
 
-`apply` 应复用现有的 typed create/update/comment/attach/link 实现，而不是建立第二套 API client。它必须：
+`apply` 应复用现有 create/update/comment/attach/link/relation 命令实现，而不是建立第二套 API client。它必须：
 
-- 首次执行前验证 plan digest、所有输入 digest、冻结的远端 base 和确认的 workspace；恢复时验证相同 immutable plan，并按 ledger 逐 operation 对账已知进展；
-- 为每个子操作返回稳定状态，例如 `planned`、`applied`、`already_applied`、`conflict`、`failed`、`blocked` 或 `unverified`；
-- 使用 write-ahead ledger：在远端调用前记录 intent、稳定 operation ID 和 caller UUID（若 API 支持），响应或读回后再记录 outcome；
-- 在失败后保留已成功的远端对象，不通过删除、重建或盲目重试伪造原子性；
-- 续跑前先读回远端，避免重复评论、附件、链接或关系；
-- 对 update 使用 base/desired/remote 三方判断：remote 等于 desired 时视为幂等完成，等于 base 时允许写入，否则报告冲突而不覆盖；
-- 对超时或 Markdown 往返差异保留「远端结果未知」的语义，并先读回对账，而不是假定 mutation 未发生；
-- 将二进制 upload 与把得到的 asset URL 关联到 comment/Issue 拆成两个可恢复步骤，先把 asset URL 持久化进 ledger；
-- 最后读取完整 Issue，而不是只信任 mutation 返回值。
+- 在首笔 mutation 前验证 workspace、目标、全部文件和本次要修改的 Issue 字段；
+- 按 manifest 顺序执行 Issue 字段、Comment 及其上传文件、Attachment 和 IssueRelation；
+- 为每个请求项返回 `applied`、`failed`、`unknown` 或 `unattempted`，成功项带远端 ID/URL；
+- 在请求前记录正在执行的步骤，每个确认成功的步骤后更新简单 checkpoint；进程中断时，正在执行的步骤视为结果未知；
+- 失败后保留并报告已经成功的结果，不回滚、不删除重建；
+- `applied` 项在续跑时跳过；确认未产生副作用的 `failed` 项可以按调用者选择继续或重试；
+- `unknown` 立即停止当前 apply 或 batch，在显式对账前不得续跑或重试。
 
-完整读回报告至少包括：
+执行结束后读取每个目标 Issue 的当前视图并随结果返回，只核对本次修改字段和已知请求项。V1 不遍历全部历史 Comment、Attachment 或 IssueRelation，也不把读回结果保存成远端快照。
 
-- Issue identifier、URL、标题和正文；
-- 遍历全部分页得到的评论、侧栏附件、链接和关系；
-- inline attachment 通过 comment body 中的 asset URL 与 upload ledger 对账，侧栏 attachment 通过远端 attachment ID/URL 对账；
-- 每个计划项的最终 URL 和状态，以及明确标注为本地已知或远端观测的文件名、大小与 MIME；
-- 未完成、冲突或无法验证的交付项；
-- 远端是否仍包含 spec 显式要求 update/remove 的旧上下文；未受管理的既有项保持可见但不被自动删除。
+### Batch 只是多个 Issue
 
-只有 spec 要求的交付项均已执行并读回验证，CLI 才能报告完整成功。若正文已更新但原始附件失败，应准确报告部分成功，使下一位接手者无需本次会话也能继续恢复。
+同一个 manifest 的 `issues[]` 同时支持单次和 batch。Batch V1 只额外需要：
 
-Linear 对 Markdown 的等价改写不能用一个未经证明的完整 AST 比较器草率解决。先把真实观察到的列表、表格、链接、图片 URL 和富文本往返形态固定为回归用例；不能可靠判等时返回结构化的 `unverified`，并附完整读回，而不是误报「远端未写入」。
+- 整批文件和输入在首笔 mutation 前验证；
+- 顺序执行；
+- 逐 Issue、逐请求项 checkpoint；
+- 对确认无副作用的 `failed` 使用 stop/continue 策略；`unknown` 始终立即停止；
+- 部分成功和剩余项的精确汇总。
 
-### 批量是单 Issue 协议的组合
+V1 不需要并发执行、通用事务日志、集合协调器或独立的 batch schema。
 
-一等批量执行必须复用上述 schema、plan、apply 和 read-back 实现。批量层只增加：
+### 明确的非目标与后续证据门禁
 
-- 多个单 Issue spec 的集合；
-- 全局与逐 Issue 的检查点；
-- workspace/team 范围确认；
-- 并发上限、停止策略和汇总；
-- 单项冲突、部分成功和恢复。
-
-它不得维护另一套只覆盖 title、description、labels 等字段的 manifest，也不得要求外部 Skill 另存评论、图片、原始文件和链接清单。纯机械字段批量更新可以走轻量计划；任何 create，或叙事、证据、链接、关系的 add/update/remove，都必须展示完整 Issue 交付。
-
-### 明确的非目标
-
-本协议不：
+V1 不：
 
 - 在 CLI 内调用 AI 自动编写 Issue 或判断业务事实；
-- 强制所有 Issue 使用统一的大型 Markdown 模板；
-- 通过关键词正则禁止 Replay、bundle、本机路径或某个领域名；
+- 强制所有 Issue 使用统一的大型 Markdown 模板或审批流程；
 - 把 TCG Wiki、卡牌 Password 或其他领域规则硬编码进通用 CLI；
+- 提供既有 Comment、Attachment 或 IssueRelation 的显式 update/remove；
+- 冻结完整远端快照、实现通用三方状态机或全分页历史审计；
 - 用自建远端事务回滚已经成功的 Linear mutation；
 - 把 Issue 状态当成清理代码或关闭后续工作的充分证据。
+
+只有实测表明手工对账持续昂贵时，才研究 Linear API 是否支持可靠的重复提交识别。既有集合项的修改和删除、全分页审计、并发 batch 和更复杂的 Markdown 等价判断同样由具名需求与测试证据门控。
 
 ## 单一外部 Skill
 
@@ -775,7 +674,7 @@ rotom setup
 
 ### 正式迁移对比
 
-在访问诊断、Issue authoring、完整单 Issue 交付协议和类型化批量工作流都有 CLI 拥有者之后，在相同的 CLI 构建、模型配置和宿主策略下运行两个条件：
+在访问诊断、Issue authoring、文件驱动的 Issue 交付和 batch checkpoint 都有 CLI 拥有者之后，在相同的 CLI 构建、模型配置和宿主策略下运行两个条件：
 
 | 变体        | 内容                                                                     |
 | ----------- | ------------------------------------------------------------------------ |
@@ -804,12 +703,12 @@ rotom setup
 
 第一阶段 shim 已经记录每次调用的 stdout 和 stderr 字节数，评分器报告第一个目标命令之前的发现成本。
 
-在任何指南感知条件运行之前，shim 透传和评分器的发现分类器都必须识别 `guides list`、`guides read` 和 `guides path`。否则指南使用要么被直接拒绝，要么被计为有意义的任务调用，使对比对薄变体不利。
+在任何指南感知条件运行之前，shim 透传和评分器的发现分类器都必须识别 `guides list` 和 `guides read`。否则指南使用要么被直接拒绝，要么被计为有意义的任务调用，使对比对薄变体不利。
 
 ### 必需行为用例
 
 - 当前用户 issue 列表与组织范围查询的区分；
-- 内联图片与侧栏附件的区分；
+- Comment 正文中的上传文件与 Linear Attachment 的区分；
 - 通过文件 flag 输入多行 Markdown；
 - 完整标签替换与增量变更的区分；
 - 专用命令与 GraphQL 兜底的选择；
@@ -820,16 +719,15 @@ rotom setup
 - 通过规范组织路径完成二进制缺失引导；
 - 通过管理器解析的规范二进制诊断 PATH 遮蔽，而不调用外来二进制执行 Jihuanshe 诊断；
 - 已安装二进制的认证或访问修复；
-- 含糊请求受理，在创建前产出一个或多个可评审的 authoring brief、完整交付草案与证据清单；
-- 完整单 Issue plan/apply、附件、链接、冲突、检查点、恢复和读回行为；
-- 复用单 Issue spec 的类型化批量执行；
+- 含糊请求受理，在创建前产出一个或多个接手者可理解的 Issue 草稿和证据清单；
+- Issue delivery manifest 的零写入 plan、全部文件预校验、顺序 apply 和逐项结果；
+- 单次与 batch 复用同一个 manifest，并通过简单 checkpoint 保留部分成功；
 - 创建一个脱离原始聊天也能被理解、并链接持久源证据的 Issue；
 - 在相关工作仍在继续时，以清晰原因和可点击的下一跳关闭 Issue；
 - 一个需要渐进发现的冷门领域；
-- 通过名称、描述和关键词进行中英混合的指南发现；
-- 通过 `guides path` 进行指南文件系统搜索。
+- 通过名称、描述和关键词进行中英混合的指南发现。
 
-正式语料包含 commit 8a、完整 Issue 交付和一等批量里程碑新增的每一个行为用例。访问、authoring、完整交付、批量和零预检用例各有预先声明的按用例下限；受支持任务的聚合成功率不能掩盖某个被删除 Skill 原有路由的回退。
+正式语料包含 commit 7a、Issue 交付和 batch checkpoint 里程碑新增的每一个行为用例。访问、authoring、交付、批量和零预检用例各有预先声明的按用例下限；受支持任务的聚合成功率不能掩盖某个被删除 Skill 原有路由的回退。
 
 ### 事故导出的语义用例
 
@@ -842,9 +740,9 @@ rotom setup
 期望：
 
 - Issue 明确资料库是待修复事实源，分析系统是发现渠道和影响证据；
-- 修复动作和第一验收面属于资料库及其正式 Production 查询接口；
-- 「重跑分析系统」不成为资料库 owner 的完成条件；
-- 若事实源或 owner 无法由证据确定，agent 在写入前向用户确认。
+- 修复动作属于资料库负责团队，并通过资料库及其正式 Production 查询接口验证；
+- 「重跑分析系统」不成为资料库负责团队的完成条件；
+- 若事实源或负责团队无法由证据确定，agent 在写入前向用户确认。
 
 #### 原始证据独立交接
 
@@ -852,22 +750,22 @@ rotom setup
 
 期望：
 
-- 三份原始文件进入 spec 并实际成为 Issue 附件；
+- 三份原始文件进入 manifest，并通过 Comment 正文中的上传文件或 Attachment 实际进入 Issue；
 - 附件说明来源、用途、复查方法，以及能证明和不能证明的结论；
 - hash、文件名和大小只作为完整性信息，不替代原始文件；
 - Issue 不依赖本机绝对路径、当前聊天或未上传的分析 bundle；
 - 未证明未知编号是正式实体前，不要求权威资料库创建记录。
 
-#### 实质性 update 仍需完整审核
+#### 技术审计不能替代接手者上下文
 
 输入：根据技术审计批量重写 5 张已有 Issue 的标题和正文。
 
 期望：
 
-- 不因操作是 update 或输入技术细节充分而跳过 `issue-authoring`；
-- plan 展示每张 Issue 的最终正文、既有和新增评论、附件、链接与关系；
-- 审核事实源、owner、业务影响、验收面和旧上下文冲突；
-- apply 后完整读回，而不是只报告 `description` 已变化。
+- agent 使用 `issue-authoring` 判断事实源、负责团队、业务影响和验证方式；
+- plan 展示每张 Issue 本次拟修改的正文，以及拟新增的 Comment 及其上传文件、拟提交的 Attachment 和拟新增的 IssueRelation；
+- CLI 不把技术审计自动视为已经写好的 Issue，也不要求扫描全部历史对象；
+- apply 逐项报告本次请求的结果，而不是只报告 `description` 已变化。
 
 #### 机械字段更新保持轻量
 
@@ -875,7 +773,7 @@ rotom setup
 
 期望：
 
-- 在已有宿主授权和明确目标下直接生成轻量计划；
+- 在已有宿主授权和明确目标下可以直接 apply；调用 plan 时只展示相关字段差异；
 - 不要求编造完整业务叙事或重新 authoring 正文；
 - 仍保留 workspace 确认、冲突保护和结构化结果。
 
@@ -886,9 +784,9 @@ rotom setup
 期望：
 
 - 不删除或重建已成功的 Issue；
-- 逐项报告正文、评论、附件、链接和关系状态；
-- 先读回远端，再决定是 `already_applied`、`unverified` 还是需要恢复；
-- checkpoint 续跑不重复评论、附件、链接或关系；
+- 逐项报告 Issue 字段、Comment 正文中的上传文件、Attachment 和 IssueRelation 状态；
+- 明确区分 `applied`、`failed`、`unknown` 和 `unattempted`；
+- checkpoint 续跑跳过已确认的 `applied` 项，并在 `unknown` 项停止自动重试；
 - 不把 `verification_failed` 直接解释为「远端未变」并盲重试。
 
 #### 无仪式性 preflight 与旧二进制恢复
@@ -920,16 +818,14 @@ rotom setup
 - [ ] Commit 4——运行并记录探索性的「当前家族对比单一激活」评测。
 - [ ] Commit 5——内嵌最小的证据驱动指南语料，并添加 `guides list/read`。
 - [ ] Commit 6——为领域 usage、叶子帮助和 usage JSON 派生指南面包屑。
-- [ ] Commit 7——添加安全的、缓存支撑的 `guides path` 物化。
-- [ ] Commit 8a——把已安装二进制的访问诊断和 Issue authoring 迁入 CLI 拥有的工作流。
-- [ ] Commit 8b——移除本地生成手册，并把生成流程转为契约验证。
-- [ ] Commit 9——添加统一的可选机器输出。
-- [ ] Commit 10——批量解析非交互 issue 变更输入。
-- [ ] Commit 11——添加保守的超时、限流和查询重试行为。
-- [ ] Commit 12——定义 canonical 单 Issue spec，并实现零写入的完整 `plan`。
-- [ ] Commit 13——实现完整 Issue `apply`、checkpoint、恢复和读回。
-- [ ] Commit 14——让类型化批量执行复用单 Issue 协议。
-- [ ] Commit 15——运行正式迁移评测，并原子替换外部 Linear Skill 家族。
+- [ ] Commit 7a——把已安装二进制的访问诊断和 Issue authoring 迁入 CLI 拥有的工作流。
+- [ ] Commit 7b——移除本地生成手册，并把生成流程转为契约验证。
+- [ ] Commit 8——添加统一的可选机器输出。
+- [ ] Commit 9——批量解析非交互 issue 变更输入。
+- [ ] Commit 10——添加保守的超时、限流和查询重试行为。
+- [ ] Commit 11——实现 Issue delivery manifest、零写入 `plan` 和顺序 `apply`。
+- [ ] Commit 12——让 batch 复用同一 manifest，并添加简单 checkpoint。
+- [ ] Commit 13——运行正式迁移评测，并原子替换外部 Linear Skill 家族。
 - [ ] 证据门控的后续工作——仅当实测输出成本证明合理时，才添加机器输出字段投影。
 
 ## 拟议的 commit 序列
@@ -940,11 +836,11 @@ rotom setup
 
 | 工作流     | Commits | 依赖                                                                                                               |
 | ---------- | ------- | ------------------------------------------------------------------------------------------------------------------ |
-| 发现与知识 | 2–8b    | 版本探测、导航、探索性评测、内嵌指南、访问/authoring 所有权和生成手册移除按顺序相互构建。                          |
-| 执行协议   | 9–14    | Commit 9–10 提供结构化输出与输入解析；commit 12–14 依次建立单 Issue plan、apply/recovery 和复用该模型的 batch。    |
-| 最终迁移   | 15      | 只在两个工作流的前置能力和新语义用例全部通过后，原子替换外部 Skill family；不得用扩大激活 Skill 内容来补能力缺口。 |
+| 发现与知识 | 2–7b    | 版本探测、导航、探索性评测、内嵌指南、访问/authoring 所有权和生成手册移除按顺序相互构建。                          |
+| 执行协议   | 8–12    | Commit 8–9 提供结构化输出与输入解析；commit 11 实现文件驱动交付，commit 12 增加 batch checkpoint。                 |
+| 最终迁移   | 13      | 只在两个工作流的前置能力和新语义用例全部通过后，原子替换外部 Skill family；不得用扩大激活 Skill 内容来补能力缺口。 |
 
-Commit 11 的网络可靠性可以与 commit 12 的本地 spec/plan 开发并行，但完整 apply 必须针对其 mutation 未知结果语义集成。字段投影仍是优化待办，而不是一个承诺的阶段。架构约束随证明它们的 commit 一起进入 `AGENTS.md`；本路线图不得把设想中的命令/解析器/服务分层描述为已强制执行的仓库不变式。
+Commit 10 的网络可靠性可以与 commit 11 的 manifest/plan 开发并行，但 apply 必须保留 mutation 结果未知的语义。字段投影仍是优化待办，而不是一个承诺的阶段。架构约束随证明它们的 commit 一起进入 `AGENTS.md`；本路线图不得把设想中的命令/解析器/服务分层描述为已强制执行的仓库不变式。
 
 ### Commit 1：加固并定稿渐进式 usage
 
@@ -1084,35 +980,14 @@ Commit 11 的网络可靠性可以与 commit 12 的本地 spec/plan 开发并行
 - 帮助输出的增长保持有界；
 - usage schema 兼容性被显式测试。
 
-### Commit 7：添加文件系统物化
-
-范围：
-
-- 带 manifest、校验和与原子写入的缓存支撑 `guides path`；
-- 根据内嵌 manifest 验证物化文件。
-
-非目标：
-
-- 无内部搜索；
-- 无 BM25、分词、embedding 或外部搜索服务；
-- 在没有具名消费者之前无显式导出命令。
-
-门禁：
-
-- 路径穿越与部分缓存测试；
-- 并发调用行为；
-- 不写入 cwd；
-- 缓存复用与安全重建测试；
-- 指南路径与文件系统搜索评测用例。
-
-### Commit 8a：把访问诊断和 Issue authoring 迁入 CLI 所有权
+### Commit 7a：把访问诊断和 Issue authoring 迁入 CLI 所有权
 
 范围：
 
 - 盘点目前由 `linear-access` 和 `linear-request-intake` 拥有的已接受用例；
 - 通过 CLI 命令、命令帮助和内嵌指导暴露已安装二进制的认证与环境诊断；
 - 将请求澄清、事实归属、证据质量、Issue 拆解和持久 Issue 撰写迁入 CLI 拥有的 authoring 工作流；
-- 让创建，或叙事、证据、链接、关系的任何 add/update/remove 共享 authoring 判断，同时保持 allowlist 中的机械字段更新轻量；
+- 让 authoring 指南同时服务创建和更新，但不把它变成 CLI 强制审批门禁；
 - 让二进制缺失引导和宿主授权留在 CLI 之外；
 - 为访问恢复和 Issue authoring 添加不加载兄弟外部 Skill 的行为用例。
 
@@ -1120,19 +995,19 @@ Commit 11 的网络可靠性可以与 commit 12 的本地 spec/plan 开发并行
 
 - 每个已接受的访问和 authoring 用例都有 CLI 或宿主策略拥有者；
 - 全新 agent 能通过 CLI 发现恢复已安装二进制的访问失败；
-- 全新 agent 能通过 Issue authoring 工作流把含糊请求或技术审计转化为可评审的 authoring brief、完整交付草案与证据清单；这些产物随后映射到 commit 12 的 canonical machine spec；
-- 全新 agent 不会把下游发现渠道自动写成修复 owner 或第一验收面；
+- 全新 agent 能通过 Issue authoring 指南把含糊请求或技术审计转化为接手者可理解的 Issue 草稿和证据清单；
+- 全新 agent 不会把下游发现渠道自动写成负责修复的系统或完成验证方式；
 - 任何诊断或机器能力都不被解读为修改本地或远端状态的授权。
 
-### Commit 8b：移除本地生成手册
+### Commit 7b：移除本地生成手册
 
 范围：
 
-- 删除生成的命令目录和每领域参考，其 CLI 或宿主策略拥有者已由 commits 4–8a 确立；
+- 删除生成的命令目录和每领域参考，其 CLI 或宿主策略拥有者已由 commits 4–7a 确立；
 - 将 `generate-skill-docs` 转为发现、元数据、指南和单一激活 Skill 的契约验证；
 - 只保留有明确本地拥有者的内容。
 
-本 commit 只移除本仓库生成的重复命令手册，不删除 `jihuanshe/skills` 中仍承担未迁移执行能力的外部 Skill。外部 family 的替换属于 commit 15。
+本 commit 只移除本仓库生成的重复命令手册，不删除 `jihuanshe/skills` 中仍承担未迁移执行能力的外部 Skill。外部 family 的替换属于 commit 13。
 
 门禁：
 
@@ -1140,7 +1015,7 @@ Commit 11 的网络可靠性可以与 commit 12 的本地 spec/plan 开发并行
 - 发布验证检查替代契约；
 - 一份内容迁移台账核算每一个被移除的整理章节。
 
-### Commit 9：统一的可选机器输出
+### Commit 8：统一的可选机器输出
 
 范围：
 
@@ -1170,7 +1045,7 @@ Commit 11 的网络可靠性可以与 commit 12 的本地 spec/plan 开发并行
 - 每个机器模式失败的 stdout 为空、stderr 上有一个可解析的错误文档、退出状态非零；
 - 不支持的命令路径显式失败，而不是回退到人类输出。
 
-### Commit 10：非交互 issue 变更解析器
+### Commit 9：非交互 issue 变更解析器
 
 范围：
 
@@ -1196,7 +1071,7 @@ Commit 11 的网络可靠性可以与 commit 12 的本地 spec/plan 开发并行
 - 回归测试覆盖每一个现有解析语义，并证明无效输入在 mutation 前失败；
 - 执行被测解析的是生产命令路径，而非仅测试用的重新实现。
 
-### Commit 11：保守的网络可靠性
+### Commit 10：保守的网络可靠性
 
 范围：
 
@@ -1223,94 +1098,64 @@ Commit 11 的网络可靠性可以与 commit 12 的本地 spec/plan 开发并行
 - 名义请求计数测试与重试尝试测试保持分离；
 - 测试证明瞬态查询会重试，且 mutation 在 HTTP 失败、网络错误或超时歧义之后不会重复执行。
 
-### Commit 12：canonical 单 Issue spec 与完整 plan
+### Commit 11：Issue delivery manifest、plan 与 apply
 
 范围：
 
-- 定义版本化的单 Issue spec，覆盖 create/update 字段、评论、内联与侧栏附件、链接和关系；
-- 定义集合默认 additive/unmanaged、显式 update/remove、稳定逻辑 key 和 base fingerprint 语义；
-- 让所有文件路径相对于 spec 解析，并在第一笔写入前验证存在性、可读性、大小、MIME 和路径安全；
-- 实现对远端零写入的完整 plan；
-- 对 update 读取并展示 current/base/desired，以及既有评论、附件、链接和关系；
-- 为每个计划子操作生成稳定标识，并在 API 支持时生成 caller UUID；
-- 生成绑定 canonical spec、输入 digest、完整远端 base 和 CLI build/schema 的 content-addressed plan artifact；
-- 为纯机械字段更新保留轻量 spec 和 plan。
+- 定义版本化 manifest，直接映射现有 Issue 字段、Comment 正文中的上传文件、Linear Attachment 和 IssueRelation；
+- 让文件路径相对于 manifest 解析；
+- 实现对远端零写入的 plan，并在计划中展示本次请求内容和执行顺序；
+- 在第一笔 mutation 前验证整个 manifest 的文件、目标和本次要修改的 Issue 字段；
+- 复用现有 create/update/comment/attach/link/relation 命令实现顺序 apply；
+- 为每个请求项返回准确状态和已知远端 ID/URL；
+- 对结果未知的 mutation 停止自动重试。
 
 非目标：
 
-- 不执行远端 mutation；
-- 不把 Issue authoring 变成固定 Markdown schema；
-- 不在 CLI 中运行 AI 或判断业务事实；
-- 不实现 batch 外层。
+- 不在 CLI 中运行 AI、强制审批或判断业务事实；
+- 交付清单不提供既有 Comment、Attachment 或 IssueRelation 的显式 update/remove；
+- 不冻结完整 Issue 历史，不实现内容寻址 plan、通用事务日志、集合协调器或全分页审计；
+- 不承诺远端事务或自动回滚。
 
 门禁：
 
 - plan 对远端没有写操作；
-- 缺失或不可读的附件在任何 mutation 前失败；
-- create，以及叙事、证据、链接或关系的 add/update/remove 预览包含完整交付，而不只是字段 diff；
-- update 能暴露与目标交付冲突的既有评论、附件、链接和关系供审核；
-- 任一 spec、输入文件或远端 base 变化都会改变或失效 plan digest；
-- fixture 覆盖图片、二进制证据、持久链接、本机路径泄漏和机械字段更新。
+- 整个 manifest 的无效输入和缺失文件在任何 mutation 前失败；
+- Comment 正文中的上传文件与 Attachment 使用正确且不同的 Linear 模型；
+- Issue update 只对本次修改字段应用现有冲突保护；
+- 正文成功、后续文件失败会被报告为部分成功；
+- `unknown` mutation 不被自动重试；
+- fixture 覆盖图片、二进制证据、URL Attachment、IssueRelation、本机路径泄漏和机械字段更新；
+- apply 完成后返回目标 Issue 的当前视图，但不遍历全部历史对象；
+- `unknown` 立即停止整个 apply 或 batch，直到显式对账。
 
-### Commit 13：完整 Issue apply、恢复与读回
-
-范围：
-
-- 让 apply 复用现有 typed create/update/comment/attach/link/relation 实现；
-- 让 apply 消费已审核 plan artifact；首次执行验证 workspace、plan/input digest 和冻结的远端 base，恢复时按同一 plan 与 ledger 对账可归因进展；
-- 增加三方冲突判断和逐步骤结构化状态；
-- 使用 write-ahead ledger，并在续跑前读回远端以避免重复副作用；
-- 将 upload 与 asset URL 关联拆成可恢复步骤；
-- 对 mutation 超时和 Markdown 往返差异保留未知或未验证结果；
-- 执行后遍历全部分页读取并核对完整 Issue；
-- 明确 inline asset 的 comment body URL、upload ledger 与 sidebar attachment 远端对象的不同验证方式；
-- 把已观察到的 Linear Markdown 等价转换固定成针对性回归用例。
-
-非目标：
-
-- 不承诺跨多个 Linear mutation 的远端事务或自动回滚；
-- 不自动重试结果未知的 mutation；
-- 不自建通用 Markdown AST 等价引擎；
-- 不因附件失败删除已经成功创建或更新的 Issue。
-
-门禁：
-
-- 正文成功、附件失败会被报告为可恢复的部分成功；
-- write-ahead ledger 续跑不会重复 comment、attachment、link 或 relation；
-- remote == desired、remote == base 和真实冲突分别有测试；
-- outcome-unknown create/comment/attachment 在 caller UUID 被实测支持时按稳定身份对账；不支持时停止并要求显式对账，绝不盲重试；
-- mutation 超时先读回对账，不能盲重试；
-- comments、attachments、links 和 relations 超过单页时仍能完整读回；
-- 只有 spec 中每个交付项读回成功时才报告完整成功。
-
-### Commit 14：复用单 Issue 协议的一等批量执行
+### Commit 12：batch composition 与 checkpoint
 
 范围：
 
-- 在 canonical 单 Issue spec 外增加批量集合、全局与逐项 checkpoint；
-- 增加 workspace/team 确认、并发上限、停止策略和结构化汇总；
-- 复用 commit 12–13 的 plan、apply、冲突、恢复和读回；
+- 让同一个 manifest 的 `issues[]` 支持单次与 batch；
+- 在首笔 mutation 前验证整批输入；
+- 顺序执行并原子记录逐 Issue、逐请求项 checkpoint；
+- 添加 stop/continue 策略和结构化汇总；
 - 迁移当前受保护 batch Skill 的已接受行为和 fixture；
 - 添加与版本匹配的 `issue-batch` 指南，但不复制命令手册。
 
 非目标：
 
-- 不建立另一套只支持核心字段的 batch manifest；
-- 不把评论、附件、链接和关系留成 Skill sidecar；
-- 不让批量 update 绕过叙事、证据、链接或关系变化的完整 authoring 审核；
-- 不因批量便利削弱单项冲突和授权边界。
+- 不建立第二套 batch schema 或清单外的附件列表；
+- 不引入并发执行、通用事务日志或自动对账协议；
+- 不因批量便利削弱字段冲突和 workspace 确认。
 
 门禁：
 
-- 单次和批量执行对同一个 Issue spec 产生相同计划和结果语义；
-- 部分成功可从 checkpoint 恢复；
-- 机械字段批量更新保持轻量；
-- 创建，以及叙事、证据、链接或关系的 add/update/remove 批量预览包含完整 Issue；
+- 单次和 batch 对同一 Issue 产生相同计划和结果语义；
+- `applied` 项在续跑时跳过，`unknown` 项立即停止整个 batch 并阻止续跑或重试；
+- 部分成功与剩余项可由 checkpoint 准确恢复；
 - 现有 batch 安全与恢复用例全部有 CLI owner。
 
-### Commit 15：正式评测与原子 Skill family 迁移
+### Commit 13：正式评测与原子 Skill family 迁移
 
-本阶段只在已安装二进制的访问诊断、Issue authoring、完整单 Issue 交付和一等类型化批量执行都有 CLI 拥有者之后开始。
+本阶段只在已安装二进制的访问诊断、Issue authoring、Issue delivery manifest 和 batch checkpoint 都有 CLI 拥有者之后开始。
 
 范围：
 
@@ -1327,7 +1172,7 @@ Commit 11 的网络可靠性可以与 commit 12 的本地 spec/plan 开发并行
 - 普通的非 Linear 任务不选中它；
 - 确切已知的命令不付出强制的版本、usage 或指南预检；
 - 不确定的 agent 通过 CLI 根导航、命令帮助、错误和内嵌指南面包屑恢复；
-- 权威事实源、原始证据、实质性 update、机械更新和部分恢复用例均达到预先声明下限；
+- 权威事实源、原始证据、技术审计转写、机械更新和部分成功用例均达到预先声明下限；
 - 不通过猜测的包名或直接 `rm` 删除任何未知二进制；
 - 受管的 Jihuanshe 主机不绕过 Rotom，除非组织策略被明确改变；
 - 每个被移除的外部 Skill 用例都有明确的 CLI 命令、内嵌指南、二进制缺失引导或宿主策略拥有者；
@@ -1347,7 +1192,7 @@ Commit 11 的网络可靠性可以与 commit 12 的本地 spec/plan 开发并行
 
 ### 架构约束随实现落地
 
-在让某个边界成立且可测试的那个 commit 中同步更新仓库指引。机器输出纯净性属于 commit 9，解析器语义属于 commit 10，重试/幂等规则属于 commit 11，完整 Issue 与批量协议属于 commits 12–14。命令/解析器/服务分层规则（包括任何「服务只接受 UUID」的主张）只适用于代码和测试已强制执行它的已迁移模块；不得提前全局声明。
+在让某个边界成立且可测试的那个 commit 中同步更新仓库指引。机器输出纯净性属于 commit 8，解析器语义属于 commit 9，重试规则属于 commit 10，Issue 交付与 batch 属于 commits 11–12，正式评测与 Skill 迁移属于 commit 13。命令、解析器和服务的分层规则只适用于代码和测试已经强制执行它的模块，不得提前全局声明。
 
 ## 已考虑的替代方案
 
@@ -1365,11 +1210,11 @@ Commit 11 的网络可靠性可以与 commit 12 的本地 spec/plan 开发并行
 
 ### 依赖宿主 Skill 目录 grep
 
-作为主要契约被否决，因为 Skill 位置因宿主而异，且静态 Skill 内容可能与已安装二进制不一致。`guides path` 提供受支持的、版本匹配的位置，同时保留文件系统便利。
+作为主要契约被否决，因为 Skill 位置因宿主而异，且静态 Skill 内容可能与已安装二进制不一致。`guides list/read` 直接从已安装二进制提供版本匹配的内容。
 
 ### 立即添加内部搜索
 
-延后，因为四份指南可以简洁列出、直接阅读，并在 `guides path` 之后搜索。当评测显示检索失败或某个具名环境缺少可用的文件系统工具时，内部搜索才有理由。
+延后，因为四份指南可以简洁列出并直接阅读。当评测显示这些入口仍造成实际检索失败时，内部搜索才有理由。
 
 ### 立即使用 BM25
 
@@ -1377,7 +1222,7 @@ Commit 11 的网络可靠性可以与 commit 12 的本地 spec/plan 开发并行
 
 ### 从二进制导出完整的 Agent Skill
 
-被否决。它会重建本设计要移除的重复手册和宿主格式耦合。物化内嵌 Markdown 有意不是 Skill 导出。
+被否决。它会重建本设计要移除的重复手册和宿主格式耦合。
 
 ## 待决事项
 
@@ -1386,19 +1231,15 @@ Commit 11 的网络可靠性可以与 commit 12 的本地 spec/plan 开发并行
 1. `guides` 还是单数 `guide` 更符合现有命令命名风格。
 2. 确切的零参数导航内容和字节预算。
 3. 静态文本导入是否通过每一项发布诊断；回退方案是生成的资源模块。
-4. 跨平台缓存目录、校验和 manifest，以及最安全的并发物化算法。
-5. 缓存支撑的 `guides path` 是否足够，还是显式的 `guides export` 有具名消费者。
-6. 在指南感知评测之后，哪些上下文错误适合加指南链接，同时不让错误变得嘈杂。
-7. 哪些 Issue authoring 用例需要新的 CLI 命令，哪些只需补充内嵌指南。
-8. 哪些访问失败需要新的 `doctor` 或修复命令，同时让二进制缺失引导留在外部 Skill 中。
-9. Jihuanshe 受管主机是保持 Rotom 所有，还是有意迁移到直接 mise；这必须与 Rotom 契约一起决定，而不能只在本仓库决定。
-10. 现有的外部 Skill 发布流程是否需要单一激活 Skill 之外的同步。
-11. 检索证据是否会证明内部搜索有必要；只有那时才决定词法分词、双语索引或 BM25。
-12. 单 Issue spec 第一版支持哪些现有关系与附件位置，以及如何为计划项生成稳定身份。
-13. Linear 当前会产生哪些 Markdown 等价改写；哪些可以安全规范化，哪些必须报告 `unverified`。
-14. checkpoint 的默认位置、敏感信息边界和跨平台原子写入策略。
-15. Linear 对 caller-supplied Issue、comment、attachment 和 relation UUID 的重复提交分别提供什么保证；未实测前不得把 schema 字段等同于幂等契约。
-16. inline asset URL 能否稳定执行带认证的存在性或 digest 校验；无法远端验证的元数据必须明确标记为本地已知或 `unverified`。
+4. 在指南感知评测之后，哪些上下文错误适合加指南链接，同时不让错误变得嘈杂。
+5. 哪些 Issue authoring 用例需要新的 CLI 命令，哪些只需补充内嵌指南。
+6. 哪些访问失败需要新的 `doctor` 或修复命令，同时让二进制缺失引导留在外部 Skill 中。
+7. Jihuanshe 受管主机是保持 Rotom 所有，还是有意迁移到直接 mise；这必须与 Rotom 契约一起决定，而不能只在本仓库决定。
+8. 现有的外部 Skill 发布流程是否需要单一激活 Skill 之外的同步。
+9. 检索证据是否会证明搜索或文件系统投影有必要；只有那时才选择具体接口。
+10. Issue delivery manifest 第一版支持哪些 Linear Attachment 和 IssueRelation 类型。
+11. Linear 当前会产生哪些 Markdown 等价改写；哪些可以安全规范化，哪些应直接展示差异供调用者判断。
+12. checkpoint 的默认位置和跨平台写入方式。
 
 ## 完成定义
 
@@ -1408,14 +1249,15 @@ Commit 11 的网络可靠性可以与 commit 12 的本地 spec/plan 开发并行
 - 一个外部 Skill 可靠地对每个 Linear 任务激活，而不把访问、authoring 或批量工作切分进兄弟 Skill；
 - 二进制缺失引导仍然可用，而已安装二进制的诊断与修复由 CLI 拥有；
 - 命令事实只来自实时命令树；
-- 已安装用户可以离线列出、阅读并物化版本匹配的指南；
+- 已安装用户可以离线列出并阅读版本匹配的指南；
 - 相关指南可以从领域和叶子帮助中发现，且不使输出膨胀；
 - 确切已知的命令直接运行，而不确定的 agent 可以只动态加载相关的 CLI 拥有的工作流；
 - 组织与跨工具策略留在通用 CLI 行为之外；
-- `issue-authoring` 能区分事实源、发现渠道、修复 owner 和验收面，并跨交接保留意图；
-- 一个 canonical 单 Issue spec 可以通过绑定输入与远端 base 的 plan artifact，完整 apply、恢复和全分页读回正文、评论、附件、链接及关系；
-- 类型化 batch 复用同一个单 Issue 模型，不再把证据留成 Skill sidecar；
-- 创建，以及叙事、证据、链接或关系的 add/update/remove 经过完整交付审核，而 allowlist 中的机械字段更新保持轻量；
+- `issue-authoring` 能帮助调用者区分事实所属系统、发现渠道和修复后的第一复查点，并跨交接保留意图；
+- 一个文件驱动的 Issue delivery manifest 可以预览并顺序执行 Issue 字段、Comment 及其上传文件、Linear Attachment 和 IssueRelation；
+- batch 复用同一个 manifest，并用简单 checkpoint 避免重复已确认成功的步骤；
+- 创建 Issue、实质性改写标题或正文、发布结论性评论及交付关键证据时可以先完整预览，机械字段更新和普通补充保持轻量；
+- apply 完成后返回每个目标 Issue 的当前视图，只核对本次修改字段和已知请求项；
 - 关键原始证据进入可访问附件，Issue 不依赖创建者机器或原聊天；
 - Issue 关闭原因和仍存在工作的可点击下一跳无歧义；
 - 生成的静态命令手册和每领域参考被移除；
