@@ -16,6 +16,9 @@ keywords:
 commands:
   - usage
   - version
+  - auth login
+  - auth whoami
+  - auth default
   - issue update
   - issue attach
   - issue comment add
@@ -52,6 +55,17 @@ linear usage --json       # 机器可读的命令树（含 writes/interactive/co
 - `document update` 会保护含内联评论锚点的内容。未经用户接受锚点可能丢失前，不要用 `--force` 绕过警告。
 - Project 的 `description` 字段被 Linear API 限制在 255 字符；长 Markdown 用 project overview 的 `content` / `content-file`。
 - workflow state 和用户名不要猜：`linear team states --json` 列出状态，`linear user list --json` 解析成员。
+
+## 认证与访问失败
+
+`linear auth whoami` 是健康探针：成功即认证有效并显示当前 workspace 与用户。失败时的恢复路径都在 CLI 内：
+
+- 缺凭据或 401：让用户在 Linear 的 Security Settings 创建最小权限 personal API key，然后运行 `linear auth login`，把 key 直接输入命令提示符。key 不粘贴进聊天、不写入 shell 历史、不出现在进程参数里。
+- 多 workspace：`auth list` 查看已配置的，`auth default` 设默认，单次命令用全局 `--workspace <slug>` 覆盖。
+- 无系统 keyring 的环境（容器、部分 VM）：`auth login --plaintext` 落盘存储。
+- 经代理访问 GraphQL：设置 `LINEAR_GRAPHQL_ENDPOINT` 环境变量后再登录；认证 header 由代理注入时，login 的 key 只用于建立本地认证状态。
+
+认证失败不能反推二进制来源错误。`linear` 命令本身缺失、被别的安装遮蔽，或组织安装策略问题，不归本 CLI 诊断——回到宿主的引导路由。
 
 ## 从已知 URL 定位对象
 

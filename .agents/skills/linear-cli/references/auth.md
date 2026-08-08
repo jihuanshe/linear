@@ -39,6 +39,7 @@ Usage:   linear auth default [workspace]
 
 Writes: true
 Interactive: true
+Related guides: core
 
 Description:
 
@@ -76,6 +77,7 @@ Usage:   linear auth login
 
 Writes: true
 Interactive: true
+Related guides: core
 
 Description:
 
@@ -155,6 +157,8 @@ Options:
 
 ```
 Usage:   linear auth whoami
+
+Related guides: core
 
 Description:
 
