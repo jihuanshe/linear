@@ -58,16 +58,32 @@ export function selfExecRunner(): CommandRunner {
 }
 
 /**
- * Linear rewrites equivalent Markdown on save (bullet markers, line endings,
- * trailing whitespace). Comparing normalized text keeps those rewrites from
- * reading as remote drift; anything this normalization cannot reconcile is
- * shown as a difference for the caller to judge, never silently "fixed".
+ * Linear rewrites equivalent Markdown on save. Forms observed against the
+ * real API (Kadoraba sandbox, 2026-08-09): trailing whitespace stripped and
+ * table delimiter rows compressed (`| ---- |` → `| -- |`); bullet markers
+ * were preserved on create but `* `/`- ` remain normalized here for the
+ * historical incident form. Comparing normalized text keeps these rewrites
+ * from reading as remote drift; anything this normalization cannot reconcile
+ * is shown as a difference for the caller to judge, never silently "fixed".
  */
 export function normalizeMarkdown(text: string): string {
   return text
     .replaceAll("\r\n", "\n")
     .split("\n")
-    .map((line) => line.replace(/[ \t]+$/, "").replace(/^(\s*)\* /, "$1- "))
+    .map((line) => {
+      const trimmed = line.replace(/[ \t]+$/, "").replace(/^(\s*)\* /, "$1- ")
+      const bare = trimmed.trim()
+      if (/^\|[\s|:-]+\|$/.test(bare) && bare.includes("-")) {
+        const cells = bare.slice(1, -1).split("|").map((cell) => {
+          const c = cell.trim()
+          const leading = c.startsWith(":") ? ":" : ""
+          const trailing = c.endsWith(":") ? ":" : ""
+          return `${leading}---${trailing}`
+        })
+        return `|${cells.join("|")}|`
+      }
+      return trimmed
+    })
     .join("\n")
     .replace(/\n+$/, "")
 }
@@ -242,12 +258,12 @@ function fileFingerprint(
 export async function expandIssue(
   issue: DeliveryIssue,
   issueIndex: number,
-  workspace: string,
+  workspaceFlags: string[],
   files: Map<string, ManifestFile>,
 ): Promise<DeliveryItem[]> {
   const items: DeliveryItem[] = []
   const target = issue.identifier ?? null
-  const ws = ["--workspace", workspace]
+  const ws = workspaceFlags
 
   if (issue.set != null || issue.operation === "create") {
     const set = issue.set ?? {}
@@ -395,11 +411,11 @@ export async function buildCommentArgs(
   issue: DeliveryIssue,
   subIndex: number,
   identifier: string,
-  workspace: string,
+  workspaceFlags: string[],
   files: Map<string, ManifestFile>,
 ): Promise<{ args: string[]; cleanup: () => Promise<void> }> {
   const comment = (issue.comments ?? [])[subIndex]
-  const args = ["issue", "comment", "add", identifier, "--workspace", workspace]
+  const args = ["issue", "comment", "add", identifier, ...workspaceFlags]
   let temp: string | null = null
   if (comment.bodyFile != null) {
     args.push(
@@ -515,6 +531,14 @@ export interface ApplyContext {
   runner: CommandRunner
   onProgress?: (line: string) => void
   /**
+   * True when authentication comes from the LINEAR_API_KEY environment
+   * variable. The CLI rejects --workspace in that mode (the key already pins
+   * the organization), so the engine drops the flag and instead verifies via
+   * `auth whoami --json` that the key's organization matches the manifest's
+   * workspace before any remote work — the guard survives the auth mode.
+   */
+  envAuthenticated?: boolean
+  /**
    * Keep executing after a confirmed `failed` item (one the CLI reported as a
    * handled error, so no remote effect landed). An `unknown` outcome always
    * stops regardless of this flag — nothing may run past an unverified
@@ -523,12 +547,42 @@ export interface ApplyContext {
   continueOnFailure?: boolean
 }
 
+async function verifyEnvKeyOrganization(
+  context: ApplyContext,
+): Promise<string[]> {
+  const { manifest } = context.loaded
+  if (context.envAuthenticated !== true) {
+    return ["--workspace", manifest.workspace]
+  }
+  const whoami = await context.runner.run(["auth", "whoami", "--json"])
+  if (whoami.code !== 0) {
+    throw new ValidationError(
+      `Cannot verify LINEAR_API_KEY organization: ${
+        whoami.stderr.trim().split("\n")[0]
+      }`,
+    )
+  }
+  const identity = JSON.parse(whoami.stdout) as {
+    organization?: { urlKey?: string }
+  }
+  const urlKey = identity.organization?.urlKey
+  if (urlKey !== manifest.workspace) {
+    throw new ValidationError(
+      `Manifest targets workspace ${manifest.workspace} but LINEAR_API_KEY resolves to ${
+        urlKey ?? "an unknown organization"
+      }`,
+    )
+  }
+  return []
+}
+
 export async function applyManifest(
   context: ApplyContext,
 ): Promise<ApplyOutcome> {
   const { loaded, runner } = context
   const { manifest, manifestPath } = loaded
   const progress = context.onProgress ?? (() => {})
+  const workspaceFlags = await verifyEnvKeyOrganization(context)
 
   const existing = await loadCheckpoint(manifestPath)
   if (existing != null) {
@@ -570,7 +624,7 @@ export async function applyManifest(
     const items = await expandIssue(
       issue,
       issueIndex,
-      manifest.workspace,
+      workspaceFlags,
       loaded.files,
     )
 
@@ -595,8 +649,7 @@ export async function applyManifest(
         "issue",
         "view",
         issue.identifier as string,
-        "--workspace",
-        manifest.workspace,
+        ...workspaceFlags,
         "--json",
       ])
       if (view.code !== 0) {
@@ -709,7 +762,7 @@ export async function applyManifest(
           issue,
           item.subIndex,
           identifier as string,
-          manifest.workspace,
+          workspaceFlags,
           loaded.files,
         )
         commandArgs = built.args
@@ -809,8 +862,7 @@ export async function applyManifest(
         "issue",
         "view",
         identifier,
-        "--workspace",
-        manifest.workspace,
+        ...workspaceFlags,
         "--json",
       ])
       if (view.code === 0) {
@@ -874,12 +926,13 @@ export async function planManifest(
   const { manifest } = loaded
   const issues: IssuePlan[] = []
   let conflict = false
+  const workspaceFlags = await verifyEnvKeyOrganization(context)
 
   for (const [issueIndex, issue] of manifest.issues.entries()) {
     const items = await expandIssue(
       issue,
       issueIndex,
-      manifest.workspace,
+      workspaceFlags,
       loaded.files,
     )
     let fields: FieldPlan[] = []
@@ -888,8 +941,7 @@ export async function planManifest(
         "issue",
         "view",
         issue.identifier as string,
-        "--workspace",
-        manifest.workspace,
+        ...workspaceFlags,
         "--json",
       ])
       if (view.code !== 0) {

@@ -77,6 +77,7 @@ export const issuePlanCommand = withUsageMetadata(
         const plan = await planManifest({
           loaded,
           runner: selfExecRunner(),
+          envAuthenticated: Deno.env.get("LINEAR_API_KEY") != null,
         })
         console.log(
           json ? JSON.stringify(plan, null, 2) : formatPlan(plan),

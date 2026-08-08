@@ -73,6 +73,7 @@ export const issueApplyCommand = withUsageMetadata(
           runner: selfExecRunner(),
           onProgress: json ? undefined : (line) => console.error(line),
           continueOnFailure,
+          envAuthenticated: Deno.env.get("LINEAR_API_KEY") != null,
         })
         console.log(
           json ? JSON.stringify(outcome, null, 2) : formatApply(outcome),

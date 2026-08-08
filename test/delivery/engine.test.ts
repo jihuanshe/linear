@@ -411,8 +411,22 @@ Deno.test("markdown normalization absorbs Linear's equivalent rewrites only", ()
     normalizeMarkdown("* one\r\n* two  \n"),
     normalizeMarkdown("- one\n- two"),
   )
+  // Real round-trip sample (Kadoraba sandbox): Linear compresses table
+  // delimiter rows on save.
+  assertEquals(
+    normalizeMarkdown("| 列 A | 列 B |\n| ---- | ---- |\n| 表格 | 单元格 |"),
+    normalizeMarkdown("| 列 A | 列 B |\n| -- | -- |\n| 表格 | 单元格 |"),
+  )
+  assertEquals(
+    normalizeMarkdown("| :--- | ---: |"),
+    normalizeMarkdown("| :-- | --: |"),
+  )
   assertEquals(
     normalizeMarkdown("- one") === normalizeMarkdown("- one changed"),
+    false,
+  )
+  assertEquals(
+    normalizeMarkdown("| a | b |") === normalizeMarkdown("| a | c |"),
     false,
   )
 })
