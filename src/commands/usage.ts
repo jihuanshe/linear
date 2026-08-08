@@ -341,6 +341,9 @@ export function formatUsage(
       : "detail: linear <domain> usage; linear <command> --help",
     `machine-readable: ${document.command.path} usage --json`,
   )
+  if (document.subcommands.some((command) => command.name === "guides")) {
+    lines.push("workflows: linear guides list; linear guides read <name>")
+  }
   return lines.join("\n")
 }
 

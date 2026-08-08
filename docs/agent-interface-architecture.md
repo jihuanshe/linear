@@ -823,7 +823,7 @@ CLI 测试拥有机器能够可靠裁定的契约：
 
 本次发布范围（集成分支）：
 
-- [ ] Commit 5——内嵌最小的证据驱动指南语料，并添加 `guides list/read`。
+- [x] Commit 5——内嵌最小的证据驱动指南语料，并添加 `guides list/read`。
 - [ ] Commit 6——为领域 usage、叶子帮助和 usage JSON 派生指南面包屑。
 - [ ] Commit 7a——把已安装二进制的访问诊断和 Issue authoring 迁入 CLI 拥有的工作流。
 - [ ] Commit 7b——移除本地生成手册，并把生成流程转为契约验证。

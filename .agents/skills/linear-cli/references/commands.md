@@ -7,6 +7,7 @@
 - [config](./config.md) - Interactively generate .linear.toml configuration
 - [cycle](./cycle.md) - Manage Linear team cycles
 - [document](./document.md) - Manage Linear documents
+- [guides](./guides.md) - Version-matched workflow guides
 - [initiative](./initiative.md) - Manage Linear initiatives
 - [initiative-update](./initiative-update.md) - Manage initiative status updates (timeline posts)
 - [issue](./issue.md) - Manage Linear issues
