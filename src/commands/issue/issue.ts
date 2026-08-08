@@ -13,6 +13,8 @@ import { pullRequestCommand } from "./issue-pull-request.ts"
 import { queryCommand } from "./issue-query.ts"
 import { relationCommand } from "./issue-relation.ts"
 import { agentSessionCommand } from "./issue-agent-session.ts"
+import { issueApplyCommand } from "./issue-apply.ts"
+import { issuePlanCommand } from "./issue-plan.ts"
 import { startCommand } from "./issue-start.ts"
 import { titleCommand } from "./issue-title.ts"
 import { updateCommand } from "./issue-update.ts"
@@ -42,4 +44,6 @@ export const issueCommand = new Command()
   .command("attach", attachCommand)
   .command("link", linkCommand)
   .command("relation", relationCommand)
+  .command("plan", issuePlanCommand)
+  .command("apply", issueApplyCommand)
   .command("agent-session", agentSessionCommand)

@@ -21,6 +21,9 @@ commands:
   - issue attach
   - issue link
   - issue url
+  - issue plan
+  - issue apply
+  - upload
 seeAlso:
   - core
   - automation
@@ -53,6 +56,7 @@ Issue 的第一消费者是没有本对话上下文的人或 AI。标题或正�
 
 - 图片作为带说明的内联评论：`issue comment add <id> --body-file <说明> --attach <图片>`；说明写清场景、表达的是当前态还是期望态、接手者应关注什么。
 - 其他文件（录屏、日志、Replay、数据样本）用 `issue attach <id> <file> --title <标题>` 或评论附件；说明来源、用途、复查方法，以及它证明什么、不证明什么。
+- 正文或评论的任意 Markdown 位置（包括表格单元格）需要嵌入图片或文件时，先 `linear upload <file>` 取得 asset URL，再把返回的 Markdown 片段写进正文。
 - 外部材料写完整、持久、接手者可访问的链接；仓库材料至少写明仓库、revision 或 branch 及路径。
 - 文件名、hash、大小只是完整性信息，不能替代原始文件。本机绝对路径、当前聊天中的隐式附件、没有 URL 的材料名称都不算已交接。
 - 先脱敏账号、凭据和非必要用户数据。
@@ -67,6 +71,10 @@ Issue 的第一消费者是没有本对话上下文的人或 AI。标题或正�
 创建或实质性改写前，向用户展示拟定标题、正文、推断的 team/labels/assignee、附件与链接清单、显式假设和缺失证据；沉默不算确认。
 
 写入后用 `issue view <id> --json` 读回正文、评论和附件，逐项核对：没有依赖本机或当前聊天的指代；关键证据实际出现；接手者能重建当前行为、期望结果和验收依据。读回只证明附件已记录，不证明他人拥有外部系统权限；无法验证访问时明确标注。上传失败保留已创建的 Issue，报告缺失项和精确补充动作，不删除重建。
+
+## 多对象交付用 manifest
+
+一次交付涉及正文、多条评论、多个文件、Attachment 或关系时，不要手工串联多条命令——那正是附件被遗漏的方式。写一个 delivery manifest，用 `issue plan --file <manifest>` 零写入预览完整交付（含字段三方比较：base 是你上次读到的值，同事改过的字段会显示 conflict 而不是被覆盖），确认后 `issue apply --file <manifest> --confirm-workspace <slug>` 顺序执行并逐项报告 applied/failed/unknown/unattempted。checkpoint 写在 manifest 旁边，续跑跳过已确认成功的项；unknown 结果会阻塞续跑，必须先对账。机械字段更新（只改 priority/state/labels）不需要 base，直接 apply 即可。
 
 ## 有始有终
 

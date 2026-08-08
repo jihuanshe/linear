@@ -660,6 +660,10 @@ export const createCommand = withUsageMetadata(new Command(), {
   )
   .option("--no-interactive", "Disable interactive prompts")
   .option("-t, --title <title:string>", "Title of the issue")
+  .option(
+    "-j, --json",
+    "Output the created issue, including id, identifier, and url, as JSON (non-interactive only)",
+  )
   .action(
     async (
       {
@@ -680,9 +684,10 @@ export const createCommand = withUsageMetadata(new Command(), {
         cycle,
         interactive,
         title,
+        json,
       },
     ) => {
-      interactive = interactive && Deno.stdout.isTerminal()
+      interactive = interactive && Deno.stdout.isTerminal() && json !== true
 
       // Validate that description and descriptionFile are not both provided
       if (description && descriptionFile) {
@@ -923,8 +928,10 @@ export const createCommand = withUsageMetadata(new Command(), {
           description: finalDescription,
         }
         spinner?.stop()
-        console.log(`Creating issue in ${team}`)
-        console.log()
+        if (json !== true) {
+          console.log(`Creating issue in ${team}`)
+          console.log()
+        }
         spinner?.start()
 
         const createIssueMutation = gql(`
@@ -947,8 +954,12 @@ export const createCommand = withUsageMetadata(new Command(), {
         }
         const issueId = issue.id
         spinner?.stop()
-        console.log(`✓ Created issue ${issue.identifier}: ${title}`)
-        console.log(issue.url)
+        if (json === true) {
+          console.log(JSON.stringify(data.issueCreate, null, 2))
+        } else {
+          console.log(`✓ Created issue ${issue.identifier}: ${title}`)
+          console.log(issue.url)
+        }
 
         if (start) {
           await startWorkOnIssue(issueId, issue.team.key)

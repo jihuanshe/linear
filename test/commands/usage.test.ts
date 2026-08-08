@@ -33,6 +33,7 @@ const CANONICAL_WRITES_COMMAND_PATHS = [
   "linear initiative unarchive",
   "linear initiative update",
   "linear initiative-update create",
+  "linear issue apply",
   "linear issue attach",
   "linear issue comment add",
   "linear issue comment delete",
@@ -59,6 +60,7 @@ const CANONICAL_WRITES_COMMAND_PATHS = [
   "linear team create",
   "linear team delete",
   "linear update",
+  "linear upload",
 ]
 
 async function run(args: string[]) {
@@ -108,7 +110,7 @@ Deno.test("zero-argument root reuses concise usage navigation", async (t) => {
   assertEquals(result.stderr, "")
   assertEquals(result.stdout, explicitUsage.stdout)
   assertEquals(
-    new TextEncoder().encode(result.stdout).byteLength <= 1_600,
+    new TextEncoder().encode(result.stdout).byteLength <= 2_000,
     true,
   )
   await assertSnapshot(t, result.stdout)
@@ -270,7 +272,7 @@ Deno.test("domain usage --json preserves arguments, aliases, and option types", 
   assertEquals(create?.writes, true)
   assertEquals(create?.interactive, true)
   assertEquals(create?.confirmation, null)
-  assertEquals(create?.outputModes, ["human"])
+  assertEquals(create?.outputModes, ["human", "json"])
   const team = create?.options.find((option) => option.name === "team")
   assertEquals(team?.flags, ["--team"])
   assertEquals(team?.arguments[0]?.type, "string")
