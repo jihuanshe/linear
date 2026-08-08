@@ -92,6 +92,8 @@ The [`lark` router Skill](https://github.com/jihuanshe/skills/blob/main/skills-s
 8. **Searchability is an interface, not a storage accident.** Filesystem grep is useful, but agents should not need to know host-specific Skill installation paths.
 9. **Remain offline and deterministic.** Guide discovery must not require network access, embeddings, or an external service.
 10. **Add complexity only after evidence.** Start with a small guide corpus and `list`/`read`/`path`. Add internal search, richer ranking, or embedded specialist workflows only when evals show a need.
+11. **Preserve intent, not templates.** Issue guidance should help an unfamiliar human or agent recover the goal, evidence, closure reason, and any next hop. It must not require ceremonial sections that add no information.
+12. **Status is a routing signal, not proof.** A completed Issue tells an agent to re-check linked work; it does not prove that source, deployment, or a temporary compatibility path is ready to change.
 
 ## Design review decisions
 
@@ -133,6 +135,7 @@ Some capability facts cannot be inferred mechanically from Cliffy's syntax. Thei
 - writing and verifying multi-step operations;
 - Markdown file flags;
 - complete-label-set replacement versus incremental label changes;
+- writing Issues that survive handoff, use durable links, and end with a closure reason plus a clickable next hop when work continues;
 - schema discovery, variables, pagination, and GraphQL fallback;
 - batch plan/apply, conflict, checkpoint, and recovery semantics once batch execution is a first-class CLI feature.
 
@@ -148,6 +151,7 @@ Facts that can be fully stated by one command must remain in that command's desc
 - environment routing such as macOS versus exe.dev;
 - owner identity, Reflection, integration selection, and secret-handling policy;
 - request classification, product clarification, evidence collection, redaction, and approval workflows;
+- organization or host policy for linking source-local temporary behavior to an Issue and deciding whether creating that external object is authorized;
 - routing between direct CLI operations, access repair, intake, and reviewed batch writes;
 - cross-tool use of browsers, logs, repositories, conversations, or other Skills.
 
@@ -286,10 +290,13 @@ Each guide should contain structured metadata, for example:
 ---
 name: issue-writing
 title: Writing and updating issues
-description: Markdown, labels, assignees, and safe update behavior
+description: Durable handoff context, Markdown, labels, attachments, closure, and next hops
 keywords:
   - issue
   - update
+  - handoff
+  - closure
+  - next-hop
   - markdown
   - label
   - attachment
@@ -622,6 +629,8 @@ Before any guide-aware condition runs, both the shim passthrough and grader disc
 - a legitimate raw GraphQL control;
 - destructive confirmation;
 - prompt-disabled execution without inferred consent;
+- creating an Issue that can be understood without the originating chat and links durable source evidence;
+- closing an Issue with a clear reason and a clickable next hop when related work remains;
 - an uncommon domain requiring progressive discovery;
 - mixed Chinese and English guide discovery through names, descriptions, and keywords;
 - guide filesystem search through `guides path`.
@@ -760,6 +769,7 @@ Gate:
 Scope:
 
 - add the minimal source guides justified by commit 4, expected to begin with `core`, `automation`, `issue-writing`, and `graphql`;
+- make `issue-writing` teach durable handoff context, evidence links, closure reasons, and next hops without imposing a rigid universal template;
 - define and validate guide metadata;
 - embed Markdown with static text imports and a complete import manifest;
 - add `guides list`, `guides list --json`, and `guides read`;
@@ -1034,6 +1044,7 @@ The architecture is complete when:
 - related guides are discoverable from domain and leaf help without bloating output;
 - a thin host Skill reliably activates and routes Linear tasks;
 - organization and cross-tool policy remains outside generic CLI behavior;
+- issue-writing guidance preserves intent across handoffs and makes closure and continuing work unambiguous;
 - the generated static command manual and per-domain references are removed;
 - evals show no task-success, GraphQL-control, or safety regression;
 - machine output, resolver performance, and retry work can proceed independently on the resulting foundation.
