@@ -197,7 +197,7 @@ linear issue --help
 linear issue query --help
 ```
 
-Generated command documentation is available under [`.agents/skills/linear-cli/references`](.agents/skills/linear-cli/references/commands.md).
+Cross-command workflow guides ship inside the binary and stay version-matched: `linear guides list`, `linear guides read <name>`.
 
 ## Configuration
 
@@ -249,14 +249,9 @@ Anyone with that URL can access the image without authenticating. The CLI theref
 
 The repository uses the standard [Agent Skills](https://agentskills.io/) layout:
 
-- [`.agents/skills/linear-cli`](.agents/skills/linear-cli/SKILL.md) teaches compatible agents this fork's commands and safety contracts.
 - [`.agents/skills/releasing`](.agents/skills/releasing/SKILL.md) documents the contributor release workflow for this repository.
 
-Compatible agents discover these Skills automatically when working in this checkout. To install only the Linear management Skill elsewhere with the cross-agent Skills CLI:
-
-```bash
-npx skills add jihuanshe/linear@linear-cli
-```
+Command facts live in the live command tree (`linear usage`, `--help`) and cross-command workflows in the embedded guides (`linear guides`), so no generated Skill manual exists here. The external activation Skill for agents is maintained in `jihuanshe/skills`.
 
 Agents must use the installed `jihuanshe/linear` binary. They should not fall back to the upstream npm package because its available commands and automation contracts may differ from this fork.
 
@@ -280,11 +275,7 @@ deno task verify-source
 
 That runs GraphQL code generation, formatting checks, linting, type checking, and all non-Keyring tests.
 
-When the command tree, help output, or Skill template changes, regenerate the Linear CLI Skill:
-
-```bash
-deno task generate-skill-docs
-```
+When the command tree or `docs/guides/` changes, the guides tests validate frontmatter, command references, and the import manifest against the live tree.
 
 Before a release, run the complete local release gate:
 
