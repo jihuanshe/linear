@@ -114,6 +114,9 @@ Use --help to see available commands
 13. **一起预览和执行，不等于同步整个远端状态。** Issue 字段、Comment 正文中的上传文件、Attachments 和 IssueRelations 应使用同一份交付清单；未提及的既有对象保持不变。
 14. **区分事实源与发现渠道。** 下游消费者、缓存、日志或分析可以暴露问题，但不会因此自动成为负责修复的系统或团队。Issue 应围绕待治理的事实及其验证方式组织上下文。
 15. **原始证据优先于创建者记忆。** 一个 hash、本机路径、聊天中的隐式附件或分析摘要不能替代接手者实际需要的原始文件和持久链接。
+16. **原语必须赢过 AI 直接写 GraphQL。** AI 已经非常擅长用 Shell、Python 或 TypeScript 直接操作 GraphQL。CLI 只实现赢过这条基线的原语：版本匹配的知识、上传管道这类多步骤 plumbing、并发冲突安全、逐项结果核算。复杂到需要说明书才能用的原语等于失败；长尾操作留给 `linear api`。
+17. **协议自由可调。** 没有向下兼容义务，JSON 契约、参数和 schema 在改进设计时可以直接重塑。tolerant-reader 与 schema 版本号是给未来消费者的秩序，不是当前设计的枷锁。
+18. **设计权衡留在源码现场。** 影响使用方式的设计决策——为什么这样设计、引导了什么披露、相关指南——写进实现处的模块注释或本文档并互相引用，让没有上下文的下游 AI 在代码现场就能恢复决策语境。这是本轮重构的核心目标之一：Context Engineering。
 
 ## 设计评审决定
 
@@ -438,6 +441,18 @@ V1 使用 Linear GraphQL 已有对象，不再发明平行集合：
 
 Attachment 的 URL 在同一 Issue 内具有上游定义的唯一性，重复 URL 会更新既有 Attachment。这个约束不代表其他 mutation 也能安全重复提交；V1 不据此发明通用幂等协议。
 
+### 上传原语与富文本
+
+Linear 的描述和评论是真正的富文本：表格单元格可以嵌图片，AI 会上传 PDF、图片和各类 artifact，最终多数以 Comment 形式进入 Issue。支撑这一切只需要一个原语：
+
+```bash
+linear upload <file...>
+```
+
+上传文件并返回 asset URL，连同 public/private 与 MIME 信息。上传管道——`fileUpload` mutation、签名 `uploadUrl` 与 headers、PUT、`assetUrl`——已存在于 `src/utils/upload.ts`，目前只被 `issue attach` 和 `issue comment add --attach` 内部消费。暴露为独立命令后，AI 可以把 URL 嵌进任何 Markdown 位置——描述、评论、表格单元格——CLI 不需要为「富文本」建任何额外表面。manifest 的 `comments[].files` 只是这个原语加正文追加的组合语法糖。
+
+这个原语过「值得性」门槛的原因：三步上传舞蹈、认证 headers 和 public/private 语义是纯 plumbing，AI 用原始 GraphQL 每次都要重新拼。相反，「把 Markdown 写对」不需要原语——那正是 AI 已经擅长的部分。
+
 ### `issue-authoring` 指南
 
 指南为人和 agent 提供写好 Issue 所需的上下文，不充当强制审批流程，也不要求生成中间文档。它应帮助回答：
@@ -508,7 +523,7 @@ linear issue plan --file delivery.json
 1. 对远端零写入；允许只读解析 workspace、Issue、字段值和 IssueRelation target。
 2. 展示本次请求将设置的 Issue 字段、将新增的 Comment 及其上传文件、将提交的 Attachments 和将新增的 IssueRelations；同 URL 的 Attachment 可能更新既有对象。
 3. 在第一笔 mutation 前验证整个 manifest 的全部本地文件，包括存在性、可读性、大小和 MIME。
-4. 对 update 只比较本次要修改的字段，沿用现有 batch 对 workspace、目标 Issue、team、workflow state 和字段变化的保护；无关评论或 Attachment 变化不制造冲突。
+4. 对 update 只比较本次要修改的字段，沿用现有 batch 对 workspace、目标 Issue、team、workflow state 和字段变化的保护。这是 CLI 拥有的并发安全兜底：AI 准备材料需要时间，期间上游 Issue 可能已被他人修改。无关评论或 Attachment 变化不制造冲突。
 5. 输出确定的执行顺序、解析结果、文件 size/MIME/SHA-256 和结构化机器结果。
 
 `plan` 是可选的零副作用预览，不是每次写入前的强制仪式。调用者已经明确目标时，可以直接执行 `apply`；`apply` 自己仍须在第一笔 mutation 前完成同样的输入验证。V1 不冻结完整 Issue 历史，也不替用户授权写入。
@@ -812,7 +827,7 @@ CLI 测试拥有机器能够可靠裁定的契约：
 - [ ] Commit 6——为领域 usage、叶子帮助和 usage JSON 派生指南面包屑。
 - [ ] Commit 7a——把已安装二进制的访问诊断和 Issue authoring 迁入 CLI 拥有的工作流。
 - [ ] Commit 7b——移除本地生成手册，并把生成流程转为契约验证。
-- [ ] Commit 11——实现 Issue delivery manifest、零写入 `plan` 和顺序 `apply`。
+- [ ] Commit 11——暴露 `linear upload` 原语，实现 Issue delivery manifest、零写入 `plan` 和顺序 `apply`。
 - [ ] Commit 12——让 batch 复用同一 manifest，并添加简单 checkpoint。
 - [ ] 发布编排——merge 集成分支、发布、验证安装，然后在 `jihuanshe/skills#219` 内完成全新 agent 验证与 family 原子替换并 sync。
 
@@ -1033,6 +1048,7 @@ Commit 8–10 与 Skill 迁移零耦合：delivery 与 batch 使用现有 `--jso
 
 范围：
 
+- 把 `src/utils/upload.ts` 的上传管道暴露为独立的 `linear upload` 命令，返回 asset URL、public/private 与 MIME 信息；
 - 定义版本化 manifest，直接映射现有 Issue 字段、Comment 正文中的上传文件、Linear Attachment 和 IssueRelation；
 - 让文件路径相对于 manifest 解析；
 - 实现对远端零写入的 plan，并在计划中展示本次请求内容和执行顺序；
@@ -1296,6 +1312,7 @@ Commit 8–10 与 Skill 迁移零耦合：delivery 与 batch 使用现有 `--jso
 - 确切已知的命令直接运行，而不确定的 agent 可以只动态加载相关的 CLI 拥有的工作流；
 - 组织与跨工具策略留在通用 CLI 行为之外；
 - `issue-authoring` 能帮助调用者区分事实所属系统、发现渠道和修复后的第一复查点，并跨交接保留意图；
+- `linear upload` 让任何 Markdown 位置——描述、评论、表格单元格——都能嵌入已上传的 artifact；
 - 一个文件驱动的 Issue delivery manifest 可以预览并顺序执行 Issue 字段、Comment 及其上传文件、Linear Attachment 和 IssueRelation；
 - batch 复用同一个 manifest，并用简单 checkpoint 避免重复已确认成功的步骤；
 - 创建 Issue、实质性改写标题或正文、发布结论性评论及交付关键证据时可以先完整预览，机械字段更新和普通补充保持轻量；
