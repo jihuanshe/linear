@@ -1,4 +1,5 @@
 import { Command } from "@cliffy/command"
+import { createUsageAction } from "../usage.ts"
 
 import { defaultCommand } from "./auth-default.ts"
 import { listCommand } from "./auth-list.ts"
@@ -10,9 +11,7 @@ import { whoamiCommand } from "./auth-whoami.ts"
 
 export const authCommand = new Command()
   .description("Manage Linear authentication")
-  .action(function () {
-    this.showHelp()
-  })
+  .action(createUsageAction(true))
   .command("login", loginCommand)
   .command("logout", logoutCommand)
   .command("list", listCommand)

@@ -1,20 +1,33 @@
-# Agent interface architecture and delivery roadmap
+# Agent 接口架构与交付路线图
 
-Status: accepted architecture roadmap, revised after an independent design review. The progressive `usage` baseline, metadata hardening, and distribution/version/capability probe are implemented; zero-argument navigation is the next commit. The guide system and Skill migration are not yet implemented.
+状态：已接受的架构与实施计划，经独立设计评审、真实 Issue 交接事故和 2026-08-08 的一次性交付决定修订。渐进式 `usage`、元数据加固、分发/版本/capability 探针、零参数导航和单一激活 Skill 场景探测已完成；剩余能力在集成分支上完成后，与外部 Skill 替换在同一发布窗口一起上线。
 
-## Executive summary
+## 执行摘要
 
-The CLI should become a version-matched, progressively discoverable protocol for both humans and agents. Its installed Agent Skill should become a thin router rather than a second command manual.
+本架构服务一个统一的目标函数：让信息每经过一次人、AI、代码、Issue 或知识库的转手，尽可能少损失原始意图。任何临时偏离都应保持可理解、可追溯、可验证、可结束，且不要求下一位接手者拥有产生它的对话。信息按形态归位：
 
-The ownership rule is:
+| 信息形态                                 | 归属                          |
+| ---------------------------------------- | ----------------------------- |
+| 尚在变化的问题、调查、决策、证据         | Linear Issue                  |
+| 当前位置的必要意图与 canonical Issue URL | 代码注释                      |
+| 确定性行为约束                           | 代码与测试                    |
+| 跨任务稳定事实                           | OKF 知识库                    |
+| 全局维护边界与授权                       | 宿主 AGENTS.md 与系统策略     |
+| 可观测现场事实                           | CLI 输出、manifest 与审计产物 |
 
-> Mechanically enumerable, version-dependent facts belong to the CLI. Routing, authorization, and cross-tool judgment belong to the host Agent Skill.
+Linear 是公司动态上下文的容器，代码注释是通往它的路由入口。本 CLI 及其唯一的外部激活 Skill 是这条信息流在 Linear 域的执行工具；同一边界由 ipruning/skills#26（个人宿主指引）与 jihuanshe/skills#219（公司 `preserving-context-continuity` Skill）在各自层面承载。
 
-This leads to four layers:
+CLI 应当成为一个版本匹配、可渐进发现的协议，同时服务人类与 agent。Jihuanshe 应当只暴露一个已安装的 Linear Agent Skill 用于第一英里激活；CLI 应当拥有目前分散在外部 Linear Skill 家族中的工作流。
+
+所有权规则是：
+
+> Linear 命令事实和可复用的 Linear 工作流属于 CLI。一个外部 Skill 负责激活 Linear；授权始终是宿主策略，绝不从 CLI 能力推导而来。
+
+由此得到四个层次：
 
 ```text
-Host Agent Skill
-  activation, neighboring-Skill routing, authorization boundaries
+One external Linear Skill
+  activation for every Linear task; missing-binary bootstrap only
         |
         v
 CLI discovery
@@ -26,147 +39,167 @@ Embedded guides
         |
         v
 Execution protocol
-  typed commands, structured output, schema-assisted raw GraphQL fallback
+  Issue delivery manifest, preview/apply, existing commands, structured output,
+  schema-assisted raw GraphQL fallback
 ```
 
-The important change is not merely making the Skill shorter. It is moving each kind of knowledge to the layer that owns and can keep it correct.
+关键变化不只是让某个 Skill 变短，而是移除相互竞争的外部路由，并把可复用的 Linear 行为迁移到拥有它的版本化程序中。
 
-## Motivation
+Issue 是这里最重要的交付边界。标题或正文 mutation 成功，不等于任务已经被可靠交接。CLI 应让 agent 和人类能在一次预览中看到 Issue 字段、Comment 正文中的上传文件、Linear Attachments 和 IssueRelations，并在写入前验证输入、写入后得到逐项结果。指南负责提供正确上下文，交付命令负责避免多条 shell 命令之间的遗漏。
 
-### The current first-run experience is a dead end
+## 动机
 
-Running `linear` without arguments currently prints only:
+### 当前的首次运行体验是死胡同
+
+目前不带参数运行 `linear` 只会打印：
 
 ```text
 Use --help to see available commands
 ```
 
-That misses an opportunity to teach progressive discovery, distinguish commands from workflows, and direct an agent to version-matched documentation.
+这错失了一个机会：教授渐进式发现、区分命令与工作流，并把 agent 引导到版本匹配的文档。
 
-### Generated Skill references duplicate the command tree
+### 生成的 Skill 参考重复了命令树
 
-The current `linear-cli` Skill contains a generated command catalog and one generated reference per domain. Most of this material is a snapshot of information already owned by Cliffy's command tree: command names, aliases, arguments, options, defaults, and descriptions.
+当前的 `linear-cli` Skill 包含一份生成的命令目录和每个领域一份生成的参考文件。其中大部分内容是 Cliffy 命令树已经拥有的信息快照：命令名、别名、参数、选项、默认值和描述。
 
-This duplication has three costs:
+这种重复有三项成本：
 
-- documentation can drift from the installed binary;
-- every Skill load can consume facts that are irrelevant to the current task;
-- the generator and release gate must maintain a second representation of the command surface.
+- 文档可能与已安装的二进制发生漂移；
+- 每次加载 Skill 都可能消耗与当前任务无关的事实；
+- 生成器和发布门禁必须维护命令表面的第二套表示。
 
-### A thin Skill alone is not enough
+### 仅有一个薄 Skill 并不够
 
-The useful pattern in tools such as `lark-cli` and `agent-browser` is not simply that their external Skill is short. Domain knowledge has moved into version-matched runtime resources, and the external Skill teaches the agent how and when to discover them.
+`lark-cli` 和 `agent-browser` 这类工具中有用的模式，并不只是它们的外部 Skill 很短。领域知识已经迁移到版本匹配的运行时资源中，而外部 Skill 教 agent 如何以及何时发现它们。
 
-Embedding guides solves versioning and cohesion, but it does not solve first-mile activation. An installed binary cannot tell an agent to use `linear` until the agent has already selected it. A small host Skill remains necessary for:
+内嵌指南解决了版本匹配和内聚问题，但没有解决第一英里激活。在 agent 已经选中 `linear` 之前，一个已安装的二进制无法告诉 agent 去使用它。一个小的外部 Skill 仍然必要，用于：
 
-- recognizing Linear tasks and identifiers;
-- distinguishing direct CLI work, access repair, request intake, and reviewed batch writes;
-- expressing authorization rules supplied by the host, not by command syntax;
-- handing off to other Skills and tools.
+- 识别每一个 Linear 任务、URL 和标识符；
+- 在确切命令尚不确定时，调用 CLI 自身的发现机制和版本匹配的工作流；
+- 在 `linear` 缺失时引导安装规范二进制。
 
-## Reference patterns
+访问修复、Issue authoring 和受保护的批量写入是 Linear 产品工作流，不是安装相互竞争的宿主 Skill 的理由。它们应当成为 CLI 命令和内嵌指南。授权仍留在 CLI 之外，由宿主的系统或仓库策略负责。
+
+## 参考模式
 
 ### Linearis
 
-[Linearis](https://github.com/linearis-oss/linearis) demonstrates CLI-native two-level usage, centralized machine output, batch mutation input resolution, and client reliability policy. The parts worth adapting are the principle that the CLI is an on-demand protocol and that a Skill teaches discovery rather than copying every flag.
+[Linearis](https://github.com/linearis-oss/linearis) 展示了 CLI 原生的两级 usage、集中式机器输出、批量变更输入解析和客户端可靠性策略。值得借鉴的部分是这样的原则：CLI 是按需协议，Skill 教的是发现而不是复制每一个 flag。
 
-The parts not to copy are equally important: this CLI should not become JSON-only, weaken destructive-operation protection, silently ignore invalid field projections, retry mutations indiscriminately, or reduce the existing raw GraphQL escape hatch.
+不应照搬的部分同样重要：这个 CLI 不应变成 JSON-only、削弱破坏性操作保护、静默忽略无效字段投影、不加区分地重试 mutation，或削减现有的原始 GraphQL 逃生通道。
 
-### Lark router Skill
+### Lark 路由 Skill
 
-The [`lark` router Skill](https://github.com/jihuanshe/skills/blob/main/skills-stable/lark/lark/SKILL.md) is short because detailed, version-coupled domain knowledge is read from `lark-cli skills list/read`. It still retains cross-Skill routing, execution-path priority, high-risk-write policy, and environment recovery. Its lesson is that knowledge moved to a better owner; it was not deleted.
+[`lark` 路由 Skill](https://github.com/jihuanshe/skills/blob/main/skills-stable/lark/lark/SKILL.md) 之所以短，是因为详细的、与版本耦合的领域知识从 `lark-cli skills list/read` 读取。它仍保留跨 Skill 路由、执行路径优先级、高风险写入策略和环境恢复。它的经验是：知识迁移到了更好的拥有者，而不是被删除。
 
 ### agent-browser
 
-`agent-browser` combines a useful no-argument `Start here` section, version-matched embedded Skills, full leaf command help, and `skills path` for filesystem access. It shows that runtime guides and a materialized path can coexist: structured discovery serves portability while files preserve agent and Unix search affordances.
+`agent-browser` 结合了有用的无参数 `Start here` 区块、版本匹配的内嵌 Skill 和完整的叶子命令帮助。它表明 CLI 可以按需提供与版本匹配的指导，而不要求宿主 Skill 复制命令手册。
 
-## Design principles
+## 设计原则
 
-1. **One owner for command facts.** Command names, arguments, options, aliases, defaults, and runtime capabilities come from the live Cliffy tree.
-2. **One owner for version-matched workflows.** Cross-command CLI handbooks live in this repository and ship with the binary.
-3. **Skills route; they do not mirror manuals.** The host Skill retains activation, cross-Skill routing, authorization policy, and a small number of result-semantic traps that must be known before choosing a command.
-4. **Progressive disclosure is optional, not ceremonial.** An agent that already knows the exact dedicated command may call it directly. An uncertain agent must have a reliable path that does not require guessing.
-5. **Machine mode never grants consent.** `writes: true`, JSON output, `LINEAR_PROMPT_DISABLED=1`, `--force`, `--confirm`, and `--yes` describe capabilities or execution mechanisms, not authorization.
-6. **Dedicated commands precede escape hatches.** Prefer a purpose-built command, then schema-assisted `linear api`, and use direct HTTP only when the CLI cannot provide required control.
-7. **Documentation aids safety; code enforces it.** Guides can explain label replacement, destructive operations, and document anchors, but runtime validation and confirmation remain the final guard.
-8. **Searchability is an interface, not a storage accident.** Filesystem grep is useful, but agents should not need to know host-specific Skill installation paths.
-9. **Remain offline and deterministic.** Guide discovery must not require network access, embeddings, or an external service.
-10. **Add complexity only after evidence.** Start with a small guide corpus and `list`/`read`/`path`. Add internal search, richer ranking, or embedded specialist workflows only when evals show a need.
+1. **命令事实只有一个拥有者。** 命令名、参数、选项、别名、默认值和运行时能力来自实时的 Cliffy 树。
+2. **版本匹配的工作流只有一个拥有者。** 跨命令的 CLI 手册存放在本仓库并随二进制一起发布。
+3. **一个 Skill 负责激活；CLI 负责教学。** 外部 Skill 对所有 Linear 工作只有一条正向路由。命令选择、访问诊断、Issue 受理、批量执行和结果语义属于 CLI 代码、帮助和内嵌指南。
+4. **渐进披露是可选项，不是仪式。** 已经知道确切专用命令的 agent 可以直接调用。不确定的 agent 必须有一条不需要猜测的可靠路径。
+5. **机器模式绝不授予同意。** `writes: true`、JSON 输出、`LINEAR_PROMPT_DISABLED=1`、`--force`、`--confirm` 和 `--yes` 描述的是能力或执行机制，不是授权。
+6. **专用命令先于逃生通道。** 优先使用专门构建的命令，其次是 schema 辅助的 `linear api`，只有当 CLI 无法提供所需控制时才使用直接 HTTP。
+7. **文档辅助安全；代码强制安全。** 指南可以解释标签替换、破坏性操作和文档锚点，但运行时校验和确认仍是最终防线。
+8. **可发现性是接口，不是安装布局的偶然产物。** Agent 不应需要知道宿主特定的 Skill 安装路径。
+9. **保持离线与确定性。** 指南发现不得要求网络访问、embedding 或外部服务。
+10. **只在有证据后增加复杂度。** 从小的指南语料和 `list`/`read` 开始。只有当真实使用或针对性的全新 agent 场景暴露具名缺口时，才增加搜索、文件系统投影、更丰富的排序或内嵌的专家工作流。
+11. **保留意图，而不是模板。** Issue 指导应帮助不熟悉情况的人或 agent 恢复目标、证据、关闭原因和任何下一跳。它不得要求不增加信息的仪式性章节。
+12. **状态是路由信号，不是证明。** 一个已完成的 Issue 告诉 agent 去复查关联工作；它不证明源码、部署或某条临时兼容路径已经可以变更。
+13. **一起预览和执行，不等于同步整个远端状态。** Issue 字段、Comment 正文中的上传文件、Attachments 和 IssueRelations 应使用同一份交付清单；未提及的既有对象保持不变。
+14. **区分事实源与发现渠道。** 下游消费者、缓存、日志或分析可以暴露问题，但不会因此自动成为负责修复的系统或团队。Issue 应围绕待治理的事实及其验证方式组织上下文。
+15. **原始证据优先于创建者记忆。** 一个 hash、本机路径、聊天中的隐式附件或分析摘要不能替代接手者实际需要的原始文件和持久链接。
+16. **原语必须赢过 AI 直接写 GraphQL。** AI 已经非常擅长用 Shell、Python 或 TypeScript 直接操作 GraphQL。CLI 只实现赢过这条基线的原语：版本匹配的知识、上传管道这类多步骤 plumbing、并发冲突安全、逐项结果核算。复杂到需要说明书才能用的原语等于失败；长尾操作留给 `linear api`。
+17. **协议自由可调。** 没有向下兼容义务，JSON 契约、参数和 schema 在改进设计时可以直接重塑。tolerant-reader 与 schema 版本号是给未来消费者的秩序，不是当前设计的枷锁。
+18. **设计权衡留在源码现场。** 影响使用方式的设计决策——为什么这样设计、引导了什么披露、相关指南——写进实现处的模块注释或本文档并互相引用，让没有上下文的下游 AI 在代码现场就能恢复决策语境。这是本轮重构的核心目标之一：Context Engineering。
 
-## Design review decisions
+## 设计评审决定
 
-An independent review of the phase-one baseline and this architecture accepted the four-layer ownership model and identified the following decisions for subsequent commits:
+对第一阶段基线和本架构的一次独立评审接受了四层所有权模型，并为后续 commit 确定了以下决定：
 
-1. Supplemental command capability metadata must be co-located with each leaf command definition rather than added at parent registration sites. An exact writes-command completeness test must make omissions fail visibly.
-2. Internal guide search is not part of the initial guide system. With four guides, `list`, `read`, and `path` plus filesystem tools are sufficient. Search is evidence-gated.
-3. Static text imports are the preferred embedding mechanism. Deno 2.9.4 can embed `import ... with { type: "text" }` resources in cross-compiled binaries without a generated content module.
-4. Single-command semantic facts belong in that command's description and help. Guides own genuinely cross-command workflows; the thin Skill must not duplicate facts that help can expose before execution.
-5. An exploratory full-Skill versus router-Skill eval must run after zero-argument navigation and before guide authoring. Its failure cases become requirements for the first guide corpus. The formal A/B/C migration gate still runs after the guide system exists.
-6. The final Skill switch, local generated-reference removal, and external `jihuanshe/skills` update are separate review boundaries.
+1. 补充的命令能力元数据必须与每个叶子命令定义放在一起，而不是加在父级注册处。一个精确的写命令完整性测试必须让遗漏显式失败。
+2. 内部指南搜索不属于初始指南系统。只有四份指南时，`list` 和 `read` 已经足够。搜索或文件系统投影由证据门控。
+3. 静态文本导入是首选的嵌入机制。Deno 2.9.4 可以在交叉编译的二进制中嵌入 `import ... with { type: "text" }` 资源，无需生成内容模块。
+4. 单命令语义事实属于该命令的描述和帮助。指南拥有真正跨命令的工作流；外部激活 Skill 不得重复那些帮助在执行前就能暴露的事实。
+5. 在零参数导航之后、指南编写之前，用少量全新 Amp agent 探测单一激活 Skill 的真实发现路径。探测用于发现缺失上下文，不做统计 A/B，也不自动把每次失败升级成 CLI 功能；先判断它属于命令事实、跨命令指导、宿主策略，还是 agent 可以自行恢复的一次性偏差。最终迁移只在访问诊断、Issue authoring、文件驱动的 Issue 交付和 batch 都有 CLI 拥有者之后进行场景验证。
+6. 本地生成参考的移除与最终对 `jihuanshe/skills` 的原子化替换是两个独立的评审边界。
+7. 技术审计结果不等于写给接手者的 Issue。CLI 应提供 authoring 指导和完整预览，但不判断用户是否完成了业务思考，也不把机械字段更新强制送入一套审批流程。
+8. 2026-08-08 的用户决定：不做渐进式交付。剩余能力在一个集成分支上以可评审 commit 完成，经一次 merge 触发单个 release，外部 Skill family 在同一发布窗口内原子替换。作为初创组织，向后兼容不是交付约束；发布后的真实使用信号驱动后续优化，预防性门禁不得阻塞完整交付。
 
-These decisions narrow the first guide implementation and move empirical discovery earlier in the sequence.
+这些决定收窄了第一版指南实现，把实证发现提前到序列中更早的位置，并把交付边界从多次发布收敛为一个发布窗口。
 
-## Knowledge ownership
+## 知识所有权
 
-### Content that belongs to the CLI command tree
+### 属于 CLI 命令树的内容
 
-- command and domain names;
-- aliases;
-- positional arguments and their types;
-- options, defaults, static requirements, list and repeatable behavior;
-- command descriptions;
-- whether a command can write;
-- whether it can prompt;
-- the actual confirmation-bypass option, if any;
-- supported output modes;
-- the full reference for one leaf command.
+- 命令和领域名称；
+- 别名；
+- 位置参数及其类型；
+- 选项、默认值、静态必填要求、列表与可重复行为；
+- 命令描述；
+- 命令是否可以写入；
+- 是否可以交互提示；
+- 实际的确认绕过选项（如有）；
+- 支持的输出模式；
+- 单个叶子命令的完整参考。
 
-This content should be exposed by `usage`, `usage --json`, and leaf `--help`, not copied into generated Skill references.
+这些内容应当由 `usage`、`usage --json` 和叶子 `--help` 暴露，而不是复制进生成的 Skill 参考。
 
-Some capability facts cannot be inferred mechanically from Cliffy's syntax. Their annotations must live in the same leaf module as the action they describe, so a contributor changing the command sees behavior and metadata together. A test must pin the exact canonical paths classified as writes. Parent domain wiring must not become a hidden capability registry.
+有些能力事实无法从 Cliffy 的语法中机械推断。它们的注解必须与所描述的 action 位于同一个叶子模块中，让修改命令的贡献者同时看到行为和元数据。必须有一个测试固定被归类为写入的精确规范路径。父级领域接线不得成为隐藏的能力注册表。
 
-### Content that belongs to embedded CLI guides
+### 属于内嵌 CLI 指南的内容
 
-- how to discover commands progressively;
-- stdout/stderr, JSON, exit status, and unattended automation contracts;
-- dedicated command versus raw GraphQL selection;
-- writing and verifying multi-step operations;
-- Markdown file flags;
-- complete-label-set replacement versus incremental label changes;
-- schema discovery, variables, pagination, and GraphQL fallback;
-- batch plan/apply, conflict, checkpoint, and recovery semantics once batch execution is a first-class CLI feature.
+- 如何渐进地发现命令；
+- stdout/stderr、JSON、退出状态和无人值守自动化契约；
+- 专用命令与原始 GraphQL 的选择；
+- 编写并验证多步操作；
+- 在创建或更新 Issue 时澄清请求、收集证据，并将其塑造成一个或多个可独立接手的 Issue；
+- 区分权威事实源、发现渠道、下游影响、负责修复的系统或团队，以及如何验证完成；
+- 判断原始证据是否已经通过持久附件或链接进入 Issue，而不是留在本机或原聊天；
+- Markdown 文件 flag；
+- 完整标签集替换与增量标签变更的区别；
+- 编写能在交接中存活的 Issue：使用持久链接，并在工作继续时以关闭原因加可点击的下一跳收尾；
+- schema 发现、变量、分页和 GraphQL 兜底；
+- Issue delivery manifest 的 plan/apply、逐项结果、checkpoint 和保守续跑语义；
+- 单次和 batch 复用同一个 manifest。
 
-These are product-owned and often version-dependent, but they span more than one command and do not fit in flag descriptions.
+这些内容由产品拥有且往往依赖版本，但它们跨越多个命令，放不进 flag 描述。
 
-Facts that can be fully stated by one command must remain in that command's description instead. For example, `issue mine` being current-user scoped and `issue attach` creating a sidebar attachment should be discoverable directly from those commands' help. A guide may explain a broader querying or attachment workflow, but it must not be the sole or duplicate owner of the leaf fact.
+能由单个命令完整陈述的事实必须留在该命令的描述中。例如，`issue mine` 限定当前用户、`issue attach` 创建 Linear Attachment，应当能直接从这些命令的帮助中发现。指南可以解释更广的查询或附件工作流，但不得成为叶子事实的唯一或重复拥有者。
 
-### Content that remains in host Agent Skills
+### 留在 CLI 之外的内容
 
-- whether a task should activate Linear tooling at all;
-- explicit authorization and the host's external-write boundary;
-- organization-specific installation and credential policy;
-- environment routing such as macOS versus exe.dev;
-- owner identity, Reflection, integration selection, and secret-handling policy;
-- request classification, product clarification, evidence collection, redaction, and approval workflows;
-- routing between direct CLI operations, access repair, intake, and reviewed batch writes;
-- cross-tool use of browsers, logs, repositories, conversations, or other Skills.
+- 某个任务是否应当激活 Linear 工具链；
+- 显式授权和宿主的外部写入边界；
+- 组织特定的安装与凭据策略；
+- 环境路由，例如 macOS 与 exe.dev 之间的选择；
+- 拥有者身份、Reflection、集成选择和密钥处理策略；
+- 关于把源码本地的临时行为关联到 Issue、并决定创建该外部对象是否获得授权的组织或宿主策略；
+- 浏览器、日志、仓库、对话或其他宿主工具的可用性与授权。
 
-### Current `jihuanshe/skills` Linear family
+这些策略已经来自宿主系统提示、仓库指引和当前用户任务。它们不应需要单独的 Linear Skill。内嵌的受理指导可以告诉 agent 一个有用的 Issue 需要哪些证据，而宿主决定允许哪些工具和写入。
 
-The current family should not be migrated uniformly:
+### 当前的 `jihuanshe/skills` Linear 家族
 
-| Skill                      | Long-term owner and shape                                                                                                                                                                                                                                                                                      |
-| -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `linear-cli`               | Most command references move to CLI discovery. Product-owned handbooks become embedded guides. A thin host router remains.                                                                                                                                                                                     |
-| `linear-access`            | Remains primarily a host Skill because it owns bootstrap, organization and environment policy. It should diagnose CLI provenance/version, route managed hosts through Rotom, and converge supported unmanaged hosts to the canonical mise installation. Only generic auth behavior belongs in CLI help/guides. |
-| `linear-request-intake`    | Remains primarily a host Skill because it owns cross-tool reasoning, clarification, evidence, redaction, and approval. It may link to an embedded issue-authoring guide.                                                                                                                                       |
-| `linear-issue-batch-write` | The executable workflow should eventually become first-class CLI commands; its operational handbook then becomes an embedded guide. A thin host trigger and authorization router remains.                                                                                                                      |
+当前家族应当收敛为一个外部激活 Skill：
 
-## Progressive command discovery
+| 当前 Skill                 | 迁移目标                                                                                                              |
+| -------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| `linear-cli`               | 重命名或替换为单一的外部 `linear` 激活 Skill。在 CLI 发现和内嵌工作流通过确定性测试与关键场景验证后，移除其命令手册。 |
+| `linear-access`            | 将诊断、认证和修复迁入 CLI 命令与内嵌指导。在单一激活 Skill 中只保留二进制缺失的引导事实，然后删除本 Skill。          |
+| `linear-request-intake`    | 将澄清、事实归属、证据质量、Issue 拆解和撰写指导迁入 CLI 的 Issue authoring 工作流。在语义用例通过后删除本 Skill。    |
+| `linear-issue-batch-write` | 将 plan/apply、冲突、检查点和恢复迁入一等 CLI 命令和一份内嵌指南。在行为与恢复测试通过后删除本 Skill。                |
 
-### Phase-one foundation
+## 渐进式命令发现
 
-The phase-one baseline adds:
+### 第一阶段基础
+
+第一阶段基线新增：
 
 ```bash
 linear usage
@@ -175,39 +208,41 @@ linear issue usage
 linear issue usage --json
 ```
 
-The documents are generated from the actual Cliffy command tree. Supplemental semantics use Cliffy's native metadata and include:
+这些文档由实际的 Cliffy 命令树生成。补充语义使用 Cliffy 原生元数据，包括：
 
-- `writes`;
-- `interactive`;
-- `confirmation`;
-- `outputModes`.
+- `writes`；
+- `interactive`；
+- `confirmation`；
+- `outputModes`。
 
-The JSON contract currently has `schemaVersion: 1`. Hidden commands and options remain hidden, aliases resolve to canonical paths, and leaf detail continues through `--help`.
+JSON 契约目前为 `schemaVersion: 1`。隐藏命令和选项保持隐藏，别名解析到规范路径，叶子细节继续通过 `--help` 获取。
 
-Measured phase-one output sizes provide an initial discovery budget:
+实测的第一阶段输出大小提供了初始发现预算：
 
-| Invocation                  |  Bytes |
+| 调用                        | 字节数 |
 | --------------------------- | -----: |
-| `linear usage`              |  1,247 |
-| `linear usage --json`       | 12,010 |
+| `linear`                    |  1,325 |
+| `linear usage`              |  1,325 |
+| `linear usage --json`       | 12,744 |
+| `linear issue`              |  9,973 |
 | `linear issue usage`        |  9,973 |
 | `linear issue usage --json` | 52,505 |
 
-The concise root view is suitable as a default entry point. The issue-domain JSON is useful for structured tooling but too large to recommend as an unconditional first read; agents should progress to one domain or leaf only when needed.
+简洁的根视图适合作为默认入口。issue 领域的 JSON 对结构化工具有用，但太大，不宜推荐为无条件的第一读；agent 应当只在需要时再进入单个领域或叶子。
 
-Completed phase-one hardening:
+已完成的第一阶段加固：
 
-- supplemental metadata annotations live in leaf command modules with their definitions and actions, not in parent wiring files;
-- an exact completeness test, including hidden commands, pins all 43 canonical paths that can write persistent remote or user-configured local state. `issue view` is included because downloads can target the configured `attachment_dir`; transient cache writes and explicit exports are excluded;
-- tests freeze the `Writes`, `Interactive`, `Confirmation required unless`, and `Output modes` Cliffy labels as well as the lowercase labels in human `usage` output;
-- an omitted option `default` means either no static default representable in usage JSON v1 or a dynamic/non-serializable default, not necessarily that the runtime has no default;
-- usage JSON v1 readers ignore additive fields. Schema version 1 remains valid for additions; removing or retyping an existing field requires an increment.
+- 补充元数据注解与其定义和 action 一起位于叶子命令模块中，而不是父级接线文件里；
+- 一个包含隐藏命令的精确完整性测试，固定了全部 43 条能写入持久远端状态或用户配置的本地状态的规范路径。`issue view` 被包含在内，因为下载可以写入配置的 `attachment_dir`；瞬态缓存写入和显式导出被排除；
+- 测试冻结了 `Writes`、`Interactive`、`Confirmation required unless`、`Output modes` 这些 Cliffy 标签，以及人类 `usage` 输出中的小写标签；
+- 选项省略 `default` 意味着：要么没有可在 usage JSON v1 中表示的静态默认值，要么是动态或不可序列化的默认值，并不必然表示运行时没有默认值；
+- usage JSON v1 的读取方忽略新增字段。Schema 版本 1 在只增加字段时保持有效；移除或改变现有字段的类型需要递增版本。
 
-### Root navigation
+### 根导航
 
-Invoking `linear` without arguments should produce a concise navigation page rather than only directing the user to `--help`. It should remain small enough for default agent consumption.
+不带参数调用 `linear` 应当产生一个简洁的导航页，而不是只把用户指向 `--help`。它应当保持足够小，适合 agent 默认消费。
 
-Illustrative final-state output:
+示意的最终形态输出：
 
 ```text
 linear — Work with Linear from the command line
@@ -231,65 +266,70 @@ Commands:
   ...
 ```
 
-The root action should reuse the existing usage document rather than build another command catalog. The zero-argument navigation commit must initially mention only commands that exist at that point; `guides` entries are added only after the guide command ships.
+根 action 应当复用现有的 usage 文档，而不是再建一套命令目录。零参数导航 commit 最初只能提及当时已存在的命令；`guides` 条目只在指南命令发布后加入。
 
-### Domain navigation
+### 领域导航
 
-Invoking an eligible command domain without a leaf, such as `linear issue`, should show the same progressive domain view as `linear issue usage`. This applies only to domains whose current no-argument action displays help. Commands such as `config`, whose no-argument action performs real work, are explicitly excluded. Domain output gains relevant guide summaries only after guides ship and must not print full guide bodies.
+不带叶子调用符合条件的命令领域（如 `linear issue`）应当显示与 `linear issue usage` 相同的渐进式领域视图。这只适用于当前无参数 action 显示帮助的领域。像 `config` 这类无参数 action 执行实际工作的命令被明确排除。领域输出只在指南发布后才获得相关指南摘要，且不得打印完整指南正文。
 
-### Leaf reference
+### 叶子参考
 
-Leaf `--help` remains the precise command reference. Single-command semantics belong directly in the command description. A leaf may additionally gain a short `Related guides` section when genuinely cross-command workflow knowledge is relevant:
+叶子 `--help` 仍是精确的命令参考。单命令语义直接属于命令描述。当确实存在相关的跨命令工作流知识时，叶子可以额外获得一个简短的 `Related guides` 区块：
 
 ```text
 Related guides:
-  issue-writing
+  issue-authoring
     Labels replace the complete set; use file flags for Markdown.
-    Run: linear guides read issue-writing
+    Run: linear guides read issue-authoring
 ```
 
-The help entry is a breadcrumb, not an embedded copy of the guide.
+帮助条目是面包屑，不是指南的内嵌副本。
 
-### Contextual recovery
+### 上下文恢复
 
-Selected validation errors may eventually link to one precise guide section when the failure is caused by non-obvious product semantics. This is deferred until guide-aware evals reveal concrete recovery failures; generic errors must not add guide noise.
+当失败源于不明显的产品语义时，选定的校验错误最终可以链接到一个精确的指南章节。这项工作推迟到全新 agent 场景揭示具体恢复失败之后；通用错误不得增加指南噪音。
 
-Suitable cases include:
+适合的场景包括：
 
-- replacing a complete label set;
-- confusing sidebar and inline attachments;
-- document anchor safety;
-- batch conflict or recovery steps.
+- 替换完整标签集；
+- 混淆 Linear Attachment 与 Comment 正文中的上传文件；
+- 文档锚点安全；
+- 批量冲突或恢复步骤。
 
-## Embedded guides
+## 内嵌指南
 
-### Source layout
+### 源码布局
 
-Canonical Markdown should live in this repository:
+规范 Markdown 应当存放在本仓库：
 
 ```text
 docs/guides/
   core.md
   automation.md
-  issue-writing.md
+  issue-authoring.md
   graphql.md
   issue-batch.md        # added only with first-class batch commands
 ```
 
-The first implementation should include only `core`, `automation`, `issue-writing`, and `graphql`. A small corpus lets us validate the interface before migrating every existing handbook.
+第一版实现应当只包含 `core`、`automation`、`issue-authoring` 和 `graphql`。小语料让我们在迁移每本现有手册之前先验证接口。`issue-authoring` 的名字有意强调它不是 Markdown 风格手册：它拥有从请求和证据到完整 Issue 交付的判断框架。
 
-### Metadata
+### 元数据
 
-Each guide should contain structured metadata, for example:
+每份指南应当包含结构化元数据，例如：
 
 ```yaml
 ---
-name: issue-writing
-title: Writing and updating issues
-description: Markdown, labels, assignees, and safe update behavior
+name: issue-authoring
+title: Authoring and updating complete issues
+description: Source-of-truth boundaries, durable evidence, complete delivery, closure, and next hops
 keywords:
   - issue
   - update
+  - handoff
+  - source-of-truth
+  - evidence
+  - closure
+  - next-hop
   - markdown
   - label
   - attachment
@@ -305,127 +345,59 @@ seeAlso:
 ---
 ```
 
-Guide metadata, rather than command registration, owns command-to-guide relationships. The build derives a reverse index and validates that every canonical command and `seeAlso` guide exists. This avoids a second hand-maintained command-to-guide registry.
+命令到指南的关系由指南元数据拥有，而不是命令注册。构建过程派生一个反向索引，并验证每个规范命令和 `seeAlso` 指南都存在。这避免了第二个手工维护的命令到指南注册表。
 
-### Build-time embedding
+### 构建期嵌入
 
-Markdown remains human-readable and grep-friendly in the repository. The release build embeds it into the compiled binary so installed documentation always matches the installed CLI version.
+Markdown 在仓库中保持人类可读、便于 grep。发布构建把它嵌入编译后的二进制，使已安装文档始终与已安装的 CLI 版本一致。
 
-Use Deno's stable static text imports as the first implementation:
+第一版实现使用 Deno 稳定的静态文本导入：
 
 ```ts
 import core from "../../docs/guides/core.md" with { type: "text" }
 ```
 
-Deno 2.9.4 embeds statically analyzable text imports in the module graph used by `deno compile`, including cross-compilation. A small explicit import manifest is acceptable as a build manifest, but tests must compare it with `docs/guides/*.md` so a new guide cannot be silently omitted. The Markdown remains the sole content source.
+Deno 2.9.4 会把可静态分析的文本导入嵌入 `deno compile` 使用的模块图，包括交叉编译。一个小的显式导入清单作为构建清单是可接受的，但测试必须将它与 `docs/guides/*.md` 对比，避免新指南被静默遗漏。Markdown 仍是唯一的内容来源。
 
-Before relying on this mechanism, verify `deno check`, lint, Markdown formatting, the repository's publication/type checks, and a compiled-binary guide-read smoke test. If text imports conflict with those paths, fall back to a generated TypeScript resource module with a real source-to-generated byte-equality check.
+在依赖该机制之前，先验证 `deno check`、lint、Markdown 格式化、仓库的发布/类型检查，以及编译后二进制的指南读取冒烟测试。如果文本导入与这些路径冲突，回退到生成的 TypeScript 资源模块，并做真实的源到生成物字节相等检查。
 
-The guide system does not export an Agent Skill, create host frontmatter, or recreate command references.
+指南系统不导出 Agent Skill、不创建宿主 frontmatter，也不重建命令参考。
 
-## Guide CLI
+## 指南 CLI
 
-### Required commands
+### 必需命令
 
 ```bash
 linear guides
 linear guides list
 linear guides list --json
 linear guides read <name>
-linear guides path
 ```
 
-`linear guides` should be an alias for the concise list view.
+`linear guides` 应当是简洁列表视图的别名。
 
-An explicit export command may be added after the cache-backed path behavior is proven:
+### 输出契约
 
-```bash
-linear guides export <directory>
-```
+- `guides list` 向 stdout 写入简洁的人类索引。
+- `guides list --json` 保留稳定的名称、描述、关键词和相关规范命令路径。
+- `guides read` 只向 stdout 写入所选 Markdown 正文。
+- 任何指南命令都不要求认证或网络访问。
 
-### Output contracts
+## 搜索与文件系统投影延后
 
-- `guides list` writes a concise human index to stdout.
-- `guides list --json` preserves stable names, descriptions, keywords, and related canonical command paths.
-- `guides read` writes only the selected Markdown body to stdout.
-- `guides path` writes only one absolute directory path to stdout so it composes with shell tools.
-- informational materialization messages, if any, go to stderr.
-- no guide command requires authentication or network access.
+初始指南系统不实现 `guides search`、`guides path` 或 `guides export`。全新 agent 场景只需记录 `guides list`、命令面包屑和直接阅读是否足以找到相关知识。出现具名失败后，再根据实际消费者选择搜索或文件系统投影，并单独设计接口。
 
-### Filesystem materialization
+## 命令元数据中的指南可发现性
 
-`linear guides path` should lazily materialize the embedded Markdown into a versioned user cache and print that directory:
+由指南 frontmatter 派生的反向索引应当供给每一个发现面：
 
-```bash
-GUIDES="$(linear guides path)"
-rg -n "inline|attachment|image" "$GUIDES"
-```
+- 根导航列出核心指南入口；
+- 领域 usage 列出直接相关的指南；
+- 叶子帮助列出一到两个相关指南；
+- `usage --json` 包含简洁的指南元数据；
+- `guides list/read` 使用同一套内嵌语料和索引。
 
-The cache should use the operating system's standard cache directory and include the CLI version, for example:
-
-```text
-<cache>/linear/guides/<version>/
-  core.md
-  automation.md
-  issue-writing.md
-  graphql.md
-  manifest.json
-```
-
-Materialization requirements:
-
-- embedded names cannot create nested or traversing paths;
-- files are written atomically;
-- a manifest records CLI version and content checksums;
-- an intact cache is reused;
-- a mismatched or partial cache is rebuilt safely;
-- the current working directory is never modified by default;
-- guide contents contain no credentials or workspace data.
-
-`guides export <directory>`, if added, should refuse to overwrite unrelated content by default and require an explicit overwrite option. It is a byte-for-byte resource projection, not a Skill-generation system.
-
-### Why a materialized path is part of the initial interface
-
-Filesystem materialization preserves a strong Unix and agent affordance: agents can use `rg`, `fd`, `sed`, and `cat` without knowing a host-specific Skill installation directory. With the initial four-guide corpus, the concise structured list plus a materialized path covers both overview and full-text discovery without introducing a search engine.
-
-Internal search remains a possible portability feature for environments without `rg`, but it must be justified by observed retrieval failures rather than assumed upfront.
-
-## Deferred search design
-
-The initial guide system does not implement `guides search`. The exploratory and formal evals should record whether `guides list`, command breadcrumbs, direct reads, and `guides path` plus filesystem tools fail to retrieve relevant knowledge. Add internal search only if those failures are material or a named consumer cannot rely on filesystem tools.
-
-If internal search becomes justified, begin with deterministic, weighted lexical matching over guide sections:
-
-| Match                 | Relative priority |
-| --------------------- | ----------------: |
-| exact guide name      |           highest |
-| title exact or prefix |              high |
-| keyword               |              high |
-| related command path  |       medium-high |
-| section heading       |            medium |
-| body substring/token  |            normal |
-
-The index unit should be a Markdown section, not an entire guide, so results can point to `issue-writing > Replacing labels` rather than only `issue-writing`.
-
-Normalize ASCII case and punctuation. For Chinese and mixed-language queries, retain whole-substring matching, index CJK bigrams, and allow a small set of curated bilingual keywords in guide metadata. `Intl.Segmenter` may supplement this if its behavior is deterministic in supported builds.
-
-### Possible later BM25 upgrade
-
-BM25 is reasonable once the corpus grows enough that basic ranking produces ambiguous results. It should remain an offline section-level index and may add boosts for title, keyword, and related-command matches.
-
-Do not begin with embeddings, a vector database, an external service, or network-dependent semantic search.
-
-## Guide discoverability in command metadata
-
-The reverse index derived from guide frontmatter should feed every discovery surface:
-
-- root navigation lists the core guide entry point;
-- domain usage lists directly relevant guides;
-- leaf help lists one or two related guides;
-- `usage --json` includes concise guide metadata;
-- `guides list/read/path` use the same embedded corpus and index.
-
-Illustrative `usage --json` extension:
+示意的 `usage --json` 扩展：
 
 ```json
 {
@@ -437,8 +409,8 @@ Illustrative `usage --json` extension:
   "outputModes": ["human"],
   "guides": [
     {
-      "name": "issue-writing",
-      "description": "Markdown, labels, assignees, and safe update behavior"
+      "name": "issue-authoring",
+      "description": "Source-of-truth boundaries, durable evidence, and complete Issue delivery"
     },
     {
       "name": "automation",
@@ -448,48 +420,199 @@ Illustrative `usage --json` extension:
 }
 ```
 
-Usage JSON follows a tolerant-reader policy: unknown additive fields may appear within a schema version. Adding `guides` therefore retains `schemaVersion: 1`; removing or retyping an existing field requires an increment. Tests must assert that all existing v1 fields remain unchanged when guide metadata appears.
+Usage JSON 遵循宽容读取方策略：同一 schema 版本内可以出现未知的新增字段。因此加入 `guides` 仍保持 `schemaVersion: 1`；移除或改变现有字段的类型需要递增版本。测试必须断言在指南元数据出现时，所有现有 v1 字段保持不变。
 
-## Thin host Skill
+## Issue 交付原语
 
-The eventual installed `linear-cli` Skill should be a small, version-agnostic router. It should retain:
+### 事故揭示的边界
 
-- positive and negative activation boundaries;
-- a read-only distribution, version, and capability check;
-- the discovery protocol;
-- explicit authorization rules;
-- prompt-disabled versus consent semantics;
-- dedicated command versus `linear api` priority;
-- a few traps that affect command selection before the CLI is invoked;
-- handoff to access, intake, and batch Skills.
+一次真实的数据治理交接暴露了当前接口的核心缺口：技术审计提供了大量正确细节，但 Issue 被写成了审计者自己的速记和下游消费方需求，接手者无法判断真正需要治理的业务事实、负责系统和如何验证完成。图片后来被补充了，原始 Replay 却最初只留下摘要、hash 和创建者机器上的上下文；批量更新成功修改了正文，但评论和文件仍靠 agent 手工拼接。
 
-It should not contain:
+这不是固定模板缺失，也不能只靠更长的 Skill 解决。CLI 需要一个文件驱动的多步骤 Issue 交付命令，使 Issue 字段、Comment 正文中的上传文件、Linear Attachments 和 IssueRelations 能一起预览、写前校验、执行并逐项报告。
 
-- the complete command catalog;
-- one static reference file per domain;
-- copied flags, aliases, defaults, or argument types;
-- a GraphQL schema snapshot;
-- long examples that the installed guide can provide.
+### 与 Linear 上游模型对齐
 
-The target is approximately 50–100 lines, but task success and safety matter more than line count.
+V1 使用 Linear GraphQL 已有对象，不再发明平行集合：
 
-### Bootstrap and version convergence
+- `comments[].files` 对应上传文件并把 asset URL 写入 Comment Markdown；它不是 Linear `Attachment`；
+- `attachments` 对应 Linear `Attachment`。输入可以来自本地文件或 URL；现有 `issue attach` 和 `issue link` 最终都创建这个对象；
+- `relations` 对应 Linear `IssueRelation`；
+- Issue 的 title、description、state、priority、labels、assignee 等继续使用现有 create/update 字段。
 
-The future `jihuanshe/skills` rewrite must retain a bootstrap route. Before relying on this fork's commands or safety contract, the host Skill should establish that the resolved `linear` executable is a compatible `jihuanshe/linear` build.
+Attachment 的 URL 在同一 Issue 内具有上游定义的唯一性，重复 URL 会更新既有 Attachment。这个约束不代表其他 mutation 也能安全重复提交；V1 不据此发明通用幂等协议。
 
-The existing conventional version probe is:
+### 上传原语与富文本
+
+Linear 的描述和评论是真正的富文本：表格单元格可以嵌图片，AI 会上传 PDF、图片和各类 artifact，最终多数以 Comment 形式进入 Issue。支撑这一切只需要一个原语：
+
+```bash
+linear upload <file...>
+```
+
+上传文件并返回 asset URL，连同 public/private 与 MIME 信息。上传管道——`fileUpload` mutation、签名 `uploadUrl` 与 headers、PUT、`assetUrl`——已存在于 `src/utils/upload.ts`，目前只被 `issue attach` 和 `issue comment add --attach` 内部消费。暴露为独立命令后，AI 可以把 URL 嵌进任何 Markdown 位置——描述、评论、表格单元格——CLI 不需要为「富文本」建任何额外表面。manifest 的 `comments[].files` 只是这个原语加正文追加的组合语法糖。
+
+这个原语过「值得性」门槛的原因：三步上传舞蹈、认证 headers 和 public/private 语义是纯 plumbing，AI 用原始 GraphQL 每次都要重新拼。相反，「把 Markdown 写对」不需要原语——那正是 AI 已经擅长的部分。
+
+### `issue-authoring` 指南
+
+指南为人和 agent 提供写好 Issue 所需的上下文，不充当强制审批流程，也不要求生成中间文档。它应帮助回答：
+
+- 接手者需要做什么；
+- 哪个系统、仓库或数据集拥有待修复的权威事实；
+- 当前现象是直接事实，还是来自下游消费者、缓存、日志、Replay 或派生分析；
+- 哪个系统或团队负责修复，以及如何验证完成；
+- 哪些是已验证事实，哪些仍是推测；
+- 关键证据是否已经通过接手者可访问的文件或 URL 交付，而不是只留在当前聊天或创建者电脑。
+
+发现问题的系统不自动拥有修复。一个下游分析发现主数据异常时，Issue 应围绕主数据事实、负责维护入口和正式查询结果组织；下游分析只是影响和证据。反过来，如果未知标识只存在于第三方或引擎内部，且没有权威证据证明它代表正式业务实体，就不应为了让下游解析成功而污染主数据。
+
+图片、Replay、日志、trace、HAR、视频、数据样本或 SQL 导出若是复查所必需，就应实际进入 Issue，并说明来源、用途、复查方法，以及它证明什么、不证明什么。文件名、hash 和本机路径可以补充完整性信息，但不能替代文件。
+
+### Issue delivery manifest
+
+单次与批量交付共享一个版本化清单。示意结构：
+
+```json
+{
+  "schemaVersion": 1,
+  "workspace": "jihuanshe",
+  "issues": [
+    {
+      "operation": "update",
+      "identifier": "DATA-606",
+      "set": {
+        "title": "调查回放中未知卡牌编号的来源（附原始证据）",
+        "descriptionFile": "description.md"
+      },
+      "comments": [
+        {
+          "bodyFile": "replay-evidence.md",
+          "files": [
+            { "path": "replay-a.yrp" },
+            { "path": "replay-b.yrp" }
+          ]
+        }
+      ],
+      "attachments": [
+        {
+          "kind": "url",
+          "url": "https://example.com/source-evidence",
+          "title": "Source evidence"
+        }
+      ],
+      "relations": [
+        { "type": "related", "issue": "DATA-580" }
+      ]
+    }
+  ]
+}
+```
+
+Markdown 和二进制内容通过相对于 manifest 的文件路径输入，避免 shell quoting、参数长度和漏传附件。V1 不提供既有 Comment、Attachment 或 IssueRelation 的显式 update/remove；提交 Attachment 时仍遵循 Linear 的同一 Issue 内 URL upsert 语义。清单未提及的其他既有内容保持不变。已有的直接 update/delete 命令继续处理明确的单项修改。
+
+### `plan`
+
+命令定名为 `issue plan`，动词直接挂在 issue 域下，与 create/update 风格一致，不设 `delivery` 名词层级：
+
+```bash
+linear issue plan --file delivery.json
+```
+
+`plan` 必须：
+
+1. 对远端零写入；允许只读解析 workspace、Issue、字段值和 IssueRelation target。
+2. 展示本次请求将设置的 Issue 字段、将新增的 Comment 及其上传文件、将提交的 Attachments 和将新增的 IssueRelations；同 URL 的 Attachment 可能更新既有对象。
+3. 在第一笔 mutation 前验证整个 manifest 的全部本地文件，包括存在性、可读性、大小和 MIME。
+4. 对 update 只比较本次要修改的字段，沿用现有 batch 对 workspace、目标 Issue、team、workflow state 和字段变化的保护。这是 CLI 拥有的并发安全兜底：AI 准备材料需要时间，期间上游 Issue 可能已被他人修改。无关评论或 Attachment 变化不制造冲突。
+5. 输出确定的执行顺序、解析结果、文件 size/MIME/SHA-256 和结构化机器结果。
+
+`plan` 是可选的零副作用预览，不是每次写入前的强制仪式。调用者已经明确目标时，可以直接执行 `apply`；`apply` 自己仍须在第一笔 mutation 前完成同样的输入验证。V1 不冻结完整 Issue 历史，也不替用户授权写入。
+
+### `apply`、部分成功与续跑
+
+执行入口：
+
+```bash
+linear issue apply \
+  --file delivery.json \
+  --confirm-workspace jihuanshe
+```
+
+`apply` 应复用现有 create/update/comment/attach/link/relation 命令实现，而不是建立第二套 API client。它必须：
+
+- 在首笔 mutation 前验证 workspace、目标、全部文件和本次要修改的 Issue 字段；
+- 按 manifest 顺序执行 Issue 字段、Comment 及其上传文件、Attachment 和 IssueRelation；
+- 为每个请求项返回 `applied`、`failed`、`unknown` 或 `unattempted`，成功项带远端 ID/URL；
+- 在请求前记录正在执行的步骤，每个确认成功的步骤后更新简单 checkpoint；进程中断时，正在执行的步骤视为结果未知；
+- 失败后保留并报告已经成功的结果，不回滚、不删除重建；
+- `applied` 项在续跑时跳过；确认未产生副作用的 `failed` 项可以按调用者选择继续或重试；
+- `unknown` 立即停止当前 apply 或 batch，在显式对账前不得续跑或重试。
+
+执行结束后读取每个目标 Issue 的当前视图并随结果返回，只核对本次修改字段和已知请求项。V1 不遍历全部历史 Comment、Attachment 或 IssueRelation，也不把读回结果保存成远端快照。
+
+### Batch 只是多个 Issue
+
+同一个 manifest 的 `issues[]` 同时支持单次和 batch。Batch V1 只额外需要：
+
+- 整批文件和输入在首笔 mutation 前验证；
+- 顺序执行；
+- 逐 Issue、逐请求项 checkpoint；
+- 对确认无副作用的 `failed` 使用 stop/continue 策略；`unknown` 始终立即停止；
+- 部分成功和剩余项的精确汇总。
+
+V1 不需要并发执行、通用事务日志、集合协调器或独立的 batch schema。
+
+### 明确的非目标与后续证据门禁
+
+V1 不：
+
+- 在 CLI 内调用 AI 自动编写 Issue 或判断业务事实；
+- 强制所有 Issue 使用统一的大型 Markdown 模板或审批流程；
+- 把 TCG Wiki、卡牌 Password 或其他领域规则硬编码进通用 CLI；
+- 提供既有 Comment、Attachment 或 IssueRelation 的显式 update/remove；
+- 冻结完整远端快照、实现通用三方状态机或全分页历史审计；
+- 用自建远端事务回滚已经成功的 Linear mutation；
+- 把 Issue 状态当成清理代码或关闭后续工作的充分证据。
+
+只有实测表明手工对账持续昂贵时，才研究 Linear API 是否支持可靠的重复提交识别。既有集合项的修改和删除、全分页审计、并发 batch 和更复杂的 Markdown 等价判断同样由具名需求与测试证据门控。
+
+## 单一外部 Skill
+
+最终安装的外部 Skill 应当命名为 `linear`，覆盖完整的正向激活空间：Linear URL 与标识符、workspace 读写、认证与安装故障、从请求到 Issue 的受理，以及批量操作。它应当只保留：
+
+- 正向与负向激活边界；
+- 一条指令：使用已安装的 `linear` CLI 并遵循其上下文发现；
+- 规范的二进制缺失引导路由，因为一个不存在的程序无法描述自己的安装方式。
+
+它不应包含：
+
+- 完整的命令目录；
+- 每个领域一份静态参考文件；
+- 复制的 flag、别名、默认值或参数类型；
+- GraphQL schema 快照；
+- 访问、受理、批量或 Issue 撰写手册；
+- 在每个已知操作前必须运行版本、usage 或指南发现的要求；
+- 宿主与当前任务已经提供的授权策略。
+
+这个 Skill 的存在是为了让 agent 选中 `linear`，不是为了监督 CLI。知道确切命令的 agent 直接调用。根导航、命令帮助、校验错误和相关指南面包屑只在需要时提供发现。
+
+### 引导与版本收敛
+
+未来的 `jihuanshe/skills` 重写必须保留二进制缺失引导路由。兼容性检查属于 CLI 启动、诊断和自更新代码，而不是外部 Skill 中的强制预检。
+
+现有的常规版本探针是：
 
 ```bash
 linear -V
 ```
 
-A plain version string does not prove distribution identity or installation ownership. The stable, read-only machine probe is:
+纯版本字符串不能证明分发身份或安装归属。稳定的只读机器探针是：
 
 ```bash
 linear version --json
 ```
 
-with this v1 contract:
+其 v1 契约为：
 
 ```json
 {
@@ -500,25 +623,27 @@ with this v1 contract:
 }
 ```
 
-Version JSON v1 is additive. Readers require `schemaVersion: 1`, the exact `jihuanshe/linear` distribution, and every capability needed for their route; they ignore unknown fields and capability identifiers. The initial capability vocabulary is `usage-v1`. Missing, unparseable, distribution-incompatible, schema-incompatible, or capability-incomplete probes route to the host's access/bootstrap workflow rather than guessing from the version string.
+版本 JSON v1 是只增的。读取方要求 `schemaVersion: 1`、精确的 `jihuanshe/linear` 分发标识，以及其集成所需的每一个 capability；它们忽略未知字段和未知 capability 标识符。初始 capability 词汇是 `usage-v1`。CLI 诊断应当报告缺失或不兼容的 capability，而不是要求外部 Skill 去分类第二条 Linear 路由。
 
-The probe identifies the build, not the package manager. Installation ownership still requires evidence from `mise which linear`, `type -a linear`, the resolved executable path, or the organization manager.
+该探针识别的是构建，不是包管理器。安装归属仍需要来自 `mise which linear`、`type -a linear`、解析出的可执行文件路径或组织管理器的证据。
 
-The bootstrap flow must distinguish three cases:
+引导与诊断流程必须区分五种情况：
 
-| State                                                                                        | Action                                                                                                                                                                                                                             |
-| -------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Compatible `jihuanshe/linear` with required capabilities                                     | Continue using its version-matched usage and guides. Do not perform a network update on every task.                                                                                                                                |
-| Compatible fork that the user or policy explicitly wants updated                             | Use `linear update`; a mise-managed binary performs a tool-scoped `mise up`, while a standalone release verifies checksums before replacement. Uninstall is unnecessary.                                                           |
-| Missing, incompatible distribution, missing required capabilities, or conflicting PATH owner | Route to `linear-access`; identify the current source, remove it through that source's supported uninstall procedure, then converge to the canonical mise installation. Do not guess a package name or delete an arbitrary binary. |
+| 状态                                                           | 动作                                                                                                                                                                     |
+| -------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| 具备所需 capability 的兼容 `jihuanshe/linear`                  | 直接执行请求的命令。只在需要时使用版本匹配的发现；不要在每个任务上执行网络更新。                                                                                         |
+| 用户或策略明确希望更新的兼容 fork                              | 使用 `linear update`；由 mise 管理的二进制执行工具范围内的 `mise up`，独立发布版则在替换前验证校验和。无需卸载。                                                         |
+| 二进制缺失                                                     | 单一外部 Skill 使用规范的组织引导路由，然后回到 CLI。                                                                                                                    |
+| shell 解析到外来或冲突的二进制，且存在具备诊断能力的规范二进制 | 通过规范的、由管理器解析的 Jihuanshe 二进制调用诊断，而不是那个冲突的 shell 解析可执行文件。诊断报告观察到的身份和安全的下一步动作；移除或全局配置变更仍由宿主授权管辖。 |
+| 没有规范二进制，或规范二进制缺少所需的诊断/更新 capability     | 先使用已授权的 mise 或 Rotom 引导/更新路径，然后通过得到的规范二进制调用诊断。绝不要求外来二进制实现 Jihuanshe 诊断。                                                    |
 
-For supported unmanaged machines, the canonical install command from this repository is:
+对受支持的非受管机器，本仓库的规范安装命令是：
 
 ```bash
 mise use -g "github:jihuanshe/linear[minimum_release_age=0s]@latest"
 ```
 
-Verification must use the mise-selected binary and then the shell-resolved binary:
+验证必须先使用 mise 选中的二进制，再使用 shell 解析的二进制：
 
 ```bash
 mise which linear
@@ -528,9 +653,9 @@ linear version --json
 linear usage
 ```
 
-If a conflicting installation shadows mise, the Skill must first identify its owner. npm, Homebrew, Deno, and manually copied binaries have different removal procedures; no generic `rm` or guessed `npm uninstall` command is safe. Removing a manually installed or otherwise unknown executable is destructive and requires explicit user authorization.
+如果另一个安装遮蔽了 mise，通过 `"$(mise which linear)"` 调用未来的诊断命令，让已知的 Jihuanshe 二进制把自身与 shell 解析的可执行文件对比。如果没有可用的规范二进制，或该二进制太旧而无法安全诊断或更新，先使用已授权的引导/更新路径再诊断。npm、Homebrew、Deno 和手工复制的二进制有各不相同的移除流程；任何通用 `rm` 或猜测的 `npm uninstall` 命令都不安全。移除手工安装或来历不明的可执行文件是破坏性操作，需要用户显式授权。
 
-On Jihuanshe-managed machines, the current authoritative policy is different: Rotom owns the managed mise configuration. The safe probes and convergence path are:
+在 Jihuanshe 受管机器上，当前的权威策略不同：Rotom 拥有受管的 mise 配置。安全的探针和收敛路径是：
 
 ```bash
 rotom status --format json
@@ -538,502 +663,662 @@ rotom inspect latest --format json
 rotom setup
 ```
 
-The external Skill must not bypass Rotom with a direct global `mise use` unless the organization intentionally changes that policy in `linear-access` and Rotom's own documentation. A future decision to standardize all hosts on direct mise is a coordinated organization-policy migration, not an incidental `linear-cli` documentation edit.
+外部 Skill 不得用直接的全局 `mise use` 绕过 Rotom，除非组织有意在其宿主指引和 Rotom 文档中改变该策略。未来把所有宿主标准化到直接 mise 的决定，是一次有协调的组织策略迁移，不是一次顺手的 Linear 文档编辑。
 
-Checking compatibility is read-only. Uninstalling another distribution or writing global mise configuration is not implied by an ordinary Linear read task; the host authorization boundary still applies.
+检查兼容性是只读的。卸载另一个分发或写入全局 mise 配置，并不隐含在一个普通的 Linear 读取任务中；宿主授权边界仍然适用。
 
-### Why a thin Skill remains external
+### 为什么一个激活 Skill 仍留在外部
 
-The host Skill solves first-mile activation and host policy. The CLI solves second-mile discovery after selection. An embedded guide cannot activate a binary the agent has not considered, and CLI help cannot define organization-specific authorization or cross-tool policy.
+这一个外部 Skill 解决第一英里激活。选中之后，CLI 拥有 Linear 产品行为；宿主系统、仓库和用户策略继续拥有授权与跨工具可用性。内嵌内容无法激活一个 agent 尚未考虑的二进制，但这个局限只需要一段覆盖面广的加载描述，不需要为每个 Linear 工作流各设一个 Skill。
 
-No complex Skill export is required. The external router only needs stable entry points such as `linear usage`, `linear guides`, and `linear <command> --help`. It can be maintained as a small host artifact without mirroring the release's command surface.
+不需要复杂的 Skill 导出。外部 Skill 指向 `linear`；程序的根导航、命令帮助和上下文面包屑暴露稳定的发现入口，宿主工件无需镜像或编排它们。
 
-## Generated documentation migration
+## 生成文档迁移
 
-The current `generate-skill-docs` pipeline should not be removed until the replacement passes evals. After migration, its responsibility should change from generating a complete static manual to validating the discovery contract.
+当前的 `generate-skill-docs` 流水线在替代方案通过确定性测试和关键场景验证之前不应移除。迁移后，它的职责应从生成完整的静态手册变为验证发现契约。
 
-Candidate validations include:
+候选验证包括：
 
-- guide frontmatter parses and names are unique;
-- every related canonical command exists in the Cliffy tree;
-- every `seeAlso` guide exists;
-- every command domain exposes progressive usage;
-- writes and confirmation metadata remain complete;
-- embedded Markdown matches the source byte-for-byte;
-- the thin router only references real, stable entry points;
-- release artifacts can list and read embedded guides without source files present.
+- 指南 frontmatter 可解析且名称唯一；
+- 每个相关规范命令存在于 Cliffy 树中；
+- 每个 `seeAlso` 指南存在；
+- 每个命令领域暴露渐进式 usage；
+- 写入与确认元数据保持完整；
+- 内嵌 Markdown 与源文件逐字节一致；
+- 单一激活 Skill 只引用真实、稳定的入口；
+- 发布产物在没有源文件的情况下可以列出并读取内嵌指南。
 
-The generated command catalog and per-domain Skill references can then be deleted. Existing curated material should first be classified and migrated to the command tree, an embedded guide, or the appropriate host Skill; it must not be discarded solely to reduce bytes.
+之后即可删除生成的命令目录和每领域 Skill 参考。现有的人工整理内容应先分类并迁移到命令树、某份内嵌指南、单一激活 Skill 的二进制缺失路由或宿主策略；不得仅为减少字节而丢弃。
 
-## Evaluation strategy
+## 验证策略
 
-### Early exploratory comparison
+验证分为确定性 CLI 测试和少量全新 Amp agent 场景。二者回答不同问题，不建设一个让旧 Skill 与新架构竞争的统计评测平台。
 
-After zero-argument navigation lands and before guide content is authored, compare:
+### 确定性 CLI 测试
 
-- the current full Skill;
-- a temporary router containing only activation, authorization, `usage`, and leaf `--help` instructions.
+CLI 测试拥有机器能够可靠裁定的契约：
 
-This run is exploratory. It must use new condition names and must not overwrite or reinterpret the existing frozen experiment artifacts. Its purpose is to identify which tasks fail without static recipes and references. Those failures become concrete requirements for command descriptions, guide topics, or host-only router semantics.
+- 命令、usage、help、指南和 JSON schema；
+- 文件输入、manifest 解析和写前校验；
+- `plan` 零副作用以及 `apply` 的顺序和逐项结果；
+- checkpoint、部分成功和 mutation 结果未知时停止；
+- 专用命令与 GraphQL fallback；
+- 机器输出纯净性、破坏性确认和禁用提示行为。
 
-The exploratory comparison is not evidence that the final migration is safe because embedded guides do not exist yet and one model/effort configuration is not representative enough for that claim.
+这些行为不使用 agent 判断，也不因某次 agent 猜错命令而增加额外协议。现有 `evals/linear-cli-skill` 保留为它原本拥有的窄范围回归工具：专用命令与 GraphQL 路由、Comment 内联图片与 Linear Attachment 的区分。它不决定本架构的指南内容或 Skill 迁移。
 
-### Formal Skill variants
+### 全新 Amp agent 场景
 
-Before switching the installed Skill, run three conditions against the same CLI build and model configuration:
+在需要验证激活、上下文发现或自然语言指导时，启动没有当前对话历史的全新 Amp agent。每个场景只运行足以观察真实路径的少量实例，记录其读取了什么、调用了什么、产物能否由陌生接手者理解。失败是调查信号，不是自动新增功能的指令。
 
-| Variant                       | Content                                                                                                                          |
-| ----------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
-| A: full                       | Current Skill, generated catalog, references, and recipes.                                                                       |
-| B: router                     | Capability map, authorization, and runtime discovery protocol only.                                                              |
-| C: router plus host semantics | Variant B plus the small set of pre-invocation routing or safety rules that command descriptions and embedded guides cannot own. |
+场景覆盖：
 
-Variant C is the expected target, but the result must be evidence-driven. Single-command facts found during the exploratory run should be fixed in command descriptions rather than copied into C.
+- **激活正例与反例**：Linear URL、Issue ID 和普通 Linear 请求应加载唯一 Skill；无关代码任务不应加载；
+- **已知与未知命令**：已知命令直接执行；不确定时可从根导航、领域 usage、叶子 help、错误或相关指南恢复；
+- **访问与授权**：二进制或认证故障能取得版本匹配的诊断；CLI 能力、机器模式和确认 flag 不被解释为用户授权；
+- **Issue authoring**：陌生接手者能理解正常目标、实际偏离、权威事实源、下游发现渠道、证据、处理动作和验收边界；
+- **上下文交接**：原始图片或文件进入可访问附件，不留下创建者机器路径；关闭原因和仍存在工作的下一跳可点击；
+- **交付与 batch**：完整 Issue 可以一起预览，文件先校验，部分成功可恢复，unknown outcome 不被盲目重试；
+- **逃生通道**：专用命令不覆盖的长尾操作使用 `linear api`，不把 fallback 变成默认路径。
 
-### Primary gates
+### 如何解释失败
 
-- supported task full success does not regress;
-- holdout task success does not regress;
-- GraphQL controls continue to choose `linear api` when appropriate;
-- direct CLI routes do not fall back to raw GraphQL or HTTP unnecessarily;
-- destructive operations do not infer consent from machine mode or bypass flags;
-- fixtures and user content remain intact.
+发现失败后，先判断最小正确拥有者：
 
-### Efficiency metrics
+1. 命令名、参数或输出事实缺失，修改命令树、help 或运行时校验；
+2. 跨命令且可复用的 Linear 工作流缺失，修改内嵌指南；
+3. 二进制尚未进入执行上下文，修改唯一激活 Skill 的最小路由；
+4. 授权、组织安装策略或跨工具取证问题，留在宿主策略；
+5. Agent 已能通过现有上下文合理恢复，或者只是一次性偏差，不新增机制。
 
-- installed Skill bytes;
-- discovery invocations before the target command;
-- discovery stdout and stderr bytes before the target command;
-- total meaningful invocations;
-- direct route versus recovery route;
-- task duration where model/runtime variance permits a useful comparison.
+不得因为一个 agent 猜错命令就增加兼容 alias，不得因为一份 Issue 写差就强制巨大模板，也不得为了让场景全绿把领域业务规则硬编码进通用 CLI。
 
-The phase-one shim already records per-invocation stdout and stderr bytes and the grader reports discovery cost before the first target command.
+### 事故导出的语义用例
 
-Before any guide-aware condition runs, both the shim passthrough and grader discovery classifier must recognize `guides list`, `guides read`, and `guides path`. Otherwise guide use will fail closed or be counted as a meaningful task invocation, biasing comparisons against thin variants.
+下面的用例固定本设计要解决的问题。领域名和示例数据服务于可理解性；观察的是可推广的行为，不要求把这些领域规则硬编码进 CLI。
 
-### Required behavioral cases
+#### 权威事实源与下游症状
 
-- current-user issue listing versus organization-scoped query;
-- inline image versus sidebar attachment;
-- multi-line Markdown via file flags;
-- complete label replacement versus incremental changes;
-- dedicated command versus GraphQL fallback;
-- a legitimate raw GraphQL control;
-- destructive confirmation;
-- prompt-disabled execution without inferred consent;
-- an uncommon domain requiring progressive discovery;
-- mixed Chinese and English guide discovery through names, descriptions, and keywords;
-- guide filesystem search through `guides path`.
+输入：一个分析系统从 Replay 中发现正式卡牌 Password 与资料库记录不一致，并要求创建资料库 Issue。
 
-### Interpretation
+期望：
 
-The goal is not to minimize Skill bytes in isolation. The migration succeeds only if safety and task success remain at least as strong while default context and static documentation drift decrease.
+- Issue 明确资料库是待修复事实源，分析系统是发现渠道和影响证据；
+- 修复动作属于资料库负责团队，并通过资料库及其正式 Production 查询接口验证；
+- 「重跑分析系统」不成为资料库负责团队的完成条件；
+- 若事实源或负责团队无法由证据确定，agent 在写入前向用户确认。
 
-Three trials per case have limited statistical power. Formal A/B/C rules must predeclare per-case floors and control requirements, treat per-case counts as co-primary evidence, and avoid interpreting a non-significant Fisher result as equivalence.
+#### 原始证据独立交接
 
-## Implementation TODO
+输入：104 份 Replay 出现未知编号，当前有 3 份代表性原始 `.yrp`。
 
-This repository ships through direct commits to `main`; pushing a commit invokes the rolling `Ship main` workflow. The sequence below denotes independently reviewable commits, not GitHub pull requests. Each Orb should start from the latest `main`, own one unchecked item, run that item's gate, and avoid combining independent items merely to reduce commit count.
+期望：
 
-- [x] Establish the phase-one baseline: progressive usage, command capability metadata, discovery byte accounting, generated-reference alignment, and this architecture document.
-- [x] Commit 1 — harden and finalize progressive usage metadata.
-- [x] Commit 2 — add a stable distribution/version/capability probe.
-- [ ] Commit 3 — improve root and eligible-domain zero-argument navigation.
-- [ ] Commit 4 — run and document the exploratory full-versus-router eval.
-- [ ] Commit 5 — embed the minimal evidence-driven guide corpus and add `guides list/read`.
-- [ ] Commit 6 — derive guide breadcrumbs for domain usage, leaf help, and usage JSON.
-- [ ] Commit 7 — add safe, cache-backed `guides path` materialization.
-- [ ] Commit 8a — run the formal A/B/C eval and finalize content ownership.
-- [ ] Commit 8b — remove the local generated manual and convert generation into contract validation.
-- [ ] External commit 8c — rewrite `jihuanshe/skills` router/access Skills with version convergence and mise/Rotom ownership.
-- [ ] Commit 9 — add unified opt-in machine output.
-- [ ] Commit 10 — batch-resolve non-interactive issue mutation inputs.
-- [ ] Commit 11 — add conservative timeout, rate-limit, and query retry behavior.
-- [ ] Evidence-gated later work — add machine-output field projection only if measured output cost justifies it.
-- [ ] Later — move protected batch issue execution into first-class typed CLI commands before embedding its complete handbook.
+- 三份原始文件进入 manifest，并通过 Comment 正文中的上传文件或 Attachment 实际进入 Issue；
+- 附件说明来源、用途、复查方法，以及能证明和不能证明的结论；
+- hash、文件名和大小只作为完整性信息，不替代原始文件；
+- Issue 不依赖本机绝对路径、当前聊天或未上传的分析 bundle；
+- 未证明未知编号是正式实体前，不要求权威资料库创建记录。
 
-## Proposed commit sequence
+#### 技术审计不能替代接手者上下文
 
-Each commit should preserve a single reviewable and independently verifiable behavior boundary. The numbering names review boundaries; it does not force all work into one dependency chain.
+输入：根据技术审计批量重写 5 张已有 Issue 的标题和正文。
 
-Two workstreams may proceed after commit 1 hardens the shared metadata and eval foundation:
+期望：
 
-| Workstream              | Commits | Dependency                                                                                                                                                        |
-| ----------------------- | ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Discovery and knowledge | 2–8c    | Version probing, navigation, evals, embedded guides, and the thin external router build on each other in order.                                                   |
-| Execution protocol      | 9–11    | Independent of guide migration. Commit 9 fixes machine-error projection; commit 11 may develop transport policy in parallel but integrates against that contract. |
+- agent 使用 `issue-authoring` 判断事实源、负责团队、业务影响和验证方式；
+- plan 展示每张 Issue 本次拟修改的正文，以及拟新增的 Comment 及其上传文件、拟提交的 Attachment 和拟新增的 IssueRelation；
+- CLI 不把技术审计自动视为已经写好的 Issue，也不要求扫描全部历史对象；
+- apply 逐项报告本次请求的结果，而不是只报告 `description` 已变化。
 
-Field projection remains an optimization backlog rather than a promised phase. Architecture constraints graduate into `AGENTS.md` with the commit that proves them; this roadmap must not describe an aspirational command/resolver/service split as an already-enforced repository invariant.
+#### 机械字段更新保持轻量
 
-### Commit 1: harden and finalize progressive usage
+输入：对一组已确认 Issue 只修改 priority、state、labels 或 assignee。
 
-Scope:
+期望：
 
-- current `usage` implementation and tests;
-- command capability metadata co-located in leaf command modules;
-- an exact canonical writes-command completeness test;
-- the additive usage JSON policy and static-versus-dynamic default semantics;
-- frozen human metadata labels rendered by Cliffy;
-- generated reference alignment required by the new metadata;
-- discovery invocation and byte-cost instrumentation.
+- 在已有宿主授权和明确目标下可以直接 apply；调用 plan 时只展示相关字段差异；
+- 不要求编造完整业务叙事或重新 authoring 正文；
+- 仍保留 workspace 确认、冲突保护和结构化结果。
 
-Non-goals:
+#### 部分成功、Markdown 往返与恢复
 
-- no guide system;
-- no Skill deletion;
-- no machine-output redesign;
-- no command execution behavior changes.
+输入：正文 mutation 已成功，但第二个附件上传失败；或者 Linear 改写等价 Markdown，使本地文本比较不相等。
 
-Gate:
+期望：
 
-- targeted usage/eval tests;
-- complete source verification;
-- generated Skill output proven current.
+- 不删除或重建已成功的 Issue；
+- 逐项报告 Issue 字段、Comment 正文中的上传文件、Attachment 和 IssueRelation 状态；
+- 明确区分 `applied`、`failed`、`unknown` 和 `unattempted`；
+- checkpoint 续跑跳过已确认的 `applied` 项，并在 `unknown` 项停止自动重试；
+- 不把 `verification_failed` 直接解释为「远端未变」并盲重试。
 
-### Commit 2: add a stable distribution and version probe
+#### 无仪式性 preflight 与旧二进制恢复
 
-Scope:
+输入分别覆盖：agent 已知一个正确命令；shell 解析到外来旧 binary；规范管理器 binary 可诊断、缺 capability 或不存在。
 
-- add a read-only human and JSON version command;
-- expose stable distribution identity, release version, and additive capability identifiers;
-- keep installation-manager detection out of the build identity contract;
-- document how the external router interprets an absent, incompatible, or capability-incomplete probe.
+期望：
 
-Non-goals:
+- 已知命令直接执行，不强制 `version`、`usage`、`guides list/read` 前置链；
+- 需要发现时从根导航、help、错误或相关指南恢复；
+- 可用的规范 binary 诊断 PATH shadowing，不让外来 binary 执行组织诊断；
+- 缺失或过旧时只使用宿主已授权的规范 bootstrap；
+- 不猜包管理器、不擅自删除 binary 或修改全局配置。
 
-- no network request to determine latest on every invocation;
-- no automatic update, uninstall, or global mise mutation;
-- no inference that a version check grants repair authorization.
+### 解读
 
-Gate:
+目标不是让场景全绿，也不是孤立地最小化 Skill 字节数。验证应证明关键能力有明确拥有者、陌生接手者能恢复意图、CLI 的机械契约可测试，并且唯一激活 Skill 不再复制手册。少量 agent 场景提供路径证据，不提供统计等价，也不能凌驾于已经确认的产品边界和真实事故事实。
 
-- development and release build outputs are deterministic;
-- JSON follows an additive schema policy;
-- the probe works without authentication or network access;
-- tests distinguish build identity from `mise which linear` installation ownership.
+## 实现 TODO
 
-### Commit 3: improve zero-argument and domain navigation
+本仓库推送到 `main` 即触发滚动的 `Ship main` workflow。按 2026-08-08 的一次性交付决定，`main` 只在集成完成时接受一次合并：剩余能力全部在集成分支（PR #5，`docs/context-continuity`）上以可评审 commit 累积，一次 merge 产出一个携带全部能力的 release。中间状态不单独发布，向后兼容不是约束。
 
-Scope:
+已完成：
 
-- make `linear` show concise progressive navigation using the existing usage model;
-- make only domains whose current action calls `showHelp()` display their domain usage with no leaf;
-- improve unknown-command guidance where Cliffy permits targeted suggestions;
-- snapshot human output and measure bytes.
+- [x] 建立第一阶段基线：渐进式 usage、命令能力元数据、发现字节核算、生成参考对齐，以及本架构文档。
+- [x] Commit 1——加固并定稿渐进式 usage 元数据。
+- [x] Commit 2——增加稳定的分发/版本/capability 探针。
+- [x] Commit 3——改进根与符合条件领域的零参数导航。
+- [x] Commit 4——用少量全新 Amp agent 记录单一激活 Skill 的发现路径和上下文缺口。
 
-Non-goals:
+本次发布范围（集成分支）：
 
-- no embedded guides yet;
-- no references to guide commands that do not exist yet;
-- no full root `--help` dump;
-- no output protocol changes.
+- [x] Commit 5——内嵌最小的证据驱动指南语料，并添加 `guides list/read`。
+- [x] Commit 6——为领域 usage、叶子帮助和 usage JSON 派生指南面包屑。
+- [ ] Commit 7a——把已安装二进制的访问诊断和 Issue authoring 迁入 CLI 拥有的工作流。
+- [ ] Commit 7b——移除本地生成手册，并把生成流程转为契约验证。
+- [ ] Commit 11——暴露 `linear upload` 原语，实现 Issue delivery manifest、零写入 `plan` 和顺序 `apply`。
+- [ ] Commit 12——让 batch 复用同一 manifest，并添加简单 checkpoint。
+- [ ] 发布编排——merge 集成分支、发布、验证安装，然后在 `jihuanshe/skills#219` 内完成全新 agent 验证与 family 原子替换并 sync。
 
-Gate:
+发布后、信号驱动：
 
-- root output remains within an explicit byte budget;
-- command actions are never invoked accidentally while rendering navigation;
-- aliases and global options remain correct.
+- [ ] Commit 8——统一的可选机器输出。
+- [ ] Commit 9——批量解析非交互 issue 变更输入。
+- [ ] Commit 10——保守的超时、限流和查询重试行为。
+- [ ] 机器输出字段投影——仅当实测输出成本证明合理。
 
-### Commit 4: run the exploratory full-versus-router eval
+Commit 8–10 与 Skill 迁移零耦合：delivery 与 batch 使用现有 `--json` 输出和现有非交互路径即可正确工作。把它们塞进发布窗口只放大一次性变更的范围，不换来迁移收益。
 
-Scope:
+## 拟议的 commit 序列
 
-- create a temporary router variant that relies on `usage` and leaf `--help`;
-- run the existing task corpus with new exploratory condition names;
-- document which tasks lose route accuracy, correctness, or safety;
-- classify each failure as a command-description gap, embedded-guide requirement, or host-router requirement.
+每个 commit 仍是集成分支上单一可评审、可独立验证的行为边界，但不再各自构成发布边界。编号沿用原路线图；被移出发布窗口的 8–10 号在「发布后工作」一节保留完整规格。
 
-Non-goals:
+集成分支内的依赖顺序：
 
-- no final migration claim;
-- no changes to frozen experiment-one or experiment-two artifacts;
-- no guide authoring before findings are classified.
+| 工作流     | Commits              | 依赖                                                                             |
+| ---------- | -------------------- | -------------------------------------------------------------------------------- |
+| 发现与知识 | 5 → 6 → 7a → 7b      | 指南、面包屑、access/authoring 所有权和生成手册移除按顺序相互构建。              |
+| 交付协议   | 11 → 12              | 与发现工作并行；apply 自身保留 mutation 结果未知的语义，不依赖发布后的重试工作。 |
+| 替换与发布 | 发布编排、skills#219 | 两条工作流完成后进入；见「发布编排」。                                           |
 
-Gate:
+架构约束随证明它们的 commit 一起进入 `AGENTS.md`；本路线图不得把设想中的命令/解析器/服务分层描述为已强制执行的仓库不变式。
 
-- findings list exact failing cases and observed discovery paths;
-- guide topics in the next commit are traceable to observed needs or already-established cross-command contracts.
+### Commit 1：加固并定稿渐进式 usage
 
-### Commit 5: introduce the embedded guide foundation
+范围：
 
-Scope:
+- 当前的 `usage` 实现和测试；
+- 与叶子命令模块放在一起的命令能力元数据；
+- 一个精确的规范写命令完整性测试；
+- 只增的 usage JSON 策略和静态与动态默认值语义；
+- 冻结由 Cliffy 渲染的人类元数据标签；
+- 新元数据所要求的生成参考对齐；
+- 发现调用和字节成本的度量。
 
-- add the minimal source guides justified by commit 4, expected to begin with `core`, `automation`, `issue-writing`, and `graphql`;
-- define and validate guide metadata;
-- embed Markdown with static text imports and a complete import manifest;
-- add `guides list`, `guides list --json`, and `guides read`;
-- update the eval shim and discovery classifier for the new guide commands;
-- verify compiled binaries can read guides without repository files.
+非目标：
 
-Non-goals:
+- 无指南系统；
+- 不删除 Skill；
+- 不重新设计机器输出；
+- 不改变命令执行行为。
 
-- no search ranking;
-- no materialized path;
-- no Skill deletion;
-- no batch migration.
+门禁：
 
-Gate:
+- 针对性的 usage 和元数据测试；
+- 完整的源码验证；
+- 证明生成的 Skill 输出是最新的。
 
-- text-import support passes check, lint, formatting, and publication/type diagnostics;
-- the static import manifest contains every source guide exactly once;
-- guide metadata and canonical command validation;
-- deterministic human and JSON snapshots;
-- a compiled Linux release binary can list and read a guide;
-- the first guide-bearing release records manual macOS and Windows smoke evidence, because the current cross-compile workflow cannot execute those binaries on its Linux runner.
+### Commit 2：添加稳定的分发与版本探针
 
-### Commit 6: add guide breadcrumbs to discovery surfaces
+范围：
 
-Scope:
+- 添加只读的人类和 JSON 版本命令；
+- 暴露稳定的分发身份、发布版本和只增的 capability 标识符；
+- 让安装管理器检测保持在构建身份契约之外；
+- 记录 CLI 诊断如何暴露不兼容或 capability 不完整的构建，以及单一外部 Skill 如何引导一个缺失的二进制。
 
-- derive command-to-guide relationships from guide metadata;
-- show concise related-guide entries in domain usage and leaf help;
-- expose guide summaries in usage JSON;
+非目标：
 
-Non-goals:
+- 不在每次调用时发网络请求确定最新版本；
+- 不自动更新、不卸载、不修改全局 mise；
+- 不推断版本检查授予修复授权。
 
-- no full guide bodies in help;
-- no manually maintained command-to-guide registry.
-- no contextual error links until eval evidence identifies a recovery gap.
+门禁：
 
-Gate:
+- 开发与发布构建输出是确定性的；
+- JSON 遵循只增的 schema 策略；
+- 探针无需认证或网络访问即可工作；
+- 测试区分构建身份与 `mise which linear` 安装归属。
 
-- every relationship points to a canonical command;
-- hidden commands and guides remain hidden where intended;
-- help output growth remains bounded;
-- usage schema compatibility is explicitly tested.
+### Commit 3：改进零参数与领域导航
 
-### Commit 7: add filesystem materialization
+范围：
 
-Scope:
+- 让 `linear` 使用现有 usage 模型显示简洁的渐进式导航；
+- 只让当前 action 调用 `showHelp()` 的领域在无叶子时显示其领域 usage；
+- 在 Cliffy 允许针对性建议的地方改进未知命令引导；
+- 对人类输出做快照并测量字节数。
 
-- cache-backed `guides path` with manifest, checksums, and atomic writes;
-- validate materialized files against the embedded manifest.
+非目标：
 
-Non-goals:
+- 尚无内嵌指南；
+- 不引用尚不存在的指南命令；
+- 不输出完整的根 `--help`；
+- 不改变输出协议。
 
-- no internal search;
-- no BM25, tokenization, embeddings, or external search service;
-- no explicit export command without a named consumer.
+门禁：
 
-Gate:
+- 根输出保持在明确的字节预算内；
+- 渲染导航时绝不意外调用命令 action；
+- 别名与全局选项保持正确。
 
-- path traversal and partial-cache tests;
-- concurrent invocation behavior;
-- no cwd writes;
-- cache reuse and safe rebuild tests;
-- guide path and filesystem-search eval cases.
+### Commit 4：用全新 Amp agent 探测单一激活路径
 
-### Commit 8a: run the formal A/B/C eval and select content ownership
+范围：
 
-Scope:
+- 创建一个临时的单一 `linear` 激活 Skill，不含访问、受理或批量兄弟路由；
+- 启动少量没有本次对话历史的全新 Amp agent，覆盖已知命令、未知命令、Linear 激活正反例和一个 Issue authoring 场景；
+- 记录实际加载的 Skill、发现命令、产物和恢复路径；
+- 将每个具名缺口分类为 CLI 命令/help、内嵌指南、二进制缺失引导或宿主策略，并允许结论为「无需新增机制」。
 
-- run A/B/C Skill variants;
-- select the smallest non-regressing router;
-- migrate all retained product material to embedded guides;
-- classify every remaining static reference section by its final owner.
+非目标：
 
-Gate:
+- 不与旧 Skill family 做统计 A/B，不计算成功率或显著性；
+- 不让旧 Skill eval 的冻结语料决定新架构；
+- 不做最终迁移结论；
+- 不改动已冻结的实验一或实验二工件；
+- 不因单次 agent 偏差添加 alias、模板或额外状态。
 
-- supported, holdout, GraphQL control, and safety requirements pass;
-- discovery cost and context-byte comparisons are documented;
-- no command or handbook content is lost without an explicit owner.
+门禁：
 
-### Commit 8b: remove the local generated manual
+- 探测记录列出 prompt、agent 是否加载目标 Skill、实际发现路径、结果和判断；
+- 下一个 commit 的指南主题可追溯到真实事故中已确立的跨命令契约，或多个场景共同暴露的上下文缺口；
+- 单次可恢复的猜测不会自动变成产品需求。
 
-Scope:
+#### 2026-08-08 探测记录
 
-- delete the generated command catalog and per-domain references selected for removal by commit 8a;
-- convert `generate-skill-docs` into discovery, metadata, guide, and thin-router contract validation;
-- retain only content with an explicit local owner.
+以下场景使用同一份临时 `linear` Skill 和隔离的只读 CLI fixture；每个 Amp agent 都没有本次设计讨论的历史。fixture 不连接真实 Linear，也不允许写入。两个场景的第一次运行因 fixture 的 `PATH` 漏掉 Deno 而停止；修正探针环境后用相同 prompt 重新运行，没有因此修改产品设计。
 
-Gate:
+| 场景             | Prompt 摘要                                                    | 加载 `linear` | 实际路径与结果                                                                                      | 判断                                                                                |
+| ---------------- | -------------------------------------------------------------- | ------------- | --------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------- |
+| 已知命令         | 取得 `ENG-107` 的 URL                                          | 是            | 直接调用 `linear issue url ENG-107` 并返回 URL                                                      | 已知入口无需强制 preflight，也无需新增机制                                          |
+| 未知命令         | 读取 `ENG-112` 的标题、状态和负责人                            | 是            | 初始命令猜测失败后，依次通过根 `usage`、Issue `usage` 找到 `issue inspect`，并返回正确字段          | 现有渐进发现足以恢复；一次猜错不构成 alias 需求                                     |
+| GraphQL fallback | 读取专用 Issue 命令未覆盖的 subscribers                        | 是            | 先探测 Issue 命令，再通过 Issue `usage` 和 `api --help` 转到 `linear api`，返回正确 subscribers     | fallback 边界可理解；无需把 GraphQL 变成默认路径                                    |
+| Issue authoring  | 为 Replay 中出现、但未证明是正式卡片 Password 的编号起草 Issue | 是            | 未执行写入；草稿把 Replay 作为下游观察与原始证据，要求附三份 `.yrp`，并明确不得据此污染官方卡片数据 | 真实事故已经证明 `issue-authoring` 指南有价值；本次偏长的草稿不得反向固化成强制模板 |
+| 非 Linear 对照   | 列出目录中的 Markdown 文件                                     | 否            | 只执行本地文件查询                                                                                  | 单一 Skill 的激活描述没有吞掉无关任务                                               |
 
-- generated-reference removal does not change formal eval routing;
-- release verification checks the replacement contracts;
-- a content migration ledger accounts for every removed curated section.
+这组探测只证明当前薄 Skill 可以激活正确工具，agent 能从渐进式导航恢复，并能理解事故中最关键的 Issue 语义边界。它不证明所有任务均已覆盖，也不产生新的兼容命令、搜索系统、模板或状态机需求。Commit 5 的首批指南继续以真实事故和已确认的跨命令契约为依据，而不是以单次模型输出为规范。
 
-### External commit 8c: update the router and access Skills
+### Commit 5：引入内嵌指南基础
 
-Scope:
+范围：
 
-- update `jihuanshe/skills` in its own repository and review;
-- make `linear-cli` perform the read-only distribution/version/capability probe and route incompatible installations to `linear-access`;
-- make `linear-access` distinguish managed Rotom convergence, compatible-fork updates, and source-owned removal followed by the canonical mise install;
-- keep `linear-access` and `linear-request-intake` ownership boundaries intact;
-- reduce the external `linear-cli` Skill to the validated router;
-- reduce the batch Skill only after first-class batch commands exist.
+- 添加由 commit 4 证明必要的最小源指南，预计从 `core`、`automation`、`issue-authoring` 和 `graphql` 开始；
+- 让 `issue-authoring` 教授请求澄清、事实源与下游症状区分、证据质量、Issue 拆解、持久交接上下文、关闭原因和下一跳，而不强加僵硬的通用模板；
+- 定义并验证指南元数据；
+- 用静态文本导入和完整的导入清单嵌入 Markdown；
+- 添加 `guides list`、`guides list --json` 和 `guides read`；
+- 为新的指南命令添加确定性的命令、导入和输出测试；
+- 验证编译后的二进制无需仓库文件即可读取指南。
 
-Gate:
+非目标：
 
-- the external router points only to stable released entry points;
-- no unknown binary is deleted through a guessed package name or direct `rm`;
-- a managed Jihuanshe host does not bypass Rotom unless the organization policy is changed explicitly;
-- an unmanaged-host migration installs `github:jihuanshe/linear[minimum_release_age=0s]@latest` through mise and verifies both mise-selected and shell-resolved identities;
-- installation with the released CLI passes the formal routing smoke cases.
+- 无搜索排序；
+- 无物化路径；
+- 不删除 Skill；
+- 不迁移批量工作流。
 
-### Commit 9: unified opt-in machine output
+门禁：
 
-Scope:
+- 文本导入支持通过 check、lint、格式化和发布/类型诊断；
+- 静态导入清单恰好包含每个源指南一次；
+- 指南元数据和规范命令验证；
+- 确定性的人类和 JSON 快照；
+- 编译后的 Linux 发布二进制可以列出并读取指南；
+- 第一个携带指南的发布记录手动的 macOS 和 Windows 冒烟证据，因为当前的交叉编译 workflow 无法在其 Linux runner 上执行这些二进制。
 
-- add an explicit global JSON output context while preserving current human output as the default;
-- migrate commands that already support `--json` first and keep their command-level flags compatible;
-- return a stable `UNSUPPORTED_OUTPUT` error on unmigrated command paths rather than mixing human text into requested machine output;
-- make successful machine-mode stdout contain exactly one payload and no banner, spinner, pager, progress, ANSI decoration, warning, or trailing prose;
-- make failed machine-mode stdout empty and stderr contain exactly one structured error document with a stable code, message, optional suggestion, and retry metadata only when known;
-- begin with `VALIDATION_ERROR`, `NOT_FOUND`, `AUTH_REQUIRED`, `UNSUPPORTED_OUTPUT`, `RATE_LIMITED`, `NETWORK_ERROR`, `API_ERROR`, and `INTERNAL_ERROR` codes backed by the existing `CliError` boundary;
-- preserve GraphQL field names, nesting, connection shape, and command-specific payload semantics instead of wrapping successful data in a new generic envelope;
-- decide with explicit tests whether JSON is compact by default, whether a separate compact option remains useful, and whether an inherited `LINEAR_OUTPUT` environment variable is safe enough to support;
-- define whether help, usage, and version discovery participate in the global output context or retain their own explicit machine flags;
-- keep machine output, prompt suppression, confirmation-bypass flags, authentication, and user authorization as independent contracts.
+### Commit 6：为发现面添加指南面包屑
 
-Non-goals:
+范围：
 
-- no implication that machine mode authorizes a write;
-- no simultaneous migration of every command without a per-command payload contract;
-- no field projection;
-- no change to raw GraphQL response naming or pagination shape.
+- 从指南元数据派生命令到指南的关系；
+- 在领域 usage 和叶子帮助中显示简洁的相关指南条目；
+- 在 usage JSON 中暴露指南摘要；
 
-Gate:
+非目标：
 
-- existing command-level JSON tests remain compatible;
-- cross-command subprocess tests separately capture stdout, stderr, exit status, and terminal decoration;
-- every machine-mode success parses as exactly one JSON value with empty stderr;
-- every machine-mode failure has empty stdout, one parseable error document on stderr, and a nonzero exit status;
-- unsupported command paths fail explicitly rather than falling back to human output.
+- 帮助中不含完整指南正文；
+- 无手工维护的命令到指南注册表。
+- 在全新 agent 场景发现恢复缺口之前，无上下文错误链接。
 
-### Commit 10: non-interactive issue mutation resolver
+门禁：
 
-Scope:
+- 每个关系都指向一个规范命令；
+- 隐藏命令和指南在预期之处保持隐藏；
+- 帮助输出的增长保持有界；
+- usage schema 兼容性被显式测试。
 
-- define one non-interactive resolution policy shared by explicit non-interactive options and prompt-disabled execution without treating prompt suppression itself as a performance contract;
-- batch-resolve team, state, assignee, labels, project, milestone, cycle, and parent inputs for non-interactive create and update;
-- let create and update use small operation-specific resolvers rather than requiring one generic resolver abstraction;
-- preserve UUID passthrough, name/key/identifier matching, ambiguity, not-found, team/workspace scope, and current candidate-selection semantics;
-- keep interactive candidate selection and its incremental lookups unchanged;
-- fetch the target issue and necessary update context before resolving dependent update inputs;
-- reduce nominal non-interactive lookup traffic to a fixed one or two GraphQL requests before the mutation.
+### Commit 7a：把访问诊断和 Issue authoring 迁入 CLI 所有权
 
-Non-goals:
+范围：
 
-- no behavior change to interactive resolution;
-- no weaker ambiguity or scope validation to achieve a lower request count;
-- no retry policy bundled into resolver work;
-- no repository-wide resolver/service rewrite.
+- 盘点目前由 `linear-access` 和 `linear-request-intake` 拥有的已接受用例；
+- 通过 CLI 命令、命令帮助和内嵌指导暴露已安装二进制的认证与环境诊断；
+- 将请求澄清、事实归属、证据质量、Issue 拆解和持久 Issue 撰写迁入 CLI 拥有的 authoring 工作流；
+- 让 authoring 指南同时服务创建和更新，但不把它变成 CLI 强制审批门禁；
+- 让二进制缺失引导和宿主授权留在 CLI 之外；
+- 为访问恢复和 Issue authoring 添加不加载兄弟外部 Skill 的行为用例。
 
-Gate:
+门禁：
 
-- request-count tests distinguish CLI invocations, nominal GraphQL requests, pagination, and retries;
-- create and update tests lock the fixed lookup bound independently;
-- regression tests cover every existing resolution semantic and prove invalid input fails before mutation;
-- the production command path, not a test-only reimplementation, performs the measured resolution.
+- 每个已接受的访问和 authoring 用例都有 CLI 或宿主策略拥有者；
+- 全新 agent 能通过 CLI 发现恢复已安装二进制的访问失败；
+- 全新 agent 能通过 Issue authoring 指南把含糊请求或技术审计转化为接手者可理解的 Issue 草稿和证据清单；
+- 全新 agent 不会把下游发现渠道自动写成负责修复的系统或完成验证方式；
+- 任何诊断或机器能力都不被解读为修改本地或远端状态的授权。
 
-### Commit 11: conservative network reliability
+### Commit 7b：移除本地生成手册
 
-Scope:
+范围：
 
-- add an abortable per-attempt timeout and an overall deadline that explicitly defines whether server-requested `Retry-After` waits count against it;
-- parse both delta-seconds and HTTP-date `Retry-After` forms, subject to a bounded client policy;
-- use exponential backoff with jitter for retryable query failures;
-- retry queries only for `429`, `502`, `503`, `504`, and narrowly classified transient network failures by default;
-- classify relevant HTTP 200 GraphQL error codes without treating authentication, permission, validation, or domain errors as transient;
-- never automatically retry a mutation unless that operation separately proves idempotency or supplies a supported idempotency key;
-- preserve the unknown outcome of a timed-out mutation instead of reporting that it definitely failed;
-- expose retryability, HTTP status, server delay, attempt count, and partial-outcome information through the structured error boundary when available.
+- 删除生成的命令目录和每领域参考，其 CLI 或宿主策略拥有者已由 commits 4–7a 确立；
+- 将 `generate-skill-docs` 转为发现、元数据、指南和单一激活 Skill 的契约验证；
+- 只保留有明确本地拥有者的内容。
 
-Non-goals:
+本 commit 只移除本仓库生成的重复命令手册，不删除 `jihuanshe/skills` 中仍承担未迁移执行能力的外部 Skill。外部 family 的替换属于 skills#219 的原子替换阶段。
 
-- no GraphQL text heuristics that can misclassify an operation as a query;
-- no blanket retry wrapper around `client.request`;
-- no silent delay beyond the documented overall deadline;
-- no special-casing tests by making production retry behavior deterministic.
+门禁：
 
-Gate:
+- 生成参考的移除不使探索性任务用例或指南感知路由回退；
+- 发布验证检查替代契约；
+- 一份内容迁移台账核算每一个被移除的整理章节。
 
-- fake-transport or local-server tests control the clock, sleep, and jitter deterministically;
-- tests cover both `Retry-After` forms, deadline exhaustion, cancellation, and GraphQL error classification;
-- nominal request-count tests remain separate from retry-attempt tests;
-- tests prove transient queries retry and mutations do not duplicate after HTTP failures, network errors, or timeout ambiguity.
+### Commit 11：Issue delivery manifest、plan 与 apply
 
-### Evidence-gated later work: machine-output field projection
+范围：
 
-Consider built-in projection only after machine payload schemas and measured output costs are stable. Its purpose is reducing CLI-to-agent output, not reducing GraphQL requests or server response size; `jq` and precise `linear api` selections remain valid alternatives.
+- 把 `src/utils/upload.ts` 的上传管道暴露为独立的 `linear upload` 命令，返回 asset URL、public/private 与 MIME 信息；
+- 定义版本化 manifest，直接映射现有 Issue 字段、Comment 正文中的上传文件、Linear Attachment 和 IssueRelation；
+- 让文件路径相对于 manifest 解析；
+- 实现对远端零写入的 plan，并在计划中展示本次请求内容和执行顺序；
+- 在第一笔 mutation 前验证整个 manifest 的文件、目标和本次要修改的 Issue 字段；
+- 复用现有 create/update/comment/attach/link/relation 命令实现顺序 apply；
+- 为每个请求项返回准确状态和已知远端 ID/URL；
+- 对结果未知的 mutation 停止自动重试。
 
-If eval evidence justifies implementation:
+非目标：
 
-- support nested objects, arrays, and connections without flattening or renaming fields;
-- preserve `nodes`, `pageInfo`, and arbitrary `linear api` payload nesting;
-- fail on every requested path that does not exist rather than silently accepting partial typos;
-- test projection and compact formatting independently;
-- demonstrate a material discovery or execution-output byte reduction on representative cases.
+- 不在 CLI 中运行 AI、强制审批或判断业务事实；
+- 交付清单不提供既有 Comment、Attachment 或 IssueRelation 的显式 update/remove；
+- 不冻结完整 Issue 历史，不实现内容寻址 plan、通用事务日志、集合协调器或全分页审计；
+- 不承诺远端事务或自动回滚。
 
-### Architecture constraints graduate with implementation
+门禁：
 
-Update repository guidance alongside the commit that makes a boundary true and testable. Machine-output purity belongs with commit 9, resolver semantics with commit 10, and retry/idempotency rules with commit 11. A command/resolver/service layering rule, including any claim that services accept only UUIDs, applies only to migrated modules whose code and tests enforce it; it must not be declared globally in advance.
+- plan 对远端没有写操作；
+- 整个 manifest 的无效输入和缺失文件在任何 mutation 前失败；
+- Comment 正文中的上传文件与 Attachment 使用正确且不同的 Linear 模型；
+- Issue update 只对本次修改字段应用现有冲突保护；
+- 正文成功、后续文件失败会被报告为部分成功；
+- `unknown` mutation 不被自动重试；
+- fixture 覆盖图片、二进制证据、URL 与本地文件 Attachment、IssueRelation、本机路径泄漏和机械字段更新；
+- apply 完成后返回目标 Issue 的当前视图，但不遍历全部历史对象；
+- `unknown` 立即停止整个 apply 或 batch，直到显式对账。
 
-### Later: first-class batch issue execution
+### Commit 12：batch composition 与 checkpoint
 
-Move the existing protected batch-write workflow into typed CLI commands before embedding its complete operational handbook. Do not ship a guide that still requires locating an implementation script in a separately installed Skill.
+范围：
 
-Keep commits 9–11 independently reviewable from guide work and from one another. Commit 11 may develop transport behavior before commit 9 lands, but its machine-error projection must integrate after, or against a separately fixed version of, commit 9's structured error contract.
+- 让同一个 manifest 的 `issues[]` 支持单次与 batch；
+- 在首笔 mutation 前验证整批输入；
+- 顺序执行并原子记录逐 Issue、逐请求项 checkpoint；
+- 添加 stop/continue 策略和结构化汇总；
+- 迁移当前受保护 batch Skill 的已接受行为和 fixture；
+- 添加与版本匹配的 `issue-batch` 指南，但不复制命令手册。
 
-## Alternatives considered
+非目标：
 
-### Keep the current generated Skill manual
+- 不建立第二套 batch schema 或清单外的附件列表；
+- 不引入并发执行、通用事务日志或自动对账协议；
+- 不因批量便利削弱字段冲突和 workspace 确认。
 
-Rejected as the long-term design because it duplicates live command facts, consumes context eagerly, and can drift from the installed version. It remains the migration baseline until evals prove the replacement.
+门禁：
 
-### Remove host Skills entirely
+- 单次和 batch 对同一 Issue 产生相同计划和结果语义；
+- `applied` 项在续跑时跳过，`unknown` 项立即停止整个 batch 并阻止续跑或重试；
+- 部分成功与剩余项可由 checkpoint 准确恢复；
+- 现有 batch 安全与恢复用例全部有 CLI owner。
 
-Rejected because embedded resources cannot provide first-mile activation, organization policy, cross-tool routing, or host authorization semantics.
+### skills#219：全新 agent 验证与 family 原子替换
 
-### Add `linear skills list/read`
+本阶段在 `jihuanshe/skills#219` 内完成，与 `preserving-context-continuity` 是同一个原子评审单元；只在已安装二进制的访问诊断、Issue authoring、Issue delivery manifest 和 batch checkpoint 都有 CLI 拥有者、且携带这些能力的 release 已经上线后合并。全新 agent 场景在 merge 前使用分支内的 Skill 工件与已发布的 CLI 运行——merge 即全公司生效，没有事后补测的窗口。
 
-Deferred. The initial guide corpus is small, and calling product handbooks `guides` avoids confusing embedded resources with host Agent Skills. A specialist embedded-Skill system can be reconsidered if the guide corpus grows beyond a simple router and handbook model.
+范围：
 
-### Depend on host Skill-directory grep
+- 用全新 Amp agent 运行激活正反例、直接 CRUD、访问故障、Issue authoring、交付和 batch 的代表性场景；
+- 在 `jihuanshe/skills` 自己的仓库和评审中更新它；
+- 添加一个 `linear` Skill，其描述对完整的 Linear 任务空间激活；
+- 只保留规范的二进制缺失引导路由和一条使用 CLI 上下文发现的指令；
+- 在同一次受评审的迁移中移除 `linear-cli`、`linear-access`、`linear-request-intake` 和 `linear-issue-batch-write`；
+- 提交迁移台账：旧 family 的每个 SKILL.md 章节与 reference 文件标注最终去向——CLI 命令或 help、内嵌指南、二进制缺失引导、宿主策略或删除；
+- 验证没有其他外部 Skill 仍声称拥有 Linear 专属的正向路由。
 
-Rejected as the primary contract because Skill locations differ across hosts and static Skill contents can differ from the installed binary. `guides path` provides a supported, version-matched location while preserving the filesystem affordance.
+门禁：
 
-### Add internal search immediately
+- 全新 agent 在直接 CRUD、安装/认证故障、Issue authoring 和批量工作中都选中这一个外部 Skill；
+- 普通的非 Linear 任务不选中它；
+- 确切已知的命令不付出强制的版本、usage 或指南预检；
+- 不确定的 agent 通过 CLI 根导航、命令帮助、错误和内嵌指南面包屑恢复；
+- 权威事实源、原始证据、技术审计转写、机械更新和部分成功场景均有可复查的正确路径；
+- 不通过猜测的包名或直接 `rm` 删除任何未知二进制；
+- 受管的 Jihuanshe 主机不绕过 Rotom，除非组织策略被明确改变；
+- 每个被移除的外部 Skill 用例都有明确的 CLI 命令、内嵌指南、二进制缺失引导或宿主策略拥有者；
+- 专用命令、GraphQL fallback 和授权边界各有正确代表性路径，且不把激活 Skill 养成一本手册；
+- 场景失败按本章的拥有者规则裁定，不为了让测试全绿扩张 CLI 协议。
 
-Deferred because four guides can be listed concisely, read directly, and searched after `guides path`. Internal search becomes justified when evals show retrieval failures or a named environment lacks usable filesystem tools.
+## 发布编排
 
-### Use BM25 immediately
+两个仓库、一个发布窗口、一次完整状态切换：
 
-Deferred until the corpus or evals first justify internal search and then demonstrate that metadata-aware lexical matching is insufficient.
+1. **集成完成**：`jihuanshe/linear` 集成分支完成本次发布范围的全部 commit，`deno task verify-release` 通过。
+2. **merge 与发布**：集成分支一次 merge 进 `main`；`Ship main` 构建并发布携带新 capability 的 release。capability 词汇随本次 release 从 `usage-v1` 扩展为 `usage-v1`、`guides-v1`、`delivery-v1`。
+3. **安装验证**：通过 mise（非受管机器）或 Rotom（受管机器）收敛到新版本；`linear version --json` 报告新 capability，`linear guides list` 与 delivery `plan` 冒烟通过。
+4. **Skill 替换**：merge `jihuanshe/skills#219`——`preserving-context-continuity`、新 `linear` 激活 Skill、四个旧 Skill 的删除与迁移台账是同一个原子评审单元。
+5. **Live**：skillshare sync 使替换在全部配置目标生效；按 lifecycle 规则验证投影内容并运行最小冒烟。
+6. **信号**：发布后观察真实使用。效果不好的部分就是下一轮优化的输入；恢复旧 Skill 只需要 revert 一个 PR，不需要专门的回滚仪式。
 
-### Export a complete Agent Skill from the binary
+顺序约束只有一条：新 Skill 引用的入口只存在于新 release，因此 CLI 先上线、Skill 替换随后。这不是渐进主义——中间状态不对外发布，两步是同一次切换在两个仓库的落点。
 
-Rejected. It would recreate the duplicate manual and host-format coupling this design removes. Materializing embedded Markdown is intentionally not Skill export.
+## 发布后工作（信号驱动）
 
-## Open decisions
+以下工作项与 Skill 迁移零耦合，不进入本次发布窗口；规格保持可实现精度，编号沿用原路线图，由发布后的真实使用信号排期。
 
-The implementation commits must resolve these with tests or measured evidence:
+### Commit 8：统一的可选机器输出
 
-1. Whether `guides` or singular `guide` best matches the existing command naming style.
-2. The exact zero-argument navigation content and byte budget.
-3. Whether static text imports pass every publication and release diagnostic; the fallback is a generated resource module.
-4. The cross-platform cache directory, checksum manifest, and safest concurrent materialization algorithm.
-5. Whether a cache-backed `guides path` is sufficient or an explicit `guides export` has a named consumer.
-6. Which contextual errors benefit from a guide link after guide-aware evals, without making errors noisy.
-7. Which material in `linear-request-intake` is genuinely product-owned versus organization and host policy.
-8. Whether Jihuanshe-managed hosts remain Rotom-owned or intentionally migrate to direct mise; this must be decided with the Rotom contract, not only in this repository.
-9. Which source-specific uninstall procedures the rewritten `linear-access` can prove safely; unknown/manual installations continue to require user review.
-10. Whether the existing external Skill release process needs synchronization beyond a stable thin router.
-11. Whether retrieval evidence ever justifies internal search; only then decide lexical tokenization, bilingual indexing, or BM25.
+范围：
 
-## Definition of done
+- 添加一个显式的全局 JSON 输出上下文，同时保持当前人类输出为默认；
+- 先迁移已支持 `--json` 的命令，并保持其命令级 flag 兼容；
+- 在未迁移的命令路径上返回稳定的 `UNSUPPORTED_OUTPUT` 错误，而不是把人类文本混入请求的机器输出；
+- 让成功的机器模式 stdout 恰好包含一个 payload，没有横幅、spinner、分页器、进度、ANSI 装饰、警告或尾随文字；
+- 让失败的机器模式 stdout 为空，stderr 恰好包含一个结构化错误文档，带稳定的 code、message、可选的 suggestion，以及仅在已知时提供的重试元数据；
+- 从 `VALIDATION_ERROR`、`NOT_FOUND`、`AUTH_REQUIRED`、`UNSUPPORTED_OUTPUT`、`RATE_LIMITED`、`NETWORK_ERROR`、`API_ERROR` 和 `INTERNAL_ERROR` 这些代码开始，以现有的 `CliError` 边界为支撑；
+- 保留 GraphQL 字段名、嵌套、connection 形状和命令特定的 payload 语义，而不是把成功数据包进一个新的通用信封；
+- 用显式测试决定 JSON 是否默认紧凑、单独的紧凑选项是否仍有用，以及可继承的 `LINEAR_OUTPUT` 环境变量是否足够安全可支持；
+- 定义帮助、usage 和版本发现是参与全局输出上下文，还是保留各自的显式机器 flag；
+- 让机器输出、提示抑制、确认绕过 flag、认证和用户授权保持为相互独立的契约。
 
-The architecture is complete when:
+非目标：
 
-- invoking `linear` teaches progressive discovery;
-- the external router can identify a compatible `jihuanshe/linear` build without network access and route incompatible installations to a safe owner-aware migration;
-- command facts come only from the live command tree;
-- installed users can list, read, and materialize version-matched guides offline;
-- related guides are discoverable from domain and leaf help without bloating output;
-- a thin host Skill reliably activates and routes Linear tasks;
-- organization and cross-tool policy remains outside generic CLI behavior;
-- the generated static command manual and per-domain references are removed;
-- evals show no task-success, GraphQL-control, or safety regression;
-- machine output, resolver performance, and retry work can proceed independently on the resulting foundation.
+- 不暗示机器模式授权写入；
+- 不在缺少每命令 payload 契约的情况下同时迁移所有命令；
+- 无字段投影；
+- 不改变原始 GraphQL 响应命名或分页形状。
+
+门禁：
+
+- 现有的命令级 JSON 测试保持兼容；
+- 跨命令子进程测试分别捕获 stdout、stderr、退出状态和终端装饰；
+- 每个机器模式成功都解析为恰好一个 JSON 值且 stderr 为空；
+- 每个机器模式失败的 stdout 为空、stderr 上有一个可解析的错误文档、退出状态非零；
+- 不支持的命令路径显式失败，而不是回退到人类输出。
+
+### Commit 9：非交互 issue 变更解析器
+
+范围：
+
+- 定义一个由显式非交互选项和禁用提示执行共享的非交互解析策略，而不把提示抑制本身当作性能契约；
+- 为非交互 create 和 update 批量解析 team、state、assignee、labels、project、milestone、cycle 和 parent 输入；
+- 让 create 和 update 使用小的、按操作划分的解析器，而不是要求一个通用解析器抽象；
+- 保留 UUID 透传、名称/key/标识符匹配、歧义、未找到、team/workspace 范围和当前的候选选择语义；
+- 保持交互式候选选择及其增量查找不变；
+- 在解析依赖的 update 输入之前，获取目标 issue 和必要的更新上下文；
+- 把名义上的非交互查找流量减少到 mutation 前固定的一到两个 GraphQL 请求。
+
+非目标：
+
+- 不改变交互式解析行为；
+- 不为降低请求数而削弱歧义或范围校验；
+- 不把重试策略捆绑进解析器工作；
+- 不做仓库范围的解析器/服务重写。
+
+门禁：
+
+- 请求计数测试区分 CLI 调用、名义 GraphQL 请求、分页和重试；
+- create 和 update 测试各自锁定固定的查找上界；
+- 回归测试覆盖每一个现有解析语义，并证明无效输入在 mutation 前失败；
+- 执行被测解析的是生产命令路径，而非仅测试用的重新实现。
+
+### Commit 10：保守的网络可靠性
+
+范围：
+
+- 添加可中止的每次尝试超时和总体截止时间，并显式定义服务器要求的 `Retry-After` 等待是否计入其中；
+- 解析 delta-seconds 和 HTTP-date 两种 `Retry-After` 形式，受有界的客户端策略约束；
+- 对可重试的查询失败使用带抖动的指数退避；
+- 默认只对 `429`、`502`、`503`、`504` 和被严格分类的瞬态网络失败重试查询；
+- 分类相关的 HTTP 200 GraphQL 错误码，且不把认证、权限、校验或领域错误当作瞬态；
+- 绝不自动重试 mutation，除非该操作单独证明幂等性或提供受支持的幂等键；
+- 保留超时 mutation 的未知结果，而不是报告它必然失败；
+- 在可用时通过结构化错误边界暴露可重试性、HTTP 状态、服务器延迟、尝试次数和部分结果信息。
+
+非目标：
+
+- 无可能把操作误分类为查询的 GraphQL 文本启发式；
+- 无包裹 `client.request` 的一揽子重试包装器；
+- 无超出文档化总体截止时间的静默延迟；
+- 不通过让生产重试行为变成确定性的来为测试开特例。
+
+门禁：
+
+- 假传输层或本地服务器测试以确定性方式控制时钟、睡眠和抖动；
+- 测试覆盖两种 `Retry-After` 形式、截止时间耗尽、取消和 GraphQL 错误分类；
+- 名义请求计数测试与重试尝试测试保持分离；
+- 测试证明瞬态查询会重试，且 mutation 在 HTTP 失败、网络错误或超时歧义之后不会重复执行。
+
+### 证据门控：机器输出字段投影
+
+只有在机器 payload schema 和实测输出成本稳定之后，才考虑内置投影。其目的是减少 CLI 到 agent 的输出，不是减少 GraphQL 请求或服务器响应大小；`jq` 和精确的 `linear api` 选择仍是有效替代。
+
+如果真实输出成本支持实现：
+
+- 支持嵌套对象、数组和 connection，不扁平化、不重命名字段；
+- 保留 `nodes`、`pageInfo` 和任意 `linear api` payload 嵌套；
+- 对每一个不存在的请求路径失败，而不是静默接受部分拼写错误；
+- 独立测试投影和紧凑格式化；
+- 在代表性用例上证明发现或执行输出字节的实质性减少。
+
+### 架构约束随实现落地
+
+在让某个边界成立且可测试的那个 commit 中同步更新仓库指引。Issue 交付与 batch 的约束属于 commits 11–12，全新 agent 验证与 Skill 迁移属于 skills#219；机器输出纯净性、解析器语义和重试规则随各自的发布后工作项落地。命令、解析器和服务的分层规则只适用于代码和测试已经强制执行它的模块，不得提前全局声明。
+
+## 已考虑的替代方案
+
+### 保留当前生成的 Skill 手册
+
+作为长期设计被否决，因为它重复实时命令事实、急切消耗上下文，并可能与已安装版本漂移。在替代方案通过确定性测试和关键场景验证之前，它仍是迁移基线。
+
+### 移除所有外部 Linear Skill
+
+被否决，因为内嵌资源无法在 agent 选中二进制之前提供第一英里激活。这需要恰好一个覆盖面广的外部 Linear Skill，而不是一个按工作流切分的家族。
+
+### 添加 `linear skills list/read`
+
+延后。初始指南语料很小，而且把产品手册称为 `guides` 能把版本匹配的运行时资源与那一个外部激活 Skill 区分开。如果指南语料超出简单的手册模型，可以重新考虑专家型内嵌 Skill 系统。
+
+### 依赖宿主 Skill 目录 grep
+
+作为主要契约被否决，因为 Skill 位置因宿主而异，且静态 Skill 内容可能与已安装二进制不一致。`guides list/read` 直接从已安装二进制提供版本匹配的内容。
+
+### 立即添加内部搜索
+
+延后，因为四份指南可以简洁列出并直接阅读。当全新 agent 场景显示这些入口仍造成实际检索失败时，内部搜索才有理由。
+
+### 立即使用 BM25
+
+延后，直到语料或真实场景首先证明内部搜索有必要，然后再证明元数据感知的词法匹配不够用。
+
+### 从二进制导出完整的 Agent Skill
+
+被否决。它会重建本设计要移除的重复手册和宿主格式耦合。
+
+## 待决事项
+
+一次性交付要求把可以现在决定的事项当场拍板，只把真正依赖实测的留给实现 commit 或发布后信号。
+
+已拍板：
+
+1. 指南命令使用复数 `guides`，与内容为集合一致；`linear guides` 是列表别名。
+2. 零参数导航内容与字节预算已随 commit 3 定稿（根导航 1,325 字节）。
+3. Issue delivery manifest v1：Comment 上传文件接受任意本地文件；Attachment 支持 `url` 与本地文件两种输入，复用现有 `issue attach` 的上传路径；IssueRelation 直接透传 Linear 现有关系类型。既有集合项的修改与删除留给发布后信号。
+4. delivery 命令定名 `linear issue plan` 与 `linear issue apply`，动词直接挂在 issue 域下，与 create/update 风格一致；不设 `delivery` 名词层级。
+5. checkpoint 默认写在 manifest 同目录（`<manifest>.checkpoint.json`），对接手者可见、可 grep、可随 manifest 一起交接；不放隐藏缓存目录。
+6. 外部 Skill 发布不需要单一激活 Skill 之外的同步机制：skills#219 一次替换，skillshare sync 即 Live。
+7. authoring 与访问默认指南优先：判断类内容一律进 `issue-authoring` 指南；新命令只为当前无法机器查询的现场事实而设，`auth status` 与 `version --json` 已覆盖的不新增 doctor。commit 7a 的盘点只能以具体缺口推翻该默认，不能反向把判断做成命令。
+8. 上下文错误的指南链接本次发布不做：四个已知陷阱由指南承载，错误消息保持干净；是否恢复由发布后信号决定。
+
+没有决策空间、只有验证动作的：
+
+9. 静态文本导入是否通过每一项发布诊断——commit 5 开工时直接实验；回退方案是生成的资源模块。
+10. Linear 的 Markdown 等价改写清单——commit 11 内以实测往返采样补回归；无法安全规范化的差异直接展示给调用者，不判为失败。
+
+留给发布后信号或组织决策：
+
+11. 内部搜索、文件系统投影与 `guides export`。
+12. Jihuanshe 受管主机是保持 Rotom 所有，还是有意迁移到直接 mise；这必须与 Rotom 契约一起决定，而不能只在本仓库决定。
+
+## 完成定义
+
+架构在满足以下条件时完成：
+
+- 全部剩余能力经集成分支的一次 merge 与一个 release 交付，skills#219 在同一发布窗口完成 family 替换与 skillshare sync；
+- 调用 `linear` 教授渐进式发现；
+- 一个外部 Skill 可靠地对每个 Linear 任务激活，而不把访问、authoring 或批量工作切分进兄弟 Skill；
+- 二进制缺失引导仍然可用，而已安装二进制的诊断与修复由 CLI 拥有；
+- 命令事实只来自实时命令树；
+- 已安装用户可以离线列出并阅读版本匹配的指南；
+- 相关指南可以从领域和叶子帮助中发现，且不使输出膨胀；
+- 确切已知的命令直接运行，而不确定的 agent 可以只动态加载相关的 CLI 拥有的工作流；
+- 组织与跨工具策略留在通用 CLI 行为之外；
+- `issue-authoring` 能帮助调用者区分事实所属系统、发现渠道和修复后的第一复查点，并跨交接保留意图；
+- `linear upload` 让任何 Markdown 位置——描述、评论、表格单元格——都能嵌入已上传的 artifact；
+- 一个文件驱动的 Issue delivery manifest 可以预览并顺序执行 Issue 字段、Comment 及其上传文件、Linear Attachment 和 IssueRelation；
+- batch 复用同一个 manifest，并用简单 checkpoint 避免重复已确认成功的步骤；
+- 创建 Issue、实质性改写标题或正文、发布结论性评论及交付关键证据时可以先完整预览，机械字段更新和普通补充保持轻量；
+- apply 完成后返回每个目标 Issue 的当前视图，只核对本次修改字段和已知请求项；
+- 关键原始证据进入可访问附件，Issue 不依赖创建者机器或原聊天；
+- Issue 关闭原因和仍存在工作的可点击下一跳无歧义；
+- 生成的静态命令手册和每领域参考被移除；
+- 四个旧 Linear Skill 在同一次迁移中被一个激活 Skill 原子替换；
+- 全新 agent 场景和确定性测试证明事故导出的语义边界、GraphQL fallback 与授权边界仍有正确拥有者。

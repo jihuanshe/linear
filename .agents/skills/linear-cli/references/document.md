@@ -110,6 +110,7 @@ Usage:   linear document update <documentId>
 
 Writes: true
 Interactive: true
+Related guides: core
 
 Description:
 
@@ -134,6 +135,8 @@ Options:
 
 ```
 Usage:   linear document view <id>
+
+Related guides: automation
 
 Description:
 

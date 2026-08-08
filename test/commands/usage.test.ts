@@ -98,6 +98,45 @@ Deno.test("usage provides a concise top-level overview", async () => {
   assertStringIncludes(result.stdout, "machine-readable: linear usage --json")
 })
 
+Deno.test("zero-argument root reuses concise usage navigation", async (t) => {
+  const [result, explicitUsage] = await Promise.all([
+    run([]),
+    run(["usage"]),
+  ])
+
+  assertEquals(result.code, 0, result.stderr)
+  assertEquals(result.stderr, "")
+  assertEquals(result.stdout, explicitUsage.stdout)
+  assertEquals(
+    new TextEncoder().encode(result.stdout).byteLength <= 1_600,
+    true,
+  )
+  await assertSnapshot(t, result.stdout)
+})
+
+Deno.test("zero-argument domain reuses its usage navigation", async () => {
+  const [result, aliasResult, explicitUsage] = await Promise.all([
+    run(["issue"]),
+    run(["i"]),
+    run(["issue", "usage"]),
+  ])
+
+  assertEquals(result.code, 0, result.stderr)
+  assertEquals(result.stderr, "")
+  assertEquals(result.stdout, explicitUsage.stdout)
+  assertEquals(aliasResult.code, 0, aliasResult.stderr)
+  assertEquals(aliasResult.stderr, "")
+  assertEquals(aliasResult.stdout, explicitUsage.stdout)
+})
+
+Deno.test("zero-argument commands with their own action stay unchanged", async () => {
+  const result = await run(["document"])
+
+  assertEquals(result.code, 0, result.stderr)
+  assertEquals(result.stderr, "")
+  assertEquals(result.stdout, "Use --help to see available subcommands\n")
+})
+
 Deno.test("usage --json exposes the top-level command tree", async () => {
   const result = await run(["usage", "--json"])
 

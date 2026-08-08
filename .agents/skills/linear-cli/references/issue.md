@@ -106,6 +106,7 @@ Options:
 Usage:   linear issue attach <issueId> <filepath>
 
 Writes: true
+Related guides: core, issue-authoring
 
 Description:
 
@@ -153,6 +154,7 @@ Usage:   linear issue comment add [issueId]
 
 Writes: true
 Interactive: true
+Related guides: core, automation, issue-authoring
 
 Description:
 
@@ -251,6 +253,7 @@ Usage:   linear issue create
 
 Writes: true
 Interactive: true
+Related guides: automation, issue-authoring
 
 Description:
 
@@ -348,6 +351,7 @@ Options:
 Usage:   linear issue link <urlOrIssueId> [url]
 
 Writes: true
+Related guides: issue-authoring
 
 Description:
 
@@ -441,6 +445,7 @@ Options:
 Usage:   linear issue query
 
 Interactive: true
+Related guides: automation
 
 Description:
 
@@ -611,6 +616,7 @@ Options:
 Usage:   linear issue update [issueId]
 
 Writes: true
+Related guides: core, automation, issue-authoring
 
 Description:
 
@@ -649,6 +655,8 @@ Options:
 ```
 Usage:   linear issue url [issueId]
 
+Related guides: issue-authoring
+
 Description:
 
   Print the issue URL
@@ -667,6 +675,7 @@ Options:
 Usage:   linear issue view [issueId]
 
 Writes: true
+Related guides: automation, issue-authoring
 
 Description:
 

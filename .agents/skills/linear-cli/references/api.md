@@ -9,6 +9,7 @@ Usage:   linear api [query]
 
 Writes: true
 Output modes: json
+Related guides: graphql
 
 Description:
 

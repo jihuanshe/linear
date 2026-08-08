@@ -150,6 +150,10 @@ linear document list
 linear document update
 linear document view
 
+linear guides
+linear guides list
+linear guides read
+
 linear initiative
 linear initiative add-project
 linear initiative archive
@@ -243,6 +247,7 @@ linear version
 - [config](references/config.md) - Interactively generate .linear.toml configuration
 - [cycle](references/cycle.md) - Manage Linear team cycles
 - [document](references/document.md) - Manage Linear documents
+- [guides](references/guides.md) - Version-matched workflow guides
 - [initiative](references/initiative.md) - Manage Linear initiatives
 - [initiative-update](references/initiative-update.md) - Manage initiative status updates (timeline posts)
 - [issue](references/issue.md) - Manage Linear issues
