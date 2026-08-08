@@ -1,6 +1,6 @@
 # Agent 接口架构与交付路线图
 
-状态：已接受的架构与实施计划，经独立设计评审、真实 Issue 交接事故和 2026-08-08 的一次性交付决定修订。渐进式 `usage`、元数据加固、分发/版本/capability 探针、零参数导航和单一激活 Skill 场景探测已完成；剩余能力在集成分支上完成后，与外部 Skill 替换在同一发布窗口一起上线。
+状态：已接受的架构与实施计划，经独立设计评审、真实 Issue 交接事故和 2026-08-08 的一次性交付决定修订。本次发布范围的全部 CLI 能力（指南、面包屑、access/authoring 迁移、生成手册移除、upload、delivery plan/apply、batch checkpoint）已在集成分支完成；下一步是发布编排与 skills#219 的 family 原子替换。
 
 ## 执行摘要
 
@@ -828,7 +828,7 @@ CLI 测试拥有机器能够可靠裁定的契约：
 - [x] Commit 7a——把已安装二进制的访问诊断和 Issue authoring 迁入 CLI 拥有的工作流。
 - [x] Commit 7b——移除本地生成手册，并把生成流程转为契约验证。
 - [x] Commit 11——暴露 `linear upload` 原语，实现 Issue delivery manifest、零写入 `plan` 和顺序 `apply`。
-- [ ] Commit 12——让 batch 复用同一 manifest，并添加简单 checkpoint。
+- [x] Commit 12——让 batch 复用同一 manifest，并添加简单 checkpoint。
 - [ ] 发布编排——merge 集成分支、发布、验证安装，然后在 `jihuanshe/skills#219` 内完成全新 agent 验证与 family 原子替换并 sync。
 
 发布后、信号驱动：

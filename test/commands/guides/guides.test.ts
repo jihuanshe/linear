@@ -56,7 +56,7 @@ Deno.test("guides list --json preserves stable metadata", async () => {
   const documents = JSON.parse(result.stdout)
   assertEquals(
     documents.map((entry: { name: string }) => entry.name),
-    ["core", "automation", "issue-authoring", "graphql"],
+    ["core", "automation", "issue-authoring", "issue-delivery", "graphql"],
   )
   for (const entry of documents) {
     assertEquals(typeof entry.title, "string")
@@ -85,7 +85,7 @@ Deno.test("guides read fails with guidance for an unknown name", async () => {
   assertStringIncludes(result.stderr, "no-such-guide")
   assertStringIncludes(
     result.stderr,
-    "core, automation, issue-authoring, graphql",
+    "core, automation, issue-authoring, issue-delivery, graphql",
   )
 })
 

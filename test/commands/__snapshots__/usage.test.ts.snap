@@ -58,6 +58,10 @@ snapshot[`usage JSON v1 freezes its existing fields and types 1`] = `
         description: "事实源判断、证据持久化、写前确认与写后读回、关闭原因与下一跳——让无上下文的接手者能独立继续",
         name: "issue-authoring",
       },
+      {
+        description: "delivery manifest 的字段保护、checkpoint 续跑、unknown 对账与批量语义——单次和批量共用同一协议",
+        name: "issue-delivery",
+      },
     ],
     hasSubcommands: true,
     interactive: false,
@@ -2143,6 +2147,10 @@ snapshot[`usage JSON v1 freezes its existing fields and types 1`] = `
           description: "事实源判断、证据持久化、写前确认与写后读回、关闭原因与下一跳——让无上下文的接手者能独立继续",
           name: "issue-authoring",
         },
+        {
+          description: "delivery manifest 的字段保护、checkpoint 续跑、unknown 对账与批量语义——单次和批量共用同一协议",
+          name: "issue-delivery",
+        },
       ],
       hasSubcommands: false,
       interactive: false,
@@ -2199,6 +2207,10 @@ snapshot[`usage JSON v1 freezes its existing fields and types 1`] = `
           description: "事实源判断、证据持久化、写前确认与写后读回、关闭原因与下一跳——让无上下文的接手者能独立继续",
           name: "issue-authoring",
         },
+        {
+          description: "delivery manifest 的字段保护、checkpoint 续跑、unknown 对账与批量语义——单次和批量共用同一协议",
+          name: "issue-delivery",
+        },
       ],
       hasSubcommands: false,
       interactive: false,
@@ -2240,6 +2252,16 @@ snapshot[`usage JSON v1 freezes its existing fields and types 1`] = `
           name: "confirm-workspace",
           repeatable: false,
           staticallyRequired: true,
+        },
+        {
+          arguments: [],
+          description: "Keep executing after a confirmed failed item; unknown outcomes always stop",
+          flags: [
+            "--continue-on-failure",
+          ],
+          name: "continue-on-failure",
+          repeatable: false,
+          staticallyRequired: false,
         },
         {
           arguments: [],

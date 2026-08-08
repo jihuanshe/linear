@@ -15,6 +15,9 @@ import graphql from "../../docs/guides/graphql.md" with { type: "text" }
 import issueAuthoring from "../../docs/guides/issue-authoring.md" with {
   type: "text",
 }
+import issueDelivery from "../../docs/guides/issue-delivery.md" with {
+  type: "text",
+}
 
 /**
  * Import manifest of every embedded guide, in display order. A test compares
@@ -25,5 +28,6 @@ export const guideSources: Record<string, string> = {
   "core": core,
   "automation": automation,
   "issue-authoring": issueAuthoring,
+  "issue-delivery": issueDelivery,
   "graphql": graphql,
 }

@@ -27,6 +27,7 @@ commands:
 seeAlso:
   - core
   - automation
+  - issue-delivery
 ---
 
 # 编写能在交接中存活的 Issue

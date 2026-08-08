@@ -59,4 +59,17 @@ SKILL.md 手工章节：
 
 ## linear-issue-batch-write（SKILL.md 104 行 + script 620 行 + tests 402 行）
 
-commit 12 迁移受保护批量行为与 fixture 时逐节补记。
+commits 11–12 已把可执行工作流全部迁入一等 CLI 命令；外部 Skill 与其 Python script 随 skills#219 删除。
+
+| 内容                                                                 | 去向                                                                                                      |
+| -------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| plan → apply 生命周期、`--confirm-workspace` 重复确认                | CLI 命令 `issue plan` / `issue apply`                                                                     |
+| 字段级三方比较（base/desired/remote：幂等跳过、可写、conflict 拒绝） | CLI `src/delivery/engine.ts` planFields + 确定性测试                                                      |
+| create manifest、逐条 result 写回、续跑跳过                          | delivery manifest `issues[]` + `<manifest>.checkpoint.json`（内容哈希跳过，取代 result 字段回写）         |
+| `unverified` 状态与对账要求、create 无幂等键警告                     | checkpoint `unknown` 状态：阻塞续跑直至显式对账；警告进入 issue-delivery 指南                             |
+| 评论/附件/链接的 manifest 外后处理清单                               | 删除：manifest 一等支持 comments/files/attachments/relations，后处理清单不再存在                          |
+| Markdown 规范化（CRLF、行尾空格、列表符号）                          | CLI `normalizeMarkdown` + 回归测试；无法安全规范化的差异展示给调用者                                      |
+| snapshot 子命令（初始化 update manifest 的 base）                    | 删除：base 由调用者从 `issue view --json` 自取；需要时可由信号驱动恢复为专用命令                          |
+| 退出码契约 0/2/3/4                                                   | 删除：收敛到 CLI 统一错误约定（非零 + `✗` stderr），plan 的 `status` 字段与 apply 的逐项结果承载语义      |
+| nullable 字段显式 null 清空（project/parent 等）                     | 收窄：v1 仅 assignee 支持清除（`--unassign`）；其余等 `issue update` 长出对应 clear flag 后由信号驱动恢复 |
+| 批量语义（整批预校验、顺序执行、部分成功保留、不回滚）               | CLI apply + `--continue-on-failure`；测试覆盖 stop/continue 两种策略                                      |

@@ -490,8 +490,14 @@ export interface ItemResult {
 }
 
 export interface ApplyOutcome {
-  status: "completed" | "stopped-on-failure" | "stopped-on-unknown" | "conflict"
+  status:
+    | "completed"
+    | "completed-with-failures"
+    | "stopped-on-failure"
+    | "stopped-on-unknown"
+    | "conflict"
   items: ItemResult[]
+  summary: Record<ItemStatus, number>
   createdIdentifiers: Record<string, string>
   readBack: Record<string, unknown>
 }
@@ -508,6 +514,13 @@ export interface ApplyContext {
   loaded: LoadedManifest
   runner: CommandRunner
   onProgress?: (line: string) => void
+  /**
+   * Keep executing after a confirmed `failed` item (one the CLI reported as a
+   * handled error, so no remote effect landed). An `unknown` outcome always
+   * stops regardless of this flag — nothing may run past an unverified
+   * mutation.
+   */
+  continueOnFailure?: boolean
 }
 
 export async function applyManifest(
@@ -544,7 +557,14 @@ export async function applyManifest(
 
   const results: ItemResult[] = []
   const readBack: Record<string, unknown> = {}
-  let stopped: ApplyOutcome["status"] | null = null
+  // `halted` controls whether further items run; the three flags remember
+  // what happened so the final status reports the strongest signal even when
+  // --continue-on-failure kept the run going.
+  let halted = false
+  let unknownSeen = false
+  let conflictSeen = false
+  let failedSeen = false
+  const continueOnFailure = context.continueOnFailure === true
 
   for (const [issueIndex, issue] of manifest.issues.entries()) {
     const items = await expandIssue(
@@ -554,9 +574,22 @@ export async function applyManifest(
       loaded.files,
     )
 
-    // Update issues with a base need the current remote values before the
-    // fields step; conflicts stop the whole run before any write.
+    if (halted) {
+      for (const item of items) {
+        results.push({
+          key: item.key,
+          kind: item.kind,
+          describe: item.describe,
+          status: "unattempted",
+        })
+      }
+      continue
+    }
+
+    // Update issues need the current remote values before the fields step;
+    // conflicts surface before any write.
     let remote: RemoteFields | null = null
+    let issueHalted = false
     if (issue.operation === "update") {
       const view = await runner.run([
         "issue",
@@ -567,26 +600,33 @@ export async function applyManifest(
         "--json",
       ])
       if (view.code !== 0) {
+        const status = classifyFailure(view)
         results.push({
           key: `${issueIndex}:fields:0:read`,
           kind: "fields",
           describe: `read current state of ${issue.identifier}`,
-          status: classifyFailure(view),
+          status,
           detail: view.stderr.trim().split("\n")[0],
         })
-        stopped = view.code !== 0 && view.stderr.includes("✗")
-          ? "stopped-on-failure"
-          : "stopped-on-unknown"
-        break
+        if (status === "unknown") {
+          unknownSeen = true
+          halted = true
+        } else {
+          failedSeen = true
+          halted = !continueOnFailure
+        }
+        issueHalted = true
+      } else {
+        remote = extractRemoteFields(JSON.parse(view.stdout))
       }
-      remote = extractRemoteFields(JSON.parse(view.stdout))
     }
 
     let identifier = issue.identifier ??
       checkpoint.createdIdentifiers[String(issueIndex)] ?? null
+    let issueApplied = false
 
     for (const item of items) {
-      if (stopped != null) {
+      if (halted || issueHalted) {
         results.push({
           key: item.key,
           kind: item.kind,
@@ -630,12 +670,15 @@ export async function applyManifest(
               conflicts.map((plan) => plan.field).join(", ")
             } changed remotely since base`,
           })
-          stopped = "conflict"
+          conflictSeen = true
+          halted = !continueOnFailure
+          issueHalted = true
           continue
         }
         if (fieldPlans.every((plan) => plan.verdict === "idempotent")) {
           checkpoint.items[item.key] = { status: "applied", note: "idempotent" }
           await saveCheckpoint(manifestPath, checkpoint)
+          issueApplied = true
           results.push({
             key: item.key,
             kind: item.kind,
@@ -691,7 +734,8 @@ export async function applyManifest(
           status: "unknown",
           detail: (error as Error).message,
         })
-        stopped = "stopped-on-unknown"
+        unknownSeen = true
+        halted = true
         continue
       } finally {
         await cleanup?.()
@@ -716,7 +760,8 @@ export async function applyManifest(
               status: "unknown",
               detail: "create output had no identifier",
             })
-            stopped = "stopped-on-unknown"
+            unknownSeen = true
+            halted = true
             continue
           }
           identifier = createdIdentifier
@@ -724,6 +769,7 @@ export async function applyManifest(
         }
         checkpoint.items[item.key] = { status: "applied" }
         await saveCheckpoint(manifestPath, checkpoint)
+        issueApplied = true
         results.push({
           key: item.key,
           kind: item.kind,
@@ -749,12 +795,16 @@ export async function applyManifest(
         status,
         detail: result.stderr.trim().split("\n")[0],
       })
-      stopped = status === "failed"
-        ? "stopped-on-failure"
-        : "stopped-on-unknown"
+      if (status === "unknown") {
+        unknownSeen = true
+        halted = true
+      } else {
+        failedSeen = true
+        halted = !continueOnFailure
+      }
     }
 
-    if (stopped == null && identifier != null) {
+    if (issueApplied && identifier != null) {
       const view = await runner.run([
         "issue",
         "view",
@@ -769,9 +819,27 @@ export async function applyManifest(
     }
   }
 
+  const summary: Record<ItemStatus, number> = {
+    applied: 0,
+    failed: 0,
+    unknown: 0,
+    unattempted: 0,
+    skipped: 0,
+  }
+  for (const item of results) summary[item.status] += 1
+
+  const status: ApplyOutcome["status"] = unknownSeen
+    ? "stopped-on-unknown"
+    : conflictSeen
+    ? "conflict"
+    : failedSeen
+    ? (halted ? "stopped-on-failure" : "completed-with-failures")
+    : "completed"
+
   return {
-    status: stopped ?? "completed",
+    status,
     items: results,
+    summary,
     createdIdentifiers: checkpoint.createdIdentifiers,
     readBack,
   }

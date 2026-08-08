@@ -335,6 +335,77 @@ Deno.test("idempotent and conflicting updates never invoke issue update", async 
   }
 })
 
+Deno.test("a batch stops at the first failure by default and continues with the flag", async () => {
+  const batchManifest = {
+    schemaVersion: 1,
+    workspace: "jihuanshe",
+    issues: [
+      {
+        operation: "update",
+        identifier: "DATA-1",
+        set: { title: "First" },
+      },
+      {
+        operation: "update",
+        identifier: "DATA-2",
+        set: { title: "Second" },
+      },
+    ],
+  }
+  const failFirstUpdate = () => {
+    let updates = 0
+    return fakeRunner((args) => {
+      if (args[1] === "view") return viewResult()
+      if (args[1] === "update") {
+        updates += 1
+        if (updates === 1) {
+          return { code: 1, stdout: "", stderr: "✗ state not found" }
+        }
+      }
+      return undefined
+    })
+  }
+
+  const stopDir = await Deno.makeTempDir()
+  try {
+    const manifestPath = await writeManifest(stopDir, batchManifest)
+    const runner = failFirstUpdate()
+    const outcome = await applyManifest({
+      loaded: await loadManifest(manifestPath),
+      runner,
+    })
+    assertEquals(outcome.status, "stopped-on-failure")
+    assertEquals(
+      outcome.items.map((item) => item.status),
+      ["failed", "unattempted"],
+    )
+    assertEquals(outcome.summary.failed, 1)
+    assertEquals(outcome.summary.unattempted, 1)
+  } finally {
+    await Deno.remove(stopDir, { recursive: true })
+  }
+
+  const continueDir = await Deno.makeTempDir()
+  try {
+    const manifestPath = await writeManifest(continueDir, batchManifest)
+    const runner = failFirstUpdate()
+    const outcome = await applyManifest({
+      loaded: await loadManifest(manifestPath),
+      runner,
+      continueOnFailure: true,
+    })
+    assertEquals(outcome.status, "completed-with-failures")
+    assertEquals(
+      outcome.items.map((item) => item.status),
+      ["failed", "applied"],
+    )
+    assertEquals(outcome.readBack["DATA-2"] != null, true)
+    assertEquals(outcome.readBack["DATA-1"] == null, true)
+  } finally {
+    await Deno.remove(continueDir, { recursive: true })
+  }
+})
+
 Deno.test("markdown normalization absorbs Linear's equivalent rewrites only", () => {
   assertEquals(
     normalizeMarkdown("* one\r\n* two  \n"),

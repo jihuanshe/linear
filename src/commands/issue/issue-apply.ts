@@ -26,9 +26,18 @@ export function formatApply(outcome: ApplyOutcome): string {
       }`,
     )
   }
+  lines.push(
+    "",
+    `summary: ${
+      Object.entries(outcome.summary)
+        .filter(([, count]) => count > 0)
+        .map(([status, count]) => `${status} ${count}`)
+        .join(", ")
+    }`,
+  )
   const created = Object.values(outcome.createdIdentifiers)
   if (created.length > 0) {
-    lines.push("", `created: ${created.join(", ")}`)
+    lines.push(`created: ${created.join(", ")}`)
   }
   return lines.join("\n")
 }
@@ -46,8 +55,12 @@ export const issueApplyCommand = withUsageMetadata(
       "Repeat the manifest's workspace slug to confirm the write target",
       { required: true },
     )
+    .option(
+      "--continue-on-failure",
+      "Keep executing after a confirmed failed item; unknown outcomes always stop",
+    )
     .option("--json", "Output per-item results and read-back as JSON")
-    .action(async ({ file, confirmWorkspace, json }) => {
+    .action(async ({ file, confirmWorkspace, json, continueOnFailure }) => {
       try {
         const loaded = await loadManifest(file)
         if (confirmWorkspace !== loaded.manifest.workspace) {
@@ -59,6 +72,7 @@ export const issueApplyCommand = withUsageMetadata(
           loaded,
           runner: selfExecRunner(),
           onProgress: json ? undefined : (line) => console.error(line),
+          continueOnFailure,
         })
         console.log(
           json ? JSON.stringify(outcome, null, 2) : formatApply(outcome),
