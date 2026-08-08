@@ -497,10 +497,10 @@ Markdown 和二进制内容通过相对于 manifest 的文件路径输入，避�
 
 ### `plan`
 
-命令名可在实现时按现有 CLI 风格定稿；设计语义以如下形式表示：
+命令定名为 `issue plan`，动词直接挂在 issue 域下，与 create/update 风格一致，不设 `delivery` 名词层级：
 
 ```bash
-linear issue delivery plan --file delivery.json
+linear issue plan --file delivery.json
 ```
 
 `plan` 必须：
@@ -515,10 +515,10 @@ linear issue delivery plan --file delivery.json
 
 ### `apply`、部分成功与续跑
 
-示意执行入口：
+执行入口：
 
 ```bash
-linear issue delivery apply \
+linear issue apply \
   --file delivery.json \
   --confirm-workspace jihuanshe
 ```
@@ -1056,7 +1056,7 @@ Commit 8–10 与 Skill 迁移零耦合：delivery 与 batch 使用现有 `--jso
 - Issue update 只对本次修改字段应用现有冲突保护；
 - 正文成功、后续文件失败会被报告为部分成功；
 - `unknown` mutation 不被自动重试；
-- fixture 覆盖图片、二进制证据、URL Attachment、IssueRelation、本机路径泄漏和机械字段更新；
+- fixture 覆盖图片、二进制证据、URL 与本地文件 Attachment、IssueRelation、本机路径泄漏和机械字段更新；
 - apply 完成后返回目标 Issue 的当前视图，但不遍历全部历史对象；
 - `unknown` 立即停止整个 apply 或 batch，直到显式对账。
 
@@ -1265,20 +1265,22 @@ Commit 8–10 与 Skill 迁移零耦合：delivery 与 batch 使用现有 `--jso
 
 1. 指南命令使用复数 `guides`，与内容为集合一致；`linear guides` 是列表别名。
 2. 零参数导航内容与字节预算已随 commit 3 定稿（根导航 1,325 字节）。
-3. Issue delivery manifest v1：Comment 上传文件接受任意本地文件；Attachment 只支持 `kind: "url"`；IssueRelation 直接透传 Linear 现有关系类型。本地文件直接转 Attachment 与既有集合项的修改留给发布后信号。
-4. checkpoint 默认写在 manifest 同目录（`<manifest>.checkpoint.json`），对接手者可见、可 grep、可随 manifest 一起交接；不放隐藏缓存目录。
-5. 外部 Skill 发布不需要单一激活 Skill 之外的同步机制：skills#219 一次替换，skillshare sync 即 Live。
+3. Issue delivery manifest v1：Comment 上传文件接受任意本地文件；Attachment 支持 `url` 与本地文件两种输入，复用现有 `issue attach` 的上传路径；IssueRelation 直接透传 Linear 现有关系类型。既有集合项的修改与删除留给发布后信号。
+4. delivery 命令定名 `linear issue plan` 与 `linear issue apply`，动词直接挂在 issue 域下，与 create/update 风格一致；不设 `delivery` 名词层级。
+5. checkpoint 默认写在 manifest 同目录（`<manifest>.checkpoint.json`），对接手者可见、可 grep、可随 manifest 一起交接；不放隐藏缓存目录。
+6. 外部 Skill 发布不需要单一激活 Skill 之外的同步机制：skills#219 一次替换，skillshare sync 即 Live。
+7. authoring 与访问默认指南优先：判断类内容一律进 `issue-authoring` 指南；新命令只为当前无法机器查询的现场事实而设，`auth status` 与 `version --json` 已覆盖的不新增 doctor。commit 7a 的盘点只能以具体缺口推翻该默认，不能反向把判断做成命令。
+8. 上下文错误的指南链接本次发布不做：四个已知陷阱由指南承载，错误消息保持干净；是否恢复由发布后信号决定。
 
-留给实现 commit 内的测试定稿：
+没有决策空间、只有验证动作的：
 
-6. 静态文本导入是否通过每一项发布诊断；回退方案是生成的资源模块。
-7. Linear 的 Markdown 等价改写以实测样本补回归；无法安全规范化的差异直接展示给调用者，不判为失败。
-8. 哪些 authoring 与访问用例需要新的 CLI 命令、哪些只需内嵌指南或命令 help；在 commit 7a 的盘点中按最小拥有者裁定。
+9. 静态文本导入是否通过每一项发布诊断——commit 5 开工时直接实验；回退方案是生成的资源模块。
+10. Linear 的 Markdown 等价改写清单——commit 11 内以实测往返采样补回归；无法安全规范化的差异直接展示给调用者，不判为失败。
 
-留给发布后信号：
+留给发布后信号或组织决策：
 
-9. 上下文错误的指南链接、内部搜索、文件系统投影与 `guides export`。
-10. Jihuanshe 受管主机是保持 Rotom 所有，还是有意迁移到直接 mise；这必须与 Rotom 契约一起决定，而不能只在本仓库决定。
+11. 内部搜索、文件系统投影与 `guides export`。
+12. Jihuanshe 受管主机是保持 Rotom 所有，还是有意迁移到直接 mise；这必须与 Rotom 契约一起决定，而不能只在本仓库决定。
 
 ## 完成定义
 
