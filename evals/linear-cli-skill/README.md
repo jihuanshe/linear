@@ -58,10 +58,10 @@ Requires a logged-in `codex` CLI. Costs real model tokens (~36 low-effort runs p
 
 ```bash
 # baseline against the committed Skill
-deno task evaluate-skill --condition baseline --skill-dir .agents/skills/linear-cli
+deno task evaluate-skill --condition baseline --skill-dir /path/to/skill-variant
 
 # after changing the Skill
-deno task evaluate-skill --condition post-change --skill-dir .agents/skills/linear-cli
+deno task evaluate-skill --condition post-change --skill-dir /path/to/skill-variant
 
 # compare a routed Skill family; comma-separated directories are copied under
 # their own base names into each isolated trial

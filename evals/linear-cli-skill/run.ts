@@ -21,7 +21,7 @@
  * are observable. Trial records feed grade.ts.
  *
  * Usage:
- *   deno run --allow-all run.ts --condition baseline --skill-dir .agents/skills/linear-cli \
+ *   deno run --allow-all run.ts --condition baseline --skill-dir /path/to/skill-variant \
  *     [--trials 3] [--cases id,id] [--concurrency 2] [--effort low] \
  *     [--model gpt-x] [--sandbox workspace-write|yolo] [--out results/baseline.jsonl]
  */

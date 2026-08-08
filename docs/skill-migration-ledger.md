@@ -36,7 +36,15 @@ skills#219 原子替换 `linear-cli`、`linear-access`、`linear-request-intake`
 
 ## linear-cli（SKILL.md 246 行 + 20 个生成 references + 2 个手工 references）
 
-commit 7b 移除本地生成手册时逐节补记。已迁移部分：
+commit 7b 已删除本仓库的生成管线（`SKILL.template.md`、`scripts/generate-docs.ts`、生成的 `SKILL.md` 与全部 references）；`generate-skill-docs` / `verify-skill-docs` 任务移除，`verify-release` 收敛为源码验证（其中的 guides 测试即替代契约：frontmatter 校验、命令树对照、导入清单完整性、快照）。外部 skills-stable 副本随 skills#219 一并删除。
+
+| 内容                                                                    | 去向                                                                                                                           |
+| ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| 生成的命令目录与 15 个领域 references（api/auth/…/version，命令树快照） | 实时命令树：`usage`、`<domain> usage`、叶子 `--help`（唯一拥有者，不再有副本）                                                 |
+| references/organization-features.md（手工示例目录）                     | 删除：全部命令示例可由叶子 `--help` 派生；其中唯一的工作流事实（`--add-label` 增量 vs `--label` 整组替换）已并入 CLI 指南 core |
+| references/schema.md、config.md                                         | 实时命令树（生成快照，无手工内容）                                                                                             |
+
+SKILL.md 手工章节：
 
 | 内容                                                       | 去向                                                   |
 | ---------------------------------------------------------- | ------------------------------------------------------ |

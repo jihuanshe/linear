@@ -826,7 +826,7 @@ CLI 测试拥有机器能够可靠裁定的契约：
 - [x] Commit 5——内嵌最小的证据驱动指南语料，并添加 `guides list/read`。
 - [x] Commit 6——为领域 usage、叶子帮助和 usage JSON 派生指南面包屑。
 - [x] Commit 7a——把已安装二进制的访问诊断和 Issue authoring 迁入 CLI 拥有的工作流。
-- [ ] Commit 7b——移除本地生成手册，并把生成流程转为契约验证。
+- [x] Commit 7b——移除本地生成手册，并把生成流程转为契约验证。
 - [ ] Commit 11——暴露 `linear upload` 原语，实现 Issue delivery manifest、零写入 `plan` 和顺序 `apply`。
 - [ ] Commit 12——让 batch 复用同一 manifest，并添加简单 checkpoint。
 - [ ] 发布编排——merge 集成分支、发布、验证安装，然后在 `jihuanshe/skills#219` 内完成全新 agent 验证与 family 原子替换并 sync。
