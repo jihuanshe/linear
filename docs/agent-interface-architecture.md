@@ -4,17 +4,17 @@ Status: accepted architecture roadmap, revised after an independent design revie
 
 ## Executive summary
 
-The CLI should become a version-matched, progressively discoverable protocol for both humans and agents. Its installed Agent Skill should become a thin router rather than a second command manual.
+The CLI should become a version-matched, progressively discoverable protocol for both humans and agents. Jihuanshe should expose one installed Linear Agent Skill for first-mile activation; the CLI should own the workflows currently split across the external Linear Skill family.
 
 The ownership rule is:
 
-> Mechanically enumerable, version-dependent facts belong to the CLI. Routing, authorization, and cross-tool judgment belong to the host Agent Skill.
+> Linear command facts and reusable Linear workflows belong to the CLI. One external Skill activates Linear; authorization remains a host policy and never follows from CLI capability.
 
 This leads to four layers:
 
 ```text
-Host Agent Skill
-  activation, neighboring-Skill routing, authorization boundaries
+One external Linear Skill
+  activation for every Linear task; missing-binary bootstrap only
         |
         v
 CLI discovery
@@ -29,7 +29,7 @@ Execution protocol
   typed commands, structured output, schema-assisted raw GraphQL fallback
 ```
 
-The important change is not merely making the Skill shorter. It is moving each kind of knowledge to the layer that owns and can keep it correct.
+The important change is not merely making one Skill shorter. It is removing competing external routes and moving reusable Linear behavior to the versioned program that owns it.
 
 ## Motivation
 
@@ -57,12 +57,13 @@ This duplication has three costs:
 
 The useful pattern in tools such as `lark-cli` and `agent-browser` is not simply that their external Skill is short. Domain knowledge has moved into version-matched runtime resources, and the external Skill teaches the agent how and when to discover them.
 
-Embedding guides solves versioning and cohesion, but it does not solve first-mile activation. An installed binary cannot tell an agent to use `linear` until the agent has already selected it. A small host Skill remains necessary for:
+Embedding guides solves versioning and cohesion, but it does not solve first-mile activation. An installed binary cannot tell an agent to use `linear` until the agent has already selected it. One small external Skill remains necessary for:
 
-- recognizing Linear tasks and identifiers;
-- distinguishing direct CLI work, access repair, request intake, and reviewed batch writes;
-- expressing authorization rules supplied by the host, not by command syntax;
-- handing off to other Skills and tools.
+- recognizing every Linear task, URL, and identifier;
+- invoking the CLI's own discovery and version-matched workflows when the exact command is not already known;
+- bootstrapping the canonical binary when `linear` is absent.
+
+Access repair, request intake, and protected batch writes are Linear product workflows, not reasons to install competing host Skills. They should become CLI commands and embedded guides. Authorization remains outside the CLI in the host's system or repository policy.
 
 ## Reference patterns
 
@@ -84,7 +85,7 @@ The [`lark` router Skill](https://github.com/jihuanshe/skills/blob/main/skills-s
 
 1. **One owner for command facts.** Command names, arguments, options, aliases, defaults, and runtime capabilities come from the live Cliffy tree.
 2. **One owner for version-matched workflows.** Cross-command CLI handbooks live in this repository and ship with the binary.
-3. **Skills route; they do not mirror manuals.** The host Skill retains activation, cross-Skill routing, authorization policy, and a small number of result-semantic traps that must be known before choosing a command.
+3. **One Skill activates; the CLI teaches.** The external Skill has one positive route for all Linear work. Command selection, access diagnosis, issue intake, batch execution, and result semantics belong to CLI code, help, and embedded guides.
 4. **Progressive disclosure is optional, not ceremonial.** An agent that already knows the exact dedicated command may call it directly. An uncertain agent must have a reliable path that does not require guessing.
 5. **Machine mode never grants consent.** `writes: true`, JSON output, `LINEAR_PROMPT_DISABLED=1`, `--force`, `--confirm`, and `--yes` describe capabilities or execution mechanisms, not authorization.
 6. **Dedicated commands precede escape hatches.** Prefer a purpose-built command, then schema-assisted `linear api`, and use direct HTTP only when the CLI cannot provide required control.
@@ -102,9 +103,9 @@ An independent review of the phase-one baseline and this architecture accepted t
 1. Supplemental command capability metadata must be co-located with each leaf command definition rather than added at parent registration sites. An exact writes-command completeness test must make omissions fail visibly.
 2. Internal guide search is not part of the initial guide system. With four guides, `list`, `read`, and `path` plus filesystem tools are sufficient. Search is evidence-gated.
 3. Static text imports are the preferred embedding mechanism. Deno 2.9.4 can embed `import ... with { type: "text" }` resources in cross-compiled binaries without a generated content module.
-4. Single-command semantic facts belong in that command's description and help. Guides own genuinely cross-command workflows; the thin Skill must not duplicate facts that help can expose before execution.
-5. An exploratory full-Skill versus router-Skill eval must run after zero-argument navigation and before guide authoring. Its failure cases become requirements for the first guide corpus. The formal A/B/C migration gate still runs after the guide system exists.
-6. The final Skill switch, local generated-reference removal, and external `jihuanshe/skills` update are separate review boundaries.
+4. Single-command semantic facts belong in that command's description and help. Guides own genuinely cross-command workflows; the external activation Skill must not duplicate facts that help can expose before execution.
+5. An exploratory current-family-versus-one-activation eval must run after zero-argument navigation and before guide authoring. Its failure cases become requirements for the first guide corpus. The formal migration comparison runs only after access diagnosis, intake, and typed batch workflows have CLI owners.
+6. Local generated-reference removal is a separate review boundary from the final atomic `jihuanshe/skills` replacement.
 
 These decisions narrow the first guide implementation and move empirical discovery earlier in the sequence.
 
@@ -133,6 +134,7 @@ Some capability facts cannot be inferred mechanically from Cliffy's syntax. Thei
 - stdout/stderr, JSON, exit status, and unattended automation contracts;
 - dedicated command versus raw GraphQL selection;
 - writing and verifying multi-step operations;
+- clarifying a request, collecting evidence, and shaping one or more development-ready Issues before creation;
 - Markdown file flags;
 - complete-label-set replacement versus incremental label changes;
 - writing Issues that survive handoff, use durable links, and end with a closure reason plus a clickable next hop when work continues;
@@ -143,28 +145,28 @@ These are product-owned and often version-dependent, but they span more than one
 
 Facts that can be fully stated by one command must remain in that command's description instead. For example, `issue mine` being current-user scoped and `issue attach` creating a sidebar attachment should be discoverable directly from those commands' help. A guide may explain a broader querying or attachment workflow, but it must not be the sole or duplicate owner of the leaf fact.
 
-### Content that remains in host Agent Skills
+### Content that remains outside the CLI
 
 - whether a task should activate Linear tooling at all;
 - explicit authorization and the host's external-write boundary;
 - organization-specific installation and credential policy;
 - environment routing such as macOS versus exe.dev;
 - owner identity, Reflection, integration selection, and secret-handling policy;
-- request classification, product clarification, evidence collection, redaction, and approval workflows;
 - organization or host policy for linking source-local temporary behavior to an Issue and deciding whether creating that external object is authorized;
-- routing between direct CLI operations, access repair, intake, and reviewed batch writes;
-- cross-tool use of browsers, logs, repositories, conversations, or other Skills.
+- availability and authorization of browsers, logs, repositories, conversations, or other host tools.
+
+These policies already come from the host system prompt, repository guidance, and the current user task. They should not require separate Linear Skills. Embedded intake guidance may tell the agent what evidence a useful Issue needs, while the host decides which tools and writes are allowed.
 
 ### Current `jihuanshe/skills` Linear family
 
-The current family should not be migrated uniformly:
+The current family should converge to one external activation Skill:
 
-| Skill                      | Long-term owner and shape                                                                                                                                                                                                                                                                                      |
-| -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `linear-cli`               | Most command references move to CLI discovery. Product-owned handbooks become embedded guides. A thin host router remains.                                                                                                                                                                                     |
-| `linear-access`            | Remains primarily a host Skill because it owns bootstrap, organization and environment policy. It should diagnose CLI provenance/version, route managed hosts through Rotom, and converge supported unmanaged hosts to the canonical mise installation. Only generic auth behavior belongs in CLI help/guides. |
-| `linear-request-intake`    | Remains primarily a host Skill because it owns cross-tool reasoning, clarification, evidence, redaction, and approval. It may link to an embedded issue-authoring guide.                                                                                                                                       |
-| `linear-issue-batch-write` | The executable workflow should eventually become first-class CLI commands; its operational handbook then becomes an embedded guide. A thin host trigger and authorization router remains.                                                                                                                      |
+| Current Skill              | Migration target                                                                                                                                                                             |
+| -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `linear-cli`               | Rename or replace with the single external `linear` activation Skill. Remove its command manual after CLI discovery and embedded workflows pass evals.                                       |
+| `linear-access`            | Move diagnosis, authentication, and repair into CLI commands and embedded guidance. Keep only the missing-binary bootstrap fact in the single activation Skill, then delete this Skill.      |
+| `linear-request-intake`    | Move clarification, evidence quality, Issue decomposition, and authoring guidance into the CLI's Issue-creation workflow. Delete this Skill after the embedded workflow passes intake cases. |
+| `linear-issue-batch-write` | Move plan/apply, conflict, checkpoint, and recovery into first-class typed CLI commands and an embedded guide. Delete this Skill after behavior and recovery evals pass.                     |
 
 ## Progressive command discovery
 
@@ -457,18 +459,13 @@ Illustrative `usage --json` extension:
 
 Usage JSON follows a tolerant-reader policy: unknown additive fields may appear within a schema version. Adding `guides` therefore retains `schemaVersion: 1`; removing or retyping an existing field requires an increment. Tests must assert that all existing v1 fields remain unchanged when guide metadata appears.
 
-## Thin host Skill
+## Single external Skill
 
-The eventual installed `linear-cli` Skill should be a small, version-agnostic router. It should retain:
+The eventual installed external Skill should be named `linear` and cover the complete positive activation space: Linear URLs and identifiers, workspace reads and writes, authentication and installation trouble, request-to-Issue intake, and batch operations. It should retain only:
 
 - positive and negative activation boundaries;
-- a read-only distribution, version, and capability check;
-- the discovery protocol;
-- explicit authorization rules;
-- prompt-disabled versus consent semantics;
-- dedicated command versus `linear api` priority;
-- a few traps that affect command selection before the CLI is invoked;
-- handoff to access, intake, and batch Skills.
+- one instruction to use the installed `linear` CLI and follow its contextual discovery;
+- the canonical missing-binary bootstrap route, because an absent program cannot describe its own installation.
 
 It should not contain:
 
@@ -476,13 +473,15 @@ It should not contain:
 - one static reference file per domain;
 - copied flags, aliases, defaults, or argument types;
 - a GraphQL schema snapshot;
-- long examples that the installed guide can provide.
+- access, intake, batch, or issue-writing handbooks;
+- a requirement to run version, usage, or guide discovery before every known operation;
+- authorization policy already supplied by the host and current task.
 
-The target is approximately 50–100 lines, but task success and safety matter more than line count.
+The Skill exists to make the agent select `linear`, not to supervise the CLI. An agent that knows the exact command calls it directly. Root navigation, command help, validation errors, and related-guide breadcrumbs provide discovery only when needed.
 
 ### Bootstrap and version convergence
 
-The future `jihuanshe/skills` rewrite must retain a bootstrap route. Before relying on this fork's commands or safety contract, the host Skill should establish that the resolved `linear` executable is a compatible `jihuanshe/linear` build.
+The future `jihuanshe/skills` rewrite must retain a missing-binary bootstrap route. Compatibility checks belong to CLI startup, diagnostics, and self-update code rather than a mandatory preflight in the external Skill.
 
 The existing conventional version probe is:
 
@@ -507,17 +506,19 @@ with this v1 contract:
 }
 ```
 
-Version JSON v1 is additive. Readers require `schemaVersion: 1`, the exact `jihuanshe/linear` distribution, and every capability needed for their route; they ignore unknown fields and capability identifiers. The initial capability vocabulary is `usage-v1`. Missing, unparseable, distribution-incompatible, schema-incompatible, or capability-incomplete probes route to the host's access/bootstrap workflow rather than guessing from the version string.
+Version JSON v1 is additive. Readers require `schemaVersion: 1`, the exact `jihuanshe/linear` distribution, and every capability needed for their integration; they ignore unknown fields and capability identifiers. The initial capability vocabulary is `usage-v1`. CLI diagnostics should report missing or incompatible capabilities without asking the external Skill to classify a second Linear route.
 
 The probe identifies the build, not the package manager. Installation ownership still requires evidence from `mise which linear`, `type -a linear`, the resolved executable path, or the organization manager.
 
-The bootstrap flow must distinguish three cases:
+The bootstrap and diagnostic flow must distinguish five cases:
 
-| State                                                                                        | Action                                                                                                                                                                                                                             |
-| -------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Compatible `jihuanshe/linear` with required capabilities                                     | Continue using its version-matched usage and guides. Do not perform a network update on every task.                                                                                                                                |
-| Compatible fork that the user or policy explicitly wants updated                             | Use `linear update`; a mise-managed binary performs a tool-scoped `mise up`, while a standalone release verifies checksums before replacement. Uninstall is unnecessary.                                                           |
-| Missing, incompatible distribution, missing required capabilities, or conflicting PATH owner | Route to `linear-access`; identify the current source, remove it through that source's supported uninstall procedure, then converge to the canonical mise installation. Do not guess a package name or delete an arbitrary binary. |
+| State                                                                                    | Action                                                                                                                                                                                                                                                              |
+| ---------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Compatible `jihuanshe/linear` with required capabilities                                 | Execute the requested command directly. Use version-matched discovery only when needed; do not perform a network update on every task.                                                                                                                              |
+| Compatible fork that the user or policy explicitly wants updated                         | Use `linear update`; a mise-managed binary performs a tool-scoped `mise up`, while a standalone release verifies checksums before replacement. Uninstall is unnecessary.                                                                                            |
+| Missing binary                                                                           | The single external Skill uses the canonical organization bootstrap route, then returns to the CLI.                                                                                                                                                                 |
+| Shell-resolved foreign or conflicting binary with a diagnostic-capable canonical binary  | Invoke diagnostics through the canonical manager-resolved Jihuanshe binary, not the conflicting shell-resolved executable. Diagnostics report observed identities and a safe next action; host authorization still governs removal or global configuration changes. |
+| No canonical binary, or the canonical binary lacks required diagnostic/update capability | Use the authorized mise or Rotom bootstrap/update path first, then invoke diagnostics through the resulting canonical binary. Never ask the foreign binary to implement Jihuanshe diagnostics.                                                                      |
 
 For supported unmanaged machines, the canonical install command from this repository is:
 
@@ -535,7 +536,7 @@ linear version --json
 linear usage
 ```
 
-If a conflicting installation shadows mise, the Skill must first identify its owner. npm, Homebrew, Deno, and manually copied binaries have different removal procedures; no generic `rm` or guessed `npm uninstall` command is safe. Removing a manually installed or otherwise unknown executable is destructive and requires explicit user authorization.
+If another installation shadows mise, invoke the future diagnostic command through `"$(mise which linear)"` so the known Jihuanshe binary compares itself with the shell-resolved executable. If no canonical binary is available, or that binary is too old to diagnose or update safely, use the authorized bootstrap/update path before diagnosis. npm, Homebrew, Deno, and manually copied binaries have different removal procedures; no generic `rm` or guessed `npm uninstall` command is safe. Removing a manually installed or otherwise unknown executable is destructive and requires explicit user authorization.
 
 On Jihuanshe-managed machines, the current authoritative policy is different: Rotom owns the managed mise configuration. The safe probes and convergence path are:
 
@@ -545,15 +546,15 @@ rotom inspect latest --format json
 rotom setup
 ```
 
-The external Skill must not bypass Rotom with a direct global `mise use` unless the organization intentionally changes that policy in `linear-access` and Rotom's own documentation. A future decision to standardize all hosts on direct mise is a coordinated organization-policy migration, not an incidental `linear-cli` documentation edit.
+The external Skill must not bypass Rotom with a direct global `mise use` unless the organization intentionally changes that policy in its host guidance and Rotom documentation. A future decision to standardize all hosts on direct mise is a coordinated organization-policy migration, not an incidental Linear documentation edit.
 
 Checking compatibility is read-only. Uninstalling another distribution or writing global mise configuration is not implied by an ordinary Linear read task; the host authorization boundary still applies.
 
-### Why a thin Skill remains external
+### Why one activation Skill remains external
 
-The host Skill solves first-mile activation and host policy. The CLI solves second-mile discovery after selection. An embedded guide cannot activate a binary the agent has not considered, and CLI help cannot define organization-specific authorization or cross-tool policy.
+The one external Skill solves first-mile activation. The CLI owns Linear-product behavior after selection; host system, repository, and user policy continue to own authorization and cross-tool availability. Embedded content cannot activate a binary the agent has not considered, but this limitation requires one broad loading description, not separate Skills for each Linear workflow.
 
-No complex Skill export is required. The external router only needs stable entry points such as `linear usage`, `linear guides`, and `linear <command> --help`. It can be maintained as a small host artifact without mirroring the release's command surface.
+No complex Skill export is required. The external Skill points at `linear`; the program's root navigation, command help, and contextual breadcrumbs expose stable discovery entry points without the host artifact mirroring or orchestrating them.
 
 ## Generated documentation migration
 
@@ -567,10 +568,10 @@ Candidate validations include:
 - every command domain exposes progressive usage;
 - writes and confirmation metadata remain complete;
 - embedded Markdown matches the source byte-for-byte;
-- the thin router only references real, stable entry points;
+- the single activation Skill only references real, stable entry points;
 - release artifacts can list and read embedded guides without source files present.
 
-The generated command catalog and per-domain Skill references can then be deleted. Existing curated material should first be classified and migrated to the command tree, an embedded guide, or the appropriate host Skill; it must not be discarded solely to reduce bytes.
+The generated command catalog and per-domain Skill references can then be deleted. Existing curated material should first be classified and migrated to the command tree, an embedded guide, the single activation Skill's missing-binary route, or host policy; it must not be discarded solely to reduce bytes.
 
 ## Evaluation strategy
 
@@ -578,24 +579,23 @@ The generated command catalog and per-domain Skill references can then be delete
 
 After zero-argument navigation lands and before guide content is authored, compare:
 
-- the current full Skill;
-- a temporary router containing only activation, authorization, `usage`, and leaf `--help` instructions.
+- the current external Skill family;
+- one temporary `linear` Skill containing only the complete activation boundary and missing-binary bootstrap.
 
-This run is exploratory. It must use new condition names and must not overwrite or reinterpret the existing frozen experiment artifacts. Its purpose is to identify which tasks fail without static recipes and references. Those failures become concrete requirements for command descriptions, guide topics, or host-only router semantics.
+Both conditions receive identical host authorization and cross-tool policy. This run is exploratory. It must use new condition names and must not overwrite or reinterpret the existing frozen experiment artifacts. Its purpose is to identify which tasks fail without static recipes and sibling routes. Classify each failure as a CLI command/help gap, an embedded-guide requirement, a missing-binary bootstrap gap, or a host-policy gap.
 
 The exploratory comparison is not evidence that the final migration is safe because embedded guides do not exist yet and one model/effort configuration is not representative enough for that claim.
 
-### Formal Skill variants
+### Formal migration comparison
 
-Before switching the installed Skill, run three conditions against the same CLI build and model configuration:
+After access diagnosis, intake, and typed batch workflows have CLI owners, run two conditions against the same CLI build, model configuration, and host policy:
 
-| Variant                       | Content                                                                                                                          |
-| ----------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
-| A: full                       | Current Skill, generated catalog, references, and recipes.                                                                       |
-| B: router                     | Capability map, authorization, and runtime discovery protocol only.                                                              |
-| C: router plus host semantics | Variant B plus the small set of pre-invocation routing or safety rules that command descriptions and embedded guides cannot own. |
+| Variant           | Content                                                                                                     |
+| ----------------- | ----------------------------------------------------------------------------------------------------------- |
+| A: current family | The current external Linear Skills, generated catalog, references, recipes, and released CLI.               |
+| B: one activation | One external `linear` Skill plus the released CLI's commands, contextual discovery, and embedded workflows. |
 
-Variant C is the expected target, but the result must be evidence-driven. Single-command facts found during the exploratory run should be fixed in command descriptions rather than copied into C.
+Variant B is the fixed architecture target, but the migration still fails if it regresses task success or safety. Repair failures in CLI code, command descriptions, embedded guides, the missing-binary bootstrap, or host policy rather than growing the activation Skill into another handbook.
 
 ### Primary gates
 
@@ -629,17 +629,25 @@ Before any guide-aware condition runs, both the shim passthrough and grader disc
 - a legitimate raw GraphQL control;
 - destructive confirmation;
 - prompt-disabled execution without inferred consent;
+- direct execution of an exact known command with no mandatory version, usage, or guide preflight;
+- missing-binary bootstrap through the canonical organization path;
+- PATH shadowing diagnosed through a manager-resolved canonical binary without invoking the foreign binary for Jihuanshe diagnostics;
+- installed-binary authentication or access repair;
+- ambiguous request intake that produces one or more reviewable Issue specifications before creation;
+- typed batch plan/apply, conflict, checkpoint, and recovery behavior;
 - creating an Issue that can be understood without the originating chat and links durable source evidence;
 - closing an Issue with a clear reason and a clickable next hop when related work remains;
 - an uncommon domain requiring progressive discovery;
 - mixed Chinese and English guide discovery through names, descriptions, and keywords;
 - guide filesystem search through `guides path`.
 
+The formal corpus includes every behavioral case added by commit 8a and the first-class batch milestone. Access, intake, batch, and zero-preflight cases each have a predeclared per-case floor; aggregate supported-task success cannot hide a regression in a deleted Skill's former route.
+
 ### Interpretation
 
 The goal is not to minimize Skill bytes in isolation. The migration succeeds only if safety and task success remain at least as strong while default context and static documentation drift decrease.
 
-Three trials per case have limited statistical power. Formal A/B/C rules must predeclare per-case floors and control requirements, treat per-case counts as co-primary evidence, and avoid interpreting a non-significant Fisher result as equivalence.
+Three trials per case have limited statistical power. Formal comparison rules must predeclare per-case floors and control requirements, treat per-case counts as co-primary evidence, and avoid interpreting a non-significant Fisher result as equivalence.
 
 ## Implementation TODO
 
@@ -649,18 +657,18 @@ This repository ships through direct commits to `main`; pushing a commit invokes
 - [x] Commit 1 — harden and finalize progressive usage metadata.
 - [x] Commit 2 — add a stable distribution/version/capability probe.
 - [ ] Commit 3 — improve root and eligible-domain zero-argument navigation.
-- [ ] Commit 4 — run and document the exploratory full-versus-router eval.
+- [ ] Commit 4 — run and document the exploratory current-family-versus-one-activation eval.
 - [ ] Commit 5 — embed the minimal evidence-driven guide corpus and add `guides list/read`.
 - [ ] Commit 6 — derive guide breadcrumbs for domain usage, leaf help, and usage JSON.
 - [ ] Commit 7 — add safe, cache-backed `guides path` materialization.
-- [ ] Commit 8a — run the formal A/B/C eval and finalize content ownership.
+- [ ] Commit 8a — move installed-binary access diagnosis and request intake to CLI-owned workflows.
 - [ ] Commit 8b — remove the local generated manual and convert generation into contract validation.
-- [ ] External commit 8c — rewrite `jihuanshe/skills` router/access Skills with version convergence and mise/Rotom ownership.
 - [ ] Commit 9 — add unified opt-in machine output.
 - [ ] Commit 10 — batch-resolve non-interactive issue mutation inputs.
 - [ ] Commit 11 — add conservative timeout, rate-limit, and query retry behavior.
 - [ ] Evidence-gated later work — add machine-output field projection only if measured output cost justifies it.
 - [ ] Later — move protected batch issue execution into first-class typed CLI commands before embedding its complete handbook.
+- [ ] Final migration — run the formal comparison, replace the external Linear Skill family with one activation Skill, and remove the superseded Skills atomically.
 
 ## Proposed commit sequence
 
@@ -670,7 +678,7 @@ Two workstreams may proceed after commit 1 hardens the shared metadata and eval 
 
 | Workstream              | Commits | Dependency                                                                                                                                                        |
 | ----------------------- | ------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Discovery and knowledge | 2–8c    | Version probing, navigation, evals, embedded guides, and the thin external router build on each other in order.                                                   |
+| Discovery and knowledge | 2–8b    | Version probing, navigation, exploratory evals, embedded guides, access/intake ownership, and generated-manual removal build on each other in order.              |
 | Execution protocol      | 9–11    | Independent of guide migration. Commit 9 fixes machine-error projection; commit 11 may develop transport policy in parallel but integrates against that contract. |
 
 Field projection remains an optimization backlog rather than a promised phase. Architecture constraints graduate into `AGENTS.md` with the commit that proves them; this roadmap must not describe an aspirational command/resolver/service split as an already-enforced repository invariant.
@@ -707,7 +715,7 @@ Scope:
 - add a read-only human and JSON version command;
 - expose stable distribution identity, release version, and additive capability identifiers;
 - keep installation-manager detection out of the build identity contract;
-- document how the external router interprets an absent, incompatible, or capability-incomplete probe.
+- document how CLI diagnostics expose an incompatible or capability-incomplete build and how the single external Skill bootstraps an absent binary.
 
 Non-goals:
 
@@ -744,14 +752,14 @@ Gate:
 - command actions are never invoked accidentally while rendering navigation;
 - aliases and global options remain correct.
 
-### Commit 4: run the exploratory full-versus-router eval
+### Commit 4: run the exploratory current-family-versus-one-activation eval
 
 Scope:
 
-- create a temporary router variant that relies on `usage` and leaf `--help`;
+- create a temporary single `linear` activation Skill with no access, intake, or batch sibling routes;
 - run the existing task corpus with new exploratory condition names;
 - document which tasks lose route accuracy, correctness, or safety;
-- classify each failure as a command-description gap, embedded-guide requirement, or host-router requirement.
+- classify each failure as a CLI command/help gap, embedded-guide requirement, missing-binary bootstrap gap, or host-policy gap.
 
 Non-goals:
 
@@ -769,7 +777,7 @@ Gate:
 Scope:
 
 - add the minimal source guides justified by commit 4, expected to begin with `core`, `automation`, `issue-writing`, and `graphql`;
-- make `issue-writing` teach durable handoff context, evidence links, closure reasons, and next hops without imposing a rigid universal template;
+- make `issue-writing` teach request clarification, evidence quality, Issue decomposition, durable handoff context, closure reasons, and next hops without imposing a rigid universal template;
 - define and validate guide metadata;
 - embed Markdown with static text imports and a complete import manifest;
 - add `guides list`, `guides list --json`, and `guides read`;
@@ -834,53 +842,36 @@ Gate:
 - cache reuse and safe rebuild tests;
 - guide path and filesystem-search eval cases.
 
-### Commit 8a: run the formal A/B/C eval and select content ownership
+### Commit 8a: move access diagnosis and request intake into CLI ownership
 
 Scope:
 
-- run A/B/C Skill variants;
-- select the smallest non-regressing router;
-- migrate all retained product material to embedded guides;
-- classify every remaining static reference section by its final owner.
+- inventory the accepted cases currently owned by `linear-access` and `linear-request-intake`;
+- expose installed-binary authentication and environment diagnosis through CLI commands, command help, and embedded guidance;
+- move request clarification, evidence quality, Issue decomposition, and durable Issue writing into the CLI-owned Issue-creation workflow;
+- keep missing-binary bootstrap and host authorization outside the CLI;
+- add behavioral cases for access recovery and request intake without loading sibling external Skills.
 
 Gate:
 
-- supported, holdout, GraphQL control, and safety requirements pass;
-- discovery cost and context-byte comparisons are documented;
-- no command or handbook content is lost without an explicit owner.
+- every accepted access and intake case has a CLI or host-policy owner;
+- fresh agents recover installed-binary access failures through CLI discovery;
+- fresh agents turn ambiguous requests into reviewable Issue specifications through the Issue-creation workflow;
+- no diagnostic or machine capability is interpreted as authorization to mutate local or remote state.
 
 ### Commit 8b: remove the local generated manual
 
 Scope:
 
-- delete the generated command catalog and per-domain references selected for removal by commit 8a;
-- convert `generate-skill-docs` into discovery, metadata, guide, and thin-router contract validation;
+- delete the generated command catalog and per-domain references whose CLI or host-policy owners were established by commits 4–8a;
+- convert `generate-skill-docs` into discovery, metadata, guide, and single-activation-Skill contract validation;
 - retain only content with an explicit local owner.
 
 Gate:
 
-- generated-reference removal does not change formal eval routing;
+- generated-reference removal does not regress the exploratory task cases or guide-aware routing;
 - release verification checks the replacement contracts;
 - a content migration ledger accounts for every removed curated section.
-
-### External commit 8c: update the router and access Skills
-
-Scope:
-
-- update `jihuanshe/skills` in its own repository and review;
-- make `linear-cli` perform the read-only distribution/version/capability probe and route incompatible installations to `linear-access`;
-- make `linear-access` distinguish managed Rotom convergence, compatible-fork updates, and source-owned removal followed by the canonical mise install;
-- keep `linear-access` and `linear-request-intake` ownership boundaries intact;
-- reduce the external `linear-cli` Skill to the validated router;
-- reduce the batch Skill only after first-class batch commands exist.
-
-Gate:
-
-- the external router points only to stable released entry points;
-- no unknown binary is deleted through a guessed package name or direct `rm`;
-- a managed Jihuanshe host does not bypass Rotom unless the organization policy is changed explicitly;
-- an unmanaged-host migration installs `github:jihuanshe/linear[minimum_release_age=0s]@latest` through mise and verifies both mise-selected and shell-resolved identities;
-- installation with the released CLI passes the formal routing smoke cases.
 
 ### Commit 9: unified opt-in machine output
 
@@ -987,19 +978,43 @@ Move the existing protected batch-write workflow into typed CLI commands before 
 
 Keep commits 9–11 independently reviewable from guide work and from one another. Commit 11 may develop transport behavior before commit 9 lands, but its machine-error projection must integrate after, or against a separately fixed version of, commit 9's structured error contract.
 
+### Final migration: converge to one external Linear Skill
+
+This stage starts only after installed-binary access diagnosis, request intake, and first-class typed batch execution have CLI owners.
+
+Scope:
+
+- run the formal current-family-versus-one-activation comparison;
+- update `jihuanshe/skills` in its own repository and review;
+- add one `linear` Skill whose description activates for the complete Linear task space;
+- retain only the canonical missing-binary bootstrap route and one instruction to use the CLI's contextual discovery;
+- remove `linear-cli`, `linear-access`, `linear-request-intake`, and `linear-issue-batch-write` in the same reviewed migration;
+- verify no other external Skill still claims a Linear-only positive route.
+
+Gate:
+
+- fresh agents select the one external Skill for direct CRUD, installation/authentication trouble, request intake, and batch work;
+- ordinary non-Linear tasks do not select it;
+- exact known commands do not pay a mandatory version, usage, or guide preflight;
+- uncertain agents recover through CLI root navigation, command help, errors, and embedded-guide breadcrumbs;
+- no unknown binary is deleted through a guessed package name or direct `rm`;
+- a managed Jihuanshe host does not bypass Rotom unless the organization policy is changed explicitly;
+- every removed external Skill case has an explicit CLI command, embedded guide, missing-binary bootstrap, or host-policy owner;
+- supported, holdout, GraphQL control, and safety requirements pass without growing the activation Skill into a handbook.
+
 ## Alternatives considered
 
 ### Keep the current generated Skill manual
 
 Rejected as the long-term design because it duplicates live command facts, consumes context eagerly, and can drift from the installed version. It remains the migration baseline until evals prove the replacement.
 
-### Remove host Skills entirely
+### Remove every external Linear Skill
 
-Rejected because embedded resources cannot provide first-mile activation, organization policy, cross-tool routing, or host authorization semantics.
+Rejected because embedded resources cannot provide first-mile activation before the agent has selected the binary. This requires exactly one broad external Linear Skill, not a family partitioned by workflow.
 
 ### Add `linear skills list/read`
 
-Deferred. The initial guide corpus is small, and calling product handbooks `guides` avoids confusing embedded resources with host Agent Skills. A specialist embedded-Skill system can be reconsidered if the guide corpus grows beyond a simple router and handbook model.
+Deferred. The initial guide corpus is small, and calling product handbooks `guides` distinguishes version-matched runtime resources from the one external activation Skill. A specialist embedded-Skill system can be reconsidered if the guide corpus grows beyond a simple handbook model.
 
 ### Depend on host Skill-directory grep
 
@@ -1027,10 +1042,10 @@ The implementation commits must resolve these with tests or measured evidence:
 4. The cross-platform cache directory, checksum manifest, and safest concurrent materialization algorithm.
 5. Whether a cache-backed `guides path` is sufficient or an explicit `guides export` has a named consumer.
 6. Which contextual errors benefit from a guide link after guide-aware evals, without making errors noisy.
-7. Which material in `linear-request-intake` is genuinely product-owned versus organization and host policy.
-8. Whether Jihuanshe-managed hosts remain Rotom-owned or intentionally migrate to direct mise; this must be decided with the Rotom contract, not only in this repository.
-9. Which source-specific uninstall procedures the rewritten `linear-access` can prove safely; unknown/manual installations continue to require user review.
-10. Whether the existing external Skill release process needs synchronization beyond a stable thin router.
+7. Which intake cases require new CLI commands versus additions to the embedded Issue-writing workflow.
+8. Which access failures require a new `doctor` or repair command, while keeping missing-binary bootstrap in the external Skill.
+9. Whether Jihuanshe-managed hosts remain Rotom-owned or intentionally migrate to direct mise; this must be decided with the Rotom contract, not only in this repository.
+10. Whether the existing external Skill release process needs synchronization beyond the single activation Skill.
 11. Whether retrieval evidence ever justifies internal search; only then decide lexical tokenization, bilingual indexing, or BM25.
 
 ## Definition of done
@@ -1038,11 +1053,12 @@ The implementation commits must resolve these with tests or measured evidence:
 The architecture is complete when:
 
 - invoking `linear` teaches progressive discovery;
-- the external router can identify a compatible `jihuanshe/linear` build without network access and route incompatible installations to a safe owner-aware migration;
+- one external Skill reliably activates every Linear task without partitioning access, intake, or batch work into sibling Skills;
+- missing-binary bootstrap remains available, while installed-binary diagnosis and repair are CLI-owned;
 - command facts come only from the live command tree;
 - installed users can list, read, and materialize version-matched guides offline;
 - related guides are discoverable from domain and leaf help without bloating output;
-- a thin host Skill reliably activates and routes Linear tasks;
+- exact known commands run directly, while uncertain agents can dynamically load only the relevant CLI-owned workflow;
 - organization and cross-tool policy remains outside generic CLI behavior;
 - issue-writing guidance preserves intent across handoffs and makes closure and continuing work unambiguous;
 - the generated static command manual and per-domain references are removed;
