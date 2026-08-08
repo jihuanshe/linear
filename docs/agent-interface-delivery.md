@@ -436,6 +436,34 @@ Commit 8–10 与 Skill 迁移零耦合：delivery 与 batch 使用现有 `--jso
 
 在让某个边界成立且可测试的那个 commit 中同步更新仓库指引。Issue 交付与 batch 的约束属于 commits 11–12，全新 agent 验证与 Skill 迁移属于 skills#219；机器输出纯净性、解析器语义和重试规则随各自的发布后工作项落地。命令、解析器和服务的分层规则只适用于代码和测试已经强制执行它的模块，不得提前全局声明。
 
+## 验证记录（2026-08-09，Kadoraba sandbox）
+
+用户提供了允许破坏性实验的 Kadoraba workspace。以下证据构成 skills#219 merge 前门禁的主体；fresh-agent 场景在 CLI release 后可按同一清单用已发布二进制复跑。
+
+### 真实 API 边界矩阵
+
+| 场景                                                            | 结果                                                                                                |
+| --------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| create 全链路（字段 + 评论两文件 + URL/文件 Attachment + 关系） | ENG-52：5 项全部 applied，读回逐项在位                                                              |
+| Markdown 往返幂等（含表格与 `*` 列表的 description 重放）       | 第二次 apply 判定 idempotent，零多余写入                                                            |
+| 并发冲突（base 过期后 apply）                                   | conflict 拒绝覆盖，退出码 1，不触发 mutation                                                        |
+| 部分成功 + 断点续跑（坏 relation 目标 → 修复重跑）              | 评论被 checkpoint 跳过（无重复评论），修复项单独补上                                                |
+| env-key 认证模式（`LINEAR_API_KEY`）                            | 发现并修复：引擎原先传 `--workspace` 与 env key 冲突；改为 `auth whoami` 前置 org 核对（`03539b7`） |
+| Linear 真实 Markdown 改写                                       | 发现并修复：表格分隔行被压缩（`                                                                     |
+| Linux 写路径（exe.dev 一次性 VM，交叉编译二进制）               | whoami org 核对、standalone `upload`、delivery apply 评论加文件全部通过；VM 与 key 均已销毁         |
+
+### Fresh-agent 场景（本机，5 个无历史上下文的 sub-agent）
+
+| 场景                                             | 观察到的路径                                                                                                       | 判定 |
+| ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------ | ---- |
+| 技能引导只读（查标题/状态/评论数）               | 根导航 → `issue usage` → `view --json`，并自验 `--show-resolved-threads`                                           | 通过 |
+| 技能引导多对象交付（建 issue + 日志证据 + 关系） | 经 `guides read issue-delivery/issue-authoring` 自行选择 manifest，plan → apply → 读回；自拟复现步骤诚实标注未实测 | 通过 |
+| 无技能纯 CLI 发现                                | `--help` 链两步定位 `issue view`，结果正确                                                                         | 通过 |
+| GraphQL 兜底（读 subscribers）                   | 专用命令查无 → 一次错误猜测（`linear graphql`）→ `guides read graphql` → schema 转储 → `linear api` heredoc        | 通过 |
+| 阴性对照（非 Linear 任务）                       | 全程未触碰 linear                                                                                                  | 通过 |
+
+信号备注（不立即行动）：交付探针发现 `issue view --json` 不含 relations，验证关系需绕道 `linear api`；按信号驱动原则留待真实使用重复出现后再决定是否补进 view 查询。
+
 ## 完成定义
 
 架构在满足以下条件时完成：
