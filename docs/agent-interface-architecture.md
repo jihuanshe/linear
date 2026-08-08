@@ -604,7 +604,7 @@ linear issue apply --plan issue.plan.json --confirm-workspace jihuanshe
 - 为每个子操作返回稳定状态，例如 `planned`、`applied`、`already_applied`、`conflict`、`failed`、`blocked` 或 `unverified`；
 - 使用 write-ahead ledger：在远端调用前记录 intent、稳定 operation ID 和 caller UUID（若 API 支持），响应或读回后再记录 outcome；
 - 在失败后保留已成功的远端对象，不通过删除、重建或盲目重试伪造原子性；
-- 续跑前先读回远端，避免重复评论、附件或链接；
+- 续跑前先读回远端，避免重复评论、附件、链接或关系；
 - 对 update 使用 base/desired/remote 三方判断：remote 等于 desired 时视为幂等完成，等于 base 时允许写入，否则报告冲突而不覆盖；
 - 对超时或 Markdown 往返差异保留「远端结果未知」的语义，并先读回对账，而不是假定 mutation 未发生；
 - 将二进制 upload 与把得到的 asset URL 关联到 comment/Issue 拆成两个可恢复步骤，先把 asset URL 持久化进 ledger；
@@ -1296,7 +1296,7 @@ Commit 11 的网络可靠性可以与 commit 12 的本地 spec/plan 开发并行
 非目标：
 
 - 不建立另一套只支持核心字段的 batch manifest；
-- 不把评论、附件和链接留成 Skill sidecar；
+- 不把评论、附件、链接和关系留成 Skill sidecar；
 - 不让批量 update 绕过叙事、证据、链接或关系变化的完整 authoring 审核；
 - 不因批量便利削弱单项冲突和授权边界。
 
