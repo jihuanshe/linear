@@ -1,4 +1,5 @@
 import { Command } from "@cliffy/command"
+import { createUsageAction } from "../usage.ts"
 import { attachCommand } from "./issue-attach.ts"
 import { commentCommand } from "./issue-comment.ts"
 import { createCommand } from "./issue-create.ts"
@@ -20,9 +21,7 @@ import { viewCommand } from "./issue-view.ts"
 
 export const issueCommand = new Command()
   .description("Manage Linear issues")
-  .action(function () {
-    this.showHelp()
-  })
+  .action(createUsageAction(true))
   .command("id", idCommand)
   .command("mine", mineCommand)
   .alias("list")

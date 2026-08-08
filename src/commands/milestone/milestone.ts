@@ -1,4 +1,5 @@
 import { Command } from "@cliffy/command"
+import { createUsageAction } from "../usage.ts"
 import { listCommand } from "./milestone-list.ts"
 import { viewCommand } from "./milestone-view.ts"
 import { createCommand } from "./milestone-create.ts"
@@ -7,9 +8,7 @@ import { deleteCommand } from "./milestone-delete.ts"
 
 export const milestoneCommand = new Command()
   .description("Manage Linear project milestones")
-  .action(function () {
-    this.showHelp()
-  })
+  .action(createUsageAction(true))
   .command("list", listCommand)
   .command("view", viewCommand)
   .command("create", createCommand)

@@ -1,6 +1,6 @@
 import { type Argument, Command, type Option } from "@cliffy/command"
 
-interface UsageCommandSource {
+export interface UsageCommandSource {
   getName(): string
   getPath(): string
   getAliases(): string[]
@@ -342,6 +342,17 @@ export function formatUsage(
     `machine-readable: ${document.command.path} usage --json`,
   )
   return lines.join("\n")
+}
+
+export function createUsageAction(includeSubcommandOptions: boolean) {
+  return function (this: UsageCommandSource): void {
+    console.log(
+      formatUsage(
+        buildUsageDocument(this),
+        includeSubcommandOptions,
+      ),
+    )
+  }
 }
 
 export function createUsageCommand(

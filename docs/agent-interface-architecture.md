@@ -1,6 +1,6 @@
 # Agent 接口架构与交付路线图
 
-状态：已接受的架构与实施计划，经独立设计评审和真实 Issue 交接事故修订。渐进式 `usage` 基线、元数据加固和分发/版本/capability 探针已实现；零参数导航是下一个 commit。指南系统、Issue 交付原语和 Skill 迁移尚未实现。
+状态：已接受的架构与实施计划，经独立设计评审和真实 Issue 交接事故修订。渐进式 `usage`、元数据加固、分发/版本/capability 探针和零参数导航已实现；探索性单一 Skill 评测是下一个 commit。指南系统、Issue 交付原语和 Skill 迁移尚未实现。
 
 ## 执行摘要
 
@@ -204,8 +204,10 @@ JSON 契约目前为 `schemaVersion: 1`。隐藏命令和选项保持隐藏，�
 
 | 调用                        | 字节数 |
 | --------------------------- | -----: |
-| `linear usage`              |  1,247 |
-| `linear usage --json`       | 12,010 |
+| `linear`                    |  1,325 |
+| `linear usage`              |  1,325 |
+| `linear usage --json`       | 12,744 |
+| `linear issue`              |  9,973 |
 | `linear issue usage`        |  9,973 |
 | `linear issue usage --json` | 52,505 |
 
@@ -814,7 +816,7 @@ rotom setup
 - [x] 建立第一阶段基线：渐进式 usage、命令能力元数据、发现字节核算、生成参考对齐，以及本架构文档。
 - [x] Commit 1——加固并定稿渐进式 usage 元数据。
 - [x] Commit 2——增加稳定的分发/版本/capability 探针。
-- [ ] Commit 3——改进根与符合条件领域的零参数导航。
+- [x] Commit 3——改进根与符合条件领域的零参数导航。
 - [ ] Commit 4——运行并记录探索性的「当前家族对比单一激活」评测。
 - [ ] Commit 5——内嵌最小的证据驱动指南语料，并添加 `guides list/read`。
 - [ ] Commit 6——为领域 usage、叶子帮助和 usage JSON 派生指南面包屑。

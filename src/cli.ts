@@ -18,7 +18,7 @@ import { schemaCommand } from "./commands/schema.ts"
 import { apiCommand } from "./commands/api.ts"
 import { updateCommand } from "./commands/update.ts"
 import { versionCommand } from "./commands/version.ts"
-import { createUsageCommand } from "./commands/usage.ts"
+import { createUsageAction, createUsageCommand } from "./commands/usage.ts"
 import { setCliWorkspace } from "./config.ts"
 import { supportsStdoutStyling } from "./utils/terminal.ts"
 
@@ -48,9 +48,7 @@ Environment Variables:
   .globalAction((options) => {
     setCliWorkspace(options.workspace)
   })
-  .action(() => {
-    console.log("Use --help to see available commands")
-  })
+  .action(createUsageAction(false))
   .command("auth", authCommand)
   .command("issue", issueCommand)
   .alias("i")
