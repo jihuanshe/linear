@@ -1,8 +1,21 @@
 # Agent 接口架构与交付路线图
 
-状态：已接受的架构与实施计划，经独立设计评审和真实 Issue 交接事故修订。渐进式 `usage`、元数据加固、分发/版本/capability 探针、零参数导航和单一激活 Skill 场景探测已完成；最小内嵌指南是下一个 commit。Issue 交付原语和 Skill 迁移尚未实现。
+状态：已接受的架构与实施计划，经独立设计评审、真实 Issue 交接事故和 2026-08-08 的一次性交付决定修订。渐进式 `usage`、元数据加固、分发/版本/capability 探针、零参数导航和单一激活 Skill 场景探测已完成；剩余能力在集成分支上完成后，与外部 Skill 替换在同一发布窗口一起上线。
 
 ## 执行摘要
+
+本架构服务一个统一的目标函数：让信息每经过一次人、AI、代码、Issue 或知识库的转手，尽可能少损失原始意图。任何临时偏离都应保持可理解、可追溯、可验证、可结束，且不要求下一位接手者拥有产生它的对话。信息按形态归位：
+
+| 信息形态                                 | 归属                          |
+| ---------------------------------------- | ----------------------------- |
+| 尚在变化的问题、调查、决策、证据         | Linear Issue                  |
+| 当前位置的必要意图与 canonical Issue URL | 代码注释                      |
+| 确定性行为约束                           | 代码与测试                    |
+| 跨任务稳定事实                           | OKF 知识库                    |
+| 全局维护边界与授权                       | 宿主 AGENTS.md 与系统策略     |
+| 可观测现场事实                           | CLI 输出、manifest 与审计产物 |
+
+Linear 是公司动态上下文的容器，代码注释是通往它的路由入口。本 CLI 及其唯一的外部激活 Skill 是这条信息流在 Linear 域的执行工具；同一边界由 ipruning/skills#26（个人宿主指引）与 jihuanshe/skills#219（公司 `preserving-context-continuity` Skill）在各自层面承载。
 
 CLI 应当成为一个版本匹配、可渐进发现的协议，同时服务人类与 agent。Jihuanshe 应当只暴露一个已安装的 Linear Agent Skill 用于第一英里激活；CLI 应当拥有目前分散在外部 Linear Skill 家族中的工作流。
 
@@ -113,8 +126,9 @@ Use --help to see available commands
 5. 在零参数导航之后、指南编写之前，用少量全新 Amp agent 探测单一激活 Skill 的真实发现路径。探测用于发现缺失上下文，不做统计 A/B，也不自动把每次失败升级成 CLI 功能；先判断它属于命令事实、跨命令指导、宿主策略，还是 agent 可以自行恢复的一次性偏差。最终迁移只在访问诊断、Issue authoring、文件驱动的 Issue 交付和 batch 都有 CLI 拥有者之后进行场景验证。
 6. 本地生成参考的移除与最终对 `jihuanshe/skills` 的原子化替换是两个独立的评审边界。
 7. 技术审计结果不等于写给接手者的 Issue。CLI 应提供 authoring 指导和完整预览，但不判断用户是否完成了业务思考，也不把机械字段更新强制送入一套审批流程。
+8. 2026-08-08 的用户决定：不做渐进式交付。剩余能力在一个集成分支上以可评审 commit 完成，经一次 merge 触发单个 release，外部 Skill family 在同一发布窗口内原子替换。作为初创组织，向后兼容不是交付约束；发布后的真实使用信号驱动后续优化，预防性门禁不得阻塞完整交付。
 
-这些决定收窄了第一版指南实现，并把实证发现提前到序列中更早的位置。
+这些决定收窄了第一版指南实现，把实证发现提前到序列中更早的位置，并把交付边界从多次发布收敛为一个发布窗口。
 
 ## 知识所有权
 
@@ -782,38 +796,48 @@ CLI 测试拥有机器能够可靠裁定的契约：
 
 ## 实现 TODO
 
-本仓库通过直接提交到 `main` 发布；推送 commit 会触发滚动的 `Ship main` workflow。下面的序列表示可独立评审的 commit，不是 GitHub pull request。每个 Orb 应从最新的 `main` 开始，认领一个未勾选项，运行该项的门禁，并避免仅为减少 commit 数量而合并独立事项。
+本仓库推送到 `main` 即触发滚动的 `Ship main` workflow。按 2026-08-08 的一次性交付决定，`main` 只在集成完成时接受一次合并：剩余能力全部在集成分支（PR #5，`docs/context-continuity`）上以可评审 commit 累积，一次 merge 产出一个携带全部能力的 release。中间状态不单独发布，向后兼容不是约束。
+
+已完成：
 
 - [x] 建立第一阶段基线：渐进式 usage、命令能力元数据、发现字节核算、生成参考对齐，以及本架构文档。
 - [x] Commit 1——加固并定稿渐进式 usage 元数据。
 - [x] Commit 2——增加稳定的分发/版本/capability 探针。
 - [x] Commit 3——改进根与符合条件领域的零参数导航。
 - [x] Commit 4——用少量全新 Amp agent 记录单一激活 Skill 的发现路径和上下文缺口。
+
+本次发布范围（集成分支）：
+
 - [ ] Commit 5——内嵌最小的证据驱动指南语料，并添加 `guides list/read`。
 - [ ] Commit 6——为领域 usage、叶子帮助和 usage JSON 派生指南面包屑。
 - [ ] Commit 7a——把已安装二进制的访问诊断和 Issue authoring 迁入 CLI 拥有的工作流。
 - [ ] Commit 7b——移除本地生成手册，并把生成流程转为契约验证。
-- [ ] Commit 8——添加统一的可选机器输出。
-- [ ] Commit 9——批量解析非交互 issue 变更输入。
-- [ ] Commit 10——添加保守的超时、限流和查询重试行为。
 - [ ] Commit 11——实现 Issue delivery manifest、零写入 `plan` 和顺序 `apply`。
 - [ ] Commit 12——让 batch 复用同一 manifest，并添加简单 checkpoint。
-- [ ] Commit 13——完成全新 agent 迁移验证，并原子替换外部 Linear Skill 家族。
-- [ ] 证据门控的后续工作——仅当实测输出成本证明合理时，才添加机器输出字段投影。
+- [ ] 发布编排——merge 集成分支、发布、验证安装，然后在 `jihuanshe/skills#219` 内完成全新 agent 验证与 family 原子替换并 sync。
+
+发布后、信号驱动：
+
+- [ ] Commit 8——统一的可选机器输出。
+- [ ] Commit 9——批量解析非交互 issue 变更输入。
+- [ ] Commit 10——保守的超时、限流和查询重试行为。
+- [ ] 机器输出字段投影——仅当实测输出成本证明合理。
+
+Commit 8–10 与 Skill 迁移零耦合：delivery 与 batch 使用现有 `--json` 输出和现有非交互路径即可正确工作。把它们塞进发布窗口只放大一次性变更的范围，不换来迁移收益。
 
 ## 拟议的 commit 序列
 
-每个 commit 应保持单一的、可评审且可独立验证的行为边界。编号命名的是评审边界；它不强制所有工作进入一条依赖链。
+每个 commit 仍是集成分支上单一可评审、可独立验证的行为边界，但不再各自构成发布边界。编号沿用原路线图；被移出发布窗口的 8–10 号在「发布后工作」一节保留完整规格。
 
-在 commit 1 加固共享的元数据和测试基础之后，两条工作流可以并行推进：
+集成分支内的依赖顺序：
 
-| 工作流     | Commits | 依赖                                                                                                                     |
-| ---------- | ------- | ------------------------------------------------------------------------------------------------------------------------ |
-| 发现与知识 | 2–7b    | 版本探测、导航、全新 agent 场景、内嵌指南、访问/authoring 所有权和生成手册移除按顺序相互构建。                           |
-| 执行协议   | 8–12    | Commit 8–9 提供结构化输出与输入解析；commit 11 实现文件驱动交付，commit 12 增加 batch checkpoint。                       |
-| 最终迁移   | 13      | 只在两个工作流的前置能力有明确拥有者且关键场景通过后，原子替换外部 Skill family；不得用扩大激活 Skill 内容来补能力缺口。 |
+| 工作流     | Commits              | 依赖                                                                             |
+| ---------- | -------------------- | -------------------------------------------------------------------------------- |
+| 发现与知识 | 5 → 6 → 7a → 7b      | 指南、面包屑、access/authoring 所有权和生成手册移除按顺序相互构建。              |
+| 交付协议   | 11 → 12              | 与发现工作并行；apply 自身保留 mutation 结果未知的语义，不依赖发布后的重试工作。 |
+| 替换与发布 | 发布编排、skills#219 | 两条工作流完成后进入；见「发布编排」。                                           |
 
-Commit 10 的网络可靠性可以与 commit 11 的 manifest/plan 开发并行，但 apply 必须保留 mutation 结果未知的语义。字段投影仍是优化待办，而不是一个承诺的阶段。架构约束随证明它们的 commit 一起进入 `AGENTS.md`；本路线图不得把设想中的命令/解析器/服务分层描述为已强制执行的仓库不变式。
+架构约束随证明它们的 commit 一起进入 `AGENTS.md`；本路线图不得把设想中的命令/解析器/服务分层描述为已强制执行的仓库不变式。
 
 ### Commit 1：加固并定稿渐进式 usage
 
@@ -997,13 +1021,112 @@ Commit 10 的网络可靠性可以与 commit 11 的 manifest/plan 开发并行�
 - 将 `generate-skill-docs` 转为发现、元数据、指南和单一激活 Skill 的契约验证；
 - 只保留有明确本地拥有者的内容。
 
-本 commit 只移除本仓库生成的重复命令手册，不删除 `jihuanshe/skills` 中仍承担未迁移执行能力的外部 Skill。外部 family 的替换属于 commit 13。
+本 commit 只移除本仓库生成的重复命令手册，不删除 `jihuanshe/skills` 中仍承担未迁移执行能力的外部 Skill。外部 family 的替换属于 skills#219 的原子替换阶段。
 
 门禁：
 
 - 生成参考的移除不使探索性任务用例或指南感知路由回退；
 - 发布验证检查替代契约；
 - 一份内容迁移台账核算每一个被移除的整理章节。
+
+### Commit 11：Issue delivery manifest、plan 与 apply
+
+范围：
+
+- 定义版本化 manifest，直接映射现有 Issue 字段、Comment 正文中的上传文件、Linear Attachment 和 IssueRelation；
+- 让文件路径相对于 manifest 解析；
+- 实现对远端零写入的 plan，并在计划中展示本次请求内容和执行顺序；
+- 在第一笔 mutation 前验证整个 manifest 的文件、目标和本次要修改的 Issue 字段；
+- 复用现有 create/update/comment/attach/link/relation 命令实现顺序 apply；
+- 为每个请求项返回准确状态和已知远端 ID/URL；
+- 对结果未知的 mutation 停止自动重试。
+
+非目标：
+
+- 不在 CLI 中运行 AI、强制审批或判断业务事实；
+- 交付清单不提供既有 Comment、Attachment 或 IssueRelation 的显式 update/remove；
+- 不冻结完整 Issue 历史，不实现内容寻址 plan、通用事务日志、集合协调器或全分页审计；
+- 不承诺远端事务或自动回滚。
+
+门禁：
+
+- plan 对远端没有写操作；
+- 整个 manifest 的无效输入和缺失文件在任何 mutation 前失败；
+- Comment 正文中的上传文件与 Attachment 使用正确且不同的 Linear 模型；
+- Issue update 只对本次修改字段应用现有冲突保护；
+- 正文成功、后续文件失败会被报告为部分成功；
+- `unknown` mutation 不被自动重试；
+- fixture 覆盖图片、二进制证据、URL Attachment、IssueRelation、本机路径泄漏和机械字段更新；
+- apply 完成后返回目标 Issue 的当前视图，但不遍历全部历史对象；
+- `unknown` 立即停止整个 apply 或 batch，直到显式对账。
+
+### Commit 12：batch composition 与 checkpoint
+
+范围：
+
+- 让同一个 manifest 的 `issues[]` 支持单次与 batch；
+- 在首笔 mutation 前验证整批输入；
+- 顺序执行并原子记录逐 Issue、逐请求项 checkpoint；
+- 添加 stop/continue 策略和结构化汇总；
+- 迁移当前受保护 batch Skill 的已接受行为和 fixture；
+- 添加与版本匹配的 `issue-batch` 指南，但不复制命令手册。
+
+非目标：
+
+- 不建立第二套 batch schema 或清单外的附件列表；
+- 不引入并发执行、通用事务日志或自动对账协议；
+- 不因批量便利削弱字段冲突和 workspace 确认。
+
+门禁：
+
+- 单次和 batch 对同一 Issue 产生相同计划和结果语义；
+- `applied` 项在续跑时跳过，`unknown` 项立即停止整个 batch 并阻止续跑或重试；
+- 部分成功与剩余项可由 checkpoint 准确恢复；
+- 现有 batch 安全与恢复用例全部有 CLI owner。
+
+### skills#219：全新 agent 验证与 family 原子替换
+
+本阶段在 `jihuanshe/skills#219` 内完成，与 `preserving-context-continuity` 是同一个原子评审单元；只在已安装二进制的访问诊断、Issue authoring、Issue delivery manifest 和 batch checkpoint 都有 CLI 拥有者、且携带这些能力的 release 已经上线后合并。全新 agent 场景在 merge 前使用分支内的 Skill 工件与已发布的 CLI 运行——merge 即全公司生效，没有事后补测的窗口。
+
+范围：
+
+- 用全新 Amp agent 运行激活正反例、直接 CRUD、访问故障、Issue authoring、交付和 batch 的代表性场景；
+- 在 `jihuanshe/skills` 自己的仓库和评审中更新它；
+- 添加一个 `linear` Skill，其描述对完整的 Linear 任务空间激活；
+- 只保留规范的二进制缺失引导路由和一条使用 CLI 上下文发现的指令；
+- 在同一次受评审的迁移中移除 `linear-cli`、`linear-access`、`linear-request-intake` 和 `linear-issue-batch-write`；
+- 提交迁移台账：旧 family 的每个 SKILL.md 章节与 reference 文件标注最终去向——CLI 命令或 help、内嵌指南、二进制缺失引导、宿主策略或删除；
+- 验证没有其他外部 Skill 仍声称拥有 Linear 专属的正向路由。
+
+门禁：
+
+- 全新 agent 在直接 CRUD、安装/认证故障、Issue authoring 和批量工作中都选中这一个外部 Skill；
+- 普通的非 Linear 任务不选中它；
+- 确切已知的命令不付出强制的版本、usage 或指南预检；
+- 不确定的 agent 通过 CLI 根导航、命令帮助、错误和内嵌指南面包屑恢复；
+- 权威事实源、原始证据、技术审计转写、机械更新和部分成功场景均有可复查的正确路径；
+- 不通过猜测的包名或直接 `rm` 删除任何未知二进制；
+- 受管的 Jihuanshe 主机不绕过 Rotom，除非组织策略被明确改变；
+- 每个被移除的外部 Skill 用例都有明确的 CLI 命令、内嵌指南、二进制缺失引导或宿主策略拥有者；
+- 专用命令、GraphQL fallback 和授权边界各有正确代表性路径，且不把激活 Skill 养成一本手册；
+- 场景失败按本章的拥有者规则裁定，不为了让测试全绿扩张 CLI 协议。
+
+## 发布编排
+
+两个仓库、一个发布窗口、一次完整状态切换：
+
+1. **集成完成**：`jihuanshe/linear` 集成分支完成本次发布范围的全部 commit，`deno task verify-release` 通过。
+2. **merge 与发布**：集成分支一次 merge 进 `main`；`Ship main` 构建并发布携带新 capability 的 release。capability 词汇随本次 release 从 `usage-v1` 扩展为 `usage-v1`、`guides-v1`、`delivery-v1`。
+3. **安装验证**：通过 mise（非受管机器）或 Rotom（受管机器）收敛到新版本；`linear version --json` 报告新 capability，`linear guides list` 与 delivery `plan` 冒烟通过。
+4. **Skill 替换**：merge `jihuanshe/skills#219`——`preserving-context-continuity`、新 `linear` 激活 Skill、四个旧 Skill 的删除与迁移台账是同一个原子评审单元。
+5. **Live**：skillshare sync 使替换在全部配置目标生效；按 lifecycle 规则验证投影内容并运行最小冒烟。
+6. **信号**：发布后观察真实使用。效果不好的部分就是下一轮优化的输入；恢复旧 Skill 只需要 revert 一个 PR，不需要专门的回滚仪式。
+
+顺序约束只有一条：新 Skill 引用的入口只存在于新 release，因此 CLI 先上线、Skill 替换随后。这不是渐进主义——中间状态不对外发布，两步是同一次切换在两个仓库的落点。
+
+## 发布后工作（信号驱动）
+
+以下工作项与 Skill 迁移零耦合，不进入本次发布窗口；规格保持可实现精度，编号沿用原路线图，由发布后的真实使用信号排期。
 
 ### Commit 8：统一的可选机器输出
 
@@ -1088,88 +1211,7 @@ Commit 10 的网络可靠性可以与 commit 11 的 manifest/plan 开发并行�
 - 名义请求计数测试与重试尝试测试保持分离；
 - 测试证明瞬态查询会重试，且 mutation 在 HTTP 失败、网络错误或超时歧义之后不会重复执行。
 
-### Commit 11：Issue delivery manifest、plan 与 apply
-
-范围：
-
-- 定义版本化 manifest，直接映射现有 Issue 字段、Comment 正文中的上传文件、Linear Attachment 和 IssueRelation；
-- 让文件路径相对于 manifest 解析；
-- 实现对远端零写入的 plan，并在计划中展示本次请求内容和执行顺序；
-- 在第一笔 mutation 前验证整个 manifest 的文件、目标和本次要修改的 Issue 字段；
-- 复用现有 create/update/comment/attach/link/relation 命令实现顺序 apply；
-- 为每个请求项返回准确状态和已知远端 ID/URL；
-- 对结果未知的 mutation 停止自动重试。
-
-非目标：
-
-- 不在 CLI 中运行 AI、强制审批或判断业务事实；
-- 交付清单不提供既有 Comment、Attachment 或 IssueRelation 的显式 update/remove；
-- 不冻结完整 Issue 历史，不实现内容寻址 plan、通用事务日志、集合协调器或全分页审计；
-- 不承诺远端事务或自动回滚。
-
-门禁：
-
-- plan 对远端没有写操作；
-- 整个 manifest 的无效输入和缺失文件在任何 mutation 前失败；
-- Comment 正文中的上传文件与 Attachment 使用正确且不同的 Linear 模型；
-- Issue update 只对本次修改字段应用现有冲突保护；
-- 正文成功、后续文件失败会被报告为部分成功；
-- `unknown` mutation 不被自动重试；
-- fixture 覆盖图片、二进制证据、URL Attachment、IssueRelation、本机路径泄漏和机械字段更新；
-- apply 完成后返回目标 Issue 的当前视图，但不遍历全部历史对象；
-- `unknown` 立即停止整个 apply 或 batch，直到显式对账。
-
-### Commit 12：batch composition 与 checkpoint
-
-范围：
-
-- 让同一个 manifest 的 `issues[]` 支持单次与 batch；
-- 在首笔 mutation 前验证整批输入；
-- 顺序执行并原子记录逐 Issue、逐请求项 checkpoint；
-- 添加 stop/continue 策略和结构化汇总；
-- 迁移当前受保护 batch Skill 的已接受行为和 fixture；
-- 添加与版本匹配的 `issue-batch` 指南，但不复制命令手册。
-
-非目标：
-
-- 不建立第二套 batch schema 或清单外的附件列表；
-- 不引入并发执行、通用事务日志或自动对账协议；
-- 不因批量便利削弱字段冲突和 workspace 确认。
-
-门禁：
-
-- 单次和 batch 对同一 Issue 产生相同计划和结果语义；
-- `applied` 项在续跑时跳过，`unknown` 项立即停止整个 batch 并阻止续跑或重试；
-- 部分成功与剩余项可由 checkpoint 准确恢复；
-- 现有 batch 安全与恢复用例全部有 CLI owner。
-
-### Commit 13：全新 agent 验证与原子 Skill family 迁移
-
-本阶段只在已安装二进制的访问诊断、Issue authoring、Issue delivery manifest 和 batch checkpoint 都有 CLI 拥有者之后开始。
-
-范围：
-
-- 用全新 Amp agent 运行激活正反例、直接 CRUD、访问故障、Issue authoring、交付和 batch 的代表性场景；
-- 在 `jihuanshe/skills` 自己的仓库和评审中更新它；
-- 添加一个 `linear` Skill，其描述对完整的 Linear 任务空间激活；
-- 只保留规范的二进制缺失引导路由和一条使用 CLI 上下文发现的指令；
-- 在同一次受评审的迁移中移除 `linear-cli`、`linear-access`、`linear-request-intake` 和 `linear-issue-batch-write`；
-- 验证没有其他外部 Skill 仍声称拥有 Linear 专属的正向路由。
-
-门禁：
-
-- 全新 agent 在直接 CRUD、安装/认证故障、Issue authoring 和批量工作中都选中这一个外部 Skill；
-- 普通的非 Linear 任务不选中它；
-- 确切已知的命令不付出强制的版本、usage 或指南预检；
-- 不确定的 agent 通过 CLI 根导航、命令帮助、错误和内嵌指南面包屑恢复；
-- 权威事实源、原始证据、技术审计转写、机械更新和部分成功场景均有可复查的正确路径；
-- 不通过猜测的包名或直接 `rm` 删除任何未知二进制；
-- 受管的 Jihuanshe 主机不绕过 Rotom，除非组织策略被明确改变；
-- 每个被移除的外部 Skill 用例都有明确的 CLI 命令、内嵌指南、二进制缺失引导或宿主策略拥有者；
-- 专用命令、GraphQL fallback 和授权边界各有正确代表性路径，且不把激活 Skill 养成一本手册；
-- 场景失败按本章的拥有者规则裁定，不为了让测试全绿扩张 CLI 协议。
-
-### 证据门控的后续工作：机器输出字段投影
+### 证据门控：机器输出字段投影
 
 只有在机器 payload schema 和实测输出成本稳定之后，才考虑内置投影。其目的是减少 CLI 到 agent 的输出，不是减少 GraphQL 请求或服务器响应大小；`jq` 和精确的 `linear api` 选择仍是有效替代。
 
@@ -1183,7 +1225,7 @@ Commit 10 的网络可靠性可以与 commit 11 的 manifest/plan 开发并行�
 
 ### 架构约束随实现落地
 
-在让某个边界成立且可测试的那个 commit 中同步更新仓库指引。机器输出纯净性属于 commit 8，解析器语义属于 commit 9，重试规则属于 commit 10，Issue 交付与 batch 属于 commits 11–12，全新 agent 验证与 Skill 迁移属于 commit 13。命令、解析器和服务的分层规则只适用于代码和测试已经强制执行它的模块，不得提前全局声明。
+在让某个边界成立且可测试的那个 commit 中同步更新仓库指引。Issue 交付与 batch 的约束属于 commits 11–12，全新 agent 验证与 Skill 迁移属于 skills#219；机器输出纯净性、解析器语义和重试规则随各自的发布后工作项落地。命令、解析器和服务的分层规则只适用于代码和测试已经强制执行它的模块，不得提前全局声明。
 
 ## 已考虑的替代方案
 
@@ -1217,25 +1259,32 @@ Commit 10 的网络可靠性可以与 commit 11 的 manifest/plan 开发并行�
 
 ## 待决事项
 
-实现 commit 必须用测试或实测证据解决以下问题：
+一次性交付要求把可以现在决定的事项当场拍板，只把真正依赖实测的留给实现 commit 或发布后信号。
 
-1. `guides` 还是单数 `guide` 更符合现有命令命名风格。
-2. 确切的零参数导航内容和字节预算。
-3. 静态文本导入是否通过每一项发布诊断；回退方案是生成的资源模块。
-4. 在指南感知的全新 agent 场景之后，哪些上下文错误适合加指南链接，同时不让错误变得嘈杂。
-5. 哪些 Issue authoring 用例需要新的 CLI 命令，哪些只需补充内嵌指南。
-6. 哪些访问失败需要新的 `doctor` 或修复命令，同时让二进制缺失引导留在外部 Skill 中。
-7. Jihuanshe 受管主机是保持 Rotom 所有，还是有意迁移到直接 mise；这必须与 Rotom 契约一起决定，而不能只在本仓库决定。
-8. 现有的外部 Skill 发布流程是否需要单一激活 Skill 之外的同步。
-9. 检索证据是否会证明搜索或文件系统投影有必要；只有那时才选择具体接口。
-10. Issue delivery manifest 第一版支持哪些 Linear Attachment 和 IssueRelation 类型。
-11. Linear 当前会产生哪些 Markdown 等价改写；哪些可以安全规范化，哪些应直接展示差异供调用者判断。
-12. checkpoint 的默认位置和跨平台写入方式。
+已拍板：
+
+1. 指南命令使用复数 `guides`，与内容为集合一致；`linear guides` 是列表别名。
+2. 零参数导航内容与字节预算已随 commit 3 定稿（根导航 1,325 字节）。
+3. Issue delivery manifest v1：Comment 上传文件接受任意本地文件；Attachment 只支持 `kind: "url"`；IssueRelation 直接透传 Linear 现有关系类型。本地文件直接转 Attachment 与既有集合项的修改留给发布后信号。
+4. checkpoint 默认写在 manifest 同目录（`<manifest>.checkpoint.json`），对接手者可见、可 grep、可随 manifest 一起交接；不放隐藏缓存目录。
+5. 外部 Skill 发布不需要单一激活 Skill 之外的同步机制：skills#219 一次替换，skillshare sync 即 Live。
+
+留给实现 commit 内的测试定稿：
+
+6. 静态文本导入是否通过每一项发布诊断；回退方案是生成的资源模块。
+7. Linear 的 Markdown 等价改写以实测样本补回归；无法安全规范化的差异直接展示给调用者，不判为失败。
+8. 哪些 authoring 与访问用例需要新的 CLI 命令、哪些只需内嵌指南或命令 help；在 commit 7a 的盘点中按最小拥有者裁定。
+
+留给发布后信号：
+
+9. 上下文错误的指南链接、内部搜索、文件系统投影与 `guides export`。
+10. Jihuanshe 受管主机是保持 Rotom 所有，还是有意迁移到直接 mise；这必须与 Rotom 契约一起决定，而不能只在本仓库决定。
 
 ## 完成定义
 
 架构在满足以下条件时完成：
 
+- 全部剩余能力经集成分支的一次 merge 与一个 release 交付，skills#219 在同一发布窗口完成 family 替换与 skillshare sync；
 - 调用 `linear` 教授渐进式发现；
 - 一个外部 Skill 可靠地对每个 Linear 任务激活，而不把访问、authoring 或批量工作切分进兄弟 Skill；
 - 二进制缺失引导仍然可用，而已安装二进制的诊断与修复由 CLI 拥有；
