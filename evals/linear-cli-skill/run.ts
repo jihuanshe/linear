@@ -28,7 +28,7 @@
 
 import { parseArgs } from "@std/cli"
 import { copy } from "@std/fs"
-import { dirname, fromFileUrl, join, resolve } from "@std/path"
+import { basename, dirname, fromFileUrl, join, resolve } from "@std/path"
 import { CASES } from "./cases.ts"
 import type { ShimEntry, TrialRecord } from "./grade.ts"
 
@@ -37,7 +37,7 @@ const REPO_ROOT = resolve(EVAL_DIR, "..", "..")
 
 interface RunConfig {
   condition: string
-  skillDir: string
+  skillDirs: string[]
   trials: number
   concurrency: number
   effort: string
@@ -92,6 +92,28 @@ function requireDir(path: string, label: string): string {
     throw error
   }
   return path
+}
+
+export function parseSkillDirs(
+  skillDir: string | undefined,
+  skillDirs: string | undefined,
+): string[] {
+  if (skillDir != null && skillDirs != null) {
+    throw new Error("pass either --skill-dir or --skill-dirs, not both")
+  }
+  const resolved = (skillDirs ?? skillDir ?? "")
+    .split(",")
+    .map((path) => path.trim())
+    .filter(Boolean)
+    .map((path) => requireDir(resolve(path), "skill directory"))
+  if (resolved.length === 0) {
+    throw new Error("at least one skill directory is required")
+  }
+  const skillNames = resolved.map((path) => basename(path))
+  if (new Set(skillNames).size !== skillNames.length) {
+    throw new Error("skill directories must have unique base names")
+  }
+  return resolved
 }
 
 const REAL_HOME = Deno.env.get("HOME") ?? ""
@@ -180,7 +202,9 @@ async function runTrial(
   await Deno.mkdir(fakeHome, { recursive: true })
   await Deno.copyFile(config.authPath, join(codexHome, "auth.json"))
   await Deno.writeTextFile(join(codexHome, "config.toml"), "")
-  await copy(config.skillDir, join(codexHome, "skills", "linear-cli"))
+  for (const skillDir of config.skillDirs) {
+    await copy(skillDir, join(codexHome, "skills", basename(skillDir)))
+  }
   for await (const fixture of Deno.readDir(join(EVAL_DIR, "fixtures"))) {
     await Deno.copyFile(
       join(EVAL_DIR, "fixtures", fixture.name),
@@ -304,6 +328,7 @@ async function main(): Promise<void> {
     string: [
       "condition",
       "skill-dir",
+      "skill-dirs",
       "cases",
       "out",
       "effort",
@@ -319,9 +344,12 @@ async function main(): Promise<void> {
       "timeout-seconds": 300,
     },
   })
-  if (flags.condition == null || flags["skill-dir"] == null) {
+  if (
+    flags.condition == null ||
+    (flags["skill-dir"] == null && flags["skill-dirs"] == null)
+  ) {
     throw new Error(
-      "usage: run.ts --condition <name> --skill-dir <path> [--trials N] [--cases id,id] [--concurrency N] [--effort low] [--model name] [--sandbox workspace-write|yolo] [--codex-bin path] [--out results.jsonl]",
+      "usage: run.ts --condition <name> (--skill-dir <path> | --skill-dirs <path,...>) [--trials N] [--cases id,id] [--concurrency N] [--effort low] [--model name] [--sandbox workspace-write|yolo] [--codex-bin path] [--out results.jsonl]",
     )
   }
   if (flags.sandbox !== "workspace-write" && flags.sandbox !== "yolo") {
@@ -337,9 +365,13 @@ async function main(): Promise<void> {
 
   const realCodexHome = Deno.env.get("CODEX_HOME") ??
     join(Deno.env.get("HOME") ?? "", ".codex")
+  const skillDirs = parseSkillDirs(
+    flags["skill-dir"],
+    flags["skill-dirs"],
+  )
   const config: RunConfig = {
     condition: flags.condition,
-    skillDir: requireDir(resolve(flags["skill-dir"]), "--skill-dir"),
+    skillDirs,
     trials: Number(flags.trials),
     concurrency: Number(flags.concurrency),
     effort: flags.effort,
@@ -368,7 +400,7 @@ async function main(): Promise<void> {
 
   console.log(`condition=${config.condition}`)
   console.log(`codex=${config.codexBin} (${codexVersion})`)
-  console.log(`skill=${config.skillDir}`)
+  console.log(`skills=${config.skillDirs.join(",")}`)
   console.log(
     `sandbox=${config.sandbox} effort=${config.effort} model=${
       config.model ?? "(codex default)"
@@ -445,6 +477,7 @@ async function main(): Promise<void> {
         effort: config.effort,
         modelRequested: config.model,
         modelsObserved: [...observedModels].sort(),
+        skills: config.skillDirs.map((path) => basename(path)),
         trialsPerCase: config.trials,
         cases: selectedCases.map((evalCase) => evalCase.id),
         completedTrials: records.length,

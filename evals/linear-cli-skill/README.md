@@ -8,7 +8,7 @@ The subject agent is the [OpenAI Codex CLI](https://developers.openai.com/codex/
 
 For each case × trial, the runner:
 
-1. Creates a fresh trial dir with its own `CODEX_HOME` (copied codex `auth.json` + the skill variant under test, nothing else), a fake `HOME` (codex also discovers skills in `~/.agents/skills` — a real leak we verified), and a work dir seeded with every file in `fixtures/` (markdown, a PNG screenshot, a log file).
+1. Creates a fresh trial dir with its own `CODEX_HOME` (copied codex `auth.json` + the Skill variant or family under test, nothing else), a fake `HOME` (codex also discovers skills in `~/.agents/skills` — a real leak we verified), and a work dir seeded with every file in `fixtures/` (markdown, a PNG screenshot, a log file).
 2. Spawns `codex exec` with an explicit environment: `PATH` = the recording shims (`linear`, `curl`, `npx`, `npm`) + the codex/deno bin dirs + `/usr/bin:/bin`; no Linear credentials anywhere. By default the subject runs under codex's `workspace-write` sandbox, which denies network and out-of-workdir writes to everything it executes.
 3. Records the shim invocation log, discovery stdout/stderr byte counts, codex's JSON event stream (for bypass detection and to verify the skill was actually read), the final answer, and whether fixtures were tampered with.
 
@@ -62,6 +62,11 @@ deno task evaluate-skill --condition baseline --skill-dir .agents/skills/linear-
 
 # after changing the Skill
 deno task evaluate-skill --condition post-change --skill-dir .agents/skills/linear-cli
+
+# compare a routed Skill family; comma-separated directories are copied under
+# their own base names into each isolated trial
+deno task evaluate-skill --condition current-family \
+  --skill-dirs /path/to/linear-cli,/path/to/linear-access,/path/to/linear-request-intake,/path/to/linear-issue-batch-write
 
 # grade + compare
 deno run --allow-read --allow-write evals/linear-cli-skill/grade.ts \
