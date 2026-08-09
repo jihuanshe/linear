@@ -44,20 +44,14 @@ jobs:
         run: deno task generate-graphql-types
 
       - name: Fetch current Linear schema
-        env:
-          LINEAR_API_KEY: ${{ secrets.LINEAR_API_KEY }}
         shell: bash
         run: |
-          if [[ -z "$LINEAR_API_KEY" ]]; then
-            echo "Configure the LINEAR_API_KEY Actions secret with a read-only Linear API key." >&2
-            exit 1
-          fi
           deno run \
             --allow-all \
             --frozen \
             --lock=deno.lock \
             --quiet \
-            src/main.ts schema -o graphql/schema.graphql
+            src/main.ts schema --unauthenticated -o graphql/schema.graphql
 
       - id: drift
         name: Detect schema drift

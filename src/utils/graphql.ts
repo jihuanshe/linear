@@ -94,17 +94,26 @@ export function getGraphQLEndpoint(): string {
   return Deno.env.get("LINEAR_GRAPHQL_ENDPOINT") || LINEAR_API_ENDPOINT
 }
 
+function createClient(apiKey?: string): GraphQLClient {
+  return new GraphQLClient(getGraphQLEndpoint(), {
+    headers: {
+      ...(apiKey == null ? {} : { Authorization: apiKey }),
+      "User-Agent": `jihuanshe-linear/${denoConfig.version}`,
+    },
+  })
+}
+
 /**
  * Create a GraphQL client with an explicit API key.
  * Use this when you need to validate a specific key (e.g., during auth login).
  */
 export function createGraphQLClient(apiKey: string): GraphQLClient {
-  return new GraphQLClient(getGraphQLEndpoint(), {
-    headers: {
-      Authorization: apiKey,
-      "User-Agent": `jihuanshe-linear/${denoConfig.version}`,
-    },
-  })
+  return createClient(apiKey)
+}
+
+/** Create an unauthenticated client for public GraphQL operations. */
+export function createPublicGraphQLClient(): GraphQLClient {
+  return createClient()
 }
 
 export function getGraphQLClient(): GraphQLClient {
