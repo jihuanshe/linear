@@ -59,14 +59,15 @@ export function selfExecRunner(): CommandRunner {
 
 /**
  * Linear rewrites equivalent Markdown on save. Forms observed against the
- * real API (Kadoraba sandbox, 2026-08-09): trailing whitespace stripped,
- * table delimiter rows compressed (`| ---- |` → `| -- |`), and link
- * destinations wrapped in angle brackets (`](url)` → `](<url>)`, equivalent
- * per CommonMark); bullet markers were preserved on create but `* `/`- `
- * remain normalized here for the historical incident form. Comparing
- * normalized text keeps these rewrites from reading as remote drift;
- * anything this normalization cannot reconcile is shown as a difference for
- * the caller to judge, never silently "fixed".
+ * real API (Kadoraba sandbox, 2026-08-09): trailing whitespace stripped;
+ * table delimiter rows compressed with alignment colons discarded
+ * (`| :--- | ---: |` → `| -- | -- |`); link destinations wrapped in angle
+ * brackets (`](url)` → `](<url>)`); bare URLs autolinked into
+ * `[url](<url>)`; nested bullets flipped `- ` → `* `; underscore italics
+ * flipped `_x_` → `*x*`; task checkboxes capitalized `[x]` → `[X]`.
+ * Comparing normalized text keeps these rewrites from reading as remote
+ * drift; anything this normalization cannot reconcile is shown as a
+ * difference for the caller to judge, never silently "fixed".
  */
 export function normalizeMarkdown(text: string): string {
   return text
@@ -76,15 +77,15 @@ export function normalizeMarkdown(text: string): string {
       const trimmed = line
         .replace(/[ \t]+$/, "")
         .replace(/^(\s*)\* /, "$1- ")
+        .replace(/^(\s*)- \[[xX]\] /, "$1- [x] ")
         .replace(/\]\(<([^<>\s]+)>\)/g, "]($1)")
+        .replace(/\[([^\]\s]+)\]\(\1\)/g, "$1")
+        .replace(/\b_([^_\n]+)_(?![\w])/g, "*$1*")
       const bare = trimmed.trim()
       if (/^\|[\s|:-]+\|$/.test(bare) && bare.includes("-")) {
-        const cells = bare.slice(1, -1).split("|").map((cell) => {
-          const c = cell.trim()
-          const leading = c.startsWith(":") ? ":" : ""
-          const trailing = c.endsWith(":") ? ":" : ""
-          return `${leading}---${trailing}`
-        })
+        // Linear discards column alignment colons entirely, so the canonical
+        // delimiter cell is plain dashes.
+        const cells = bare.slice(1, -1).split("|").map(() => "---")
         return `|${cells.join("|")}|`
       }
       return trimmed

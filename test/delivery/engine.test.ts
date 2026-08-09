@@ -426,6 +426,24 @@ Deno.test("markdown normalization absorbs Linear's equivalent rewrites only", ()
     normalizeMarkdown("[evidence.yrp](https://example.com/a)"),
     normalizeMarkdown("[evidence.yrp](<https://example.com/a>)"),
   )
+  // Real round-trip samples from the markdown torture issue (ENG-54).
+  assertEquals(
+    normalizeMarkdown("      - 嵌套无序\n_斜体_ 与 ~~删除线~~\n- [x] 已完成"),
+    normalizeMarkdown("      * 嵌套无序\n*斜体* 与 ~~删除线~~\n- [X] 已完成"),
+  )
+  assertEquals(
+    normalizeMarkdown("| :--- | :---: | ---: |"),
+    normalizeMarkdown("| -- | -- | -- |"),
+  )
+  assertEquals(
+    normalizeMarkdown("自动链接 https://example.com"),
+    normalizeMarkdown("自动链接 [https://example.com](<https://example.com>)"),
+  )
+  assertEquals(
+    normalizeMarkdown("`snake_case_name` stays") ===
+      normalizeMarkdown("`snake*case*name` stays"),
+    false,
+  )
   assertEquals(
     normalizeMarkdown("![img](https://example.com/a)") ===
       normalizeMarkdown("![img](https://example.com/b)"),
