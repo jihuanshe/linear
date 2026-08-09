@@ -1,6 +1,6 @@
 # Linear Skill family 迁移台账
 
-skills#219 原子替换 `linear-cli`、`linear-access`、`linear-request-intake`、`linear-issue-batch-write` 前，每一段被移除的内容必须有明确去向；「删除」也是去向，必须显式记录。本台账随各 commit 增量维护，是替换 PR 的评审证据。
+skills#219 原子替换 `linear-cli`、`linear-access`、`linear-request-intake`、`linear-issue-batch-write` 前，每一段被移除的内容必须有明确去向；「删除」也是去向，必须显式记录。本台账随各 commit 增量维护，是替换 PR 的评审证据；skills#219 merge 后作为历史证据保留，不再更新。
 
 去向词汇：`CLI 命令/help`（命令描述与帮助）、`CLI 指南 <name>`（内嵌指南）、`宿主引导`（新 `linear` 激活 Skill 保留的二进制缺失路由）、`宿主策略`（授权与跨工具边界，由系统提示与仓库指引承载）、`公司知识`（已移入 OKF 或公司侧工件）、`删除`（不再需要，附原因）。
 
