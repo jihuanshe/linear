@@ -2,7 +2,6 @@
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
-expected_repo_root="$HOME/workspace/repo"
 deno_version="2.9.4"
 tool_root="$HOME/.local/share/amp/jihuanshe-linear"
 bin_dir="$tool_root/bin"
@@ -14,6 +13,7 @@ if [[ "${AMP_ORB-}" != "1" ]]; then
   exit 1
 fi
 
+expected_repo_root="$(cd "$HOME/workspace/repo" && pwd -P)"
 if [[ "$repo_root" != "$expected_repo_root" ]]; then
   echo "Orb toolchain setup supports only the primary checkout: $expected_repo_root" >&2
   exit 1
