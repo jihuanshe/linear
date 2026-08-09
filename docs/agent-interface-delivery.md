@@ -442,15 +442,16 @@ Commit 8–10 与 Skill 迁移零耦合：delivery 与 batch 使用现有 `--jso
 
 ### 真实 API 边界矩阵
 
-| 场景                                                            | 结果                                                                                                |
-| --------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
-| create 全链路（字段 + 评论两文件 + URL/文件 Attachment + 关系） | ENG-52：5 项全部 applied，读回逐项在位                                                              |
-| Markdown 往返幂等（含表格与 `*` 列表的 description 重放）       | 第二次 apply 判定 idempotent，零多余写入                                                            |
-| 并发冲突（base 过期后 apply）                                   | conflict 拒绝覆盖，退出码 1，不触发 mutation                                                        |
-| 部分成功 + 断点续跑（坏 relation 目标 → 修复重跑）              | 评论被 checkpoint 跳过（无重复评论），修复项单独补上                                                |
-| env-key 认证模式（`LINEAR_API_KEY`）                            | 发现并修复：引擎原先传 `--workspace` 与 env key 冲突；改为 `auth whoami` 前置 org 核对（`03539b7`） |
-| Linear 真实 Markdown 改写                                       | 发现并修复：表格分隔行被压缩（`                                                                     |
-| Linux 写路径（exe.dev 一次性 VM，交叉编译二进制）               | whoami org 核对、standalone `upload`、delivery apply 评论加文件全部通过；VM 与 key 均已销毁         |
+| 场景                                                            | 结果                                                                                                                                                                                                                                                                     |
+| --------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| create 全链路（字段 + 评论两文件 + URL/文件 Attachment + 关系） | ENG-52：5 项全部 applied，读回逐项在位                                                                                                                                                                                                                                   |
+| Markdown 往返幂等（含表格与 `*` 列表的 description 重放）       | 第二次 apply 判定 idempotent，零多余写入                                                                                                                                                                                                                                 |
+| 并发冲突（base 过期后 apply）                                   | conflict 拒绝覆盖，退出码 1，不触发 mutation                                                                                                                                                                                                                             |
+| 部分成功 + 断点续跑（坏 relation 目标 → 修复重跑）              | 评论被 checkpoint 跳过（无重复评论），修复项单独补上                                                                                                                                                                                                                     |
+| env-key 认证模式（`LINEAR_API_KEY`）                            | 发现并修复：引擎原先传 `--workspace` 与 env key 冲突；改为 `auth whoami` 前置 org 核对（`03539b7`）                                                                                                                                                                      |
+| Linear 真实 Markdown 改写                                       | 发现并修复三种形态：尾随空格剥离、表格分隔行压缩（`\| ---- \|` → `\| -- \|`）、链接目标包尖括号（`](url)` → `](<url>)`）；normalizer 全部吸收并带真实样本回归（`03539b7`、`b0005cb`）                                                                                    |
+| 内联图（描述正文、表格单元格、评论、文件链接）                  | `upload` 资产 URL 以 `![...]()` 嵌入后经 Linear 编辑器序列化往返原样保留且判定幂等；像素级渲染双路目检——用户核对 ENG-52（表格、附件 chip、Resources、关系、无重复评论），agent-browser 复用 Chrome profile 截图核对 ENG-53（正文与表格单元格内联图按测试图真实尺寸渲染） |
+| Linux 写路径（exe.dev 一次性 VM，交叉编译二进制）               | whoami org 核对、standalone `upload`、delivery apply 评论加文件全部通过；VM 与 key 均已销毁                                                                                                                                                                              |
 
 ### Fresh-agent 场景（本机，5 个无历史上下文的 sub-agent）
 
