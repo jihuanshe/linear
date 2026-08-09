@@ -65,10 +65,10 @@ export const linkCommand = withUsageMetadata(new Command(), { writes: true })
       const resolvedIdentifier = await getIssueIdentifier(issueIdInput)
       if (!resolvedIdentifier) {
         throw new ValidationError(
-          "Could not determine issue ID",
+          "Could not determine issue identifier",
           {
             suggestion:
-              "Please provide an issue ID like 'ENG-123', or run from a branch that contains an issue identifier.",
+              "Please provide an issue identifier like 'ENG-123', or run from a branch that contains an issue identifier.",
           },
         )
       }

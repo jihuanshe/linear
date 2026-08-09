@@ -9,8 +9,8 @@ import { handleError, ValidationError } from "../../utils/errors.ts"
 import { withUsageMetadata } from "../usage.ts"
 
 // `issue apply` executes a delivery manifest sequentially through the CLI's
-// own commands, reporting applied/failed/unknown/unattempted per requested
-// item. --confirm-workspace must repeat the manifest's workspace: the flag is
+// own commands, reporting applied/failed/unknown/unattempted/skipped per
+// requested item. --confirm-workspace must repeat the manifest's workspace: the flag is
 // an execution guard against pointing a prepared manifest at the wrong
 // workspace, not a substitute for the caller's authorization to write.
 // Confirmed successes are checkpointed beside the manifest so a resumed run

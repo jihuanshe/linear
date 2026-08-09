@@ -55,11 +55,11 @@ snapshot[`usage JSON v1 freezes its existing fields and types 1`] = `
         name: "automation",
       },
       {
-        description: "事实源判断、证据持久化、写前确认与写后读回、关闭原因与下一跳——让无上下文的接手者能独立继续",
+        description: "事实源判断、证据持久化、写前确认与写后读回、关闭原因与下一跳，让无上下文的接手者能独立继续",
         name: "issue-authoring",
       },
       {
-        description: "delivery manifest 的字段保护、checkpoint 续跑、unknown 对账与批量语义——单次和批量共用同一协议",
+        description: "delivery manifest 的字段保护、checkpoint 续跑、unknown 对账与批量语义，单次和批量共用同一协议",
         name: "issue-delivery",
       },
     ],
@@ -871,7 +871,7 @@ snapshot[`usage JSON v1 freezes its existing fields and types 1`] = `
           name: "automation",
         },
         {
-          description: "事实源判断、证据持久化、写前确认与写后读回、关闭原因与下一跳——让无上下文的接手者能独立继续",
+          description: "事实源判断、证据持久化、写前确认与写后读回、关闭原因与下一跳，让无上下文的接手者能独立继续",
           name: "issue-authoring",
         },
       ],
@@ -977,7 +977,7 @@ snapshot[`usage JSON v1 freezes its existing fields and types 1`] = `
       details: "linear issue url --help",
       guides: [
         {
-          description: "事实源判断、证据持久化、写前确认与写后读回、关闭原因与下一跳——让无上下文的接手者能独立继续",
+          description: "事实源判断、证据持久化、写前确认与写后读回、关闭原因与下一跳，让无上下文的接手者能独立继续",
           name: "issue-authoring",
         },
       ],
@@ -1257,7 +1257,7 @@ snapshot[`usage JSON v1 freezes its existing fields and types 1`] = `
           name: "automation",
         },
         {
-          description: "事实源判断、证据持久化、写前确认与写后读回、关闭原因与下一跳——让无上下文的接手者能独立继续",
+          description: "事实源判断、证据持久化、写前确认与写后读回、关闭原因与下一跳，让无上下文的接手者能独立继续",
           name: "issue-authoring",
         },
       ],
@@ -1597,7 +1597,7 @@ snapshot[`usage JSON v1 freezes its existing fields and types 1`] = `
           name: "automation",
         },
         {
-          description: "事实源判断、证据持久化、写前确认与写后读回、关闭原因与下一跳——让无上下文的接手者能独立继续",
+          description: "事实源判断、证据持久化、写前确认与写后读回、关闭原因与下一跳，让无上下文的接手者能独立继续",
           name: "issue-authoring",
         },
       ],
@@ -1955,7 +1955,7 @@ snapshot[`usage JSON v1 freezes its existing fields and types 1`] = `
           name: "automation",
         },
         {
-          description: "事实源判断、证据持久化、写前确认与写后读回、关闭原因与下一跳——让无上下文的接手者能独立继续",
+          description: "事实源判断、证据持久化、写前确认与写后读回、关闭原因与下一跳，让无上下文的接手者能独立继续",
           name: "issue-authoring",
         },
       ],
@@ -1989,7 +1989,7 @@ snapshot[`usage JSON v1 freezes its existing fields and types 1`] = `
         },
       ],
       confirmation: null,
-      description: "Create a sidebar link attachment on an issue (images do not render inline)",
+      description: "Create a sidebar attachment on an issue (images do not render inline)",
       details: "linear issue attach --help",
       guides: [
         {
@@ -1997,7 +1997,7 @@ snapshot[`usage JSON v1 freezes its existing fields and types 1`] = `
           name: "core",
         },
         {
-          description: "事实源判断、证据持久化、写前确认与写后读回、关闭原因与下一跳——让无上下文的接手者能独立继续",
+          description: "事实源判断、证据持久化、写前确认与写后读回、关闭原因与下一跳，让无上下文的接手者能独立继续",
           name: "issue-authoring",
         },
       ],
@@ -2084,7 +2084,7 @@ snapshot[`usage JSON v1 freezes its existing fields and types 1`] = `
       details: "linear issue link --help",
       guides: [
         {
-          description: "事实源判断、证据持久化、写前确认与写后读回、关闭原因与下一跳——让无上下文的接手者能独立继续",
+          description: "事实源判断、证据持久化、写前确认与写后读回、关闭原因与下一跳，让无上下文的接手者能独立继续",
           name: "issue-authoring",
         },
       ],
@@ -2123,7 +2123,7 @@ snapshot[`usage JSON v1 freezes its existing fields and types 1`] = `
       aliases: [],
       arguments: [],
       confirmation: null,
-      description: "Manage issue relations (dependencies)",
+      description: "Manage issue relations",
       details: "linear issue relation --help",
       hasSubcommands: true,
       interactive: false,
@@ -2144,11 +2144,11 @@ snapshot[`usage JSON v1 freezes its existing fields and types 1`] = `
       details: "linear issue plan --help",
       guides: [
         {
-          description: "事实源判断、证据持久化、写前确认与写后读回、关闭原因与下一跳——让无上下文的接手者能独立继续",
+          description: "事实源判断、证据持久化、写前确认与写后读回、关闭原因与下一跳，让无上下文的接手者能独立继续",
           name: "issue-authoring",
         },
         {
-          description: "delivery manifest 的字段保护、checkpoint 续跑、unknown 对账与批量语义——单次和批量共用同一协议",
+          description: "delivery manifest 的字段保护、checkpoint 续跑、unknown 对账与批量语义，单次和批量共用同一协议",
           name: "issue-delivery",
         },
       ],
@@ -2204,11 +2204,11 @@ snapshot[`usage JSON v1 freezes its existing fields and types 1`] = `
       details: "linear issue apply --help",
       guides: [
         {
-          description: "事实源判断、证据持久化、写前确认与写后读回、关闭原因与下一跳——让无上下文的接手者能独立继续",
+          description: "事实源判断、证据持久化、写前确认与写后读回、关闭原因与下一跳，让无上下文的接手者能独立继续",
           name: "issue-authoring",
         },
         {
-          description: "delivery manifest 的字段保护、checkpoint 续跑、unknown 对账与批量语义——单次和批量共用同一协议",
+          description: "delivery manifest 的字段保护、checkpoint 续跑、unknown 对账与批量语义，单次和批量共用同一协议",
           name: "issue-delivery",
         },
       ],

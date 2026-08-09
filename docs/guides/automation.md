@@ -27,6 +27,8 @@ seeAlso:
 
 # 无人值守执行与写入验证
 
+输出要被程序消费，或写入结果需要核验时，读本指南。
+
 ## 输出契约
 
 - `--json` 和 `--no-pager` 不是全局选项，按目标子命令的 `--help` 确认。
@@ -38,13 +40,13 @@ NO_COLOR=1 linear issue view ENG-123 --json >result.json 2>error.log &&
 ```
 
 - 绝不用 `2>&1` 合并流再喂给 JSON 解析器。
-- `NO_COLOR=1` 只是次要防线：部分帮助、版本、错误和 Markdown 渲染路径仍可能输出 ANSI 序列。人类可读输出不是稳定协议；没有结构化模式且必须解析时，显式剥离 ANSI 并只解析文档化的值，不解析终端布局。
+- 首选防线是 `--json`；`NO_COLOR=1` 只兜底，部分帮助、版本、错误和 Markdown 渲染路径仍可能输出 ANSI 序列。人类可读输出不是稳定协议。没有 `--json` 这类结构化输出且必须解析时，显式剥离 ANSI 并只解析文档化的值，不解析终端布局。
 - 读取 document 正文用 `document view --raw` 绕过终端 Markdown 渲染；需要元数据加内容的结构化信封时用 `--json`。
 - 交互提示在无人值守环境用 `LINEAR_PROMPT_DISABLED=1` 禁用；提示被禁用后缺输入的命令会失败而不是挂起。禁用提示不代表获得写入授权。
 
 ## 分页形状
 
-`issue query --json` 返回连接对象，不是裸数组。节点在 `.nodes`，分页信息在 `.pageInfo`；分页 JSON 保留连接形状并拼接 `nodes`，不扁平化、不重命名字段：
+`issue query --json` 返回连接对象，不是裸数组。节点在 `.nodes`，分页信息在 `.pageInfo`。`--limit` 超过单页大小或传 `0`（不设上限）时，CLI 自动翻页并拼接各页的 `nodes`，保留连接形状，不扁平化、不重命名字段：
 
 ```bash
 jq -e '.nodes | arrays' project-issues.json >/dev/null &&

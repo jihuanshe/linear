@@ -849,7 +849,7 @@ CLI 测试拥有机器能够可靠裁定的契约：
 
 1. 指南命令使用复数 `guides`，与内容为集合一致；`linear guides` 是列表别名。
 2. 零参数导航内容与字节预算已随 commit 3 定稿（根导航 1,325 字节）。
-3. Issue delivery manifest v1：Comment 上传文件接受任意本地文件；Attachment 支持 `url` 与本地文件两种输入，复用现有 `issue attach` 的上传路径；IssueRelation 直接透传 Linear 现有关系类型。既有集合项的修改与删除留给发布后信号。
+3. Issue delivery manifest v1：Comment 上传文件接受任意本地文件；Attachment 支持 `url` 与本地文件两种输入，复用现有 `issue attach` 的上传路径；IssueRelation 的类型词表与 `issue relation add` 一致（blocked-by 由 CLI 反转为上游的 blocks）。既有集合项的修改与删除留给发布后信号。
 4. delivery 命令定名 `linear issue plan` 与 `linear issue apply`，动词直接挂在 issue 域下，与 create/update 风格一致；不设 `delivery` 名词层级。
 5. checkpoint 默认写在 manifest 同目录（`<manifest>.checkpoint.json`），对接手者可见、可 grep、可随 manifest 一起交接；不放隐藏缓存目录。
 6. 外部 Skill 发布不需要单一激活 Skill 之外的同步机制：skills#219 一次替换，skillshare sync 即 Live。

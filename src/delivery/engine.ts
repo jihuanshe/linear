@@ -583,7 +583,7 @@ async function verifyEnvKeyOrganization(
   if (urlKey !== manifest.workspace) {
     throw new ValidationError(
       `Manifest targets workspace ${manifest.workspace} but LINEAR_API_KEY resolves to ${
-        urlKey ?? "an unknown organization"
+        urlKey ?? "an unknown workspace"
       }`,
     )
   }

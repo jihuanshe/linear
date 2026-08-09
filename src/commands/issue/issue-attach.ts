@@ -25,7 +25,7 @@ function quoteForShell(value: string): string {
 export const attachCommand = withUsageMetadata(new Command(), { writes: true })
   .name("attach")
   .description(
-    "Create a sidebar link attachment on an issue (images do not render inline)",
+    "Create a sidebar attachment on an issue (images do not render inline)",
   )
   .arguments("<issueId:string> <filepath:string>")
   .option("-t, --title <title:string>", "Custom title for the attachment")
@@ -44,8 +44,8 @@ export const attachCommand = withUsageMetadata(new Command(), { writes: true })
       const resolvedIdentifier = await getIssueIdentifier(issueId)
       if (!resolvedIdentifier) {
         throw new ValidationError(
-          "Could not determine issue ID",
-          { suggestion: "Please provide an issue ID like 'ENG-123'." },
+          "Could not determine issue identifier",
+          { suggestion: "Please provide an issue identifier like 'ENG-123'." },
         )
       }
 
@@ -109,7 +109,7 @@ export const attachCommand = withUsageMetadata(new Command(), { writes: true })
       }
 
       const attachment = data.attachmentCreate.attachment
-      console.log(`✓ Sidebar link attachment created: ${attachment.title}`)
+      console.log(`✓ Sidebar attachment created: ${attachment.title}`)
       console.log(attachment.url)
       if (uploadResult.contentType.startsWith("image/")) {
         const suggested = [
@@ -120,7 +120,7 @@ export const attachCommand = withUsageMetadata(new Command(), { writes: true })
           ...(makePublic ? ["--public"] : []),
         ].join(" ")
         console.log(
-          `Hint: Sidebar link attachments do not render images inline. For inline display, run: ${suggested}`,
+          `Hint: Sidebar attachments do not render images inline. For inline display, run: ${suggested}`,
         )
       }
     } catch (error) {

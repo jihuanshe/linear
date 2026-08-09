@@ -17,8 +17,8 @@ export const describeCommand = new Command()
       const resolvedId = await getIssueIdentifier(issueId)
       if (!resolvedId) {
         throw new ValidationError(
-          "Could not determine issue ID",
-          { suggestion: "Please provide an issue ID like 'ENG-123'." },
+          "Could not determine issue identifier",
+          { suggestion: "Please provide an issue identifier like 'ENG-123'." },
         )
       }
 

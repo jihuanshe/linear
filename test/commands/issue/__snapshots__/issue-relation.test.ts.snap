@@ -17,10 +17,10 @@ Options:
 
 Examples:
 
-  Mark issue as blocked by another linear issue relation add ENG-123 blocked-by ENG-100
-  Mark issue as blocking another   linear issue relation add ENG-123 blocks ENG-456    
-  Mark issues as related           linear issue relation add ENG-123 related ENG-456   
-  Mark issue as duplicate          linear issue relation add ENG-123 duplicate ENG-100 
+  Mark issue as blocked by another       linear issue relation add ENG-123 blocked-by ENG-100
+  Mark issue as blocking another         linear issue relation add ENG-123 blocks ENG-456    
+  Mark issues as related                 linear issue relation add ENG-123 related ENG-456   
+  Mark ENG-123 as a duplicate of ENG-100 linear issue relation add ENG-123 duplicate ENG-100 
 
 "
 stderr:

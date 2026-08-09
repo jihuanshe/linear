@@ -12,7 +12,7 @@ export const idCommand = new Command()
         console.log(resolvedId)
       } else {
         throw new ValidationError(
-          "Could not determine issue ID",
+          "Could not determine issue identifier",
           {
             suggestion:
               "Please provide an issue ID or run from a branch with an issue identifier.",
