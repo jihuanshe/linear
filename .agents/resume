@@ -7,13 +7,14 @@ tool_root="$HOME/.local/share/amp/jihuanshe-linear"
 repo_id="$(printf '%s' "$repo_root" | sha256sum | cut -c1-16)"
 bin_dir="$tool_root/checkouts/$repo_id/bin"
 deno_bin="$tool_root/deno/$deno_version/deno"
+path_bin_dir="$HOME/.local/bin"
 
 if [[ ! -x "$deno_bin" ]]; then
   echo "Deno $deno_version is missing; run .agents/setup to repair the Orb toolchain" >&2
   exit 1
 fi
 
-mkdir -p "$bin_dir"
+mkdir -p "$bin_dir" "$path_bin_dir"
 rm -f "$bin_dir/deno" "$bin_dir/linear"
 
 cat > "$bin_dir/deno" <<EOF
@@ -45,3 +46,5 @@ exec "$bin_dir/deno" run \
 EOF
 
 chmod 0755 "$bin_dir/deno" "$bin_dir/linear"
+ln -sfn "$bin_dir/deno" "$path_bin_dir/deno"
+ln -sfn "$bin_dir/linear" "$path_bin_dir/linear"

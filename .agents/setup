@@ -25,30 +25,6 @@ fi
 "$repo_root/.agents/resume"
 export PATH="$bin_dir:$PATH"
 
-profile_file=""
-for candidate in "$HOME/.bash_profile" "$HOME/.bash_login" "$HOME/.profile"; do
-  if [[ -e "$candidate" ]]; then
-    profile_file="$candidate"
-    break
-  fi
-done
-profile_file="${profile_file:-$HOME/.bash_profile}"
-profile_marker="# jihuanshe/linear orb toolchain ($repo_root -> $bin_dir)"
-if ! grep -Fqx "$profile_marker" "$profile_file" 2>/dev/null; then
-  cat >> "$profile_file" <<EOF
-
-$profile_marker
-case "\$PWD/" in
-  "$repo_root/"*)
-    case ":\$PATH:" in
-      *":$bin_dir:"*) ;;
-      *) export PATH="$bin_dir:\$PATH" ;;
-    esac
-    ;;
-esac
-EOF
-fi
-
 echo "Caching locked dependencies"
 cd "$repo_root"
 "$bin_dir/deno" install --frozen --quiet
