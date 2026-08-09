@@ -51,7 +51,7 @@ jobs:
             --frozen \
             --lock=deno.lock \
             --quiet \
-            src/main.ts schema -o graphql/schema.graphql
+            src/main.ts schema --unauthenticated -o graphql/schema.graphql
 
       - id: drift
         name: Detect schema drift

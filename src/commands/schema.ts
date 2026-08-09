@@ -7,12 +7,19 @@ import {
   printSchema,
 } from "graphql"
 import { handleError } from "../utils/errors.ts"
-import { createPublicGraphQLClient } from "../utils/graphql.ts"
+import {
+  createPublicGraphQLClient,
+  getGraphQLClient,
+} from "../utils/graphql.ts"
 
 export const schemaCommand = new Command()
   .name("schema")
   .description("Print the GraphQL schema to stdout")
   .option("--json", "Output as JSON introspection result instead of SDL")
+  .option(
+    "--unauthenticated",
+    "Fetch the public schema without sending credentials",
+  )
   .option(
     "-o, --output <file:string>",
     "Write schema to file instead of stdout",
@@ -21,7 +28,9 @@ export const schemaCommand = new Command()
     try {
       const { json, output } = options
 
-      const client = createPublicGraphQLClient()
+      const client = options.unauthenticated
+        ? createPublicGraphQLClient()
+        : getGraphQLClient()
       const introspectionQuery = getIntrospectionQuery()
       const result = await client.request<IntrospectionQuery>(
         introspectionQuery,

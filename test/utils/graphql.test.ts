@@ -1,18 +1,19 @@
 import { assertEquals, assertStringIncludes, assertThrows } from "@std/assert"
 import { setCliWorkspace } from "../../src/config.ts"
 import {
+  createGraphQLClient,
   createPublicGraphQLClient,
   getResolvedApiKey,
 } from "../../src/utils/graphql.ts"
 
-Deno.test("createPublicGraphQLClient - omits authorization", async () => {
-  let authorization: string | null = null
+Deno.test("GraphQL clients preserve authentication boundaries", async () => {
+  const authorizations: Array<string | null> = []
   const server = Deno.serve({
     hostname: "127.0.0.1",
     port: 0,
     onListen: () => {},
   }, (request) => {
-    authorization = request.headers.get("authorization")
+    authorizations.push(request.headers.get("authorization"))
     return Response.json({ data: { viewer: { id: "test" } } })
   })
 
@@ -27,8 +28,11 @@ Deno.test("createPublicGraphQLClient - omits authorization", async () => {
   )
 
   try {
+    await createGraphQLClient("test-api-key").request(
+      "query Test { viewer { id } }",
+    )
     await createPublicGraphQLClient().request("query Test { viewer { id } }")
-    assertEquals(authorization, null)
+    assertEquals(authorizations, ["test-api-key", null])
   } finally {
     Deno.env.delete("LINEAR_GRAPHQL_ENDPOINT")
     await server.shutdown()
