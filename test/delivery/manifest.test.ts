@@ -123,6 +123,19 @@ Deno.test("manifest validation fails before any mutation could run", async (t) =
       "needs a body",
     ],
     [
+      "empty set",
+      {
+        schemaVersion: 1,
+        workspace: "jihuanshe",
+        issues: [{
+          operation: "update",
+          identifier: "DATA-1",
+          set: {},
+        }],
+      },
+      "set must contain at least one field",
+    ],
+    [
       "unknown field rejected by strict schema",
       {
         schemaVersion: 1,

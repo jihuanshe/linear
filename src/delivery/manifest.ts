@@ -216,6 +216,9 @@ function validateIssueShape(issue: DeliveryIssue, label: string): void {
       )
     }
   }
+  if (issue.set != null && Object.keys(issue.set).length === 0) {
+    throw new ValidationError(`${label}: set must contain at least one field`)
+  }
   if (
     issue.set == null && (issue.comments ?? []).length === 0 &&
     (issue.attachments ?? []).length === 0 &&

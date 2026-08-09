@@ -696,18 +696,6 @@ export const createCommand = withUsageMetadata(new Command(), {
         )
       }
 
-      // --start writes human progress to stdout after the JSON document,
-      // which would break every consumer parsing stdout as JSON.
-      if (json === true && start === true) {
-        throw new ValidationError(
-          "Cannot combine --json with --start",
-          {
-            suggestion:
-              "Create with --json, parse the identifier, then run issue start separately",
-          },
-        )
-      }
-
       // Read description from file if provided
       let finalDescription = description
       if (descriptionFile) {
@@ -804,6 +792,21 @@ export const createCommand = withUsageMetadata(new Command(), {
       }
 
       // Fallback to flag-based mode
+      // --start writes human progress to stdout after the JSON document,
+      // which would break every consumer parsing stdout as JSON.
+      if (json === true && start === true) {
+        handleError(
+          new ValidationError(
+            "Cannot combine --json with --start",
+            {
+              suggestion:
+                "Create with --json, parse the identifier, then run issue start separately",
+            },
+          ),
+          "Failed to create issue",
+        )
+      }
+
       if (!title) {
         throw new ValidationError(
           "Title is required when not using interactive mode",
@@ -816,7 +819,9 @@ export const createCommand = withUsageMetadata(new Command(), {
 
       const { Spinner } = await import("@std/cli/unstable-spinner")
       const { shouldShowSpinner } = await import("../../utils/hyperlink.ts")
-      const spinner = shouldShowSpinner() ? new Spinner() : null
+      const spinner = shouldShowSpinner() && json !== true
+        ? new Spinner()
+        : null
       spinner?.start()
       try {
         team = (team == null) ? getTeamKey() : team.toUpperCase()

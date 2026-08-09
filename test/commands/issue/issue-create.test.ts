@@ -1,5 +1,6 @@
 import { snapshotTest } from "@cliffy/testing"
 import { assertEquals, assertStringIncludes } from "@std/assert"
+import { fromFileUrl } from "@std/path"
 import { Checkbox, Input, Select } from "@cliffy/prompt"
 import { stub } from "@std/testing/mock"
 import { createCommand } from "../../../src/commands/issue/issue-create.ts"
@@ -7,6 +8,35 @@ import {
   commonDenoArgs,
   setupMockLinearServer,
 } from "../../utils/test-helpers.ts"
+
+const main = fromFileUrl(new URL("../../../src/main.ts", import.meta.url))
+
+Deno.test("issue create rejects --json with --start through the standard error boundary", async () => {
+  const result = await new Deno.Command(Deno.execPath(), {
+    args: [
+      "run",
+      "--allow-all",
+      "--quiet",
+      main,
+      "issue",
+      "create",
+      "--json",
+      "--start",
+    ],
+    stdout: "piped",
+    stderr: "piped",
+  }).output()
+  const stdout = new TextDecoder().decode(result.stdout)
+  const stderr = new TextDecoder().decode(result.stderr)
+
+  assertEquals(result.code, 1)
+  assertEquals(stdout, "")
+  assertStringIncludes(
+    stderr,
+    "✗ Failed to create issue: Cannot combine --json with --start",
+  )
+  assertEquals(stderr.includes("Uncaught"), false)
+})
 
 // Test help output
 await snapshotTest({

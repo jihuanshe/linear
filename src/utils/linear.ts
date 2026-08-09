@@ -246,6 +246,7 @@ const issueDetailsWithCommentsQuery = gql(/* GraphQL */ `
       branchName
       state {
         name
+        type
         color
       }
       assignee {
@@ -254,7 +255,9 @@ const issueDetailsWithCommentsQuery = gql(/* GraphQL */ `
       }
       priority
       project {
+        id
         name
+        slugId
       }
       projectMilestone {
         name
@@ -274,11 +277,14 @@ const issueDetailsWithCommentsQuery = gql(/* GraphQL */ `
           number
         }
       }
-      labels(first: 50) {
+      labels(first: 250) {
         nodes {
           id
           name
           color
+        }
+        pageInfo {
+          hasNextPage
         }
       }
       parent {
@@ -353,12 +359,15 @@ const issueDetailsQuery = gql(/* GraphQL */ `
   query GetIssueDetails($id: String!) {
     issue(id: $id) {
       identifier
+      archivedAt
+      trashed
       title
       description
       url
       branchName
       state {
         name
+        type
         color
       }
       assignee {
@@ -367,7 +376,9 @@ const issueDetailsQuery = gql(/* GraphQL */ `
       }
       priority
       project {
+        id
         name
+        slugId
       }
       projectMilestone {
         name
@@ -387,11 +398,14 @@ const issueDetailsQuery = gql(/* GraphQL */ `
           number
         }
       }
-      labels(first: 50) {
+      labels(first: 250) {
         nodes {
           id
           name
           color
+        }
+        pageInfo {
+          hasNextPage
         }
       }
       parent {

@@ -245,7 +245,7 @@ Commit 8–10 与 Skill 迁移零耦合：delivery 与 batch 使用现有 `--jso
 - 定义版本化 manifest，直接映射现有 Issue 字段、Comment 正文中的上传文件、Linear Attachment 和 IssueRelation；
 - 让文件路径相对于 manifest 解析；
 - 实现对远端零写入的 plan，并在计划中展示本次请求内容和执行顺序；
-- 在第一笔 mutation 前验证整个 manifest 的文件、目标和本次要修改的 Issue 字段；
+- 在第一笔 mutation 前验证整个 manifest 的结构与文件；目标和本次要修改的 Issue 字段在各自 Issue 的第一笔 mutation 前验证；
 - 复用现有 create/update/comment/attach/link/relation 命令实现顺序 apply；
 - 为每个请求项返回准确状态和已知远端 ID/URL；
 - 对结果未知的 mutation 停止自动重试。
@@ -274,7 +274,7 @@ Commit 8–10 与 Skill 迁移零耦合：delivery 与 batch 使用现有 `--jso
 范围：
 
 - 让同一个 manifest 的 `issues[]` 支持单次与 batch；
-- 在首笔 mutation 前验证整批输入；
+- 在首笔 mutation 前验证整批本地输入；远端引用与字段按 Issue 在其首笔 mutation 前验证；
 - 顺序执行并原子记录逐 Issue、逐请求项 checkpoint；
 - 添加 stop/continue 策略和结构化汇总；
 - 迁移当前受保护 batch Skill 的已接受行为和 fixture；

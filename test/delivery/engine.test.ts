@@ -22,9 +22,12 @@ const REMOTE_VIEW = {
   title: "Old title",
   description: "Old body",
   priority: 2,
-  state: { name: "Todo" },
+  state: { name: "Todo", type: "unstarted" },
   assignee: null,
-  labels: { nodes: [{ name: "bug" }] },
+  labels: {
+    nodes: [{ name: "bug" }],
+    pageInfo: { hasNextPage: false },
+  },
   project: null,
   parent: null,
 }
@@ -136,6 +139,122 @@ Deno.test("plan flags a conflict when a colleague changed the field since base",
 
     assertEquals(plan.status, "conflict")
     assertEquals(plan.issues[0].fields[0].verdict, "conflict")
+  } finally {
+    await Deno.remove(dir, { recursive: true })
+  }
+})
+
+Deno.test("field guards compare canonical priority, state, and project values", async () => {
+  const dir = await Deno.makeTempDir()
+  try {
+    const manifestPath = await writeManifest(dir, {
+      schemaVersion: 1,
+      workspace: "jihuanshe",
+      issues: [{
+        operation: "update",
+        identifier: "DATA-606",
+        set: {
+          priority: 1,
+          state: "started",
+          project: "alpha-slug",
+        },
+        base: { priority: null, state: "Todo", project: null },
+      }],
+    })
+    const runner = fakeRunner((args) =>
+      args[1] === "view"
+        ? viewResult({ priority: 0, project: null })
+        : undefined
+    )
+    const plan = await planManifest({
+      loaded: await loadManifest(manifestPath),
+      runner,
+    })
+
+    assertEquals(plan.status, "ready")
+    assertEquals(
+      Object.fromEntries(
+        plan.issues[0].fields.map((field) => [field.field, field.verdict]),
+      ),
+      {
+        priority: "write",
+        state: "write",
+        project: "write",
+      },
+    )
+
+    const aliasPath = join(dir, "aliases.json")
+    await Deno.writeTextFile(
+      aliasPath,
+      JSON.stringify({
+        schemaVersion: 1,
+        workspace: "jihuanshe",
+        issues: [{
+          operation: "update",
+          identifier: "DATA-606",
+          set: { state: "started", project: "alpha-slug" },
+        }],
+      }),
+    )
+    const aliasRunner = fakeRunner((args) =>
+      args[1] === "view"
+        ? viewResult({
+          state: { name: "In Progress", type: "started" },
+          project: {
+            id: "project-id",
+            name: "Alpha",
+            slugId: "alpha-slug",
+          },
+        })
+        : undefined
+    )
+    const aliases = await planManifest({
+      loaded: await loadManifest(aliasPath),
+      runner: aliasRunner,
+    })
+    assertEquals(
+      aliases.issues[0].fields.filter((field) =>
+        field.field === "state" || field.field === "project"
+      ).map((field) => field.verdict),
+      ["idempotent", "idempotent"],
+    )
+  } finally {
+    await Deno.remove(dir, { recursive: true })
+  }
+})
+
+Deno.test("label guards refuse a truncated remote set", async () => {
+  const dir = await Deno.makeTempDir()
+  try {
+    const manifestPath = await writeManifest(dir, {
+      schemaVersion: 1,
+      workspace: "jihuanshe",
+      issues: [{
+        operation: "update",
+        identifier: "DATA-606",
+        set: { labels: ["bug"] },
+      }],
+    })
+    const runner = fakeRunner((args) =>
+      args[1] === "view"
+        ? viewResult({
+          labels: {
+            nodes: [{ name: "bug" }],
+            pageInfo: { hasNextPage: true },
+          },
+        })
+        : undefined
+    )
+
+    await assertRejects(
+      async () =>
+        planManifest({
+          loaded: await loadManifest(manifestPath),
+          runner,
+        }),
+      ValidationError,
+      "label set exceeds",
+    )
   } finally {
     await Deno.remove(dir, { recursive: true })
   }

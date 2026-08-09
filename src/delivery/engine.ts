@@ -103,9 +103,12 @@ export interface RemoteFields {
   description?: string | null
   priority?: number | null
   state?: string
+  stateAliases?: string[]
   assignee?: { name?: string; displayName?: string } | null
   labels?: string[]
+  labelsComplete?: boolean
   project?: string | null
+  projectAliases?: string[]
   parent?: string | null
 }
 
@@ -114,19 +117,34 @@ export function extractRemoteFields(view: unknown): RemoteFields {
   const nested = (value: unknown, key: string): unknown =>
     value == null ? null : (value as Record<string, unknown>)[key]
   const labelsNode = nested(data.labels, "nodes")
+  const labelsPageInfo = nested(data.labels, "pageInfo")
+  const stateAliases = [nested(data.state, "name"), nested(data.state, "type")]
+    .filter((value): value is string => typeof value === "string")
+  const projectAliases = [
+    nested(data.project, "name"),
+    nested(data.project, "id"),
+    nested(data.project, "slugId"),
+  ].filter((value): value is string => typeof value === "string")
   return {
     identifier: data.identifier as string | undefined,
     archivedAt: (data.archivedAt ?? null) as string | null,
     trashed: (data.trashed ?? null) as boolean | null,
     title: data.title as string | undefined,
     description: (data.description ?? null) as string | null,
-    priority: (data.priority ?? null) as number | null,
-    state: nested(data.state, "name") as string | undefined,
+    priority: data.priority === 0
+      ? null
+      : (data.priority ?? null) as number | null,
+    state: stateAliases[0],
+    stateAliases,
     assignee: (data.assignee ?? null) as RemoteFields["assignee"],
     labels: Array.isArray(labelsNode)
       ? labelsNode.map((node) => nested(node, "name") as string)
       : undefined,
-    project: (nested(data.project, "name") ?? null) as string | null,
+    labelsComplete: labelsPageInfo == null
+      ? undefined
+      : nested(labelsPageInfo, "hasNextPage") !== true,
+    project: projectAliases[0] ?? null,
+    projectAliases,
     parent: (nested(data.parent, "identifier") ?? null) as string | null,
   }
 }
@@ -182,11 +200,33 @@ function fieldEquals(
         normalizeMarkdown(remoteValue as string)
     }
     case "labels": {
+      if (remote.labelsComplete === false) {
+        throw new ValidationError(
+          "Issue label set exceeds the issue view pagination boundary",
+          {
+            suggestion:
+              "Reduce the issue's labels before using a delivery manifest to replace the complete label set",
+          },
+        )
+      }
       const a = [...(manifestValue as string[] ?? [])].sort()
       const b = [...(remoteValue as string[] ?? [])].sort()
       return a.length === b.length &&
         a.every((label, index) => label === b[index])
     }
+    case "state":
+      return typeof manifestValue === "string" &&
+        (remote.stateAliases ??
+          (typeof remoteValue === "string" ? [remoteValue] : [])).some((
+            alias,
+          ) => alias.toLowerCase() === manifestValue.toLowerCase())
+    case "project":
+      if (manifestValue == null || remoteValue == null) {
+        return manifestValue == null && remoteValue == null
+      }
+      return (remote.projectAliases ?? [remoteValue as string]).some((alias) =>
+        alias === manifestValue
+      )
     case "assignee": {
       const assignee = remote.assignee
       if (manifestValue == null || assignee == null) {

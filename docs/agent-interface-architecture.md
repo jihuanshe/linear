@@ -540,7 +540,7 @@ linear issue apply \
 
 `apply` 应复用现有 create/update/comment/attach/link/relation 命令实现，而不是建立第二套 API client。它必须：
 
-- 在首笔 mutation 前验证 workspace、目标、全部文件和本次要修改的 Issue 字段；
+- 在整批首笔 mutation 前验证 workspace、manifest 结构和全部本地文件；每个 Issue 的目标与字段在该 Issue 自己的首笔 mutation 前验证；
 - 按 manifest 顺序执行 Issue 字段、Comment 及其上传文件、Attachment 和 IssueRelation；
 - 为每个请求项返回 `applied`、`failed`、`unknown` 或 `unattempted`，成功项带远端 ID/URL；
 - 在请求前记录正在执行的步骤，每个确认成功的步骤后更新简单 checkpoint；进程中断时，正在执行的步骤视为结果未知；
@@ -554,7 +554,7 @@ linear issue apply \
 
 同一个 manifest 的 `issues[]` 同时支持单次和 batch。Batch V1 只额外需要：
 
-- 整批文件和输入在首笔 mutation 前验证；
+- 整批本地可验证输入在首笔 mutation 前验证；远端引用与字段按 Issue 在其首笔 mutation 前验证；
 - 顺序执行；
 - 逐 Issue、逐请求项 checkpoint；
 - 对确认无副作用的 `failed` 使用 stop/continue 策略；`unknown` 始终立即停止；
