@@ -39,6 +39,7 @@ This changelog records the cumulative downstream changes in [`jihuanshe/linear`]
 - Added a reproducible Amp Orb setup around Deno `2.9.4`, with checkout-isolated source wrappers and dependency caching.
 - Added a local release gate (`deno task verify-release`) covering GraphQL generation, formatting, linting, type checking, and non-Keyring tests; CI retains the isolated Linux Keyring integration test.
 - Ship each authorized `main` commit for five platforms as install archives and standalone self-update binaries named `0.0.<commit timestamp>-g<short commit>`, with checksums and build provenance.
+- Record each successfully published build as a completed Linear Release with the same version and a link to its GitHub Release.
 - Cancel stale overlapping release runs so only the newest pushed `main` commit continues building.
 - Documented mise installation from `github:jihuanshe/linear`; source-controlled versions remain `0.0.0-dev`.
 - Added `linear update`, delegating mise-managed installs back to mise while checksum-validating and atomically replacing binaries downloaded directly from GitHub Releases.
