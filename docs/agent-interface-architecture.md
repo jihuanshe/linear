@@ -703,7 +703,7 @@ CLI 测试拥有机器能够可靠裁定的契约：
 - 专用命令与 GraphQL fallback；
 - 机器输出纯净性、破坏性确认和禁用提示行为。
 
-这些行为不使用 agent 判断，也不因某次 agent 猜错命令而增加额外协议。现有 `evals/linear-cli-skill` 保留为它原本拥有的窄范围回归工具：专用命令与 GraphQL 路由、Comment 内联图片与 Linear Attachment 的区分。它不决定本架构的指南内容或 Skill 迁移。
+这些行为不使用 agent 判断，也不因某次 agent 猜错命令而增加额外协议。曾用于 family 对比的 codex eval 装置（`evals/linear-cli-skill`）已在发布前撤除：它的 baseline Skill family 与被测 Skill 工件都已迁出本仓库，独有价值只剩冻结语料的跨次可比性，而该需求随替换决策完成而结束。语义与行为场景由交付记录中的 fresh-agent 场景清单承载——任何宿主 agent 都能按清单起无上下文探针并以现场证据裁决；将来若需要定量比较 Skill 变体，在 skills 仓库按当时现实重建。
 
 ### 全新 Amp agent 场景
 

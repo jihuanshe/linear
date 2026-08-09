@@ -16,7 +16,6 @@
     "check-types": "deno check src/main.ts",
     "test": "TZ=UTC deno test --allow-all --quiet",
     "update-snapshots": "TZ=UTC deno test --allow-all -- --update",
-    "evaluate-skill": "deno run --allow-all evals/linear-cli-skill/run.ts",
     "verify-source": "deno task generate-graphql-types && deno fmt --check && deno lint && deno task check-types && deno task test --ignore=test/keyring.integration.test.ts",
     "verify-release": "NO_COLOR=1 deno task verify-source"
   },
