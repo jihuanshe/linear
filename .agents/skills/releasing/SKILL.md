@@ -34,7 +34,7 @@ Use this procedure only after the user explicitly asks to ship, publish, or rele
    deno task verify-release
    ```
 
-   If it updates generated Skill files, commit them and rerun `deno task verify-release`. Do not push until it passes with a clean worktree.
+   Do not push until it passes with a clean worktree.
 
 ## Push
 

@@ -233,7 +233,7 @@ JSON 契约目前为 `schemaVersion: 1`。隐藏命令和选项保持隐藏，�
 已完成的第一阶段加固：
 
 - 补充元数据注解与其定义和 action 一起位于叶子命令模块中，而不是父级接线文件里；
-- 一个包含隐藏命令的精确完整性测试，固定了全部 43 条能写入持久远端状态或用户配置的本地状态的规范路径。`issue view` 被包含在内，因为下载可以写入配置的 `attachment_dir`；瞬态缓存写入和显式导出被排除；
+- 一个包含隐藏命令的精确完整性测试，固定了全部能写入持久远端状态或用户配置的本地状态的规范路径（清单的 canonical home 是该测试自身）。`issue view` 被包含在内，因为下载可以写入配置的 `attachment_dir`；瞬态缓存写入和显式导出被排除；
 - 测试冻结了 `Writes`、`Interactive`、`Confirmation required unless`、`Output modes` 这些 Cliffy 标签，以及人类 `usage` 输出中的小写标签；
 - 选项省略 `default` 意味着：要么没有可在 usage JSON v1 中表示的静态默认值，要么是动态或不可序列化的默认值，并不必然表示运行时没有默认值；
 - usage JSON v1 的读取方忽略新增字段。Schema 版本 1 在只增加字段时保持有效；移除或改变现有字段的类型需要递增版本。
@@ -308,7 +308,7 @@ docs/guides/
   automation.md
   issue-authoring.md
   graphql.md
-  issue-batch.md        # added only with first-class batch commands
+  issue-delivery.md     # added with first-class plan/apply delivery
 ```
 
 第一版实现应当只包含 `core`、`automation`、`issue-authoring` 和 `graphql`。小语料让我们在迁移每本现有手册之前先验证接口。`issue-authoring` 的名字有意强调它不是 Markdown 风格手册：它拥有从请求和证据到完整 Issue 交付的判断框架。
@@ -623,7 +623,7 @@ linear version --json
 }
 ```
 
-版本 JSON v1 是只增的。读取方要求 `schemaVersion: 1`、精确的 `jihuanshe/linear` 分发标识，以及其集成所需的每一个 capability；它们忽略未知字段和未知 capability 标识符。初始 capability 词汇是 `usage-v1`。CLI 诊断应当报告缺失或不兼容的 capability，而不是要求外部 Skill 去分类第二条 Linear 路由。
+版本 JSON v1 是只增的。读取方要求 `schemaVersion: 1`、精确的 `jihuanshe/linear` 分发标识，以及其集成所需的每一个 capability；它们忽略未知字段和未知 capability 标识符。初始 capability 词汇是 `usage-v1`；本次发布扩展为 `usage-v1`、`guides-v1`、`delivery-v1`（现行词汇见 `src/commands/version.ts`）。CLI 诊断应当报告缺失或不兼容的 capability，而不是要求外部 Skill 去分类第二条 Linear 路由。
 
 该探针识别的是构建，不是包管理器。安装归属仍需要来自 `mise which linear`、`type -a linear`、解析出的可执行文件路径或组织管理器的证据。
 
@@ -848,12 +848,12 @@ CLI 测试拥有机器能够可靠裁定的契约：
 已拍板：
 
 1. 指南命令使用复数 `guides`，与内容为集合一致；`linear guides` 是列表别名。
-2. 零参数导航内容与字节预算已随 commit 3 定稿（根导航 1,325 字节）。
+2. 零参数导航内容与字节预算已随 commit 3 定稿（根导航 1,325 字节；第一阶段基线表中的 1,683 字节为定稿前测量）。
 3. Issue delivery manifest v1：Comment 上传文件接受任意本地文件；Attachment 支持 `url` 与本地文件两种输入，复用现有 `issue attach` 的上传路径；IssueRelation 的类型词表与 `issue relation add` 一致（blocked-by 由 CLI 反转为上游的 blocks）。既有集合项的修改与删除留给发布后信号。
 4. delivery 命令定名 `linear issue plan` 与 `linear issue apply`，动词直接挂在 issue 域下，与 create/update 风格一致；不设 `delivery` 名词层级。
 5. checkpoint 默认写在 manifest 同目录（`<manifest>.checkpoint.json`），对接手者可见、可 grep、可随 manifest 一起交接；不放隐藏缓存目录。
 6. 外部 Skill 发布不需要单一激活 Skill 之外的同步机制：skills#219 一次替换，skillshare sync 即 Live。
-7. authoring 与访问默认指南优先：判断类内容一律进 `issue-authoring` 指南；新命令只为当前无法机器查询的现场事实而设，`auth status` 与 `version --json` 已覆盖的不新增 doctor。commit 7a 的盘点只能以具体缺口推翻该默认，不能反向把判断做成命令。
+7. authoring 与访问默认指南优先：判断类内容一律进 `issue-authoring` 指南；新命令只为当前无法机器查询的现场事实而设，`auth whoami` 与 `version --json` 已覆盖的不新增 doctor。commit 7a 的盘点只能以具体缺口推翻该默认，不能反向把判断做成命令。
 8. 上下文错误的指南链接本次发布不做：四个已知陷阱由指南承载，错误消息保持干净；是否恢复由发布后信号决定。
 
 没有决策空间、只有验证动作的：

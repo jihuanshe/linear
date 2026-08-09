@@ -172,20 +172,24 @@ Do not treat `LINEAR_PROMPT_DISABLED=1` as authorization to mutate or delete Lin
 
 ## Command groups
 
-| Group               | Purpose                                                  |
-| ------------------- | -------------------------------------------------------- |
-| `linear auth`       | Authentication and workspace credentials                 |
-| `linear issue`      | Query, inspect, create, update, start, and delete issues |
-| `linear team`       | Teams, members, states, and repository autolinks         |
-| `linear project`    | Project discovery and management                         |
-| `linear milestone`  | Project milestone management                             |
-| `linear document`   | Linear document workflows                                |
-| `linear initiative` | Initiative discovery                                     |
-| `linear cycle`      | Cycle discovery and issue filtering                      |
-| `linear label`      | Workspace and team labels                                |
-| `linear user`       | Workspace member discovery                               |
-| `linear api`        | Execute an explicit Linear GraphQL operation             |
-| `linear version`    | Inspect build identity and protocol capabilities         |
+| Group               | Purpose                                                |
+| ------------------- | ------------------------------------------------------ |
+| `linear auth`       | Authentication and workspace credentials               |
+| `linear issue`      | Query, create, update, and deliver issues (plan/apply) |
+| `linear team`       | Teams, members, states, and repository autolinks       |
+| `linear project`    | Project discovery and management                       |
+| `linear milestone`  | Project milestone management                           |
+| `linear document`   | Linear document workflows                              |
+| `linear initiative` | Initiative discovery                                   |
+| `linear cycle`      | Cycle discovery and issue filtering                    |
+| `linear label`      | Workspace and team labels                              |
+| `linear user`       | Workspace member discovery                             |
+| `linear api`        | Execute an explicit Linear GraphQL operation           |
+| `linear guides`     | Version-matched workflow guides                        |
+| `linear upload`     | Upload files for embedding in Markdown                 |
+| `linear version`    | Inspect build identity and protocol capabilities       |
+
+The table is a curated overview; the complete, always-current contract comes from `linear usage`. For deliveries that span description, comments with files, attachments, and relations, write a delivery manifest and use `linear issue plan` / `linear issue apply` — `linear guides read issue-delivery` documents the protocol.
 
 Discover the current command contract from the installed binary:
 
