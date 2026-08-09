@@ -238,6 +238,8 @@ const issueDetailsWithCommentsQuery = gql(/* GraphQL */ `
   query GetIssueDetailsWithComments($id: String!) {
     issue(id: $id) {
       identifier
+      archivedAt
+      trashed
       title
       description
       url

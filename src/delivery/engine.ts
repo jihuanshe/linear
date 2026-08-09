@@ -96,6 +96,9 @@ export function normalizeMarkdown(text: string): string {
 
 /** Comparable field values extracted from `issue view --json`. */
 export interface RemoteFields {
+  identifier?: string
+  archivedAt?: string | null
+  trashed?: boolean | null
   title?: string
   description?: string | null
   priority?: number | null
@@ -112,6 +115,9 @@ export function extractRemoteFields(view: unknown): RemoteFields {
     value == null ? null : (value as Record<string, unknown>)[key]
   const labelsNode = nested(data.labels, "nodes")
   return {
+    identifier: data.identifier as string | undefined,
+    archivedAt: (data.archivedAt ?? null) as string | null,
+    trashed: (data.trashed ?? null) as boolean | null,
     title: data.title as string | undefined,
     description: (data.description ?? null) as string | null,
     priority: (data.priority ?? null) as number | null,
@@ -123,6 +129,29 @@ export function extractRemoteFields(view: unknown): RemoteFields {
     project: (nested(data.project, "name") ?? null) as string | null,
     parent: (nested(data.parent, "identifier") ?? null) as string | null,
   }
+}
+
+/**
+ * Object-level guards inherited from the batch-write Skill: an update must
+ * target exactly the issue the manifest names — never a resolved alias
+ * (rename or team move), an archived issue, or a trashed one. Field-level
+ * base comparison cannot see these, so they refuse before any planning.
+ * Fields absent from an older view payload skip their check instead of
+ * failing closed.
+ */
+export function objectDrift(
+  requested: string,
+  remote: RemoteFields,
+): string | null {
+  if (
+    remote.identifier != null &&
+    remote.identifier.toUpperCase() !== requested.toUpperCase()
+  ) {
+    return `resolved to ${remote.identifier} (renamed or moved to another team)`
+  }
+  if (remote.trashed === true) return "issue is in the trash"
+  if (remote.archivedAt != null) return "issue is archived"
+  return null
 }
 
 type FieldName = keyof DeliveryBase
@@ -186,7 +215,9 @@ export interface FieldPlan {
  * base is written only while the remote still matches that base; a matching
  * remote-desired pair is idempotent and skipped; anything else means a
  * colleague edited the field since the caller read it, and this delivery
- * refuses to overwrite their work.
+ * refuses to overwrite their work. This is an optimistic guard, not a
+ * server-side compare-and-set: Linear's issueUpdate takes no version
+ * precondition, so a narrow race window remains between read and write.
  */
 export function planFields(
   set: DeliverySet,
@@ -712,6 +743,19 @@ export async function applyManifest(
         issueHalted = true
       } else {
         remote = extractRemoteFields(JSON.parse(view.stdout))
+        const drift = objectDrift(issue.identifier as string, remote)
+        if (drift != null) {
+          results.push({
+            key: `${issueIndex}:fields:0:guard`,
+            kind: "fields",
+            describe: `refuse update of ${issue.identifier}`,
+            status: "failed",
+            detail: drift,
+          })
+          failedSeen = true
+          halted = !continueOnFailure
+          issueHalted = true
+        }
       }
     }
 
@@ -941,6 +985,8 @@ export async function applyManifest(
 export interface IssuePlan {
   operation: DeliveryIssue["operation"]
   target: string | null
+  /** Object-level refusal (alias, archived, trashed); null when clean. */
+  drift?: string | null
   fields: FieldPlan[]
   items: Array<{ key: string; kind: ItemKind; describe: string }>
 }
@@ -977,6 +1023,7 @@ export async function planManifest(
       loaded.files,
     )
     let fields: FieldPlan[] = []
+    let drift: string | null = null
     if (issue.operation === "update" && issue.set != null) {
       const view = await runner.run([
         "issue",
@@ -993,6 +1040,8 @@ export async function planManifest(
         )
       }
       const remote = extractRemoteFields(JSON.parse(view.stdout))
+      drift = objectDrift(issue.identifier as string, remote)
+      if (drift != null) conflict = true
       fields = planFields(
         issue.set,
         issue.base,
@@ -1007,6 +1056,7 @@ export async function planManifest(
     issues.push({
       operation: issue.operation,
       target: issue.identifier ?? null,
+      drift,
       fields,
       items: items.map(({ key, kind, describe }) => ({ key, kind, describe })),
     })

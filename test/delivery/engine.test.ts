@@ -16,6 +16,9 @@ import { ValidationError } from "../../src/utils/errors.ts"
 // proof of which commands would have executed.
 
 const REMOTE_VIEW = {
+  identifier: "DATA-606",
+  archivedAt: null,
+  trashed: false,
   title: "Old title",
   description: "Old body",
   priority: 2,
@@ -411,6 +414,72 @@ Deno.test("resume allows appending new issues after applied entries", async () =
   }
 })
 
+Deno.test("apply refuses archived, trashed, and alias-resolved targets", async () => {
+  const cases = [
+    {
+      overrides: { archivedAt: "2026-01-01T00:00:00.000Z" },
+      expect: "archived",
+    },
+    { overrides: { trashed: true }, expect: "trash" },
+    { overrides: { identifier: "DATA-999" }, expect: "resolved to DATA-999" },
+  ]
+  for (const { overrides, expect } of cases) {
+    const dir = await Deno.makeTempDir()
+    try {
+      const manifestPath = await writeManifest(dir, {
+        schemaVersion: 1,
+        workspace: "jihuanshe",
+        issues: [{
+          operation: "update",
+          identifier: "DATA-606",
+          set: { title: "New title" },
+        }],
+      })
+      const runner = fakeRunner((args) =>
+        args[1] === "view" ? viewResult(overrides) : undefined
+      )
+      const outcome = await applyManifest({
+        loaded: await loadManifest(manifestPath),
+        runner,
+      })
+      assertEquals(outcome.status, "stopped-on-failure")
+      assertEquals(outcome.items[0].status, "failed")
+      assertStringIncludes(outcome.items[0].detail ?? "", expect)
+      assertEquals(runner.calls.some((call) => call[1] === "update"), false)
+    } finally {
+      await Deno.remove(dir, { recursive: true })
+    }
+  }
+})
+
+Deno.test("plan reports object drift as a conflict", async () => {
+  const dir = await Deno.makeTempDir()
+  try {
+    const manifestPath = await writeManifest(dir, {
+      schemaVersion: 1,
+      workspace: "jihuanshe",
+      issues: [{
+        operation: "update",
+        identifier: "DATA-606",
+        set: { title: "New title" },
+      }],
+    })
+    const runner = fakeRunner((args) =>
+      args[1] === "view"
+        ? viewResult({ archivedAt: "2026-01-01T00:00:00.000Z" })
+        : undefined
+    )
+    const plan = await planManifest({
+      loaded: await loadManifest(manifestPath),
+      runner,
+    })
+    assertEquals(plan.status, "conflict")
+    assertStringIncludes(plan.issues[0].drift ?? "", "archived")
+  } finally {
+    await Deno.remove(dir, { recursive: true })
+  }
+})
+
 Deno.test("an unknown outcome blocks further runs until reconciled", async () => {
   const dir = await Deno.makeTempDir()
   try {
@@ -527,7 +596,7 @@ Deno.test("a batch stops at the first failure by default and continues with the 
   const failFirstUpdate = () => {
     let updates = 0
     return fakeRunner((args) => {
-      if (args[1] === "view") return viewResult()
+      if (args[1] === "view") return viewResult({ identifier: args[2] })
       if (args[1] === "update") {
         updates += 1
         if (updates === 1) {

@@ -26,6 +26,9 @@ export function formatPlan(plan: PlanOutcome): string {
       "",
       `${issue.operation} ${issue.target ?? "(new issue)"}`,
     )
+    if (issue.drift != null) {
+      lines.push(`  refused: ${issue.drift}`)
+    }
     for (const field of issue.fields) {
       const parts = [
         `  ${field.field}: ${field.verdict}`,

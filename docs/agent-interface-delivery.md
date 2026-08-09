@@ -514,6 +514,14 @@ Commit 8–10 与 Skill 迁移零耦合：delivery 与 batch 使用现有 `--jso
 - 与实现对齐：checkpoint 描述改为「记录全部已尝试执行项」；分页拼接补触发条件（`--limit 0` 或超单页）；「当前目录配置」写明 config 与目录名的推断机制。
 - 语言：拆花园小径句与双重否定；定义和例子移出括号；「宿主」首次出现处定义；删除对设计的自评句；automation 补「何时读本指南」定位句。
 
+### 第六轮（同日）：迁移覆盖度终审
+
+fresh agent 拿四个被删 Skill 的原文（skills 仓库 main）逐节对照迁移台账与每个声称的去向。用户点名的三块：request-intake 教学近逐字保留于 developer-request-intake；issue 写法主体在 issue-authoring 且有增量；批量安全三大支柱（字段白名单、三方比较、checkpoint）迁移且升级。抓到 6 处静默丢失，全部处置：
+
+- 对象级守卫回归（最重）：旧批量脚本拒绝写 identity/team 漂移与 archived/trashed 目标，新 engine 曾静默写入。已迁入 `objectDrift`：apply 拒绝、plan 报 conflict，view 查询补 `archivedAt`/`trashed`，确定性测试覆盖三种拒绝与 plan 形态。
+- 「乐观校验非服务端 CAS」披露进 planFields 注释与 issue-delivery 指南；写前 `auth whoami` 预检与失败留草稿进 issue-authoring；「显式传标识、不靠 branch 推断」进 automation。
+- exe.dev 代理 origin 应取自 Reflection（而非拼接主机名）与环境判定探针两处修入公司知识文件（skills#219 分支）。台账两行随实际去向更正。
+
 ## 完成定义
 
 架构在满足以下条件时完成：

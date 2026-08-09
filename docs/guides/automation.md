@@ -43,6 +43,7 @@ NO_COLOR=1 linear issue view ENG-123 --json >result.json 2>error.log &&
 - 首选防线是 `--json`；`NO_COLOR=1` 只兜底，部分帮助、版本、错误和 Markdown 渲染路径仍可能输出 ANSI 序列。人类可读输出不是稳定协议。没有 `--json` 这类结构化输出且必须解析时，显式剥离 ANSI 并只解析文档化的值，不解析终端布局。
 - 读取 document 正文用 `document view --raw` 绕过终端 Markdown 渲染；需要元数据加内容的结构化信封时用 `--json`。
 - 交互提示在无人值守环境用 `LINEAR_PROMPT_DISABLED=1` 禁用；提示被禁用后缺输入的命令会失败而不是挂起。禁用提示不代表获得写入授权。
+- 后续命令显式传 Issue 标识。`issue view` 等命令省略参数时会从当前 Git branch 推断目标，无人值守脚本在仓库 checkout 里可能因此打到错误的 Issue。
 
 ## 分页形状
 

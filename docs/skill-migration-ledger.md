@@ -20,19 +20,19 @@ skills#219 原子替换 `linear-cli`、`linear-access`、`linear-request-intake`
 
 ## linear-request-intake（SKILL.md 138 行 + 4 references）
 
-| 内容                                                             | 去向                                                                                        |
-| ---------------------------------------------------------------- | ------------------------------------------------------------------------------------------- |
-| 澄清方法：先提取已给信息；便宜的直接假定、贵的问用户；冲突选结果 | CLI 指南 issue-authoring「只保留事实，标注推测」                                            |
-| 证据规则：关键 vs 补充、持久化方式、脱敏、缺失显式列出           | CLI 指南 issue-authoring「证据持久化」                                                      |
-| 事实源与归属判断（一般化形态）                                   | CLI 指南 issue-authoring「事实源与发现渠道」                                                |
-| Issue 模板与标题形态                                             | CLI 指南 issue-authoring「正文形态」                                                        |
-| references/linear-workflow.md：写前确认、写后读回、访问检查      | CLI 指南 issue-authoring「写前确认，写后读回」；批量与多对象交付归 delivery（commit 11–12） |
-| 开发回复后的跟进清单                                             | CLI 指南 issue-authoring「回复跟进」                                                        |
-| mock-to-backend-requirement 产品文档流程与固定文档结构           | 公司 Skill `developer-request-intake`（改名保留，经 `$linear` 交付）                        |
-| references/frontend-backend-diagnosis.md（RN/客户端归属细节）    | 公司 Skill `developer-request-intake`（随迁）                                               |
-| references/mock-to-backend-requirement.md                        | 公司 Skill `developer-request-intake`（随迁）                                               |
-| references/network-evidence.md（跨工具取证与脱敏）               | 公司 Skill `developer-request-intake`（随迁）                                               |
-| 「写入后的固定提醒」话术（飞书转发等）                           | 删除：属对话话术，不是可复用契约；跟进能力已由 issue-authoring「回复跟进」承载              |
+| 内容                                                             | 去向                                                                                                                                                                   |
+| ---------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 澄清方法：先提取已给信息；便宜的直接假定、贵的问用户；冲突选结果 | CLI 指南 issue-authoring「只保留事实，标注推测」                                                                                                                       |
+| 证据规则：关键 vs 补充、持久化方式、脱敏、缺失显式列出           | CLI 指南 issue-authoring「证据持久化」                                                                                                                                 |
+| 事实源与归属判断（一般化形态）                                   | CLI 指南 issue-authoring「事实源与发现渠道」                                                                                                                           |
+| Issue 模板与标题形态                                             | CLI 指南 issue-authoring「正文形态」                                                                                                                                   |
+| references/linear-workflow.md：写前确认、写后读回、访问检查      | CLI 指南 issue-authoring「写前确认，写后读回」（含写前 `auth whoami` 预检与失败留草稿）；显式传标识规则归 automation 指南；批量与多对象交付归 delivery（commit 11–12） |
+| 开发回复后的跟进清单                                             | CLI 指南 issue-authoring「回复跟进」                                                                                                                                   |
+| mock-to-backend-requirement 产品文档流程与固定文档结构           | 公司 Skill `developer-request-intake`（改名保留，经 `$linear` 交付）                                                                                                   |
+| references/frontend-backend-diagnosis.md（RN/客户端归属细节）    | 公司 Skill `developer-request-intake`（随迁）                                                                                                                          |
+| references/mock-to-backend-requirement.md                        | 公司 Skill `developer-request-intake`（随迁）                                                                                                                          |
+| references/network-evidence.md（跨工具取证与脱敏）               | 公司 Skill `developer-request-intake`（随迁）                                                                                                                          |
+| 「写入后的固定提醒」话术（飞书转发等）                           | 删除：属对话话术，不是可复用契约；跟进能力已由 issue-authoring「回复跟进」承载                                                                                         |
 
 ## linear-cli（SKILL.md 246 行 + 20 个生成 references + 2 个手工 references）
 
@@ -61,15 +61,16 @@ SKILL.md 手工章节：
 
 commits 11–12 已把可执行工作流全部迁入一等 CLI 命令；外部 Skill 与其 Python script 随 skills#219 删除。
 
-| 内容                                                                 | 去向                                                                                                      |
-| -------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
-| plan → apply 生命周期、`--confirm-workspace` 重复确认                | CLI 命令 `issue plan` / `issue apply`                                                                     |
-| 字段级三方比较（base/desired/remote：幂等跳过、可写、conflict 拒绝） | CLI `src/delivery/engine.ts` planFields + 确定性测试                                                      |
-| create manifest、逐条 result 写回、续跑跳过                          | delivery manifest `issues[]` + `<manifest>.checkpoint.json`（内容哈希跳过，取代 result 字段回写）         |
-| `unverified` 状态与对账要求、create 无幂等键警告                     | checkpoint `unknown` 状态：阻塞续跑直至显式对账；警告进入 issue-delivery 指南                             |
-| 评论/附件/链接的 manifest 外后处理清单                               | 删除：manifest 一等支持 comments/files/attachments/relations，后处理清单不再存在                          |
-| Markdown 规范化（CRLF、行尾空格、列表符号）                          | CLI `normalizeMarkdown` + 回归测试；无法安全规范化的差异展示给调用者                                      |
-| snapshot 子命令（初始化 update manifest 的 base）                    | 删除：base 由调用者从 `issue view --json` 自取；需要时可由信号驱动恢复为专用命令                          |
-| 退出码契约 0/2/3/4                                                   | 删除：收敛到 CLI 统一错误约定（非零 + `✗` stderr），plan 的 `status` 字段与 apply 的逐项结果承载语义      |
-| nullable 字段显式 null 清空（project/parent 等）                     | 收窄：v1 仅 assignee 支持清除（`--unassign`）；其余等 `issue update` 长出对应 clear flag 后由信号驱动恢复 |
-| 批量语义（整批预校验、顺序执行、部分成功保留、不回滚）               | CLI apply + `--continue-on-failure`；测试覆盖 stop/continue 两种策略                                      |
+| 内容                                                                 | 去向                                                                                                           |
+| -------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| plan → apply 生命周期、`--confirm-workspace` 重复确认                | CLI 命令 `issue plan` / `issue apply`                                                                          |
+| 字段级三方比较（base/desired/remote：幂等跳过、可写、conflict 拒绝） | CLI `src/delivery/engine.ts` planFields + 确定性测试；「乐观校验非服务端 CAS」披露随注释与 issue-delivery 指南 |
+| 对象级守卫（identity/team 漂移、archived/trashed 拒绝）              | CLI `src/delivery/engine.ts` objectDrift：apply 拒绝、plan 报 conflict + 确定性测试                            |
+| create manifest、逐条 result 写回、续跑跳过                          | delivery manifest `issues[]` + `<manifest>.checkpoint.json`（内容哈希跳过，取代 result 字段回写）              |
+| `unverified` 状态与对账要求、create 无幂等键警告                     | checkpoint `unknown` 状态：阻塞续跑直至显式对账；警告进入 issue-delivery 指南                                  |
+| 评论/附件/链接的 manifest 外后处理清单                               | 删除：manifest 一等支持 comments/files/attachments/relations，后处理清单不再存在                               |
+| Markdown 规范化（CRLF、行尾空格、列表符号）                          | CLI `normalizeMarkdown` + 回归测试；无法安全规范化的差异展示给调用者                                           |
+| snapshot 子命令（初始化 update manifest 的 base）                    | 删除：base 由调用者从 `issue view --json` 自取；需要时可由信号驱动恢复为专用命令                               |
+| 退出码契约 0/2/3/4                                                   | 删除：收敛到 CLI 统一错误约定（非零 + `✗` stderr），plan 的 `status` 字段与 apply 的逐项结果承载语义           |
+| nullable 字段显式 null 清空（project/parent 等）                     | 收窄：v1 仅 assignee 支持清除（`--unassign`）；其余等 `issue update` 长出对应 clear flag 后由信号驱动恢复      |
+| 批量语义（整批预校验、顺序执行、部分成功保留、不回滚）               | CLI apply + `--continue-on-failure`；测试覆盖 stop/continue 两种策略                                           |
