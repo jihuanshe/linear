@@ -59,19 +59,24 @@ export function selfExecRunner(): CommandRunner {
 
 /**
  * Linear rewrites equivalent Markdown on save. Forms observed against the
- * real API (Kadoraba sandbox, 2026-08-09): trailing whitespace stripped and
- * table delimiter rows compressed (`| ---- |` → `| -- |`); bullet markers
- * were preserved on create but `* `/`- ` remain normalized here for the
- * historical incident form. Comparing normalized text keeps these rewrites
- * from reading as remote drift; anything this normalization cannot reconcile
- * is shown as a difference for the caller to judge, never silently "fixed".
+ * real API (Kadoraba sandbox, 2026-08-09): trailing whitespace stripped,
+ * table delimiter rows compressed (`| ---- |` → `| -- |`), and link
+ * destinations wrapped in angle brackets (`](url)` → `](<url>)`, equivalent
+ * per CommonMark); bullet markers were preserved on create but `* `/`- `
+ * remain normalized here for the historical incident form. Comparing
+ * normalized text keeps these rewrites from reading as remote drift;
+ * anything this normalization cannot reconcile is shown as a difference for
+ * the caller to judge, never silently "fixed".
  */
 export function normalizeMarkdown(text: string): string {
   return text
     .replaceAll("\r\n", "\n")
     .split("\n")
     .map((line) => {
-      const trimmed = line.replace(/[ \t]+$/, "").replace(/^(\s*)\* /, "$1- ")
+      const trimmed = line
+        .replace(/[ \t]+$/, "")
+        .replace(/^(\s*)\* /, "$1- ")
+        .replace(/\]\(<([^<>\s]+)>\)/g, "]($1)")
       const bare = trimmed.trim()
       if (/^\|[\s|:-]+\|$/.test(bare) && bare.includes("-")) {
         const cells = bare.slice(1, -1).split("|").map((cell) => {

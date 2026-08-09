@@ -421,6 +421,16 @@ Deno.test("markdown normalization absorbs Linear's equivalent rewrites only", ()
     normalizeMarkdown("| :--- | ---: |"),
     normalizeMarkdown("| :-- | --: |"),
   )
+  // Real round-trip sample: Linear wraps link destinations in angle brackets.
+  assertEquals(
+    normalizeMarkdown("[evidence.yrp](https://example.com/a)"),
+    normalizeMarkdown("[evidence.yrp](<https://example.com/a>)"),
+  )
+  assertEquals(
+    normalizeMarkdown("![img](https://example.com/a)") ===
+      normalizeMarkdown("![img](https://example.com/b)"),
+    false,
+  )
   assertEquals(
     normalizeMarkdown("- one") === normalizeMarkdown("- one changed"),
     false,
