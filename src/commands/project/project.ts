@@ -1,4 +1,5 @@
 import { Command } from "@cliffy/command"
+import { createUsageAction } from "../usage.ts"
 import { listCommand } from "./project-list.ts"
 import { viewCommand } from "./project-view.ts"
 import { createCommand } from "./project-create.ts"
@@ -7,9 +8,7 @@ import { deleteCommand } from "./project-delete.ts"
 
 export const projectCommand = new Command()
   .description("Manage Linear projects")
-  .action(function () {
-    this.showHelp()
-  })
+  .action(createUsageAction(true))
   .command("list", listCommand)
   .command("view", viewCommand)
   .command("create", createCommand)

@@ -89,7 +89,7 @@ const MIME_TYPES: Record<string, string> = {
 /**
  * Maximum file size for uploads (100MB)
  */
-const MAX_FILE_SIZE = 100 * 1024 * 1024
+export const MAX_FILE_SIZE = 100 * 1024 * 1024
 
 /**
  * Get MIME type from file extension

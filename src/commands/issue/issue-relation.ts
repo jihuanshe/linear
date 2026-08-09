@@ -40,7 +40,7 @@ const addRelationCommand = withUsageMetadata(new Command(), { writes: true })
     "linear issue relation add ENG-123 related ENG-456",
   )
   .example(
-    "Mark issue as duplicate",
+    "Mark ENG-123 as a duplicate of ENG-100",
     "linear issue relation add ENG-123 duplicate ENG-100",
   )
   .action(async (_options, issueIdArg, relationTypeArg, relatedIssueIdArg) => {
@@ -287,8 +287,8 @@ const listRelationsCommand = new Command()
       const issueIdentifier = await getIssueIdentifier(issueIdArg)
       if (!issueIdentifier) {
         throw new ValidationError(
-          "Could not determine issue ID",
-          { suggestion: "Please provide an issue ID like 'ENG-123'." },
+          "Could not determine issue identifier",
+          { suggestion: "Please provide an issue identifier like 'ENG-123'." },
         )
       }
 
@@ -387,7 +387,7 @@ const listRelationsCommand = new Command()
 // Export the main command after subcommands are defined
 export const relationCommand = new Command()
   .name("relation")
-  .description("Manage issue relations (dependencies)")
+  .description("Manage issue relations")
   .action(function () {
     this.showHelp()
   })

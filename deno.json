@@ -13,14 +13,11 @@
     "uninstall": "deno uninstall -g linear",
     "generate-graphql-types": "deno run --allow-all npm:@graphql-codegen/cli@7.2.0/graphql-codegen-esm",
     "sync-graphql-schema": "deno task dev schema -o graphql/schema.graphql && deno task generate-graphql-types",
-    "generate-skill-docs": "deno task generate-graphql-types && deno run --allow-run --allow-read --allow-write .agents/skills/linear-cli/scripts/generate-docs.ts",
     "check-types": "deno check src/main.ts",
-    "test": "deno test --allow-all --quiet",
-    "update-snapshots": "deno test --allow-all -- --update",
-    "evaluate-skill": "deno run --allow-all evals/linear-cli-skill/run.ts",
+    "test": "TZ=UTC deno test --allow-all --quiet",
+    "update-snapshots": "TZ=UTC deno test --allow-all -- --update",
     "verify-source": "deno task generate-graphql-types && deno fmt --check && deno lint && deno task check-types && deno task test --ignore=test/keyring.integration.test.ts",
-    "verify-skill-docs": "deno task generate-skill-docs --check",
-    "verify-release": "NO_COLOR=1 deno task verify-source && deno task verify-skill-docs"
+    "verify-release": "NO_COLOR=1 deno task verify-source"
   },
   "imports": {
     "@cliffy/ansi": "jsr:@cliffy/ansi@^1.2.1",

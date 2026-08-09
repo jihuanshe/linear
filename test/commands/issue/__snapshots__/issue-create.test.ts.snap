@@ -33,6 +33,7 @@ Options:
   --no-use-default-template                 - Do not use default template for the issue                                                               
   --no-interactive                          - Disable interactive prompts                                                                             
   -t, --title                <title>        - Title of the issue                                                                                      
+  -j, --json                                - Output the created issue, including id, identifier, and url, as JSON (non-interactive only)             
 
 "
 stderr:

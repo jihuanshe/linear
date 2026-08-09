@@ -1,5 +1,40 @@
 export const snapshot = {};
 
+snapshot[`zero-argument root reuses concise usage navigation 1`] = `
+"linear — Handy linear commands from the command line.
+
+commands:
+  auth                         Manage Linear authentication
+  issue, i                     Manage Linear issues
+  team, t                      Manage Linear teams
+  user, u                      Manage Linear users
+  project, p                   Manage Linear projects
+  project-update, pu           Manage project status updates
+  cycle, cy                    Manage Linear team cycles
+  milestone, m                 Manage Linear project milestones
+  initiative, init             Manage Linear initiatives
+  initiative-update, iu        Manage initiative status updates (timeline posts)
+  label, l                     Manage Linear issue labels
+  document, docs, doc          Manage Linear documents
+  guides                       Version-matched workflow guides
+  completions                  Generate shell completions.
+  config, configure            Interactively generate .linear.toml configuration [writes; interactive]
+  schema [options]             Print the GraphQL schema to stdout [json]
+  api [query] [options]        Make a raw GraphQL API request [writes; json]
+  upload <files...> [options]  Upload files to Linear storage and print their asset URLs for embedding in Markdown [writes; json]
+  update [options]             Update the Linear CLI [writes]
+  version [options]            Show build identity and protocol capabilities [json]
+
+global options:
+  -h, --help          Show this help.
+  --workspace <slug>  Target workspace (uses credentials)
+
+detail: linear <domain> usage; linear <command> --help
+machine-readable: linear usage --json
+workflows: linear guides list; linear guides read <name>
+"
+`;
+
 snapshot[`usage JSON v1 freezes its existing fields and types 1`] = `
 {
   command: {
@@ -10,6 +45,24 @@ snapshot[`usage JSON v1 freezes its existing fields and types 1`] = `
     confirmation: null,
     description: "Manage Linear issues",
     details: "linear issue usage",
+    guides: [
+      {
+        description: "渐进发现、专用命令优先级、写入授权边界，以及影响命令选择的语义陷阱",
+        name: "core",
+      },
+      {
+        description: "无人值守执行的输出契约、JSON 校验、Markdown 文件 flag 与写后读回验证",
+        name: "automation",
+      },
+      {
+        description: "事实源判断、证据持久化、写前确认与写后读回、关闭原因与下一跳，让无上下文的接手者能独立继续",
+        name: "issue-authoring",
+      },
+      {
+        description: "delivery manifest 的字段保护、checkpoint 续跑、unknown 对账与批量语义，单次和批量共用同一协议",
+        name: "issue-delivery",
+      },
+    ],
     hasSubcommands: true,
     interactive: false,
     name: "issue",
@@ -346,6 +399,12 @@ snapshot[`usage JSON v1 freezes its existing fields and types 1`] = `
       confirmation: null,
       description: "Query issues with structured filters",
       details: "linear issue query --help",
+      guides: [
+        {
+          description: "无人值守执行的输出契约、JSON 校验、Markdown 文件 flag 与写后读回验证",
+          name: "automation",
+        },
+      ],
       hasSubcommands: false,
       interactive: true,
       name: "query",
@@ -806,6 +865,16 @@ snapshot[`usage JSON v1 freezes its existing fields and types 1`] = `
       confirmation: null,
       description: "View issue details (default) or open in browser/app",
       details: "linear issue view --help",
+      guides: [
+        {
+          description: "无人值守执行的输出契约、JSON 校验、Markdown 文件 flag 与写后读回验证",
+          name: "automation",
+        },
+        {
+          description: "事实源判断、证据持久化、写前确认与写后读回、关闭原因与下一跳，让无上下文的接手者能独立继续",
+          name: "issue-authoring",
+        },
+      ],
       hasSubcommands: false,
       interactive: false,
       name: "view",
@@ -906,6 +975,12 @@ snapshot[`usage JSON v1 freezes its existing fields and types 1`] = `
       confirmation: null,
       description: "Print the issue URL",
       details: "linear issue url --help",
+      guides: [
+        {
+          description: "事实源判断、证据持久化、写前确认与写后读回、关闭原因与下一跳，让无上下文的接手者能独立继续",
+          name: "issue-authoring",
+        },
+      ],
       hasSubcommands: false,
       interactive: false,
       name: "url",
@@ -1176,6 +1251,16 @@ snapshot[`usage JSON v1 freezes its existing fields and types 1`] = `
       confirmation: null,
       description: "Create a linear issue",
       details: "linear issue create --help",
+      guides: [
+        {
+          description: "无人值守执行的输出契约、JSON 校验、Markdown 文件 flag 与写后读回验证",
+          name: "automation",
+        },
+        {
+          description: "事实源判断、证据持久化、写前确认与写后读回、关闭原因与下一跳，让无上下文的接手者能独立继续",
+          name: "issue-authoring",
+        },
+      ],
       hasSubcommands: false,
       interactive: true,
       name: "create",
@@ -1468,9 +1553,21 @@ snapshot[`usage JSON v1 freezes its existing fields and types 1`] = `
           repeatable: false,
           staticallyRequired: false,
         },
+        {
+          arguments: [],
+          description: "Output the created issue, including id, identifier, and url, as JSON (non-interactive only)",
+          flags: [
+            "-j",
+            "--json",
+          ],
+          name: "json",
+          repeatable: false,
+          staticallyRequired: false,
+        },
       ],
       outputModes: [
         "human",
+        "json",
       ],
       path: "linear issue create",
       usage: "linear issue create [options]",
@@ -1490,6 +1587,20 @@ snapshot[`usage JSON v1 freezes its existing fields and types 1`] = `
       confirmation: null,
       description: "Update a linear issue",
       details: "linear issue update --help",
+      guides: [
+        {
+          description: "渐进发现、专用命令优先级、写入授权边界，以及影响命令选择的语义陷阱",
+          name: "core",
+        },
+        {
+          description: "无人值守执行的输出契约、JSON 校验、Markdown 文件 flag 与写后读回验证",
+          name: "automation",
+        },
+        {
+          description: "事实源判断、证据持久化、写前确认与写后读回、关闭原因与下一跳，让无上下文的接手者能独立继续",
+          name: "issue-authoring",
+        },
+      ],
       hasSubcommands: false,
       interactive: false,
       name: "update",
@@ -1834,6 +1945,20 @@ snapshot[`usage JSON v1 freezes its existing fields and types 1`] = `
       confirmation: null,
       description: "Manage issue comments",
       details: "linear issue comment --help",
+      guides: [
+        {
+          description: "渐进发现、专用命令优先级、写入授权边界，以及影响命令选择的语义陷阱",
+          name: "core",
+        },
+        {
+          description: "无人值守执行的输出契约、JSON 校验、Markdown 文件 flag 与写后读回验证",
+          name: "automation",
+        },
+        {
+          description: "事实源判断、证据持久化、写前确认与写后读回、关闭原因与下一跳，让无上下文的接手者能独立继续",
+          name: "issue-authoring",
+        },
+      ],
       hasSubcommands: true,
       interactive: false,
       name: "comment",
@@ -1864,8 +1989,18 @@ snapshot[`usage JSON v1 freezes its existing fields and types 1`] = `
         },
       ],
       confirmation: null,
-      description: "Create a sidebar link attachment on an issue (images do not render inline)",
+      description: "Create a sidebar attachment on an issue (images do not render inline)",
       details: "linear issue attach --help",
+      guides: [
+        {
+          description: "渐进发现、专用命令优先级、写入授权边界，以及影响命令选择的语义陷阱",
+          name: "core",
+        },
+        {
+          description: "事实源判断、证据持久化、写前确认与写后读回、关闭原因与下一跳，让无上下文的接手者能独立继续",
+          name: "issue-authoring",
+        },
+      ],
       hasSubcommands: false,
       interactive: false,
       name: "attach",
@@ -1947,6 +2082,12 @@ snapshot[`usage JSON v1 freezes its existing fields and types 1`] = `
       confirmation: null,
       description: "Link a URL to an issue",
       details: "linear issue link --help",
+      guides: [
+        {
+          description: "事实源判断、证据持久化、写前确认与写后读回、关闭原因与下一跳，让无上下文的接手者能独立继续",
+          name: "issue-authoring",
+        },
+      ],
       hasSubcommands: false,
       interactive: false,
       name: "link",
@@ -1982,7 +2123,7 @@ snapshot[`usage JSON v1 freezes its existing fields and types 1`] = `
       aliases: [],
       arguments: [],
       confirmation: null,
-      description: "Manage issue relations (dependencies)",
+      description: "Manage issue relations",
       details: "linear issue relation --help",
       hasSubcommands: true,
       interactive: false,
@@ -1994,6 +2135,152 @@ snapshot[`usage JSON v1 freezes its existing fields and types 1`] = `
       path: "linear issue relation",
       usage: "linear issue relation",
       writes: false,
+    },
+    {
+      aliases: [],
+      arguments: [],
+      confirmation: null,
+      description: "Preview an Issue delivery manifest with zero remote writes (fields, comments, files, attachments, relations)",
+      details: "linear issue plan --help",
+      guides: [
+        {
+          description: "事实源判断、证据持久化、写前确认与写后读回、关闭原因与下一跳，让无上下文的接手者能独立继续",
+          name: "issue-authoring",
+        },
+        {
+          description: "delivery manifest 的字段保护、checkpoint 续跑、unknown 对账与批量语义，单次和批量共用同一协议",
+          name: "issue-delivery",
+        },
+      ],
+      hasSubcommands: false,
+      interactive: false,
+      name: "plan",
+      options: [
+        {
+          arguments: [
+            {
+              list: false,
+              name: "path",
+              required: true,
+              type: "string",
+              variadic: false,
+            },
+          ],
+          description: "Delivery manifest path",
+          flags: [
+            "-f",
+            "--file",
+          ],
+          name: "file",
+          repeatable: false,
+          staticallyRequired: true,
+        },
+        {
+          arguments: [],
+          description: "Output the plan as JSON",
+          flags: [
+            "--json",
+          ],
+          name: "json",
+          repeatable: false,
+          staticallyRequired: false,
+        },
+      ],
+      outputModes: [
+        "human",
+        "json",
+      ],
+      path: "linear issue plan",
+      usage: "linear issue plan [options]",
+      writes: false,
+    },
+    {
+      aliases: [],
+      arguments: [],
+      confirmation: {
+        requiredUnless: "--confirm-workspace",
+      },
+      description: "Apply an Issue delivery manifest sequentially with per-item results and a resumable checkpoint",
+      details: "linear issue apply --help",
+      guides: [
+        {
+          description: "事实源判断、证据持久化、写前确认与写后读回、关闭原因与下一跳，让无上下文的接手者能独立继续",
+          name: "issue-authoring",
+        },
+        {
+          description: "delivery manifest 的字段保护、checkpoint 续跑、unknown 对账与批量语义，单次和批量共用同一协议",
+          name: "issue-delivery",
+        },
+      ],
+      hasSubcommands: false,
+      interactive: false,
+      name: "apply",
+      options: [
+        {
+          arguments: [
+            {
+              list: false,
+              name: "path",
+              required: true,
+              type: "string",
+              variadic: false,
+            },
+          ],
+          description: "Delivery manifest path",
+          flags: [
+            "-f",
+            "--file",
+          ],
+          name: "file",
+          repeatable: false,
+          staticallyRequired: true,
+        },
+        {
+          arguments: [
+            {
+              list: false,
+              name: "slug",
+              required: true,
+              type: "string",
+              variadic: false,
+            },
+          ],
+          description: "Repeat the manifest's workspace slug to confirm the write target",
+          flags: [
+            "--confirm-workspace",
+          ],
+          name: "confirm-workspace",
+          repeatable: false,
+          staticallyRequired: true,
+        },
+        {
+          arguments: [],
+          description: "Keep executing after a confirmed failed item; unknown outcomes always stop",
+          flags: [
+            "--continue-on-failure",
+          ],
+          name: "continue-on-failure",
+          repeatable: false,
+          staticallyRequired: false,
+        },
+        {
+          arguments: [],
+          description: "Output per-item results and read-back as JSON",
+          flags: [
+            "--json",
+          ],
+          name: "json",
+          repeatable: false,
+          staticallyRequired: false,
+        },
+      ],
+      outputModes: [
+        "human",
+        "json",
+      ],
+      path: "linear issue apply",
+      usage: "linear issue apply [options]",
+      writes: true,
     },
     {
       aliases: [],

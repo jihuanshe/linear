@@ -2,12 +2,11 @@
 
 the CLI supports multiple authentication methods with the following precedence:
 
-1. `--api-key` flag (explicit key for single command)
-2. `LINEAR_API_KEY` environment variable
-3. `api_key` in project `.linear.toml` config
-4. `--workspace` flag → stored credentials lookup
-5. project's `workspace` config → stored credentials lookup
-6. default workspace from stored credentials
+1. `LINEAR_API_KEY` environment variable (conflicts with `--workspace`)
+2. `api_key` in project `.linear.toml` config
+3. `--workspace` flag → stored credentials lookup
+4. project's `workspace` config → stored credentials lookup
+5. default workspace from stored credentials
 
 ## stored credentials (recommended)
 
@@ -15,8 +14,12 @@ API keys are stored in your system's native keyring (macOS Keychain, Linux libse
 
 ### commands
 
+The canonical command list is `linear auth --help`; these examples show the multi-workspace flow.
+
 ```bash
 linear auth login              # add a workspace (prompts for API key)
+linear auth login --plaintext  # store on disk when no system keyring exists
+linear auth migrate            # move plaintext-era keys into the system keyring
 linear auth login --key <key>  # add with key directly (for scripts)
 linear auth list               # list configured workspaces
 linear auth default            # interactively set default workspace
@@ -88,7 +91,7 @@ if the keyring is unavailable, set `LINEAR_API_KEY` as a fallback.
 
 ### migrating from plaintext credentials
 
-older versions stored API keys directly in the TOML file. if the CLI detects this format, it will continue to work but print a warning. run `linear auth login` for each workspace to migrate keys to the system keyring.
+older versions stored API keys directly in the TOML file. if the CLI detects this format, it will continue to work but print a warning. run `linear auth migrate` to move the keys into the system keyring.
 
 ## environment variable
 
@@ -102,7 +105,7 @@ export LINEAR_API_KEY="lin_api_..."
 set -Ux LINEAR_API_KEY "lin_api_..."
 ```
 
-this takes precedence over stored credentials. if you have `LINEAR_API_KEY` set and try to use `linear auth login`, you'll see a warning:
+this takes precedence over stored credentials. `LINEAR_GRAPHQL_ENDPOINT` overrides the GraphQL endpoint for proxy setups (`linear guides read core` covers the recovery paths). if you have `LINEAR_API_KEY` set and try to use `linear auth login`, you'll see a warning:
 
 ```
 Warning: LINEAR_API_KEY environment variable is set.

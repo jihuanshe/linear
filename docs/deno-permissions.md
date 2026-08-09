@@ -4,19 +4,18 @@ This CLI uses `--allow-all` for simplicity. Linear issues can contain images and
 
 ## Permission surfaces
 
-| Surface                           | Purpose                                                                       |
-| --------------------------------- | ----------------------------------------------------------------------------- |
-| `deno.json`                       | Development, installation, test, codegen, documentation, and evaluation tasks |
-| `.agents/resume`                  | Checkout-local `linear` source wrapper                                        |
-| `.github/workflows/ship-main.yml` | Release compilation                                                           |
-| `test/`                           | Child Deno processes used by command and snapshot tests                       |
-| `evals/linear-cli-skill/`         | Skill evaluation runner and CLI shim                                          |
+| Surface                           | Purpose                                                 |
+| --------------------------------- | ------------------------------------------------------- |
+| `deno.json`                       | Development, installation, test, and codegen tasks      |
+| `.agents/resume`                  | Checkout-local `linear` source wrapper                  |
+| `.github/workflows/ship-main.yml` | Release compilation                                     |
+| `test/`                           | Child Deno processes used by command and snapshot tests |
 
 Before changing permissions, locate every active flag instead of relying only on this table:
 
 ```bash
 rg -n --glob '!deno.lock' -- '--allow-|--deny-' \
-  deno.json .agents .github test evals
+  deno.json .agents .github test
 ```
 
 Update every entry point that executes the affected code path, then run `deno task verify-source`.

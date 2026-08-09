@@ -15,6 +15,15 @@ This changelog records the cumulative downstream changes in [`jihuanshe/linear`]
 - Preserved GraphQL field names and connection shape in JSON. Paginated lists concatenate `nodes`, retain `pageInfo`, validate `--limit`, and stop at a requested bound without losing the continuation cursor.
 - Kept JSON, terminal styling, pagination, prompting, and mutation consent as independent contracts instead of introducing an all-in-one agent mode.
 
+### Guides and issue delivery
+
+- Embedded five version-matched Chinese workflow guides (core, automation, issue-authoring, issue-delivery, graphql) into the binary behind `linear guides list/read`, with related-guide breadcrumbs in domain usage, leaf help, and usage JSON.
+- Added `linear upload` so uploaded assets can be embedded at any Markdown position, including table cells and comments, with optional public image URLs.
+- Added declarative issue delivery: `linear issue plan` previews a manifest with zero writes and per-field three-way verdicts (write/idempotent/conflict against a recorded base), and `linear issue apply` executes it sequentially with per-item applied/failed/unknown/unattempted/skipped reporting and a full read-back.
+- Made a manifest with multiple issues the batch form of the same protocol: a checkpoint beside the manifest records every mutation as in flight before launching it, skips confirmed successes on resume, refuses resumes after structural drift or unresolved unknown outcomes, and `--continue-on-failure` collects failures without stopping.
+- Normalized Linear's equivalent Markdown rewrites (seven observed forms with real-sample regressions) so round-trips stay idempotent instead of reporting false conflicts.
+- Extended `version --json` capabilities to `usage-v1`, `guides-v1`, and `delivery-v1`, and removed the generated Skill manuals — command facts live only in the live command tree and version-matched guides.
+
 ### Mutation safety and correctness
 
 - Added incremental `issue update --add-label` and `--remove-label` operations alongside explicit label-set replacement.
@@ -28,7 +37,7 @@ This changelog records the cumulative downstream changes in [`jihuanshe/linear`]
 ### Development and distribution
 
 - Added a reproducible Amp Orb setup around Deno `2.9.4`, with checkout-isolated source wrappers and dependency caching.
-- Added a local release gate covering GraphQL generation, formatting, linting, type checking, non-Keyring tests, and generated Skill documentation; CI retains the isolated Linux Keyring integration test.
+- Added a local release gate (`deno task verify-release`) covering GraphQL generation, formatting, linting, type checking, and non-Keyring tests; CI retains the isolated Linux Keyring integration test.
 - Ship each authorized `main` commit for five platforms as install archives and standalone self-update binaries named `0.0.<commit timestamp>-g<short commit>`, with checksums and build provenance.
 - Cancel stale overlapping release runs so only the newest pushed `main` commit continues building.
 - Documented mise installation from `github:jihuanshe/linear`; source-controlled versions remain `0.0.0-dev`.

@@ -1,4 +1,5 @@
 import { Command } from "@cliffy/command"
+import { createUsageAction } from "../usage.ts"
 
 import { listCommand } from "./initiative-list.ts"
 import { viewCommand } from "./initiative-view.ts"
@@ -12,9 +13,7 @@ import { removeProjectCommand } from "./initiative-remove-project.ts"
 
 export const initiativeCommand = new Command()
   .description("Manage Linear initiatives")
-  .action(function () {
-    this.showHelp()
-  })
+  .action(createUsageAction(true))
   .command("list", listCommand)
   .alias("ls")
   .command("view", viewCommand)

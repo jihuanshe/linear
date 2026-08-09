@@ -172,20 +172,24 @@ Do not treat `LINEAR_PROMPT_DISABLED=1` as authorization to mutate or delete Lin
 
 ## Command groups
 
-| Group               | Purpose                                                  |
-| ------------------- | -------------------------------------------------------- |
-| `linear auth`       | Authentication and workspace credentials                 |
-| `linear issue`      | Query, inspect, create, update, start, and delete issues |
-| `linear team`       | Teams, members, states, and repository autolinks         |
-| `linear project`    | Project discovery and management                         |
-| `linear milestone`  | Project milestone management                             |
-| `linear document`   | Linear document workflows                                |
-| `linear initiative` | Initiative discovery                                     |
-| `linear cycle`      | Cycle discovery and issue filtering                      |
-| `linear label`      | Workspace and team labels                                |
-| `linear user`       | Workspace member discovery                               |
-| `linear api`        | Execute an explicit Linear GraphQL operation             |
-| `linear version`    | Inspect build identity and protocol capabilities         |
+| Group               | Purpose                                                |
+| ------------------- | ------------------------------------------------------ |
+| `linear auth`       | Authentication and workspace credentials               |
+| `linear issue`      | Query, create, update, and deliver issues (plan/apply) |
+| `linear team`       | Teams, members, states, and repository autolinks       |
+| `linear project`    | Project discovery and management                       |
+| `linear milestone`  | Project milestone management                           |
+| `linear document`   | Linear document workflows                              |
+| `linear initiative` | Initiative discovery                                   |
+| `linear cycle`      | Cycle discovery and issue filtering                    |
+| `linear label`      | Workspace and team labels                              |
+| `linear user`       | Workspace member discovery                             |
+| `linear api`        | Execute an explicit Linear GraphQL operation           |
+| `linear guides`     | Version-matched workflow guides                        |
+| `linear upload`     | Upload files for embedding in Markdown                 |
+| `linear version`    | Inspect build identity and protocol capabilities       |
+
+The table is a curated overview; the complete, always-current contract comes from `linear usage`. For deliveries that span description, comments with files, attachments, and relations, write a delivery manifest and use `linear issue plan` / `linear issue apply` — `linear guides read issue-delivery` documents the protocol.
 
 Discover the current command contract from the installed binary:
 
@@ -197,7 +201,7 @@ linear issue --help
 linear issue query --help
 ```
 
-Generated command documentation is available under [`.agents/skills/linear-cli/references`](.agents/skills/linear-cli/references/commands.md).
+Cross-command workflow guides ship inside the binary and stay version-matched: `linear guides list`, `linear guides read <name>`.
 
 ## Configuration
 
@@ -249,14 +253,9 @@ Anyone with that URL can access the image without authenticating. The CLI theref
 
 The repository uses the standard [Agent Skills](https://agentskills.io/) layout:
 
-- [`.agents/skills/linear-cli`](.agents/skills/linear-cli/SKILL.md) teaches compatible agents this fork's commands and safety contracts.
 - [`.agents/skills/releasing`](.agents/skills/releasing/SKILL.md) documents the contributor release workflow for this repository.
 
-Compatible agents discover these Skills automatically when working in this checkout. To install only the Linear management Skill elsewhere with the cross-agent Skills CLI:
-
-```bash
-npx skills add jihuanshe/linear@linear-cli
-```
+Command facts live in the live command tree (`linear usage`, `--help`) and cross-command workflows in the embedded guides (`linear guides`), so no generated Skill manual exists here. The external activation Skill for agents is maintained in `jihuanshe/skills`.
 
 Agents must use the installed `jihuanshe/linear` binary. They should not fall back to the upstream npm package because its available commands and automation contracts may differ from this fork.
 
@@ -280,11 +279,7 @@ deno task verify-source
 
 That runs GraphQL code generation, formatting checks, linting, type checking, and all non-Keyring tests.
 
-When the command tree, help output, or Skill template changes, regenerate the Linear CLI Skill:
-
-```bash
-deno task generate-skill-docs
-```
+When the command tree or `docs/guides/` changes, the guides tests validate frontmatter, command references, and the import manifest against the live tree.
 
 Before a release, run the complete local release gate:
 

@@ -1,4 +1,5 @@
 import { Command } from "@cliffy/command"
+import { createUsageAction } from "../usage.ts"
 
 import { idCommand } from "./team-id.ts"
 import { autolinksCommand } from "./team-autolinks.ts"
@@ -10,9 +11,7 @@ import { deleteCommand } from "./team-delete.ts"
 
 export const teamCommand = new Command()
   .description("Manage Linear teams")
-  .action(function () {
-    this.showHelp()
-  })
+  .action(createUsageAction(true))
   .command("create", createCommand)
   .command("delete", deleteCommand)
   .command("list", listCommand)

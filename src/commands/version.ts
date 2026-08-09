@@ -2,7 +2,7 @@ import { Command } from "@cliffy/command"
 import denoConfig from "../../deno.json" with { type: "json" }
 
 const DISTRIBUTION = "jihuanshe/linear"
-const CAPABILITIES = ["usage-v1"] as const
+const CAPABILITIES = ["usage-v1", "guides-v1", "delivery-v1"] as const
 
 /**
  * Version JSON v1 is additive: readers must ignore unknown fields and

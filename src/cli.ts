@@ -13,12 +13,15 @@ import { initiativeCommand } from "./commands/initiative/initiative.ts"
 import { initiativeUpdateCommand } from "./commands/initiative-update/initiative-update.ts"
 import { labelCommand } from "./commands/label/label.ts"
 import { documentCommand } from "./commands/document/document.ts"
+import { guidesCommand } from "./commands/guides/guides.ts"
 import { configCommand } from "./commands/config.ts"
 import { schemaCommand } from "./commands/schema.ts"
 import { apiCommand } from "./commands/api.ts"
 import { updateCommand } from "./commands/update.ts"
+import { uploadCommand } from "./commands/upload.ts"
 import { versionCommand } from "./commands/version.ts"
-import { createUsageCommand } from "./commands/usage.ts"
+import { createUsageAction, createUsageCommand } from "./commands/usage.ts"
+import { guidesForCommandPath } from "./guides/guides.ts"
 import { setCliWorkspace } from "./config.ts"
 import { supportsStdoutStyling } from "./utils/terminal.ts"
 
@@ -48,9 +51,7 @@ Environment Variables:
   .globalAction((options) => {
     setCliWorkspace(options.workspace)
   })
-  .action(() => {
-    console.log("Use --help to see available commands")
-  })
+  .action(createUsageAction(false))
   .command("auth", authCommand)
   .command("issue", issueCommand)
   .alias("i")
@@ -73,11 +74,13 @@ Environment Variables:
   .command("label", labelCommand)
   .alias("l")
   .command("document", documentCommand)
+  .command("guides", guidesCommand)
   .command("completions", new CompletionsCommand())
   .command("config", configCommand)
   .alias("configure")
   .command("schema", schemaCommand)
   .command("api", apiCommand)
+  .command("upload", uploadCommand)
   .command("update", updateCommand)
   .command("version", versionCommand)
 
@@ -87,3 +90,32 @@ for (const command of cli.getCommands()) {
   }
 }
 cli.command("usage", createUsageCommand(cli, false))
+
+// Leaf help carries a "Related guides" breadcrumb derived from guide
+// frontmatter (src/guides/guides.ts owns the relationship); domains render
+// theirs in their usage view instead. A breadcrumb names the guide and never
+// embeds its body.
+interface GuideAnnotatable {
+  getPath(): string
+  hasCommands(): boolean
+  getCommands(): GuideAnnotatable[]
+  meta(name: string, value: string): unknown
+}
+
+function annotateRelatedGuides(command: GuideAnnotatable): void {
+  if (command.hasCommands()) {
+    for (const child of command.getCommands()) {
+      annotateRelatedGuides(child)
+    }
+    return
+  }
+  const related = guidesForCommandPath(command.getPath())
+  if (related.length > 0) {
+    command.meta(
+      "Related guides",
+      related.map((guide) => guide.name).join(", "),
+    )
+  }
+}
+
+annotateRelatedGuides(cli)
