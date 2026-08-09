@@ -453,6 +453,17 @@ Commit 8–10 与 Skill 迁移零耦合：delivery 与 batch 使用现有 `--jso
 | 内联图（描述正文、表格单元格、评论、文件链接）                  | `upload` 资产 URL 以 `![...]()` 嵌入后经 Linear 编辑器序列化往返原样保留且判定幂等；像素级渲染双路目检——用户核对 ENG-52（表格、附件 chip、Resources、关系、无重复评论），agent-browser 复用 Chrome profile 截图核对 ENG-53（正文与表格单元格内联图按测试图真实尺寸渲染） |
 | Linux 写路径（exe.dev 一次性 VM，交叉编译二进制）               | whoami org 核对、standalone `upload`、delivery apply 评论加文件全部通过；VM 与 key 均已销毁                                                                                                                                                                              |
 
+### 第二轮（同日）：酷刑往返、真实批量、守卫与媒体
+
+| 场景                                                               | 结果                                                                                                                                                                                                                               |
+| ------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Markdown 酷刑往返（标题/嵌套列表/代码块/任务框/对齐表格/自动链接） | 再挖出四种改写：`_斜体_`→`*斜体*`、`[x]`→`[X]`、表格对齐冒号被丢弃、裸 URL 自动链接化；normalizer 全部吸收（`a380977`），复放判定 idempotent                                                                                       |
+| 真实混合批量（1 create + 2 update）                                | ENG-55 创建含 labels（大小写不敏感解析到既有「Bug」）/state/assignee/priority；ENG-52 state 带 base 更新；ENG-54 标签整组替换 + `--unassign`                                                                                       |
+| plan 对 update 的真实三方裁决与 `--json` 形态                      | 逐字段 verdict 正确（conflict/write/idempotent 并存），`--json` 可直接 jq 消费                                                                                                                                                     |
+| env-key org 错配守卫（拒绝分支）                                   | kadoraba key + jihuanshe manifest → 干净拒绝并写明两侧身份；`--confirm-workspace` 错配同样拒绝                                                                                                                                     |
+| public/private 资产语义                                            | `public: true` 图片走 `public.linear.app` 未登录 200；私有文件走 `uploads.linear.app` 未登录 401；中文文件名原样保留                                                                                                               |
+| Fresh-agent 冲突处置探针                                           | plan 见 conflict 后正确归因「同事在批准后并发改名」；拒绝删 base 强推、拒绝 `linear api` 绕过、拒绝拆分交付；核验远端零副作用后给出正确的用户裁决建议。apply 本身被宿主权限门拦下且 agent 未绕过——「CLI 能力不是授权」在实践中成立 |
+
 ### Fresh-agent 场景（本机，5 个无历史上下文的 sub-agent）
 
 | 场景                                             | 观察到的路径                                                                                                       | 判定 |
