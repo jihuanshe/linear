@@ -63,6 +63,8 @@ seeAlso:
 
 你准备材料需要时间，期间同事可能改了同一个 Issue。给字段写上 `base`（你上次读到的值）后，apply 只在远端仍等于 base 时才写入；远端已等于目标值则幂等跳过；两者都不是就报 conflict 并拒绝覆盖。只改 priority/state/labels 的机械更新不需要 base，直接写。
 
+报 conflict 后，把远端当前值与你的意图一起交给用户裁决；执行裁决时把 base 刷新为远端当前值、把 set 改成裁决后的目标，重新 plan/apply。这条路保留 base 保护：裁决与执行之间同事再次修改会再次报 conflict，而不是被静默覆盖。不要为绕过 conflict 改用无 base 的直接更新。
+
 Markdown 正文的比较做等价规范化（换行、行尾空格、列表符号），Linear 的等价改写不会被误判为漂移。
 
 ## plan 与 apply
