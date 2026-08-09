@@ -7,7 +7,7 @@ import {
   printSchema,
 } from "graphql"
 import { handleError } from "../utils/errors.ts"
-import { getGraphQLClient } from "../utils/graphql.ts"
+import { createPublicGraphQLClient } from "../utils/graphql.ts"
 
 export const schemaCommand = new Command()
   .name("schema")
@@ -21,7 +21,7 @@ export const schemaCommand = new Command()
     try {
       const { json, output } = options
 
-      const client = getGraphQLClient()
+      const client = createPublicGraphQLClient()
       const introspectionQuery = getIntrospectionQuery()
       const result = await client.request<IntrospectionQuery>(
         introspectionQuery,

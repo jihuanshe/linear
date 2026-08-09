@@ -1,6 +1,39 @@
 import { assertEquals, assertStringIncludes, assertThrows } from "@std/assert"
 import { setCliWorkspace } from "../../src/config.ts"
-import { getResolvedApiKey } from "../../src/utils/graphql.ts"
+import {
+  createPublicGraphQLClient,
+  getResolvedApiKey,
+} from "../../src/utils/graphql.ts"
+
+Deno.test("createPublicGraphQLClient - omits authorization", async () => {
+  let authorization: string | null = null
+  const server = Deno.serve({
+    hostname: "127.0.0.1",
+    port: 0,
+    onListen: () => {},
+  }, (request) => {
+    authorization = request.headers.get("authorization")
+    return Response.json({ data: { viewer: { id: "test" } } })
+  })
+
+  if (!("port" in server.addr)) {
+    await server.shutdown()
+    throw new Error("Expected a TCP test server")
+  }
+
+  Deno.env.set(
+    "LINEAR_GRAPHQL_ENDPOINT",
+    `http://127.0.0.1:${server.addr.port}/graphql`,
+  )
+
+  try {
+    await createPublicGraphQLClient().request("query Test { viewer { id } }")
+    assertEquals(authorization, null)
+  } finally {
+    Deno.env.delete("LINEAR_GRAPHQL_ENDPOINT")
+    await server.shutdown()
+  }
+})
 
 Deno.test("getResolvedApiKey - errors when --workspace not found in credentials", () => {
   // Setup - use a workspace name that definitely doesn't exist
