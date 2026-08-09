@@ -239,6 +239,178 @@ Deno.test("apply reports partial success and resumes without repeating", async (
   }
 })
 
+Deno.test("resume refuses when an issue is inserted before applied entries", async () => {
+  const dir = await Deno.makeTempDir()
+  try {
+    const createOk = (title: string) => ({
+      operation: "create",
+      team: "DATA",
+      set: { title },
+    })
+    const manifestPath = await writeManifest(dir, {
+      schemaVersion: 1,
+      workspace: "jihuanshe",
+      issues: [createOk("Issue A"), {
+        operation: "update",
+        identifier: "DATA-606",
+        relations: [{ type: "related", issue: "DATA-9999" }],
+      }],
+    })
+    const runner = fakeRunner((args) => {
+      if (args[1] === "view") return viewResult()
+      if (args[1] === "create") {
+        return {
+          code: 0,
+          stdout: JSON.stringify({ issue: { identifier: "DATA-700" } }),
+          stderr: "",
+        }
+      }
+      if (args[1] === "relation") {
+        return { code: 1, stdout: "", stderr: "✗ Could not find issue" }
+      }
+      return undefined
+    })
+    const first = await applyManifest({
+      loaded: await loadManifest(manifestPath),
+      runner,
+    })
+    assertEquals(first.status, "stopped-on-failure")
+    assertEquals(first.items[0].status, "applied")
+
+    // A helpful teammate prepends a new issue: every applied position shifts.
+    await writeManifest(dir, {
+      schemaVersion: 1,
+      workspace: "jihuanshe",
+      issues: [createOk("Inserted issue"), createOk("Issue A"), {
+        operation: "update",
+        identifier: "DATA-606",
+        relations: [{ type: "related", issue: "DATA-580" }],
+      }],
+    })
+    const callsBefore = runner.calls.length
+    await assertRejects(
+      async () =>
+        await applyManifest({
+          loaded: await loadManifest(manifestPath),
+          runner,
+        }),
+      ValidationError,
+      "no longer match any manifest item",
+    )
+    // The refusal happens before any remote work.
+    assertEquals(runner.calls.length, callsBefore)
+  } finally {
+    await Deno.remove(dir, { recursive: true })
+  }
+})
+
+Deno.test("resume refuses when an applied issue is removed or edited", async () => {
+  const dir = await Deno.makeTempDir()
+  try {
+    const manifestPath = await writeManifest(dir, {
+      schemaVersion: 1,
+      workspace: "jihuanshe",
+      issues: [{
+        operation: "create",
+        team: "DATA",
+        set: { title: "Issue A" },
+      }],
+    })
+    const runner = fakeRunner((args) =>
+      args[1] === "create"
+        ? {
+          code: 0,
+          stdout: JSON.stringify({ issue: { identifier: "DATA-700" } }),
+          stderr: "",
+        }
+        : undefined
+    )
+    const first = await applyManifest({
+      loaded: await loadManifest(manifestPath),
+      runner,
+    })
+    assertEquals(first.status, "completed")
+
+    // Editing the applied issue orphans its checkpoint key; re-running would
+    // create a second issue instead of updating the first.
+    await writeManifest(dir, {
+      schemaVersion: 1,
+      workspace: "jihuanshe",
+      issues: [{
+        operation: "create",
+        team: "DATA",
+        set: { title: "Issue A, reworded" },
+      }],
+    })
+    await assertRejects(
+      async () =>
+        await applyManifest({
+          loaded: await loadManifest(manifestPath),
+          runner,
+        }),
+      ValidationError,
+      "no longer match any manifest item",
+    )
+  } finally {
+    await Deno.remove(dir, { recursive: true })
+  }
+})
+
+Deno.test("resume allows appending new issues after applied entries", async () => {
+  const dir = await Deno.makeTempDir()
+  try {
+    const manifestPath = await writeManifest(dir, {
+      schemaVersion: 1,
+      workspace: "jihuanshe",
+      issues: [{
+        operation: "create",
+        team: "DATA",
+        set: { title: "Issue A" },
+      }],
+    })
+    let created = 0
+    const runner = fakeRunner((args) => {
+      if (args[1] === "create") {
+        created += 1
+        return {
+          code: 0,
+          stdout: JSON.stringify({
+            issue: { identifier: `DATA-70${created}` },
+          }),
+          stderr: "",
+        }
+      }
+      return undefined
+    })
+    const first = await applyManifest({
+      loaded: await loadManifest(manifestPath),
+      runner,
+    })
+    assertEquals(first.status, "completed")
+
+    await writeManifest(dir, {
+      schemaVersion: 1,
+      workspace: "jihuanshe",
+      issues: [
+        { operation: "create", team: "DATA", set: { title: "Issue A" } },
+        { operation: "create", team: "DATA", set: { title: "Issue B" } },
+      ],
+    })
+    const second = await applyManifest({
+      loaded: await loadManifest(manifestPath),
+      runner,
+    })
+    assertEquals(second.status, "completed")
+    assertEquals(
+      second.items.map((item) => item.status),
+      ["skipped", "applied"],
+    )
+    assertEquals(created, 2)
+  } finally {
+    await Deno.remove(dir, { recursive: true })
+  }
+})
+
 Deno.test("an unknown outcome blocks further runs until reconciled", async () => {
   const dir = await Deno.makeTempDir()
   try {

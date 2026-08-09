@@ -82,6 +82,10 @@ apply 逐项返回 applied / failed / unknown / unattempted / skipped，结束�
 
 checkpoint 写在 manifest 旁边（`<manifest>.checkpoint.json`），随 manifest 一起交接。每个确认成功的条目按位置加内容哈希记录：续跑跳过它们；修改过失败条目的内容会改变哈希，自动重跑。
 
+续跑期间对 manifest 的安全编辑只有两种：原位修复失败条目，或在末尾追加新条目。在已应用条目之前插入、重排，或删除、改写已应用条目，都会使它们的位置键失配——apply 会拒绝续跑而不是重复已落地的写入；确要重组时，先在 Linear 核实远端状态，再重建或删除 checkpoint。
+
+checkpoint 不是锁：两个执行者同时 apply 同一份 manifest 看不见彼此，每一项都会写两遍。交接是移交执行权，不是复制执行权；同一份 manifest 同一时刻只能有一个执行者。
+
 - `failed`（CLI 明确报错、无远端副作用）：修复后直接重跑，或用 `--continue-on-failure` 让整批先跑完再统一处理。
 - `unknown`（进程异常、结果无法判定）：一切续跑被阻塞。先在 Linear 核实该项的远端状态，再编辑或删除 checkpoint 里的对应条目——这个显式对账动作正是 unknown 存在的意义。不要盲目重试：Linear 的 create 没有幂等键，重试可能造成重复。
 

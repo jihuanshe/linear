@@ -457,6 +457,14 @@ export async function buildCommentArgs(
  * skipped. An `unknown` entry blocks every further run until someone
  * verifies the remote outcome and edits or removes the entry — that explicit
  * reconciliation is the whole point of recording it.
+ *
+ * Because keys embed manifest positions, a resume refuses to run when any
+ * applied entry no longer matches a current item: inserting, reordering,
+ * removing, or editing applied issues would shift or orphan their keys and
+ * silently repeat writes. Only in-place fixes of failed items and appends at
+ * the end are safe edits while a checkpoint exists. The checkpoint is not a
+ * lock — concurrent executors of the same manifest cannot see each other, so
+ * a handoff must be a handover, never a fork.
  */
 export interface Checkpoint {
   schemaVersion: 1
@@ -590,6 +598,13 @@ export async function applyManifest(
   const progress = context.onProgress ?? (() => {})
   const workspaceFlags = await verifyEnvKeyOrganization(context)
 
+  const expansions: DeliveryItem[][] = []
+  for (const [issueIndex, issue] of manifest.issues.entries()) {
+    expansions.push(
+      await expandIssue(issue, issueIndex, workspaceFlags, loaded.files),
+    )
+  }
+
   const existing = await loadCheckpoint(manifestPath)
   if (existing != null) {
     const unknownKeys = Object.entries(existing.items)
@@ -603,6 +618,31 @@ export async function applyManifest(
             `Verify each item's remote state, then edit or remove its entry in ${
               checkpointPath(manifestPath)
             } before re-running`,
+        },
+      )
+    }
+    // Checkpoint keys embed each item's manifest position. Inserting,
+    // reordering, or removing an issue shifts the positions of everything
+    // after it, so every applied entry must still match a current item —
+    // otherwise a resume would silently repeat writes that already landed.
+    const currentKeys = new Set(
+      expansions.flat().map((item) => item.key),
+    )
+    const displaced = Object.entries(existing.items)
+      .filter(([key, item]) =>
+        item.status === "applied" && !currentKeys.has(key)
+      )
+      .map(([key]) => key)
+    if (displaced.length > 0) {
+      throw new ValidationError(
+        `Checkpoint has applied entries that no longer match any manifest item: ${
+          displaced.join(", ")
+        }`,
+        {
+          suggestion:
+            `While a checkpoint exists, only fix failed items in place or append new issues at the end; inserting, reordering, removing, or editing applied entries shifts or orphans their positions and a resume would repeat writes that already landed. If the restructure is intentional, verify remote state in Linear, then rebuild or remove ${
+              checkpointPath(manifestPath)
+            }`,
         },
       )
     }
@@ -627,12 +667,7 @@ export async function applyManifest(
   const continueOnFailure = context.continueOnFailure === true
 
   for (const [issueIndex, issue] of manifest.issues.entries()) {
-    const items = await expandIssue(
-      issue,
-      issueIndex,
-      workspaceFlags,
-      loaded.files,
-    )
+    const items = expansions[issueIndex]
 
     if (halted) {
       for (const item of items) {
