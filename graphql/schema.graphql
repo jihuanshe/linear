@@ -538,6 +538,14 @@ enum AgentAutomationRetryResolutionStatus {
 }
 
 """
+The scope of the usage limit that blocked a loop run: the loop's own limit or the workspace-wide limit.
+"""
+enum AgentAutomationUsageLimitScope {
+  loop
+  workspace
+}
+
+"""
 A session representing an AI coding agent's work on an issue or conversation. Agent sessions track the lifecycle of an agent's engagement, from creation through active work to completion or dismissal. Each session is associated with an agent user (the bot), optionally a human creator, an issue, and a comment thread where the agent posts updates. Sessions contain activities that record the agent's observable steps and can be linked to pull requests created during the work.
 """
 type AgentSession implements Node {
@@ -1593,13 +1601,25 @@ type AiConversationErrorPart implements AiConversationBasePart {
 
   """The type of the part."""
   type: AiConversationPartType!
+
+  """
+  The time when the breached usage limit resets, as an ISO 8601 string. Null when unknown or for other error categories.
+  """
+  usageLimitResetsAt: String
+
+  """
+  The scope of the breached limit for usage-limit errors. Null for other error categories.
+  """
+  usageLimitScope: AgentAutomationUsageLimitScope
 }
 
 """The category of an error part in an AI conversation."""
 enum AiConversationErrorType {
   billing
+  featureDisabled
   unknown
   untrustedSources
+  usageLimit
 }
 
 """An event part in an AI conversation."""
@@ -7717,6 +7737,9 @@ input DocumentFilter {
   """Compound filters, one of which need to be matched by the document."""
   or: [DocumentFilter!]
 
+  """Filters that the document's owner must satisfy."""
+  owner: NullableUserFilter
+
   """Filters that the document's project must satisfy."""
   project: ProjectFilter
 
@@ -8776,6 +8799,23 @@ input EntityExternalLinkUpdateInput {
 
   """The URL of the link."""
   url: String
+}
+
+"""
+Comparator for project and initiative identifiers. Accepts UUIDs and human-readable identifiers (e.g. "PROJ-123").
+"""
+input EntityIdentifierIDComparator {
+  """Equals constraint."""
+  eq: ID
+
+  """In-array constraint."""
+  in: [ID!]
+
+  """Not-equals constraint."""
+  neq: ID
+
+  """Not-in-array constraint."""
+  nin: [ID!]
 }
 
 """Comparator for estimates."""
@@ -10690,6 +10730,9 @@ input InitiativeCollectionFilter {
   """Filters that the initiative creator must satisfy."""
   creator: NullableUserFilter
 
+  """[Internal] Comparator for the initiative's custom identifier."""
+  customIdentifier: NullableStringComparator
+
   """Filters that needs to be matched by all initiatives."""
   every: InitiativeFilter
 
@@ -10702,7 +10745,7 @@ input InitiativeCollectionFilter {
   healthWithAge: StringComparator
 
   """Comparator for the identifier."""
-  id: IDComparator
+  id: EntityIdentifierIDComparator
 
   """Filters that the initiative updates must satisfy."""
   initiativeUpdates: InitiativeUpdatesCollectionFilter
@@ -10852,6 +10895,9 @@ input InitiativeFilter {
   """Filters that the initiative creator must satisfy."""
   creator: NullableUserFilter
 
+  """[Internal] Comparator for the initiative's custom identifier."""
+  customIdentifier: NullableStringComparator
+
   """Comparator for the initiative health: onTrack, atRisk, offTrack"""
   health: StringComparator
 
@@ -10861,7 +10907,7 @@ input InitiativeFilter {
   healthWithAge: StringComparator
 
   """Comparator for the identifier."""
-  id: IDComparator
+  id: EntityIdentifierIDComparator
 
   """Filters that the initiative updates must satisfy."""
   initiativeUpdates: InitiativeUpdatesCollectionFilter
@@ -19152,6 +19198,11 @@ type Mutation {
     """The Zendesk OAuth code."""
     code: String!
 
+    """
+    [INTERNAL] Custom base URL for Zendesk API requests, such as a proxy in front of Zendesk. OAuth requests always use the standard subdomain URL.
+    """
+    customApiUrl: String
+
     """The Zendesk OAuth redirect URI."""
     redirectUri: String!
 
@@ -21947,6 +21998,9 @@ input NullableInitiativeFilter {
   """Filters that the initiative creator must satisfy."""
   creator: NullableUserFilter
 
+  """[Internal] Comparator for the initiative's custom identifier."""
+  customIdentifier: NullableStringComparator
+
   """Comparator for the initiative health: onTrack, atRisk, offTrack"""
   health: StringComparator
 
@@ -21956,7 +22010,7 @@ input NullableInitiativeFilter {
   healthWithAge: StringComparator
 
   """Comparator for the identifier."""
-  id: IDComparator
+  id: EntityIdentifierIDComparator
 
   """Filters that the initiative updates must satisfy."""
   initiativeUpdates: InitiativeUpdatesCollectionFilter
@@ -22345,6 +22399,9 @@ input NullableProjectFilter {
   """Filters that the projects creator must satisfy."""
   creator: UserFilter
 
+  """[Internal] Comparator for the project's custom identifier."""
+  customIdentifier: NullableStringComparator
+
   """Count of customers"""
   customerCount: NumberComparator
 
@@ -22380,7 +22437,7 @@ input NullableProjectFilter {
   healthWithAge: StringComparator
 
   """Comparator for the identifier."""
-  id: IDComparator
+  id: EntityIdentifierIDComparator
 
   """Filters that the projects initiatives must satisfy."""
   initiatives: InitiativeCollectionFilter
@@ -22396,6 +22453,9 @@ input NullableProjectFilter {
 
   """Filters that the projects lead must satisfy."""
   lead: NullableUserFilter
+
+  """[ALPHA] Filters that the project's lead team must satisfy."""
+  leadTeam: NullableTeamFilter
 
   """Filters that the projects members must satisfy."""
   members: UserCollectionFilter
@@ -25945,6 +26005,9 @@ input ProjectCollectionFilter {
   """Filters that the projects creator must satisfy."""
   creator: UserFilter
 
+  """[Internal] Comparator for the project's custom identifier."""
+  customIdentifier: NullableStringComparator
+
   """Count of customers"""
   customerCount: NumberComparator
 
@@ -25983,7 +26046,7 @@ input ProjectCollectionFilter {
   healthWithAge: StringComparator
 
   """Comparator for the identifier."""
-  id: IDComparator
+  id: EntityIdentifierIDComparator
 
   """Filters that the projects initiatives must satisfy."""
   initiatives: InitiativeCollectionFilter
@@ -25999,6 +26062,9 @@ input ProjectCollectionFilter {
 
   """Filters that the projects lead must satisfy."""
   lead: NullableUserFilter
+
+  """[ALPHA] Filters that the project's lead team must satisfy."""
+  leadTeam: NullableTeamFilter
 
   """Comparator for the collection length."""
   length: NumberComparator
@@ -26193,6 +26259,9 @@ input ProjectFilter {
   """Filters that the projects creator must satisfy."""
   creator: UserFilter
 
+  """[Internal] Comparator for the project's custom identifier."""
+  customIdentifier: NullableStringComparator
+
   """Count of customers"""
   customerCount: NumberComparator
 
@@ -26228,7 +26297,7 @@ input ProjectFilter {
   healthWithAge: StringComparator
 
   """Comparator for the identifier."""
-  id: IDComparator
+  id: EntityIdentifierIDComparator
 
   """Filters that the projects initiatives must satisfy."""
   initiatives: InitiativeCollectionFilter
@@ -26244,6 +26313,9 @@ input ProjectFilter {
 
   """Filters that the projects lead must satisfy."""
   lead: NullableUserFilter
+
+  """[ALPHA] Filters that the project's lead team must satisfy."""
+  leadTeam: NullableTeamFilter
 
   """Filters that the projects members must satisfy."""
   members: UserCollectionFilter
@@ -28841,6 +28913,11 @@ type PullRequest implements Node {
   checks: [PullRequestCheck!]!
 
   """
+  The time at which the pull request was closed. Hosting providers also set this when a pull request is merged, so read `status` to tell a closed pull request from a merged one. Null while the pull request is still open.
+  """
+  closedAt: DateTime
+
+  """
   [ALPHA] The commits included in the pull request, synced from the hosting provider. Includes metadata such as SHA, message, diff stats, and author information.
   """
   commits: [PullRequestCommit!]!
@@ -28854,12 +28931,22 @@ type PullRequest implements Node {
   creator: User
 
   """
+  Whether the source branch has conflicts with the target branch. When true, the conflicts must be resolved before the pull request can be merged. This is reported separately from `mergeStatus`, which describes whether the pull request is blocked by required approvals or checks.
+  """
+  hasConflicts: Boolean!
+
+  """
   The Git SHA of the latest commit on the source branch. Updated as new commits are pushed. Null if not yet synced.
   """
   headSha: String
 
   """The unique identifier of the entity."""
   id: ID!
+
+  """
+  Whether the source branch is behind the target branch. When true, the source branch is missing commits that have landed on the target branch since it was last updated.
+  """
+  isBehind: Boolean!
 
   """
   The merge commit created when the pull request was merged. Null if the pull request has not been merged or if the merge commit data is not available.
@@ -28875,6 +28962,11 @@ type PullRequest implements Node {
   The current merge status of the pull request, synced from the hosting provider.
   """
   mergeStatus: String!
+
+  """
+  The time at which the pull request was merged. Null if the pull request has not been merged.
+  """
+  mergedAt: DateTime
 
   """
   The pull request number as assigned by the hosting provider (e.g., #123 on GitHub). Unique within a repository.
@@ -32837,6 +32929,11 @@ type ReleasePipeline implements Node {
   ): ReleaseConnection!
 
   """
+  Whether completing a scheduled release moves its open issues to the next release. When false, open issues remain on the completed release.
+  """
+  rolloverIssuesOnCompletion: Boolean!
+
+  """
   The pipeline's unique slug identifier, used in URLs and for lookup by human-readable identifier instead of UUID.
   """
   slugId: String!
@@ -33000,6 +33097,11 @@ input ReleasePipelineCreateInput {
   name: String!
 
   """
+  Whether completing a scheduled release moves its open issues to the next release. Defaults to true. When false, open issues remain on the completed release.
+  """
+  rolloverIssuesOnCompletion: Boolean
+
+  """
   The pipeline's unique slug identifier. If not provided, it will be auto-generated.
   """
   slugId: String
@@ -33119,6 +33221,11 @@ input ReleasePipelineUpdateInput {
 
   """The name of the pipeline."""
   name: String
+
+  """
+  Whether completing a scheduled release moves its open issues to the next release. When false, open issues remain on the completed release.
+  """
+  rolloverIssuesOnCompletion: Boolean
 
   """The pipeline's unique slug identifier."""
   slugId: String
@@ -39037,6 +39144,11 @@ type ViewPreferencesValues {
   """No longer used. Previously controlled the review preview links field."""
   reviewFieldPreviewLinks: Boolean
 
+  """
+  Whether to show the quick-to-review badge on review list items. Null if the preference is unset.
+  """
+  reviewFieldQuickToReview: Boolean
+
   """Whether to show the review repository field."""
   reviewFieldRepository: Boolean
 
@@ -39863,6 +39975,11 @@ type WorkflowDefinitionNotification implements Entity & Node & Notification {
   actorInitials: String
 
   """
+  [Internal] The AI conversation identifier for the related loop run, if one was created.
+  """
+  aiConversationId: String
+
+  """
   The time at which the entity was archived. Null if the entity has not been archived.
   """
   archivedAt: DateTime
@@ -40245,6 +40362,11 @@ input ZendeskSettingsInput {
   canReadCustomers: Boolean
 
   """
+  [INTERNAL] Custom base URL for Zendesk API requests, such as a proxy in front of Zendesk. When unset, API requests use the standard subdomain URL. OAuth requests always use the standard subdomain URL.
+  """
+  customApiUrl: String
+
+  """
   [ALPHA] Whether customer and customer requests should not be automatically created when conversations are linked to a Linear issue.
   """
   disableCustomerRequestsAutoCreation: Boolean
@@ -40278,6 +40400,8 @@ input ZendeskSettingsInput {
   """
   supportsOAuthRefresh: Boolean
 
-  """The URL of the connected Zendesk organization."""
+  """
+  The URL of the connected Zendesk organization, used to link into Zendesk. API requests use `customApiUrl` when it is set.
+  """
   url: String!
 }
