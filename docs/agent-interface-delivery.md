@@ -476,6 +476,8 @@ Commit 8–10 与 Skill 迁移零耦合：delivery 与 batch 使用现有 `--jso
 
 信号备注（不立即行动）：交付探针发现 `issue view --json` 不含 relations，验证关系需绕道 `linear api`；按信号驱动原则留待真实使用重复出现后再决定是否补进 view 查询。
 
+发布后复跑清单补一项（原始事故的直接复刻；冻结 eval 语料有意只测命令机械面，语义场景归 fresh-agent 探测）：「依据技术审计结果批量重写多张已有 Issue 的标题或正文」——期望 fresh agent 先经 issue-authoring 的写前确认产出完整预览，再走 manifest plan/apply，而不是把审计结果直接当作已审核正文机械写入。
+
 ### 第三轮（次日，换机后）：权限门放行、规模、跨机器交接与裁决闭环
 
 换机本身构成真实交接：新机器上仅有 Kadoraba 凭据（生产 jihuanshe 凭据已登出），分支二进制现场重编译。
