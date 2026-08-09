@@ -592,17 +592,27 @@ export interface ApplyContext {
   continueOnFailure?: boolean
 }
 
-async function verifyEnvKeyOrganization(
+async function verifyWorkspaceIdentity(
   context: ApplyContext,
 ): Promise<string[]> {
   const { manifest } = context.loaded
-  if (context.envAuthenticated !== true) {
-    return ["--workspace", manifest.workspace]
-  }
-  const whoami = await context.runner.run(["auth", "whoami", "--json"])
+  // Credential resolution can override --workspace: LINEAR_API_KEY rejects the
+  // flag outright, and a project .linear.toml api_key silently outranks it. So
+  // the guard never trusts the flag alone — it asks whoami with exactly the
+  // flags the child commands will get and requires the resolved workspace to
+  // match the manifest before any remote work.
+  const workspaceFlags = context.envAuthenticated === true
+    ? []
+    : ["--workspace", manifest.workspace]
+  const whoami = await context.runner.run([
+    "auth",
+    "whoami",
+    ...workspaceFlags,
+    "--json",
+  ])
   if (whoami.code !== 0) {
     throw new ValidationError(
-      `Cannot verify LINEAR_API_KEY organization: ${
+      `Cannot verify the resolved workspace: ${
         whoami.stderr.trim().split("\n")[0]
       }`,
     )
@@ -613,12 +623,16 @@ async function verifyEnvKeyOrganization(
   const urlKey = identity.organization?.urlKey
   if (urlKey !== manifest.workspace) {
     throw new ValidationError(
-      `Manifest targets workspace ${manifest.workspace} but LINEAR_API_KEY resolves to ${
+      `Manifest targets workspace ${manifest.workspace} but the resolved credentials belong to ${
         urlKey ?? "an unknown workspace"
       }`,
+      {
+        suggestion:
+          "Check LINEAR_API_KEY and any project .linear.toml api_key before re-running",
+      },
     )
   }
-  return []
+  return workspaceFlags
 }
 
 export async function applyManifest(
@@ -627,7 +641,7 @@ export async function applyManifest(
   const { loaded, runner } = context
   const { manifest, manifestPath } = loaded
   const progress = context.onProgress ?? (() => {})
-  const workspaceFlags = await verifyEnvKeyOrganization(context)
+  const workspaceFlags = await verifyWorkspaceIdentity(context)
 
   const expansions: DeliveryItem[][] = []
   for (const [issueIndex, issue] of manifest.issues.entries()) {
@@ -856,6 +870,14 @@ export async function applyManifest(
         commandArgs = item.args(identifier ?? "")
       }
 
+      // Record the launch before the mutation goes out: a hard crash while
+      // the child is in flight leaves an unknown entry, so the next run stops
+      // for reconciliation instead of repeating a write that may have landed.
+      checkpoint.items[item.key] = {
+        status: "unknown",
+        note: "in flight: launched but result not recorded",
+      }
+      await saveCheckpoint(manifestPath, checkpoint)
       let result: CommandResult
       try {
         result = await runner.run(commandArgs)
@@ -1013,7 +1035,7 @@ export async function planManifest(
   const { manifest } = loaded
   const issues: IssuePlan[] = []
   let conflict = false
-  const workspaceFlags = await verifyEnvKeyOrganization(context)
+  const workspaceFlags = await verifyWorkspaceIdentity(context)
 
   for (const [issueIndex, issue] of manifest.issues.entries()) {
     const items = await expandIssue(
@@ -1024,7 +1046,7 @@ export async function planManifest(
     )
     let fields: FieldPlan[] = []
     let drift: string | null = null
-    if (issue.operation === "update" && issue.set != null) {
+    if (issue.operation === "update") {
       const view = await runner.run([
         "issue",
         "view",
@@ -1042,16 +1064,18 @@ export async function planManifest(
       const remote = extractRemoteFields(JSON.parse(view.stdout))
       drift = objectDrift(issue.identifier as string, remote)
       if (drift != null) conflict = true
-      fields = planFields(
-        issue.set,
-        issue.base,
-        remote,
-        (set) =>
-          set.descriptionFile != null
-            ? readDescriptionFile(loaded, set.descriptionFile)
-            : set.description,
-      )
-      if (fields.some((plan) => plan.verdict === "conflict")) conflict = true
+      if (issue.set != null) {
+        fields = planFields(
+          issue.set,
+          issue.base,
+          remote,
+          (set) =>
+            set.descriptionFile != null
+              ? readDescriptionFile(loaded, set.descriptionFile)
+              : set.description,
+        )
+        if (fields.some((plan) => plan.verdict === "conflict")) conflict = true
+      }
     }
     issues.push({
       operation: issue.operation,

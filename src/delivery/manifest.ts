@@ -2,6 +2,7 @@ import { encodeHex } from "@std/encoding/hex"
 import { dirname, isAbsolute, join } from "@std/path"
 import * as v from "valibot"
 import { ValidationError } from "../utils/errors.ts"
+import { MAX_FILE_SIZE } from "../utils/upload.ts"
 import { getMimeType } from "../utils/upload.ts"
 
 // The Issue delivery manifest is the single unit that previews and executes a
@@ -134,6 +135,32 @@ function validateIssueShape(issue: DeliveryIssue, label: string): void {
   if (issue.operation === "update" && issue.identifier == null) {
     throw new ValidationError(`${label}: update requires an identifier`)
   }
+  if (issue.operation === "update" && issue.team != null) {
+    throw new ValidationError(
+      `${label}: team only applies to create; this delivery does not move issues between teams`,
+    )
+  }
+  if (
+    issue.operation === "update" && issue.set?.labels != null &&
+    issue.set.labels.length === 0
+  ) {
+    throw new ValidationError(
+      `${label}: set.labels cannot be an empty array; issue update cannot clear the whole label set`,
+      {
+        suggestion:
+          "Remove labels individually with issue update --remove-label",
+      },
+    )
+  }
+  if (issue.operation === "create" && issue.set?.assignee === null) {
+    throw new ValidationError(
+      `${label}: set.assignee null only applies to update; issue create has no unassign flag`,
+      {
+        suggestion:
+          "Omit assignee; creates are unassigned unless issue_create_assign_self config assigns them",
+      },
+    )
+  }
   if (issue.operation === "create") {
     if (issue.identifier != null) {
       throw new ValidationError(
@@ -173,6 +200,11 @@ function validateIssueShape(issue: DeliveryIssue, label: string): void {
     if (comment.body != null && comment.bodyFile != null) {
       throw new ValidationError(
         `${label}: comments[${position}] body and bodyFile are mutually exclusive`,
+      )
+    }
+    if (comment.body != null && comment.body.trim() === "") {
+      throw new ValidationError(
+        `${label}: comments[${position}] body is empty`,
       )
     }
     if (
@@ -225,6 +257,14 @@ async function inventoryFile(
   }
   if (!info.isFile) {
     throw new ValidationError(`Manifest path is not a file: ${reference}`)
+  }
+  if (info.size > MAX_FILE_SIZE) {
+    throw new ValidationError(
+      `Manifest file too large: ${reference} (${info.size} bytes, max ${
+        MAX_FILE_SIZE / 1024 / 1024
+      }MB)`,
+      { suggestion: "The upload path rejects files over 100MB" },
+    )
   }
   const bytes = await Deno.readFile(resolvedPath)
   const digest = await crypto.subtle.digest("SHA-256", bytes)

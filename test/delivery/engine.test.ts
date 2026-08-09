@@ -36,6 +36,17 @@ function fakeRunner(
   return {
     calls,
     run(args: string[]) {
+      // The workspace identity preflight is answered here and kept out of the
+      // recorded calls so scenarios assert only their own command sequences.
+      if (args[0] === "auth" && args[1] === "whoami") {
+        return Promise.resolve(
+          handler(args) ?? {
+            code: 0,
+            stdout: JSON.stringify({ organization: { urlKey: "jihuanshe" } }),
+            stderr: "",
+          },
+        )
+      }
       calls.push(args)
       return Promise.resolve(
         handler(args) ?? { code: 0, stdout: "{}", stderr: "" },
@@ -473,6 +484,114 @@ Deno.test("plan reports object drift as a conflict", async () => {
       loaded: await loadManifest(manifestPath),
       runner,
     })
+    assertEquals(plan.status, "conflict")
+    assertStringIncludes(plan.issues[0].drift ?? "", "archived")
+  } finally {
+    await Deno.remove(dir, { recursive: true })
+  }
+})
+
+Deno.test("apply refuses when resolved credentials mismatch the manifest workspace", async () => {
+  const dir = await Deno.makeTempDir()
+  try {
+    const manifestPath = await writeManifest(dir, {
+      schemaVersion: 1,
+      workspace: "jihuanshe",
+      issues: [{
+        operation: "update",
+        identifier: "DATA-606",
+        set: { title: "New title" },
+      }],
+    })
+    const runner = fakeRunner((args) =>
+      args[0] === "auth" && args[1] === "whoami"
+        ? {
+          code: 0,
+          stdout: JSON.stringify({ organization: { urlKey: "kadoraba" } }),
+          stderr: "",
+        }
+        : undefined
+    )
+    await assertRejects(
+      async () =>
+        await applyManifest({
+          loaded: await loadManifest(manifestPath),
+          runner,
+        }),
+      ValidationError,
+      "belong to kadoraba",
+    )
+    // The refusal happens before any remote command beyond the probe.
+    assertEquals(runner.calls.length, 0)
+  } finally {
+    await Deno.remove(dir, { recursive: true })
+  }
+})
+
+Deno.test("a launched mutation is checkpointed before its result", async () => {
+  const dir = await Deno.makeTempDir()
+  try {
+    const manifestPath = await writeManifest(dir, {
+      schemaVersion: 1,
+      workspace: "jihuanshe",
+      issues: [{
+        operation: "create",
+        team: "DATA",
+        set: { title: "New issue" },
+      }],
+    })
+    let inFlight: string | null = null
+    const runner = fakeRunner((args) => {
+      if (args[1] === "create") {
+        const checkpoint = JSON.parse(
+          Deno.readTextFileSync(checkpointPath(manifestPath)),
+        ) as { items: Record<string, { status: string }> }
+        inFlight = Object.values(checkpoint.items)[0]?.status ?? null
+        return {
+          code: 0,
+          stdout: JSON.stringify({ issue: { identifier: "DATA-700" } }),
+          stderr: "",
+        }
+      }
+      return undefined
+    })
+    const outcome = await applyManifest({
+      loaded: await loadManifest(manifestPath),
+      runner,
+    })
+    assertEquals(outcome.status, "completed")
+    assertEquals(inFlight, "unknown")
+    const final = JSON.parse(
+      await Deno.readTextFile(checkpointPath(manifestPath)),
+    ) as { items: Record<string, { status: string }> }
+    assertEquals(Object.values(final.items)[0].status, "applied")
+  } finally {
+    await Deno.remove(dir, { recursive: true })
+  }
+})
+
+Deno.test("plan reads comment-only update targets", async () => {
+  const dir = await Deno.makeTempDir()
+  try {
+    const manifestPath = await writeManifest(dir, {
+      schemaVersion: 1,
+      workspace: "jihuanshe",
+      issues: [{
+        operation: "update",
+        identifier: "DATA-606",
+        comments: [{ body: "evidence" }],
+      }],
+    })
+    const runner = fakeRunner((args) =>
+      args[1] === "view"
+        ? viewResult({ archivedAt: "2026-01-01T00:00:00.000Z" })
+        : undefined
+    )
+    const plan = await planManifest({
+      loaded: await loadManifest(manifestPath),
+      runner,
+    })
+    assertEquals(runner.calls.some((call) => call[1] === "view"), true)
     assertEquals(plan.status, "conflict")
     assertStringIncludes(plan.issues[0].drift ?? "", "archived")
   } finally {

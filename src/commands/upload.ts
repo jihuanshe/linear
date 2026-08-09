@@ -1,8 +1,9 @@
 import { Command } from "@cliffy/command"
-import { handleError } from "../utils/errors.ts"
+import { handleError, ValidationError } from "../utils/errors.ts"
 import {
   formatAsMarkdownLink,
   getMimeType,
+  MAX_FILE_SIZE,
   resolveMakePublic,
   uploadFile,
   type UploadResult,
@@ -48,6 +49,13 @@ export const uploadCommand = withUsageMetadata(
       try {
         for (const file of files) {
           await validateFilePath(file)
+          const info = await Deno.stat(file)
+          if (info.size > MAX_FILE_SIZE) {
+            throw new ValidationError(
+              `File too large: ${file} (max ${MAX_FILE_SIZE / 1024 / 1024}MB)`,
+              { suggestion: "Please upload a file smaller than 100MB" },
+            )
+          }
           resolveMakePublic(getMimeType(file), options.public)
         }
 

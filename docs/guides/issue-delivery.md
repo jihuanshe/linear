@@ -83,7 +83,7 @@ linear issue plan --file delivery.json            # 零写入预览：字段 ver
 linear issue apply --file delivery.json --confirm-workspace jihuanshe
 ```
 
-plan 是可选预览，不是强制仪式；apply 自己会重复全部校验。`--confirm-workspace` 必须重复 manifest 里的 workspace，防止把准备好的 manifest 打到错误目标——它不是授权，写入授权始终来自宿主和用户。
+plan 是可选预览，不是强制仪式。apply 在第一笔写入前重复 manifest 与文件校验；三方比较和对象核对发生在每个 Issue 条目自己的写入之前，中途失败由 checkpoint 续跑承接，不做整批远端预读。`--confirm-workspace` 必须重复 manifest 里的 workspace，防止把准备好的 manifest 打到错误目标——它不是授权，写入授权始终来自宿主和用户。
 
 apply 逐执行项返回 applied / failed / unknown / unattempted / skipped，结束后读回每个目标 Issue 的当前视图。
 

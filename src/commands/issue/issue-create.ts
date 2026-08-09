@@ -696,6 +696,18 @@ export const createCommand = withUsageMetadata(new Command(), {
         )
       }
 
+      // --start writes human progress to stdout after the JSON document,
+      // which would break every consumer parsing stdout as JSON.
+      if (json === true && start === true) {
+        throw new ValidationError(
+          "Cannot combine --json with --start",
+          {
+            suggestion:
+              "Create with --json, parse the identifier, then run issue start separately",
+          },
+        )
+      }
+
       // Read description from file if provided
       let finalDescription = description
       if (descriptionFile) {

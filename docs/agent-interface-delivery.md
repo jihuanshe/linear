@@ -522,6 +522,14 @@ fresh agent 拿四个被删 Skill 的原文（skills 仓库 main）逐节对照�
 - 「乐观校验非服务端 CAS」披露进 planFields 注释与 issue-delivery 指南；写前 `auth whoami` 预检与失败留草稿进 issue-authoring；「显式传标识、不靠 branch 推断」进 automation。
 - exe.dev 代理 origin 应取自 Reflection（而非拼接主机名）与环境判定探针两处修入公司知识文件（skills#219 分支）。台账两行随实际去向更正。
 
+### 第七轮（同日）：Codex review 分诊
+
+linear#5 上 13 条 Codex 评论（两批，含 2 条 P1）逐条对源码裁决：10 条成立并修复，3 条按设计拒绝。
+
+修复：进程中断窗口关闭——mutation 发射前先落 in-flight unknown checkpoint，硬崩溃后的续跑被 unknown 闸门拦下而不是重复写入，原先文档接受的「极窄窗口」就此消除；workspace 核身改为无条件——项目级 `.linear.toml` 的 `api_key` 在凭据解析中越过 `--workspace`，whoami 预检现以与子命令相同的 flag 解析身份并比对 manifest workspace；plan 对 comment-only update 也读取目标并做对象核对；manifest 校验新增五类显式拒绝（update 空 labels、update 带 team、create 带 assignee null、空评论正文、超限文件）；`issue create` 拒绝 `--json` 与 `--start` 组合以保住 stdout 协议；`upload` 多文件在首个网络请求前整批验大小。
+
+拒绝：createdIdentifiers 复用风险已被结构漂移守卫覆盖；整批预读 update 冲突与 relation 目标与「批量不是事务、失败由 checkpoint 续跑承接」的设计冲突，预读在 TOCTOU 下只制造假信心——指南措辞已同步澄清 apply 的校验边界。
+
 ## 完成定义
 
 架构在满足以下条件时完成：
