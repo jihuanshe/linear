@@ -18,7 +18,7 @@
 
 ## Development loop
 
-1. Use Deno `2.9.4`. In an Orb, run `.agents/setup` only when the toolchain is missing or broken; elsewhere use `mise install`.
+1. Use Deno `2.9.4`. In an Orb, lifecycle scripts provision the dedicated primary checkout at `$HOME/workspace/repo` and publish its `deno` and source-backed `linear` commands through Orb-owned `~/.local/bin` entries; run `.agents/setup` only when that toolchain is missing or broken. Elsewhere use `mise install`.
 2. Read the owning module and its mirrored tests before editing. Command tests follow the source path, for example `src/commands/issue/issue-view.ts` maps to `test/commands/issue/issue-view.test.ts`.
 3. Add or update tests for behavior changes. Use `deno task test`, or `deno task update-snapshots` only when intentionally updating snapshots. Set `NO_COLOR=1` for snapshot tests.
 4. After changing `graphql/schema.graphql` or a `gql` document in `src/`, run `deno task generate-graphql-types`. Generated GraphQL files are ignored and must not be committed.

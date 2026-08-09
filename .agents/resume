@@ -2,12 +2,22 @@
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
+expected_repo_root="$HOME/workspace/repo"
 deno_version="2.9.4"
 tool_root="$HOME/.local/share/amp/jihuanshe-linear"
-repo_id="$(printf '%s' "$repo_root" | sha256sum | cut -c1-16)"
-bin_dir="$tool_root/checkouts/$repo_id/bin"
+bin_dir="$tool_root/bin"
 deno_bin="$tool_root/deno/$deno_version/deno"
 path_bin_dir="$HOME/.local/bin"
+
+if [[ "${AMP_ORB-}" != "1" ]]; then
+  echo "This lifecycle script is supported only inside an Amp Orb" >&2
+  exit 1
+fi
+
+if [[ "$repo_root" != "$expected_repo_root" ]]; then
+  echo "Orb toolchain setup supports only the primary checkout: $expected_repo_root" >&2
+  exit 1
+fi
 
 if [[ ! -x "$deno_bin" ]]; then
   echo "Deno $deno_version is missing; run .agents/setup to repair the Orb toolchain" >&2
@@ -48,3 +58,31 @@ EOF
 chmod 0755 "$bin_dir/deno" "$bin_dir/linear"
 ln -sfn "$bin_dir/deno" "$path_bin_dir/deno"
 ln -sfn "$bin_dir/linear" "$path_bin_dir/linear"
+
+assert_resolution() {
+  local name="$1"
+  local expected_command="$path_bin_dir/$name"
+  local expected_target="$bin_dir/$name"
+  local resolved
+
+  resolved="$(command -v "$name" 2>/dev/null || true)"
+  if [[ "$resolved" != "$expected_command" ]]; then
+    echo "$name resolves to ${resolved:-nothing}, expected $expected_command" >&2
+    exit 1
+  fi
+
+  if [[ "$(readlink -f -- "$resolved")" != "$(readlink -f -- "$expected_target")" ]]; then
+    echo "$name does not resolve to the Orb wrapper: $expected_target" >&2
+    exit 1
+  fi
+}
+
+assert_resolution deno
+assert_resolution linear
+
+deno_version_output="$("$path_bin_dir/deno" --version)"
+deno_version_line="${deno_version_output%%$'\n'*}"
+if [[ "$deno_version_line" != "deno $deno_version "* ]]; then
+  echo "Expected Deno $deno_version, got: $deno_version_line" >&2
+  exit 1
+fi
