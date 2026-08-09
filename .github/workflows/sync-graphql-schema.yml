@@ -1,0 +1,139 @@
+name: Sync GraphQL schema
+
+on:
+  schedule:
+    - cron: "17 3 * * 1"
+  workflow_dispatch:
+
+concurrency:
+  group: sync-graphql-schema
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  pull-requests: write
+
+env:
+  DENO_VERSION: "2.9.4"
+  NO_COLOR: "1"
+
+jobs:
+  sync:
+    name: Check upstream schema
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+
+      - uses: denoland/setup-deno@v2
+        with:
+          deno-version: ${{ env.DENO_VERSION }}
+
+      - name: Cache Deno dependencies
+        uses: actions/cache@v6
+        with:
+          path: ~/.cache/deno
+          key: deno-${{ runner.os }}-${{ env.DENO_VERSION }}-${{ hashFiles('deno.lock') }}
+          restore-keys: |
+            deno-${{ runner.os }}-${{ env.DENO_VERSION }}-
+
+      - name: Generate baseline GraphQL types
+        run: deno task generate-graphql-types
+
+      - name: Fetch current Linear schema
+        env:
+          LINEAR_API_KEY: ${{ secrets.LINEAR_API_KEY }}
+        shell: bash
+        run: |
+          if [[ -z "$LINEAR_API_KEY" ]]; then
+            echo "Configure the LINEAR_API_KEY Actions secret with a read-only Linear API key." >&2
+            exit 1
+          fi
+          deno run \
+            --allow-all \
+            --frozen \
+            --lock=deno.lock \
+            --quiet \
+            src/main.ts schema -o graphql/schema.graphql
+
+      - id: drift
+        name: Detect schema drift
+        shell: bash
+        run: |
+          if git diff --quiet -- graphql/schema.graphql; then
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+            echo "The checked-in GraphQL schema matches Linear." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+            {
+              echo "## Linear GraphQL schema drift"
+              echo
+              echo '```text'
+              git diff --stat -- graphql/schema.graphql
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Verify updated schema
+        if: steps.drift.outputs.changed == 'true'
+        run: deno task verify-source
+
+      - name: Commit schema update
+        if: steps.drift.outputs.changed == 'true'
+        shell: bash
+        run: |
+          branch="automation/sync-graphql-schema"
+          remote_ref="refs/heads/$branch"
+          remote_sha="$(git ls-remote --heads origin "$remote_ref" | cut -f1)"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -c "$branch"
+          git add graphql/schema.graphql
+          git commit -m "chore: sync Linear GraphQL schema"
+
+          git -c credential.helper= \
+            -c 'credential.helper=!gh auth git-credential' \
+            push origin "HEAD:$remote_ref" \
+            --force-with-lease="$remote_ref:$remote_sha"
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+      - name: Create or update pull request
+        if: steps.drift.outputs.changed == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          branch="automation/sync-graphql-schema"
+          existing="$(
+            gh pr list \
+              --repo "$GITHUB_REPOSITORY" \
+              --head "$branch" \
+              --base "${{ github.event.repository.default_branch }}" \
+              --state open \
+              --json number,isCrossRepository \
+              --jq '[.[] | select(.isCrossRepository == false)] | length'
+          )"
+
+          case "$existing" in
+            1)
+              echo "Updated the existing schema sync pull request." >> "$GITHUB_STEP_SUMMARY"
+              ;;
+            0)
+              url="$(gh pr create \
+                --repo "$GITHUB_REPOSITORY" \
+                --head "$branch" \
+                --base "${{ github.event.repository.default_branch }}" \
+                --title "chore: sync Linear GraphQL schema" \
+                --body $'Automated update from the current Linear GraphQL introspection schema.\n\nThe schema was regenerated and `deno task verify-source` passed before this pull request was opened.')"
+              echo "Opened schema sync pull request: $url" >> "$GITHUB_STEP_SUMMARY"
+              ;;
+            *)
+              echo "Found multiple open schema sync pull requests from this repository." >&2
+              exit 1
+              ;;
+          esac

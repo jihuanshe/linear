@@ -53,4 +53,7 @@ echo "Caching locked dependencies"
 cd "$repo_root"
 "$bin_dir/deno" install --frozen --quiet
 
+echo "Generating GraphQL types"
+"$bin_dir/deno" task generate-graphql-types
+
 echo "Deno $deno_version and the linear source wrapper are ready"
