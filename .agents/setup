@@ -4,11 +4,20 @@ set -euo pipefail
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
 deno_version="2.9.4"
 tool_root="$HOME/.local/share/amp/jihuanshe-linear"
-repo_id="$(printf '%s' "$repo_root" | sha256sum | cut -c1-16)"
-checkout_root="$tool_root/checkouts/$repo_id"
-bin_dir="$checkout_root/bin"
+bin_dir="$tool_root/bin"
 install_dir="$tool_root/deno/$deno_version"
 deno_bin="$install_dir/deno"
+
+if [[ "${AMP_ORB-}" != "1" ]]; then
+  echo "This lifecycle script is supported only inside an Amp Orb" >&2
+  exit 1
+fi
+
+expected_repo_root="$(cd "$HOME/workspace/repo" && pwd -P)"
+if [[ "$repo_root" != "$expected_repo_root" ]]; then
+  echo "Orb toolchain setup supports only the primary checkout: $expected_repo_root" >&2
+  exit 1
+fi
 
 if [[ ! -x "$deno_bin" ]]; then
   echo "Installing Deno $deno_version"
@@ -23,31 +32,6 @@ if [[ ! -x "$deno_bin" ]]; then
 fi
 
 "$repo_root/.agents/resume"
-export PATH="$bin_dir:$PATH"
-
-profile_file=""
-for candidate in "$HOME/.bash_profile" "$HOME/.bash_login" "$HOME/.profile"; do
-  if [[ -e "$candidate" ]]; then
-    profile_file="$candidate"
-    break
-  fi
-done
-profile_file="${profile_file:-$HOME/.bash_profile}"
-profile_marker="# jihuanshe/linear orb toolchain ($repo_root -> $bin_dir)"
-if ! grep -Fqx "$profile_marker" "$profile_file" 2>/dev/null; then
-  cat >> "$profile_file" <<EOF
-
-$profile_marker
-case "\$PWD/" in
-  "$repo_root/"*)
-    case ":\$PATH:" in
-      *":$bin_dir:"*) ;;
-      *) export PATH="$bin_dir:\$PATH" ;;
-    esac
-    ;;
-esac
-EOF
-fi
 
 echo "Caching locked dependencies"
 cd "$repo_root"
