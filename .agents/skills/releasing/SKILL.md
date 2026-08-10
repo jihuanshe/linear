@@ -67,7 +67,7 @@ If the push is rejected because `origin/main` advanced, fetch, rebase, rerun `de
 1. In parallel, run the Linux Keyring integration test and build all five targets.
 2. For each target, produce one install archive, one standalone self-update binary, and their SHA-256 sidecars.
 3. Merge the artifacts; require 10 distributables and 10 checksum sidecars; generate `sha256.sum`.
-4. Create or resume a draft Release, attest the binary assets, then publish it as latest.
+4. Create or resume a draft Release, attest the binary assets, then publish it. Mark it latest only while its commit is still the current `main` head, so an older queued run cannot move latest backward.
 5. After the GitHub Release succeeds, record one completed Linear Release and require its ID and URL to be non-empty and its version to match the GitHub Release version.
 
 The GitHub Release job must not run unless Keyring integration and every target build succeed. The Linear Release job must not run unless the GitHub Release job succeeds.
@@ -81,10 +81,13 @@ timestamp="$(git show -s --format=%ct HEAD)"
 version="0.0.${timestamp}-g$(git rev-parse HEAD | cut -c1-7)"
 gh release view "$version" \
   --json tagName,targetCommitish,isDraft,isPrerelease,url,assets
-test "$(gh api repos/jihuanshe/linear/releases/latest --jq .tag_name)" = "$version"
+git fetch origin main
+if [[ "$(git rev-parse origin/main)" == "$(git rev-parse HEAD)" ]]; then
+  test "$(gh api repos/jihuanshe/linear/releases/latest --jq .tag_name)" = "$version"
+fi
 ```
 
-Require the Release to target the pushed commit, be published, non-prerelease, and latest. It must contain 21 files: 10 distributables, 10 checksum sidecars, and `sha256.sum`.
+Require the Release to target the pushed commit, be published, and be non-prerelease. If the pushed commit is still current `main`, also require it to be latest. It must contain 21 files: 10 distributables, 10 checksum sidecars, and `sha256.sum`.
 
 When mise is available, verify that the public installation resolves to the expected version:
 

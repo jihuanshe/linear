@@ -293,10 +293,15 @@ jobs:
       - name: Publish GitHub rolling release
         if: steps.prepare.outputs.skip != 'true'
         run: |
+          main_sha="$(gh api "repos/$GITHUB_REPOSITORY/commits/main" --jq .sha)"
+          latest=false
+          if [[ "$main_sha" == "$GITHUB_SHA" ]]; then
+            latest=true
+          fi
           gh release edit "$VERSION" \
             --repo "$GITHUB_REPOSITORY" \
             --draft=false \
-            --latest
+            --latest="$latest"
 
       - name: Add release summary
         run: |
