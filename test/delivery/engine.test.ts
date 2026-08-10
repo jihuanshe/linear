@@ -32,6 +32,14 @@ const REMOTE_VIEW = {
   },
   project: null,
   parent: null,
+  relations: {
+    nodes: [],
+    pageInfo: { hasNextPage: false },
+  },
+  inverseRelations: {
+    nodes: [],
+    pageInfo: { hasNextPage: false },
+  },
 }
 
 function fakeRunner(
@@ -176,6 +184,7 @@ Deno.test("plan summarizes create content without duplicating long bodies", asyn
     assertEquals(issue.summary.relations, [{
       type: "related",
       issue: "DATA-580",
+      verdict: "add",
     }])
     assertEquals(JSON.stringify(plan).includes("Preview body"), false)
     assertEquals(JSON.stringify(plan).includes("Evidence caption"), false)
@@ -185,8 +194,255 @@ Deno.test("plan summarizes create content without duplicating long bodies", asyn
     assertStringIncludes(human, "description: file description.md")
     assertStringIncludes(human, "uploads: public")
     assertStringIncludes(human, 'attachment: file evidence.yrp as "Raw replay"')
-    assertStringIncludes(human, "relation: related DATA-580")
+    assertStringIncludes(human, "relation: related DATA-580 — add")
     assertEquals(human.includes("Preview body"), false)
+  } finally {
+    await Deno.remove(dir, { recursive: true })
+  }
+})
+
+Deno.test("relation conflicts refuse an update before any mutation", async () => {
+  const dir = await Deno.makeTempDir()
+  try {
+    const manifestPath = await writeManifest(dir, {
+      schemaVersion: 1,
+      workspace: "jihuanshe",
+      issues: [{
+        operation: "update",
+        identifier: "DATA-606",
+        set: { title: "New title" },
+        comments: [{ body: "Evidence" }],
+        relations: [{ type: "blocks", issue: "DATA-580" }],
+      }],
+    })
+    const existingRelated = viewResult({
+      relations: {
+        nodes: [{
+          type: "related",
+          relatedIssue: { identifier: "DATA-580" },
+        }],
+        pageInfo: { hasNextPage: false },
+      },
+    })
+    const runner = fakeRunner((args) =>
+      args[1] === "view" ? existingRelated : undefined
+    )
+    const loaded = await loadManifest(manifestPath)
+
+    const plan = await planManifest({ loaded, runner })
+    assertEquals(plan.status, "conflict")
+    assertEquals(plan.issues[0].summary.relations?.[0].verdict, "conflict")
+    assertStringIncludes(
+      plan.issues[0].summary.relations?.[0].detail ?? "",
+      "related DATA-580",
+    )
+
+    const outcome = await applyManifest({ loaded, runner })
+    assertEquals(outcome.status, "conflict")
+    assertEquals(
+      outcome.items.map(({ status }) => status),
+      ["unattempted", "unattempted", "failed"],
+    )
+    assertEquals(
+      runner.calls.some((args) =>
+        ["update", "comment", "relation"].includes(args[1])
+      ),
+      false,
+    )
+  } finally {
+    await Deno.remove(dir, { recursive: true })
+  }
+})
+
+Deno.test("equivalent relations checkpoint idempotently without mutation", async () => {
+  const dir = await Deno.makeTempDir()
+  try {
+    const manifestPath = await writeManifest(dir, {
+      schemaVersion: 1,
+      workspace: "jihuanshe",
+      issues: [{
+        operation: "update",
+        identifier: "DATA-606",
+        relations: [{ type: "related", issue: "DATA-580" }],
+      }],
+    })
+    const runner = fakeRunner((args) =>
+      args[1] === "view"
+        ? viewResult({
+          relations: {
+            nodes: [{
+              type: "related",
+              relatedIssue: { identifier: "DATA-580" },
+            }],
+            pageInfo: { hasNextPage: false },
+          },
+        })
+        : undefined
+    )
+    const loaded = await loadManifest(manifestPath)
+    const first = await applyManifest({ loaded, runner })
+
+    assertEquals(first.status, "completed")
+    assertEquals(first.items[0].status, "applied")
+    assertStringIncludes(first.items[0].detail ?? "", "idempotent")
+    assertEquals(
+      runner.calls.filter((args) => args[1] === "relation").length,
+      0,
+    )
+    assertStringIncludes(formatApply(first), "verified DATA-606")
+
+    const viewCallsBeforeResume = runner.calls.filter((args) =>
+      args[1] === "view"
+    ).length
+    const resumed = await applyManifest({ loaded, runner })
+    assertEquals(resumed.status, "completed")
+    assertEquals(resumed.items[0].status, "skipped")
+    assertEquals(
+      runner.calls.filter((args) => args[1] === "view").length -
+        viewCallsBeforeResume,
+      1,
+    )
+  } finally {
+    await Deno.remove(dir, { recursive: true })
+  }
+})
+
+Deno.test("virtual idempotence waits for the preceding relation mutation", async () => {
+  const dir = await Deno.makeTempDir()
+  try {
+    const manifestPath = await writeManifest(dir, {
+      schemaVersion: 1,
+      workspace: "jihuanshe",
+      issues: [{
+        operation: "update",
+        identifier: "DATA-606",
+        relations: [
+          { type: "related", issue: "DATA-580" },
+          { type: "related", issue: "DATA-580" },
+        ],
+      }],
+    })
+    let relationCalls = 0
+    const runner = fakeRunner((args) => {
+      if (args[1] === "view") return viewResult()
+      if (args[1] === "relation") {
+        relationCalls += 1
+        return { code: 1, stdout: "", stderr: "✗ relation failed" }
+      }
+      return undefined
+    })
+    const outcome = await applyManifest({
+      loaded: await loadManifest(manifestPath),
+      runner,
+      continueOnFailure: true,
+    })
+
+    assertEquals(outcome.status, "completed-with-failures")
+    assertEquals(outcome.items.map(({ status }) => status), [
+      "failed",
+      "failed",
+    ])
+    assertEquals(relationCalls, 2)
+    const checkpoint = JSON.parse(
+      await Deno.readTextFile(checkpointPath(manifestPath)),
+    ) as { items: Record<string, { status: string }> }
+    assertEquals(
+      Object.values(checkpoint.items).map(({ status }) => status),
+      ["failed", "failed"],
+    )
+  } finally {
+    await Deno.remove(dir, { recursive: true })
+  }
+})
+
+Deno.test("relation conflicts preserve applied checkpoint items on resume", async () => {
+  const dir = await Deno.makeTempDir()
+  try {
+    const manifestPath = await writeManifest(dir, {
+      schemaVersion: 1,
+      workspace: "jihuanshe",
+      issues: [{
+        operation: "update",
+        identifier: "DATA-606",
+        set: { title: "New title" },
+        relations: [{ type: "blocks", issue: "DATA-580" }],
+      }],
+    })
+    let relationConflict = false
+    let relationCalls = 0
+    const runner = fakeRunner((args) => {
+      if (args[1] === "view") {
+        return relationConflict
+          ? viewResult({
+            title: "New title",
+            relations: {
+              nodes: [{
+                type: "related",
+                relatedIssue: { identifier: "DATA-580" },
+              }],
+              pageInfo: { hasNextPage: false },
+            },
+          })
+          : viewResult()
+      }
+      if (args[1] === "relation") {
+        relationCalls += 1
+        return { code: 1, stdout: "", stderr: "✗ relation failed" }
+      }
+      return undefined
+    })
+    const loaded = await loadManifest(manifestPath)
+    const first = await applyManifest({ loaded, runner })
+    assertEquals(first.status, "stopped-on-failure")
+    assertEquals(first.items.map(({ status }) => status), ["applied", "failed"])
+
+    relationConflict = true
+    const resumed = await applyManifest({ loaded, runner })
+    assertEquals(resumed.status, "conflict")
+    assertEquals(resumed.items.map(({ status }) => status), [
+      "skipped",
+      "failed",
+    ])
+    assertEquals(resumed.verification[0].status, "verified")
+    assertEquals(relationCalls, 1)
+  } finally {
+    await Deno.remove(dir, { recursive: true })
+  }
+})
+
+Deno.test("conflicting create relations refuse before creating the issue", async () => {
+  const dir = await Deno.makeTempDir()
+  try {
+    const manifestPath = await writeManifest(dir, {
+      schemaVersion: 1,
+      workspace: "jihuanshe",
+      issues: [{
+        operation: "create",
+        team: "DATA",
+        set: { title: "New issue" },
+        relations: [
+          { type: "related", issue: "DATA-580" },
+          { type: "blocks", issue: "DATA-580" },
+        ],
+      }],
+    })
+    const runner = fakeRunner(() => undefined)
+    const loaded = await loadManifest(manifestPath)
+
+    const plan = await planManifest({ loaded, runner })
+    assertEquals(plan.status, "conflict")
+    assertEquals(
+      plan.issues[0].summary.relations?.map(({ verdict }) => verdict),
+      ["add", "conflict"],
+    )
+
+    const outcome = await applyManifest({ loaded, runner })
+    assertEquals(outcome.status, "conflict")
+    assertEquals(
+      outcome.items.map(({ status }) => status),
+      ["unattempted", "unattempted", "failed"],
+    )
+    assertEquals(runner.calls.length, 0)
   } finally {
     await Deno.remove(dir, { recursive: true })
   }
@@ -447,7 +703,7 @@ Deno.test("apply reports successful mutations with failed read-back as unverifie
         outcome.verification[0].detail ?? "",
         testCase.detail,
       )
-      assertStringIncludes(formatApply(outcome), "failed  DATA-606")
+      assertStringIncludes(formatApply(outcome), "failed DATA-606")
     } finally {
       await Deno.remove(dir, { recursive: true })
     }

@@ -117,7 +117,11 @@ export function formatPlan(plan: PlanOutcome): string {
       )
     }
     for (const relation of issue.summary.relations ?? []) {
-      lines.push(`  relation: ${relation.type} ${relation.issue}`)
+      lines.push(
+        `  relation: ${relation.type} ${relation.issue} — ${relation.verdict}${
+          relation.detail == null ? "" : ` (${relation.detail})`
+        }`,
+      )
     }
     lines.push("  execution:")
     for (const item of issue.items) {

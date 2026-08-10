@@ -149,6 +149,19 @@ Deno.test("manifest validation fails before any mutation could run", async (t) =
       "estimate",
     ],
     [
+      "relation target needs a complete identifier",
+      {
+        schemaVersion: 1,
+        workspace: "jihuanshe",
+        issues: [{
+          operation: "update",
+          identifier: "DATA-1",
+          relations: [{ type: "related", issue: "580" }],
+        }],
+      },
+      "complete Linear issue identifier",
+    ],
+    [
       "missing referenced file",
       {
         schemaVersion: 1,
@@ -173,6 +186,21 @@ Deno.test("manifest validation fails before any mutation could run", async (t) =
       })
     })
   }
+})
+
+Deno.test("manifest normalizes relation target identifiers", async () => {
+  await withManifest({
+    schemaVersion: 1,
+    workspace: "jihuanshe",
+    issues: [{
+      operation: "update",
+      identifier: "DATA-1",
+      relations: [{ type: "related", issue: "data-580" }],
+    }],
+  }, async (manifestPath) => {
+    const loaded = await loadManifest(manifestPath)
+    assertEquals(loaded.manifest.issues[0].relations?.[0].issue, "DATA-580")
+  })
 })
 
 Deno.test("manifest inventories referenced files with size, MIME, and sha256", async () => {

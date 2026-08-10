@@ -2,6 +2,7 @@ import { encodeHex } from "@std/encoding/hex"
 import { dirname, isAbsolute, join } from "@std/path"
 import * as v from "valibot"
 import { ValidationError } from "../utils/errors.ts"
+import { normalizeIssueIdentifier } from "../utils/issue-identifier.ts"
 import { MAX_FILE_SIZE } from "../utils/upload.ts"
 import { getMimeType } from "../utils/upload.ts"
 
@@ -76,7 +77,14 @@ const attachmentSchema = v.variant("kind", [
 
 const relationSchema = v.strictObject({
   type: v.picklist(["related", "blocks", "blocked-by", "duplicate"]),
-  issue: v.string(),
+  issue: v.pipe(
+    v.string(),
+    v.check(
+      (value) => normalizeIssueIdentifier(value) != null,
+      "Expected a complete Linear issue identifier like ENG-123",
+    ),
+    v.transform((value) => normalizeIssueIdentifier(value) as string),
+  ),
 })
 
 const issueSchema = v.strictObject({

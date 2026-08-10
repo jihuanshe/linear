@@ -521,7 +521,7 @@ linear issue plan --file delivery.json
 `plan` 必须：
 
 1. 对远端零写入；允许只读解析 workspace、Issue、字段值和 IssueRelation target。
-2. 输出与风险相称的结构化执行摘要：create 展示目标、标题和关键归属，长正文显示 inline/file 来源与大小，文件正文附 hash，并逐项列出 Comment 上传公开性、文件、Attachment 和 IssueRelation；update 展示本次字段的三方 verdict。plan 不复制完整长正文，也不充当人类审批界面；同 URL 的 Attachment 可能更新既有对象。
+2. 输出与风险相称的结构化执行摘要：create 展示目标、标题和关键归属，长正文显示 inline/file 来源与大小，文件正文附 hash，并逐项列出 Comment 上传公开性、文件、Attachment 和 IssueRelation；update 展示本次字段的三方 verdict，IssueRelation 展示 add/idempotent/conflict。同一对 Issue 已有不同类型或方向的关系时必须拒绝，不能让 Linear 的 create mutation 隐式替换旧关系。plan 不复制完整长正文，也不充当人类审批界面；同 URL 的 Attachment 可能更新既有对象。
 3. 在第一笔 mutation 前验证整个 manifest 的全部本地文件，包括存在性、可读性、大小和 MIME。
 4. 对 update 只比较本次要修改的字段，沿用现有 batch 对 workspace、目标 Issue、team、workflow state 和字段变化的保护。这是 CLI 拥有的并发安全兜底：AI 准备材料需要时间，期间上游 Issue 可能已被他人修改。无关评论或 Attachment 变化不制造冲突。
 5. 输出确定的执行顺序、解析结果、文件 size/MIME/SHA-256 和结构化机器结果。

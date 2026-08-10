@@ -43,7 +43,7 @@ export function formatApply(outcome: ApplyOutcome): string {
     lines.push("", "verification:")
     for (const result of outcome.verification) {
       lines.push(
-        `  ${result.status.padEnd(8)}${result.target}${
+        `  ${result.status} ${result.target}${
           result.url != null
             ? ` — ${result.url}`
             : result.detail == null

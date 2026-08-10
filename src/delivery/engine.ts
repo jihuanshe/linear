@@ -1,11 +1,16 @@
 import { encodeHex } from "@std/encoding/hex"
 import { fromFileUrl } from "@std/path"
 import { CliError, ValidationError } from "../utils/errors.ts"
+import {
+  EMPTY_ISSUE_RELATION_SNAPSHOT,
+  extractIssueRelationSnapshot,
+  type IssueRelationPlan,
+  planIssueRelations,
+} from "../utils/linear.ts"
 import type {
   DeliveryAttachment,
   DeliveryBase,
   DeliveryIssue,
-  DeliveryRelation,
   DeliverySet,
   LoadedManifest,
   ManifestFile,
@@ -785,6 +790,7 @@ export async function applyManifest(
     // straight to final verification: otherwise a transient read-back failure
     // would be misclassified as a mutation preflight failure on resume.
     let remote: RemoteFields | null = null
+    let remoteView: unknown = null
     let issueHalted = false
     const hasPendingItems = items.some((item) =>
       checkpoint.items[item.key]?.status !== "applied"
@@ -815,7 +821,8 @@ export async function applyManifest(
         }
         issueHalted = true
       } else {
-        remote = extractRemoteFields(JSON.parse(view.stdout))
+        remoteView = JSON.parse(view.stdout)
+        remote = extractRemoteFields(remoteView)
         const drift = objectDrift(issue.identifier as string, remote)
         if (drift != null) {
           results.push({
@@ -832,6 +839,37 @@ export async function applyManifest(
       }
     }
 
+    const relationPlans = new Map<number, IssueRelationPlan>()
+    if (!issueHalted) {
+      const pendingRelationItems = items.filter((item) =>
+        item.kind === "relation" &&
+        checkpoint.items[item.key]?.status !== "applied"
+      )
+      if (pendingRelationItems.length > 0) {
+        const requests = pendingRelationItems.map((item) => {
+          const request = issue.relations?.[item.subIndex]
+          if (request == null) {
+            throw new CliError(
+              `Manifest relation ${item.subIndex} is missing from issue ${issueIndex}`,
+            )
+          }
+          return request
+        })
+        const snapshot = issue.operation === "create"
+          ? EMPTY_ISSUE_RELATION_SNAPSHOT
+          : extractIssueRelationSnapshot(remoteView)
+        const planned = planIssueRelations(requests, snapshot)
+        for (const [index, plan] of planned.entries()) {
+          relationPlans.set(pendingRelationItems[index].subIndex, plan)
+        }
+        if (planned.some((plan) => plan.verdict === "conflict")) {
+          conflictSeen = true
+          halted = !continueOnFailure
+          issueHalted = true
+        }
+      }
+    }
+
     let identifier = issue.identifier ??
       checkpoint.createdIdentifiers[String(issueIndex)] ?? null
     // Successful mutations and checkpoint skips both need a final read-back.
@@ -841,15 +879,6 @@ export async function applyManifest(
     let issueNeedsVerification = false
 
     for (const item of items) {
-      if (halted || issueHalted) {
-        results.push({
-          key: item.key,
-          kind: item.kind,
-          describe: item.describe,
-          status: "unattempted",
-        })
-        continue
-      }
       const recorded = checkpoint.items[item.key]
       if (recorded?.status === "applied") {
         issueNeedsVerification = true
@@ -859,6 +888,30 @@ export async function applyManifest(
           describe: item.describe,
           status: "skipped",
           detail: "already applied per checkpoint",
+        })
+        continue
+      }
+      const relationPlan = item.kind === "relation"
+        ? relationPlans.get(item.subIndex)
+        : undefined
+      if (relationPlan?.verdict === "conflict") {
+        results.push({
+          key: item.key,
+          kind: item.kind,
+          describe: item.describe,
+          status: "failed",
+          detail: `conflict: ${
+            relationPlan.detail ?? "relation would replace an existing edge"
+          }`,
+        })
+        continue
+      }
+      if (halted || issueHalted) {
+        results.push({
+          key: item.key,
+          kind: item.kind,
+          describe: item.describe,
+          status: "unattempted",
         })
         continue
       }
@@ -904,6 +957,23 @@ export async function applyManifest(
           })
           continue
         }
+      }
+
+      if (
+        relationPlan?.verdict === "idempotent" &&
+        relationPlan.idempotentSource === "remote"
+      ) {
+        checkpoint.items[item.key] = { status: "applied", note: "idempotent" }
+        await saveCheckpoint(manifestPath, checkpoint)
+        issueNeedsVerification = true
+        results.push({
+          key: item.key,
+          kind: item.kind,
+          describe: item.describe,
+          status: "applied",
+          detail: "idempotent: equivalent relation already exists",
+        })
+        continue
       }
 
       if (identifier == null && item.kind !== "fields") {
@@ -1173,7 +1243,7 @@ export interface IssuePlanSummary {
   set?: PlanSet
   comments?: PlanComment[]
   attachments?: PlanAttachment[]
-  relations?: DeliveryRelation[]
+  relations?: IssueRelationPlan[]
 }
 
 export interface IssuePlan {
@@ -1225,6 +1295,7 @@ function planContent(
 function summarizeIssue(
   loaded: LoadedManifest,
   issue: DeliveryIssue,
+  relations: IssueRelationPlan[],
 ): IssuePlanSummary {
   let set: PlanSet | undefined
   if (issue.set != null) {
@@ -1249,7 +1320,6 @@ function summarizeIssue(
       ? { ...attachment, file: planFile(loaded, attachment.path) }
       : attachment
   )
-  const relations = issue.relations ?? []
 
   return {
     ...(issue.team == null ? {} : { team: issue.team }),
@@ -1284,6 +1354,7 @@ export async function planManifest(
     )
     let fields: FieldPlan[] = []
     let drift: string | null = null
+    let remoteView: unknown = null
     if (issue.operation === "update") {
       const view = await runner.run([
         "issue",
@@ -1299,7 +1370,8 @@ export async function planManifest(
           }`,
         )
       }
-      const remote = extractRemoteFields(JSON.parse(view.stdout))
+      remoteView = JSON.parse(view.stdout)
+      const remote = extractRemoteFields(remoteView)
       drift = objectDrift(issue.identifier as string, remote)
       if (drift != null) conflict = true
       if (issue.set != null) {
@@ -1315,12 +1387,19 @@ export async function planManifest(
         if (fields.some((plan) => plan.verdict === "conflict")) conflict = true
       }
     }
+    const relations = planIssueRelations(
+      issue.relations ?? [],
+      issue.operation === "create"
+        ? EMPTY_ISSUE_RELATION_SNAPSHOT
+        : extractIssueRelationSnapshot(remoteView),
+    )
+    if (relations.some((plan) => plan.verdict === "conflict")) conflict = true
     issues.push({
       operation: issue.operation,
       target: issue.identifier ?? null,
       drift,
       fields,
-      summary: summarizeIssue(loaded, issue),
+      summary: summarizeIssue(loaded, issue, relations),
       items: items.map(({ key, kind, describe }) => ({ key, kind, describe })),
     })
   }
