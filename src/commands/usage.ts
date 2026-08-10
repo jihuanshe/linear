@@ -106,8 +106,9 @@ const META_OUTPUT_MODES = "Output modes"
 /**
  * Add semantics Cliffy's arguments and options cannot express themselves.
  * `writes` covers commands that can mutate persistent remote or user-configured
- * local state. Transient cache writes and explicit export destinations, such as
- * `schema --output`, do not count.
+ * local state. Transient caches and downloaded read-only copies do not count,
+ * even when their destination is configured; neither do explicit export
+ * destinations such as `schema --output`.
  */
 export function withUsageMetadata<T extends UsageMetadataTarget>(
   command: T,

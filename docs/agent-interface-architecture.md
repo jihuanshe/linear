@@ -233,7 +233,7 @@ JSON 契约目前为 `schemaVersion: 1`。隐藏命令和选项保持隐藏，�
 已完成的第一阶段加固：
 
 - 补充元数据注解与其定义和 action 一起位于叶子命令模块中，而不是父级接线文件里；
-- 一个包含隐藏命令的精确完整性测试，固定了全部能写入持久远端状态或用户配置的本地状态的规范路径（清单的 canonical home 是该测试自身）。`issue view` 被包含在内，因为下载可以写入配置的 `attachment_dir`；瞬态缓存写入和显式导出被排除；
+- 一个包含隐藏命令的精确完整性测试，固定了全部能修改持久远端状态或用户配置本身的规范路径（清单的 canonical home 是该测试自身）。瞬态缓存、下载得到的只读副本和显式导出被排除，因此 `issue view` 不会被误报成 Linear mutation；
 - 测试冻结了 `Writes`、`Interactive`、`Confirmation required unless`、`Output modes` 这些 Cliffy 标签，以及人类 `usage` 输出中的小写标签；
 - 选项省略 `default` 意味着：要么没有可在 usage JSON v1 中表示的静态默认值，要么是动态或不可序列化的默认值，并不必然表示运行时没有默认值；
 - usage JSON v1 的读取方忽略新增字段。Schema 版本 1 在只增加字段时保持有效；移除或改变现有字段的类型需要递增版本。

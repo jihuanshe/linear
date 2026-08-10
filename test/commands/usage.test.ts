@@ -46,7 +46,6 @@ const CANONICAL_WRITES_COMMAND_PATHS = [
   "linear issue relation delete",
   "linear issue start",
   "linear issue update",
-  "linear issue view",
   "linear label create",
   "linear label delete",
   "linear milestone create",
@@ -290,6 +289,9 @@ Deno.test("domain usage --json preserves arguments, aliases, and option types", 
   const query = document.subcommands.find((command) => command.name === "query")
   assertEquals(query?.interactive, true)
   assertEquals(query?.outputModes, ["human", "json"])
+
+  const view = document.subcommands.find((command) => command.name === "view")
+  assertEquals(view?.writes, false)
 })
 
 Deno.test("usage --json exposes required options and canonical alias paths", async () => {

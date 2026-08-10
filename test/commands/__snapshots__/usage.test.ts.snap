@@ -959,7 +959,7 @@ snapshot[`usage JSON v1 freezes its existing fields and types 1`] = `
       ],
       path: "linear issue view",
       usage: "linear issue view [issueId] [options]",
-      writes: true,
+      writes: false,
     },
     {
       aliases: [],
@@ -1921,7 +1921,7 @@ snapshot[`usage JSON v1 freezes its existing fields and types 1`] = `
         },
         {
           arguments: [],
-          description: "Output the mutation result, including resulting labels, as JSON",
+          description: "Output the mutation result, including resulting priority and labels, as JSON",
           flags: [
             "-j",
             "--json",

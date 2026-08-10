@@ -104,7 +104,7 @@ export const updateCommand = withUsageMetadata(new Command(), { writes: true })
   .option("-t, --title <title:string>", "Title of the issue")
   .option(
     "-j, --json",
-    "Output the mutation result, including resulting labels, as JSON",
+    "Output the mutation result, including resulting priority and labels, as JSON",
   )
   .action(
     async (
@@ -392,6 +392,7 @@ export const updateCommand = withUsageMetadata(new Command(), { writes: true })
                 identifier
                 url
                 title
+                priority
                 labels(first: 100) {
                   nodes {
                     id

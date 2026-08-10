@@ -1305,6 +1305,42 @@ Deno.test("Issue Update Command - JSON output contains only the mutation payload
   assertEquals(logs, [JSON.stringify(issueUpdate, null, 2)])
 })
 
+Deno.test("Issue Update Command - JSON output includes resulting priority", async () => {
+  const issueUpdate = {
+    success: true,
+    issue: {
+      id: "issue-existing-123",
+      identifier: "ENG-123",
+      url: "https://linear.app/test-team/issue/ENG-123/existing-title",
+      title: "Existing title",
+      priority: 3,
+      labels: {
+        nodes: [],
+        pageInfo: { hasNextPage: false, endCursor: null },
+      },
+    },
+  }
+  const { cleanup } = await setupMockLinearServer([{
+    queryName: "UpdateIssue",
+    queryIncludes: "priority",
+    variables: { id: "ENG-123", input: { priority: 3 } },
+    response: { data: { issueUpdate } },
+  }])
+  const logs: string[] = []
+  const logStub = stub(console, "log", (...args: unknown[]) => {
+    logs.push(args.map(String).join(" "))
+  })
+
+  try {
+    await updateCommand.parse(["ENG-123", "--priority", "3", "--json"])
+  } finally {
+    logStub.restore()
+    await cleanup()
+  }
+
+  assertEquals(logs, [JSON.stringify(issueUpdate, null, 2)])
+})
+
 Deno.test("Issue Update Command - teamId is sent only for an explicit team move", async () => {
   const { cleanup } = await setupMockLinearServer([
     {
