@@ -1,4 +1,4 @@
-import { assertEquals, assertRejects } from "@std/assert"
+import { assertEquals, assertRejects, assertStringIncludes } from "@std/assert"
 import { join } from "@std/path"
 import { loadManifest } from "../../src/delivery/manifest.ts"
 import { ValidationError } from "../../src/utils/errors.ts"
@@ -201,6 +201,36 @@ Deno.test("manifest normalizes relation target identifiers", async () => {
     const loaded = await loadManifest(manifestPath)
     assertEquals(loaded.manifest.issues[0].relations?.[0].issue, "DATA-580")
   })
+})
+
+Deno.test("manifest rejects duplicate update identifiers", async (t) => {
+  for (
+    const [name, identifiers] of [
+      ["exact duplicate", ["DATA-1", "DATA-1"]],
+      ["case-insensitive duplicate", ["data-1", "DATA-1"]],
+    ] as const
+  ) {
+    await t.step(name, async () => {
+      await withManifest({
+        schemaVersion: 1,
+        workspace: "jihuanshe",
+        issues: identifiers.map((identifier, index) => ({
+          operation: "update",
+          identifier,
+          set: { title: `title ${index}` },
+        })),
+      }, async (manifestPath) => {
+        const error = await assertRejects(
+          () => loadManifest(manifestPath),
+          ValidationError,
+          "duplicate update target",
+        )
+        assertStringIncludes(error.message, "issues[1]")
+        assertStringIncludes(error.message, "issues[0]")
+        assertStringIncludes(error.suggestion ?? "", "one issues[] entry")
+      })
+    })
+  }
 })
 
 Deno.test("manifest inventories referenced files with size, MIME, and sha256", async () => {

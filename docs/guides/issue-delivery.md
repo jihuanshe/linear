@@ -66,6 +66,7 @@ seeAlso:
 
 - 文件路径相对 manifest 所在目录解析；plan 和 apply 都会在第一笔写入前校验整批文件的存在、大小和 MIME。
 - `set` 的字段词表与 `issue create/update` 一致：title、description/descriptionFile、priority、state、assignee（null 表示清除）、labels（完整集合）、project、parent。create 另需把 `team` 放在 Issue 条目顶层，与 `operation` 和 `set` 同级；`team` 不是 `set` 字段。
+- 同一个现有 Issue 在一份 manifest 中只能有一个 update 条目；把它的字段、Comment、Attachment 和 Relation 合并在该条目中。重复 identifier（包括大小写等价形式）会在任何远端读取、checkpoint 或 mutation 前被拒绝，避免后一个条目的 conflict 发生在前一个条目已经写入之后。
 - `comments[].files` 上传文件并内联进评论。`attachments` 的 `url` 与 `file` 两种 kind 都创建侧栏 Attachment：`url` 直接链接外部地址，`file` 通过 `path` 指定要先上传的本地文件。
 - `relations` 的 `issue` 必须使用 `DATA-580` 形态的完整 identifier，类型词表与 `issue relation add` 一致：related、blocks、blocked-by（由 CLI 反转为上游的 blocks）、duplicate。duplicate 的方向：本条目所在 Issue 成为 `issue` 字段所指 Issue 的 duplicate。Linear 的同一对 Issue 只能保留一种关系：同类型和方向按幂等处理，不同类型或方向在 plan/apply 中报告 conflict；需要替换时先用 `issue relation delete` 显式删除旧关系。
 - 已有评论、Attachment 和关系不会被本协议隐式修改或删除；单项修改用对应的专用命令。

@@ -555,6 +555,7 @@ linear issue apply \
 同一个 manifest 的 `issues[]` 同时支持单次和 batch。Batch V1 只额外需要：
 
 - 整批本地可验证输入在首笔 mutation 前验证；远端引用与字段按 Issue 在其首笔 mutation 前验证；
+- 每个现有 Issue 在一份 manifest 中至多出现一个 update 条目；重复 identifier 必须在远端读取和 checkpoint 之前拒绝，调用方把同一 Issue 的全部交付项合并进一个条目；
 - 顺序执行；
 - 逐 Issue、逐请求项 checkpoint；
 - 对确认无副作用的 `failed` 使用 stop/continue 策略；`unknown` 始终立即停止；
