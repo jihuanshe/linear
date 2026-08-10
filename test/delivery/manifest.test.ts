@@ -203,6 +203,29 @@ Deno.test("manifest inventories referenced files with size, MIME, and sha256", a
   }
 })
 
+Deno.test("issue-delivery guide file attachment example parses", async () => {
+  const guide = await Deno.readTextFile(
+    new URL("../../docs/guides/issue-delivery.md", import.meta.url),
+  )
+  const example = guide.match(/```json\n([\s\S]*?)\n```/)
+  if (example == null) {
+    throw new Error("issue-delivery guide has no JSON example")
+  }
+
+  await withManifest(JSON.parse(example[1]), async (manifestPath, dir) => {
+    await Deno.writeTextFile(join(dir, "description.md"), "description")
+    await Deno.writeTextFile(join(dir, "evidence.md"), "evidence")
+    await Deno.writeFile(join(dir, "replay-a.yrp"), new Uint8Array([1, 2, 3]))
+
+    const loaded = await loadManifest(manifestPath)
+    assertEquals(loaded.manifest.issues[0].attachments?.[1], {
+      kind: "file",
+      path: "replay-a.yrp",
+      title: "Raw replay",
+    })
+  })
+})
+
 Deno.test("manifest inventory rejects files over the upload limit", async () => {
   const dir = await Deno.makeTempDir()
   try {

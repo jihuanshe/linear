@@ -1,5 +1,6 @@
 import { Command } from "@cliffy/command"
 import {
+  type PlanContent,
   planManifest,
   type PlanOutcome,
   selfExecRunner,
@@ -16,6 +17,19 @@ import { withUsageMetadata } from "../usage.ts"
 // optional: apply repeats this validation itself (design:
 // docs/agent-interface-architecture.md, "`plan`").
 
+function formatContent(content: PlanContent): string {
+  if (content.source === "inline") {
+    return `inline Markdown (${content.size}B)`
+  }
+  return `file ${content.reference} (${content.size}B, ${content.contentType}, sha256 ${
+    content.sha256.slice(0, 12)
+  }…)`
+}
+
+function formatValue(value: unknown): string {
+  return JSON.stringify(value)
+}
+
 export function formatPlan(plan: PlanOutcome): string {
   const lines: string[] = [
     `workspace: ${plan.workspace}`,
@@ -28,6 +42,36 @@ export function formatPlan(plan: PlanOutcome): string {
     )
     if (issue.drift != null) {
       lines.push(`  refused: ${issue.drift}`)
+    }
+    if (issue.summary.team != null) {
+      lines.push(`  team: ${issue.summary.team}`)
+    }
+    if (issue.operation === "create" && issue.summary.set != null) {
+      const {
+        title,
+        description,
+        priority,
+        state,
+        assignee,
+        labels,
+        project,
+        parent,
+      } = issue.summary.set
+      const entries: Array<[string, unknown]> = [
+        ["title", title],
+        ["priority", priority],
+        ["state", state],
+        ["assignee", assignee],
+        ["labels", labels],
+        ["project", project],
+        ["parent", parent],
+      ]
+      for (const [name, value] of entries) {
+        if (value !== undefined) lines.push(`  ${name}: ${formatValue(value)}`)
+      }
+      if (description != null) {
+        lines.push(`  description: ${formatContent(description)}`)
+      }
     }
     for (const field of issue.fields) {
       const parts = [
@@ -44,8 +88,40 @@ export function formatPlan(plan: PlanOutcome): string {
       }
       lines.push(...parts)
     }
+    for (const [index, comment] of (issue.summary.comments ?? []).entries()) {
+      lines.push(`  comment ${index + 1}:`)
+      if (comment.body != null) {
+        lines.push(`    body: ${formatContent(comment.body)}`)
+      }
+      if (comment.files.length > 0 || comment.public) {
+        lines.push(
+          `    uploads: ${comment.public ? "public" : "private"}`,
+        )
+      }
+      for (const file of comment.files) {
+        lines.push(
+          `    file: ${file.reference} (${file.size}B, ${file.contentType}, sha256 ${
+            file.sha256.slice(0, 12)
+          }…)`,
+        )
+      }
+    }
+    for (const attachment of issue.summary.attachments ?? []) {
+      const title = attachment.title == null
+        ? ""
+        : ` as ${JSON.stringify(attachment.title)}`
+      lines.push(
+        attachment.kind === "url"
+          ? `  attachment: url ${attachment.url}${title}`
+          : `  attachment: file ${attachment.path}${title}`,
+      )
+    }
+    for (const relation of issue.summary.relations ?? []) {
+      lines.push(`  relation: ${relation.type} ${relation.issue}`)
+    }
+    lines.push("  execution:")
     for (const item of issue.items) {
-      lines.push(`  ${item.kind}: ${item.describe}`)
+      lines.push(`    ${item.kind}: ${item.describe}`)
     }
   }
   if (plan.files.length > 0) {

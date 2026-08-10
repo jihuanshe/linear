@@ -341,6 +341,32 @@ const issueDetailsWithCommentsQuery = gql(/* GraphQL */ `
           createdAt
         }
       }
+      relations(first: 250) {
+        nodes {
+          id
+          type
+          relatedIssue {
+            identifier
+            title
+          }
+        }
+        pageInfo {
+          hasNextPage
+        }
+      }
+      inverseRelations(first: 250) {
+        nodes {
+          id
+          type
+          issue {
+            identifier
+            title
+          }
+        }
+        pageInfo {
+          hasNextPage
+        }
+      }
       documents(first: 50) {
         nodes {
           id
@@ -435,6 +461,32 @@ const issueDetailsQuery = gql(/* GraphQL */ `
           sourceType
           metadata
           createdAt
+        }
+      }
+      relations(first: 250) {
+        nodes {
+          id
+          type
+          relatedIssue {
+            identifier
+            title
+          }
+        }
+        pageInfo {
+          hasNextPage
+        }
+      }
+      inverseRelations(first: 250) {
+        nodes {
+          id
+          type
+          issue {
+            identifier
+            title
+          }
+        }
+        pageInfo {
+          hasNextPage
         }
       }
       documents(first: 50) {

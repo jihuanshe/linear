@@ -8,6 +8,8 @@ import {
   normalizeMarkdown,
   planManifest,
 } from "../../src/delivery/engine.ts"
+import { formatApply } from "../../src/commands/issue/issue-apply.ts"
+import { formatPlan } from "../../src/commands/issue/issue-plan.ts"
 import { loadManifest } from "../../src/delivery/manifest.ts"
 import { ValidationError } from "../../src/utils/errors.ts"
 
@@ -51,8 +53,13 @@ function fakeRunner(
         )
       }
       calls.push(args)
+      const result = handler(args)
+      if (result != null) return Promise.resolve(result)
+      if (args[0] === "issue" && args[1] === "view") {
+        return Promise.resolve(viewResult({ identifier: args[2] }))
+      }
       return Promise.resolve(
-        handler(args) ?? { code: 0, stdout: "{}", stderr: "" },
+        { code: 0, stdout: "{}", stderr: "" },
       )
     },
   }
@@ -113,6 +120,73 @@ Deno.test("plan reads update targets and never writes", async () => {
     assertEquals(plan.issues[0].items.length, 4)
     assertEquals(plan.files[0].reference, "evidence.yrp")
     assertEquals(plan.files[0].contentType, "application/octet-stream")
+  } finally {
+    await Deno.remove(dir, { recursive: true })
+  }
+})
+
+Deno.test("plan summarizes create content without duplicating long bodies", async () => {
+  const dir = await Deno.makeTempDir()
+  try {
+    await Deno.writeTextFile(join(dir, "description.md"), "Preview body")
+    await Deno.writeTextFile(join(dir, "comment.md"), "Evidence caption")
+    await Deno.writeFile(join(dir, "evidence.yrp"), new Uint8Array([1, 2, 3]))
+    const manifestPath = await writeManifest(dir, {
+      schemaVersion: 1,
+      workspace: "jihuanshe",
+      issues: [{
+        operation: "create",
+        team: "DATA",
+        set: {
+          title: "Preview title",
+          descriptionFile: "description.md",
+          priority: 2,
+          state: "Todo",
+          assignee: "alex",
+          labels: ["Bug"],
+          project: "Linear CLI",
+        },
+        comments: [{
+          bodyFile: "comment.md",
+          files: [{ path: "evidence.yrp" }],
+          public: true,
+        }],
+        attachments: [{
+          kind: "file",
+          path: "evidence.yrp",
+          title: "Raw replay",
+        }],
+        relations: [{ type: "related", issue: "DATA-580" }],
+      }],
+    })
+    const plan = await planManifest({
+      loaded: await loadManifest(manifestPath),
+      runner: fakeRunner(() => undefined),
+    })
+
+    const issue = plan.issues[0]
+    assertEquals(issue.fields, [])
+    assertEquals(issue.summary.team, "DATA")
+    assertEquals(issue.summary.set?.title, "Preview title")
+    assertEquals(issue.summary.set?.description?.source, "file")
+    assertEquals(issue.summary.comments?.[0].body?.source, "file")
+    assertEquals(issue.summary.comments?.[0].public, true)
+    assertEquals(issue.summary.comments?.[0].files[0].reference, "evidence.yrp")
+    assertEquals(issue.summary.attachments?.[0].kind, "file")
+    assertEquals(issue.summary.relations, [{
+      type: "related",
+      issue: "DATA-580",
+    }])
+    assertEquals(JSON.stringify(plan).includes("Preview body"), false)
+    assertEquals(JSON.stringify(plan).includes("Evidence caption"), false)
+
+    const human = formatPlan(plan)
+    assertStringIncludes(human, 'title: "Preview title"')
+    assertStringIncludes(human, "description: file description.md")
+    assertStringIncludes(human, "uploads: public")
+    assertStringIncludes(human, 'attachment: file evidence.yrp as "Raw replay"')
+    assertStringIncludes(human, "relation: related DATA-580")
+    assertEquals(human.includes("Preview body"), false)
   } finally {
     await Deno.remove(dir, { recursive: true })
   }
@@ -292,7 +366,9 @@ Deno.test("apply creates, threads the identifier, and reads back", async () => {
           stderr: "",
         }
       }
-      if (args[1] === "view") return viewResult({ title: "New issue" })
+      if (args[1] === "view") {
+        return viewResult({ identifier: "DATA-700", title: "New issue" })
+      }
       return undefined
     })
     const loaded = await loadManifest(manifestPath)
@@ -311,8 +387,193 @@ Deno.test("apply creates, threads the identifier, and reads back", async () => {
     assertEquals(kinds[2], "issue link DATA-700")
     assertEquals(kinds[3], "issue relation add")
     assertEquals(outcome.readBack["DATA-700"] != null, true)
+    assertEquals(outcome.verification, [{
+      issueIndex: 0,
+      target: "DATA-700",
+      status: "verified",
+    }])
   } finally {
     await Deno.remove(dir, { recursive: true })
+  }
+})
+
+Deno.test("apply reports successful mutations with failed read-back as unverified", async () => {
+  const cases = [
+    {
+      name: "nonzero view",
+      readBack: {
+        code: 1,
+        stdout: "",
+        stderr: "✗ synthetic read-back failure",
+      },
+      detail: "synthetic read-back failure",
+    },
+    {
+      name: "invalid JSON",
+      readBack: { code: 0, stdout: "not json", stderr: "" },
+      detail: "invalid JSON",
+    },
+  ]
+  for (const testCase of cases) {
+    const dir = await Deno.makeTempDir()
+    try {
+      const manifestPath = await writeManifest(dir, {
+        schemaVersion: 1,
+        workspace: "jihuanshe",
+        issues: [{
+          operation: "update",
+          identifier: "DATA-606",
+          set: { title: "New title" },
+        }],
+      })
+      let viewCalls = 0
+      const runner = fakeRunner((args) => {
+        if (args[1] === "view") {
+          viewCalls += 1
+          return viewCalls === 1 ? viewResult() : testCase.readBack
+        }
+        return undefined
+      })
+      const outcome = await applyManifest({
+        loaded: await loadManifest(manifestPath),
+        runner,
+      })
+
+      assertEquals(outcome.status, "applied-unverified", testCase.name)
+      assertEquals(outcome.items[0].status, "applied")
+      assertEquals(outcome.readBack, {})
+      assertEquals(outcome.verification[0].status, "failed")
+      assertStringIncludes(
+        outcome.verification[0].detail ?? "",
+        testCase.detail,
+      )
+      assertStringIncludes(formatApply(outcome), "failed  DATA-606")
+    } finally {
+      await Deno.remove(dir, { recursive: true })
+    }
+  }
+})
+
+Deno.test("an all-skipped resume retries final read-back", async () => {
+  const dir = await Deno.makeTempDir()
+  try {
+    const manifestPath = await writeManifest(dir, {
+      schemaVersion: 1,
+      workspace: "jihuanshe",
+      issues: [{
+        operation: "update",
+        identifier: "DATA-606",
+        set: { title: "New title" },
+      }],
+    })
+    let viewCalls = 0
+    const runner = fakeRunner((args) => {
+      if (args[1] === "view") {
+        viewCalls += 1
+        return viewCalls === 2
+          ? { code: 1, stdout: "", stderr: "✗ temporary read-back failure" }
+          : viewResult()
+      }
+      return undefined
+    })
+    const first = await applyManifest({
+      loaded: await loadManifest(manifestPath),
+      runner,
+    })
+    assertEquals(first.status, "applied-unverified")
+    const callsBeforeResume = viewCalls
+    const resumed = await applyManifest({
+      loaded: await loadManifest(manifestPath),
+      runner,
+    })
+
+    assertEquals(resumed.status, "completed")
+    assertEquals(resumed.items.map((item) => item.status), ["skipped"])
+    assertEquals(viewCalls - callsBeforeResume, 1)
+    assertEquals(
+      runner.calls.filter((call) => call[1] === "update").length,
+      1,
+    )
+    assertEquals(resumed.verification[0].status, "verified")
+    assertEquals(resumed.readBack["DATA-606"] != null, true)
+  } finally {
+    await Deno.remove(dir, { recursive: true })
+  }
+})
+
+Deno.test("all-skipped verification failures stay applied-unverified", async () => {
+  const cases: Array<[string, CommandResult, string]> = [
+    [
+      "nonzero view",
+      { code: 1, stdout: "", stderr: "✗ read-back unavailable" },
+      "read-back unavailable",
+    ],
+    [
+      "invalid JSON",
+      { code: 0, stdout: "not json", stderr: "" },
+      "invalid JSON",
+    ],
+    [
+      "no issue object",
+      { code: 0, stdout: "null", stderr: "" },
+      "no issue object",
+    ],
+    [
+      "mismatched identifier",
+      {
+        code: 0,
+        stdout: JSON.stringify({ identifier: "DATA-999" }),
+        stderr: "",
+      },
+      "DATA-999",
+    ],
+  ]
+  for (const [name, failedView, detail] of cases) {
+    const dir = await Deno.makeTempDir()
+    try {
+      const manifestPath = await writeManifest(dir, {
+        schemaVersion: 1,
+        workspace: "jihuanshe",
+        issues: [{
+          operation: "update",
+          identifier: "DATA-606",
+          set: { title: "New title" },
+        }],
+      })
+      let failVerification = false
+      let resumedViewCalls = 0
+      const runner = fakeRunner((args) => {
+        if (args[1] === "view") {
+          if (failVerification) {
+            resumedViewCalls += 1
+            return failedView
+          }
+          return viewResult()
+        }
+        return undefined
+      })
+      const first = await applyManifest({
+        loaded: await loadManifest(manifestPath),
+        runner,
+      })
+      assertEquals(first.status, "completed")
+
+      failVerification = true
+      const resumed = await applyManifest({
+        loaded: await loadManifest(manifestPath),
+        runner,
+      })
+      assertEquals(resumed.status, "applied-unverified", name)
+      assertEquals(resumed.items.map((item) => item.status), ["skipped"])
+      assertEquals(resumedViewCalls, 1)
+      assertStringIncludes(resumed.verification[0].detail ?? "", detail)
+      assertEquals(
+        runner.calls.filter((call) => call[1] === "update").length,
+        1,
+      )
+    } finally {
+      await Deno.remove(dir, { recursive: true })
+    }
   }
 })
 

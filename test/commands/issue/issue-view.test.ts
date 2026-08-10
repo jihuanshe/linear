@@ -280,7 +280,7 @@ await snapshotTest({
     const server = new MockLinearServer([
       {
         queryName: "GetIssueDetails",
-        queryIncludes: "documents(first: 50)",
+        queryIncludes: "relations(first: 250)",
         variables: { id: "TEST-246" },
         response: {
           data: {
@@ -320,6 +320,28 @@ await snapshotTest({
                     createdAt: "2024-01-15T10:30:00Z",
                   },
                 ],
+              },
+              relations: {
+                nodes: [{
+                  id: "relation-outgoing",
+                  type: "blocks",
+                  relatedIssue: {
+                    identifier: "TEST-247",
+                    title: "Blocked follow-up",
+                  },
+                }],
+                pageInfo: { hasNextPage: false },
+              },
+              inverseRelations: {
+                nodes: [{
+                  id: "relation-incoming",
+                  type: "related",
+                  issue: {
+                    identifier: "TEST-245",
+                    title: "Related investigation",
+                  },
+                }],
+                pageInfo: { hasNextPage: false },
               },
               documents: {
                 nodes: [
@@ -622,7 +644,7 @@ await snapshotTest({
     const server = new MockLinearServer([
       {
         queryName: "GetIssueDetails",
-        queryIncludes: "documents(first: 50)",
+        queryIncludes: "relations(first: 250)",
         variables: { id: "TEST-246" },
         response: {
           data: {
@@ -662,6 +684,28 @@ await snapshotTest({
                     createdAt: "2024-01-15T10:30:00Z",
                   },
                 ],
+              },
+              relations: {
+                nodes: [{
+                  id: "relation-outgoing",
+                  type: "blocks",
+                  relatedIssue: {
+                    identifier: "TEST-247",
+                    title: "Blocked follow-up",
+                  },
+                }],
+                pageInfo: { hasNextPage: false },
+              },
+              inverseRelations: {
+                nodes: [{
+                  id: "relation-incoming",
+                  type: "related",
+                  issue: {
+                    identifier: "TEST-245",
+                    title: "Related investigation",
+                  },
+                }],
+                pageInfo: { hasNextPage: false },
               },
               documents: {
                 nodes: [

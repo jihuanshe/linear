@@ -46,6 +46,11 @@ seeAlso:
           "kind": "url",
           "url": "https://example.com/source",
           "title": "Source"
+        },
+        {
+          "kind": "file",
+          "path": "replay-a.yrp",
+          "title": "Raw replay"
         }
       ],
       "relations": [{ "type": "related", "issue": "DATA-580" }]
@@ -56,7 +61,7 @@ seeAlso:
 
 - 文件路径相对 manifest 所在目录解析；plan 和 apply 都会在第一笔写入前校验整批文件的存在、大小和 MIME。
 - `set` 的字段词表与 `issue create/update` 一致：title、description/descriptionFile、priority、state、assignee（null 表示清除）、labels（完整集合）、project、parent；create 另需 `team`。
-- `comments[].files` 上传文件并内联进评论。`attachments` 的 `url` 与 `path` 两种 kind 都创建侧栏 Attachment：`url` 直接链接外部地址，`path` 先上传文件。
+- `comments[].files` 上传文件并内联进评论。`attachments` 的 `url` 与 `file` 两种 kind 都创建侧栏 Attachment：`url` 直接链接外部地址，`file` 通过 `path` 指定要先上传的本地文件。
 - `relations` 的类型词表与 `issue relation add` 一致：related、blocks、blocked-by（由 CLI 反转为上游的 blocks）、duplicate。duplicate 的方向：本条目所在 Issue 成为 `issue` 字段所指 Issue 的 duplicate。
 - 已有评论、Attachment 和关系不会被本协议修改或删除；单项修改用对应的专用命令。
 
@@ -83,9 +88,11 @@ linear issue plan --file delivery.json            # 零写入预览：字段 ver
 linear issue apply --file delivery.json --confirm-workspace jihuanshe
 ```
 
-plan 是可选预览，不是强制仪式。apply 在第一笔写入前重复 manifest 与文件校验；三方比较和对象核对发生在每个 Issue 条目自己的写入之前，中途失败由 checkpoint 续跑承接，不做整批远端预读。`--confirm-workspace` 必须重复 manifest 里的 workspace，防止把准备好的 manifest 打到错误目标——它不是授权，写入授权始终来自宿主和用户。
+plan 是可选的安全与执行摘要，不是人类审批界面，也不是每次 create 前的强制仪式。create 展示目标 workspace/team、标题和归属、长正文的来源与大小、Comment 上传公开性、文件、Attachment 和关系，但不把完整长正文复制进终端；需要用户审核 Agent 新拟的正文时，Agent 必须在对话中展示草稿。update 继续展示本次字段的 base/desired/remote verdict。用户已经明确要求按给定内容写入时，不需要为了确认而重复确认。
 
-apply 逐执行项返回 applied / failed / unknown / unattempted / skipped，结束后读回每个目标 Issue 的当前视图。
+apply 在第一笔写入前重复 manifest 与文件校验；三方比较和对象核对发生在每个 Issue 条目自己的写入之前，中途失败由 checkpoint 续跑承接，不做整批远端预读。`--confirm-workspace` 必须重复 manifest 里的 workspace，防止把准备好的 manifest 打到错误目标——它不是授权，写入授权始终来自宿主和用户。
+
+apply 逐执行项返回 applied / failed / unknown / unattempted / skipped，结束后读回每个本次已应用或从 checkpoint 跳过的目标 Issue。mutation 已成功但当前视图读回失败时，执行项仍保持 applied 以免误重试，整体状态返回 applied-unverified 并以非零退出；修复访问后重跑会跳过 mutation，只重试读回。
 
 ## checkpoint 与续跑
 

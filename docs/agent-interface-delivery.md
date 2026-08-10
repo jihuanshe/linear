@@ -244,7 +244,7 @@ Commit 8–10 与 Skill 迁移零耦合：delivery 与 batch 使用现有 `--jso
 - 把 `src/utils/upload.ts` 的上传管道暴露为独立的 `linear upload` 命令，返回 asset URL、public/private 与 MIME 信息；
 - 定义版本化 manifest，直接映射现有 Issue 字段、Comment 正文中的上传文件、Linear Attachment 和 IssueRelation；
 - 让文件路径相对于 manifest 解析；
-- 实现对远端零写入的 plan，并在计划中展示本次请求内容和执行顺序；
+- 实现对远端零写入的 plan，以简洁元数据展示 create 请求范围，以三方 verdict 展示 update，并列出执行顺序；
 - 在第一笔 mutation 前验证整个 manifest 的结构与文件；目标和本次要修改的 Issue 字段在各自 Issue 的第一笔 mutation 前验证；
 - 复用现有 create/update/comment/attach/link/relation 命令实现顺序 apply；
 - 为每个请求项返回准确状态和已知远端 ID/URL；
@@ -266,7 +266,7 @@ Commit 8–10 与 Skill 迁移零耦合：delivery 与 batch 使用现有 `--jso
 - 正文成功、后续文件失败会被报告为部分成功；
 - `unknown` mutation 不被自动重试；
 - fixture 覆盖图片、二进制证据、URL 与本地文件 Attachment、IssueRelation、本机路径泄漏和机械字段更新；
-- apply 完成后返回目标 Issue 的当前视图，但不遍历全部历史对象；
+- apply 完成后返回已应用或从 checkpoint 恢复目标的当前视图；读回失败保留 applied checkpoint，并返回 applied-unverified；
 - `unknown` 立即停止整个 apply 或 batch，直到显式对账。
 
 ### Commit 12：batch composition 与 checkpoint
@@ -341,7 +341,6 @@ Commit 8–10 与 Skill 迁移零耦合：delivery 与 batch 使用现有 `--jso
 
 验证各轮实测留下的全部待信号事项，收拢于此；单次出现不行动，信号重复才排期。证据在各轮验证记录原文。
 
-- `issue view --json` 不含 relations，验证关系需绕道 `linear api`（第一批 fresh-agent 交付探针）。
 - `issue list` 无 `--json`，机器可读列表需绕道 `linear api`（第三轮；与「机器输出字段投影」证据门控同源）。
 - `issue(id).history` 查询返回空 nodes，未分诊（第三轮探针旁证）。
 - checkpoint 不是锁：同一 manifest 并发双执行者互不可见、逐项双写（第四轮实测）。指南已声明单执行者边界；锁文件只在真实交接事故出现后考虑。
@@ -485,9 +484,9 @@ Commit 8–10 与 Skill 迁移零耦合：delivery 与 batch 使用现有 `--jso
 | GraphQL 兜底（读 subscribers）                   | 专用命令查无 → 一次错误猜测（`linear graphql`）→ `guides read graphql` → schema 转储 → `linear api` heredoc        | 通过 |
 | 阴性对照（非 Linear 任务）                       | 全程未触碰 linear                                                                                                  | 通过 |
 
-信号备注（不立即行动）：交付探针发现 `issue view --json` 不含 relations，验证关系需绕道 `linear api`；按信号驱动原则留待真实使用重复出现后再决定是否补进 view 查询。
+信号备注：交付探针当时发现 `issue view --json` 不含 relations，验证关系需绕道 `linear api`；该信号随后在 AI-1102 的真实交付审计中重复，现已补入结构化 view 读回。
 
-发布后复跑清单补一项（原始事故的直接复刻；冻结 eval 语料有意只测命令机械面，语义场景归 fresh-agent 探测）：「依据技术审计结果批量重写多张已有 Issue 的标题或正文」——期望 fresh agent 先经 issue-authoring 的写前确认产出完整预览，再走 manifest plan/apply，而不是把审计结果直接当作已审核正文机械写入。
+发布后复跑清单补一项（原始事故的直接复刻；冻结 eval 语料有意只测命令机械面，语义场景归 fresh-agent 探测）：「依据技术审计结果批量重写多张已有 Issue 的标题或正文」——期望 fresh agent 先经 issue-authoring 在对话中展示用户尚未审核的拟写内容，再走 manifest plan 的三方 verdict 与 apply，而不是把审计结果直接当作已审核正文机械写入。
 
 ### 第三轮（次日，换机后）：权限门放行、规模、跨机器交接与裁决闭环
 
@@ -520,7 +519,7 @@ Commit 8–10 与 Skill 迁移零耦合：delivery 与 batch 使用现有 `--jso
 
 双 fresh-agent 评审（术语一致性对照 Linear 官方文档、语言质量逐句过）后修订五份指南、CLI 文案与快照：
 
-- 上游术语归位：「侧栏链接」并入侧栏 Attachment（`url`/`path` 两种 kind 是同一对象）；blocked-by 标明为 CLI 反转、非上游枚举值；duplicate 方向写明；「Security Settings」改官方路径 Settings > Account > Security & Access；env-key 报错 organization 改 workspace；全 CLI 用户可见文案「issue ID」统一为「issue identifier」（ENG-123 形态）。
+- 上游术语归位：「侧栏链接」并入侧栏 Attachment（`url`/`file` 两种 kind 是同一对象，`file` 通过 `path` 指定本地文件）；blocked-by 标明为 CLI 反转、非上游枚举值；duplicate 方向写明；「Security Settings」改官方路径 Settings > Account > Security & Access；env-key 报错 organization 改 workspace；全 CLI 用户可见文案「issue ID」统一为「issue identifier」（ENG-123 形态）。
 - 词表归一：apply 执行项状态五值以 issue-delivery 指南为唯一来源，issue-authoring 降为指针（修复 4 值/5 值漂移，连带 issue-apply.ts 头注释）；plan 的字段 verdict（write/idempotent/conflict）在指南点名；manifest 层「Issue 条目」与 checkpoint 层「执行项」分层命名；三方比较在 issue-delivery 定义一次。
 - 与实现对齐：checkpoint 描述改为「记录全部已尝试执行项」；分页拼接补触发条件（`--limit 0` 或超单页）；「当前目录配置」写明 config 与目录名的推断机制。
 - 语言：拆花园小径句与双重否定；定义和例子移出括号；「宿主」首次出现处定义；删除对设计的自评句；automation 补「何时读本指南」定位句。
@@ -558,8 +557,8 @@ linear#5 上 13 条 Codex 评论（两批，含 2 条 P1）逐条对源码裁决
 - `linear upload` 让任何 Markdown 位置——描述、评论、表格单元格——都能嵌入已上传的 artifact；
 - 一个文件驱动的 Issue delivery manifest 可以预览并顺序执行 Issue 字段、Comment 及其上传文件、Linear Attachment 和 IssueRelation；
 - batch 复用同一个 manifest，并用简单 checkpoint 避免重复已确认成功的步骤；
-- 创建 Issue、实质性改写标题或正文、发布结论性评论及交付关键证据时可以先完整预览，机械字段更新和普通补充保持轻量；
-- apply 完成后返回每个目标 Issue 的当前视图，只核对本次修改字段和已知请求项；
+- create 可以先查看简洁的目标与交付范围摘要；实质性 update 显示字段三方 verdict，需要审核的新拟正文由 Agent 在对话中展示，机械字段更新和普通补充保持轻量；
+- apply 完成后返回每个已应用或从 checkpoint 恢复的目标 Issue 当前视图，读回失败不得报告 completed；
 - 关键原始证据进入可访问附件，Issue 不依赖创建者机器或原聊天；
 - Issue 关闭原因和仍存在工作的可点击下一跳无歧义；
 - 生成的静态命令手册和每领域参考被移除；
