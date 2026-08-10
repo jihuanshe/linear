@@ -68,7 +68,7 @@ If the push is rejected because `origin/main` advanced, fetch, rebase, rerun `de
 2. For each target, produce one install archive, one standalone self-update binary, and their SHA-256 sidecars.
 3. Merge the artifacts; require 10 distributables and 10 checksum sidecars; generate `sha256.sum`.
 4. Create or resume a draft Release, attest the binary assets, then publish it. Mark it latest only while its commit is still the current `main` head, so an older queued run cannot move latest backward.
-5. After the GitHub Release succeeds, record one completed Linear Release and require its ID and URL to be non-empty and its version to match the GitHub Release version.
+5. After the GitHub Release succeeds, record one completed Linear Release from the exact `before..HEAD` push range, and require its ID and URL to be non-empty and its version to match the GitHub Release version.
 
 The GitHub Release job must not run unless Keyring integration and every target build succeed. The Linear Release job must not run unless the GitHub Release job succeeds.
 
@@ -92,7 +92,7 @@ Require the Release to target the pushed commit, be published, and be non-prerel
 When mise is available, verify that the public installation resolves to the expected version:
 
 ```bash
-actual="$(mise x "github:jihuanshe/linear[minimum_release_age=0s]@latest" -- linear --version)"
+actual="$(mise x "github:jihuanshe/linear[minimum_release_age=0s]@$version" -- linear --version)"
 test "$actual" = "linear $version"
 ```
 

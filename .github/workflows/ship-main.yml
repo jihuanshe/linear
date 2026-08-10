@@ -344,6 +344,7 @@ jobs:
           access_key: ${{ secrets.LINEAR_ACCESS_KEY }}
           version: ${{ steps.metadata.outputs.version }}
           name: ${{ steps.metadata.outputs.version }}
+          base_ref: ${{ github.event.before }}
           links: |
             GitHub Release=${{ steps.metadata.outputs.url }}
 
