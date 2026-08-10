@@ -45,4 +45,4 @@
 - `deno task verify-release` is the complete local release gate and the pull request source gate; it runs the source verification, which already validates embedded guide contracts.
 - Do not push or release without explicit user authorization. When asked to ship, load and follow `.agents/skills/releasing/SKILL.md`; it is the only release procedure.
 - The CI release workflow intentionally does not repeat the local release gate. It runs the Linux Keyring integration test, builds five platforms, verifies release assets, attests them, and publishes the GitHub Release.
-- Rolling release runs are serialized. GitHub may replace an older pending `main` run with a newer pending run, so canceled or superseded runs are not published releases and each merge is not guaranteed a distinct release.
+- Rolling release runs are serialized without canceling in-progress work, retain up to 100 pending `main` updates, and publish a distinct release for every successful run.

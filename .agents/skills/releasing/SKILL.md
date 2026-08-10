@@ -11,8 +11,8 @@ Use this procedure only after the user explicitly asks to ship, publish, or rele
 
 - Keep `deno.json` at `0.0.0-dev` in source control.
 - `.github/workflows/ship-main.yml` derives `0.0.<commit timestamp>-g<short commit>` from the pushed commit.
-- A successful, non-superseded `main` run creates the tag and GitHub Release automatically.
-- Release runs are serialized without canceling a run already in progress. GitHub may replace older pending runs with the newest pending `main` update, so do not promise one published release per merge.
+- Each `main` update enters a serialized release queue. A successful run creates the tag and GitHub Release automatically.
+- Release runs do not cancel one already in progress, and the queue retains up to 100 waiting runs.
 - Do not manually bump versions, create release tags, or push tags.
 - Do not create npm, JSR, Homebrew, or cargo-dist releases.
 
@@ -98,6 +98,6 @@ test "$actual" = "linear $version"
 ## Failure handling
 
 - A failed local source check, CI keyring integration check, or build must not produce a published Release. Fix forward with a new `main` commit.
-- A canceled or superseded run is not a published release. A canceled run may leave an invisible draft; do not rerun it after `main` advances, and clean it up later if needed.
-- The fixed concurrency group serializes release runs and does not cancel one already in progress. GitHub may still coalesce multiple waiting `main` updates into the newest pending run. Completed historical Releases remain immutable and downloadable.
+- A canceled run is not a published release and may leave an invisible draft. Do not rerun it after `main` advances; clean it up later if needed.
+- The fixed concurrency group serializes release runs and retains up to 100 pending `main` updates. Completed historical Releases remain immutable and downloadable.
 - If GitHub rejects write permissions, attestations, or Release creation, report the repository setting that blocked it instead of switching to a personal token or private runner.

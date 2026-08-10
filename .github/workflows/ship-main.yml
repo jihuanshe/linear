@@ -6,8 +6,9 @@ on:
       - main
 
 concurrency:
-  group: publish-linear-cli-rolling-release
+  group: ship-main
   cancel-in-progress: false
+  queue: max
 
 permissions:
   contents: read

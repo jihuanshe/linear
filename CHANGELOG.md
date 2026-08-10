@@ -40,7 +40,7 @@ This changelog records the cumulative downstream changes in [`jihuanshe/linear`]
 - Added a local and pull request source gate (`deno task verify-release`) covering GraphQL generation, formatting, linting, type checking, and non-Keyring tests; release CI retains the isolated Linux Keyring integration test.
 - Publish rolling builds from authorized `main` updates for five platforms as install archives and standalone self-update binaries named `0.0.<commit timestamp>-g<short commit>`, with checksums and build provenance.
 - Record each successfully published GitHub Release as one completed Linear Release with the same version and a link to its GitHub Release.
-- Serialize rolling release runs without canceling one already in progress. GitHub may coalesce overlapping waiting `main` updates into the newest pending run, so canceled or superseded runs are not published releases and every merge is not guaranteed a distinct version.
+- Serialize rolling release runs without canceling in-progress work, retain up to 100 pending `main` updates, and publish a distinct version for every successful run.
 - Documented mise installation from `github:jihuanshe/linear`; source-controlled versions remain `0.0.0-dev`.
 - Added `linear update`, delegating mise-managed installs back to mise while checksum-validating and atomically replacing binaries downloaded directly from GitHub Releases.
 
