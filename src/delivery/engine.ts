@@ -1,7 +1,14 @@
 import { encodeHex } from "@std/encoding/hex"
 import { fromFileUrl } from "@std/path"
 import { CliError, ValidationError } from "../utils/errors.ts"
+import {
+  EMPTY_ISSUE_RELATION_SNAPSHOT,
+  extractIssueRelationSnapshot,
+  type IssueRelationPlan,
+  planIssueRelations,
+} from "../utils/linear.ts"
 import type {
+  DeliveryAttachment,
   DeliveryBase,
   DeliveryIssue,
   DeliverySet,
@@ -593,6 +600,7 @@ export interface ItemResult {
 export interface ApplyOutcome {
   status:
     | "completed"
+    | "applied-unverified"
     | "completed-with-failures"
     | "stopped-on-failure"
     | "stopped-on-unknown"
@@ -600,7 +608,16 @@ export interface ApplyOutcome {
   items: ItemResult[]
   summary: Record<ItemStatus, number>
   createdIdentifiers: Record<string, string>
+  verification: VerificationResult[]
   readBack: Record<string, unknown>
+}
+
+export interface VerificationResult {
+  issueIndex: number
+  target: string
+  status: "verified" | "failed"
+  detail?: string
+  url?: string
 }
 
 function classifyFailure(result: CommandResult): "failed" | "unknown" {
@@ -741,14 +758,16 @@ export async function applyManifest(
   checkpoint.manifestSha256 = loaded.manifestSha256
 
   const results: ItemResult[] = []
+  const verification: VerificationResult[] = []
   const readBack: Record<string, unknown> = {}
-  // `halted` controls whether further items run; the three flags remember
+  // `halted` controls whether further items run; the flags remember
   // what happened so the final status reports the strongest signal even when
   // --continue-on-failure kept the run going.
   let halted = false
   let unknownSeen = false
   let conflictSeen = false
   let failedSeen = false
+  let verificationFailedSeen = false
   const continueOnFailure = context.continueOnFailure === true
 
   for (const [issueIndex, issue] of manifest.issues.entries()) {
@@ -766,11 +785,17 @@ export async function applyManifest(
       continue
     }
 
-    // Update issues need the current remote values before the fields step;
-    // conflicts surface before any write.
+    // Update issues with pending work need current remote values before their
+    // first mutation. An all-applied checkpoint skips this preflight and goes
+    // straight to final verification: otherwise a transient read-back failure
+    // would be misclassified as a mutation preflight failure on resume.
     let remote: RemoteFields | null = null
+    let remoteView: unknown = null
     let issueHalted = false
-    if (issue.operation === "update") {
+    const hasPendingItems = items.some((item) =>
+      checkpoint.items[item.key]?.status !== "applied"
+    )
+    if (issue.operation === "update" && hasPendingItems) {
       const view = await runner.run([
         "issue",
         "view",
@@ -796,7 +821,8 @@ export async function applyManifest(
         }
         issueHalted = true
       } else {
-        remote = extractRemoteFields(JSON.parse(view.stdout))
+        remoteView = JSON.parse(view.stdout)
+        remote = extractRemoteFields(remoteView)
         const drift = objectDrift(issue.identifier as string, remote)
         if (drift != null) {
           results.push({
@@ -813,28 +839,79 @@ export async function applyManifest(
       }
     }
 
+    const relationPlans = new Map<number, IssueRelationPlan>()
+    if (!issueHalted) {
+      const pendingRelationItems = items.filter((item) =>
+        item.kind === "relation" &&
+        checkpoint.items[item.key]?.status !== "applied"
+      )
+      if (pendingRelationItems.length > 0) {
+        const requests = pendingRelationItems.map((item) => {
+          const request = issue.relations?.[item.subIndex]
+          if (request == null) {
+            throw new CliError(
+              `Manifest relation ${item.subIndex} is missing from issue ${issueIndex}`,
+            )
+          }
+          return request
+        })
+        const snapshot = issue.operation === "create"
+          ? EMPTY_ISSUE_RELATION_SNAPSHOT
+          : extractIssueRelationSnapshot(remoteView)
+        const planned = planIssueRelations(requests, snapshot)
+        for (const [index, plan] of planned.entries()) {
+          relationPlans.set(pendingRelationItems[index].subIndex, plan)
+        }
+        if (planned.some((plan) => plan.verdict === "conflict")) {
+          conflictSeen = true
+          halted = !continueOnFailure
+          issueHalted = true
+        }
+      }
+    }
+
     let identifier = issue.identifier ??
       checkpoint.createdIdentifiers[String(issueIndex)] ?? null
-    let issueApplied = false
+    // Successful mutations and checkpoint skips both need a final read-back.
+    // A verification failure never changes an applied checkpoint entry: the
+    // write is known to have succeeded and must not be repeated merely because
+    // its current view could not be fetched.
+    let issueNeedsVerification = false
 
     for (const item of items) {
-      if (halted || issueHalted) {
-        results.push({
-          key: item.key,
-          kind: item.kind,
-          describe: item.describe,
-          status: "unattempted",
-        })
-        continue
-      }
       const recorded = checkpoint.items[item.key]
       if (recorded?.status === "applied") {
+        issueNeedsVerification = true
         results.push({
           key: item.key,
           kind: item.kind,
           describe: item.describe,
           status: "skipped",
           detail: "already applied per checkpoint",
+        })
+        continue
+      }
+      const relationPlan = item.kind === "relation"
+        ? relationPlans.get(item.subIndex)
+        : undefined
+      if (relationPlan?.verdict === "conflict") {
+        results.push({
+          key: item.key,
+          kind: item.kind,
+          describe: item.describe,
+          status: "failed",
+          detail: `conflict: ${
+            relationPlan.detail ?? "relation would replace an existing edge"
+          }`,
+        })
+        continue
+      }
+      if (halted || issueHalted) {
+        results.push({
+          key: item.key,
+          kind: item.kind,
+          describe: item.describe,
+          status: "unattempted",
         })
         continue
       }
@@ -870,7 +947,7 @@ export async function applyManifest(
         if (fieldPlans.every((plan) => plan.verdict === "idempotent")) {
           checkpoint.items[item.key] = { status: "applied", note: "idempotent" }
           await saveCheckpoint(manifestPath, checkpoint)
-          issueApplied = true
+          issueNeedsVerification = true
           results.push({
             key: item.key,
             kind: item.kind,
@@ -880,6 +957,23 @@ export async function applyManifest(
           })
           continue
         }
+      }
+
+      if (
+        relationPlan?.verdict === "idempotent" &&
+        relationPlan.idempotentSource === "remote"
+      ) {
+        checkpoint.items[item.key] = { status: "applied", note: "idempotent" }
+        await saveCheckpoint(manifestPath, checkpoint)
+        issueNeedsVerification = true
+        results.push({
+          key: item.key,
+          kind: item.kind,
+          describe: item.describe,
+          status: "applied",
+          detail: "idempotent: equivalent relation already exists",
+        })
+        continue
       }
 
       if (identifier == null && item.kind !== "fields") {
@@ -969,7 +1063,7 @@ export async function applyManifest(
         }
         checkpoint.items[item.key] = { status: "applied" }
         await saveCheckpoint(manifestPath, checkpoint)
-        issueApplied = true
+        issueNeedsVerification = true
         results.push({
           key: item.key,
           kind: item.kind,
@@ -1004,16 +1098,90 @@ export async function applyManifest(
       }
     }
 
-    if (issueApplied && identifier != null) {
-      const view = await runner.run([
-        "issue",
-        "view",
-        identifier,
-        ...workspaceFlags,
-        "--json",
-      ])
-      if (view.code === 0) {
-        readBack[identifier] = JSON.parse(view.stdout)
+    if (issueNeedsVerification && identifier != null) {
+      try {
+        const view = await runner.run([
+          "issue",
+          "view",
+          identifier,
+          ...workspaceFlags,
+          "--json",
+        ])
+        if (view.code !== 0) {
+          verification.push({
+            issueIndex,
+            target: identifier,
+            status: "failed",
+            detail: view.stderr.trim().split("\n")[0] ||
+              `issue view exited with code ${view.code}`,
+          })
+          verificationFailedSeen = true
+          continue
+        }
+
+        let parsed: unknown
+        try {
+          parsed = JSON.parse(view.stdout)
+        } catch (error) {
+          verification.push({
+            issueIndex,
+            target: identifier,
+            status: "failed",
+            detail: `issue view returned invalid JSON: ${
+              (error as Error).message
+            }`,
+          })
+          verificationFailedSeen = true
+          continue
+        }
+        if (
+          parsed == null || typeof parsed !== "object" || Array.isArray(parsed)
+        ) {
+          verification.push({
+            issueIndex,
+            target: identifier,
+            status: "failed",
+            detail: "issue view returned no issue object",
+          })
+          verificationFailedSeen = true
+          continue
+        }
+
+        const data = parsed as Record<string, unknown>
+        const readIdentifier = data.identifier
+        if (
+          typeof readIdentifier !== "string" ||
+          readIdentifier.toUpperCase() !== identifier.toUpperCase()
+        ) {
+          verification.push({
+            issueIndex,
+            target: identifier,
+            status: "failed",
+            detail: `issue view returned ${
+              typeof readIdentifier === "string"
+                ? readIdentifier
+                : "no identifier"
+            }`,
+          })
+          verificationFailedSeen = true
+          continue
+        }
+
+        readBack[identifier] = parsed
+        verification.push({
+          issueIndex,
+          target: identifier,
+          status: "verified",
+          ...(typeof data.url === "string" ? { url: data.url } : {}),
+        })
+      } catch (error) {
+        verification.push({
+          issueIndex,
+          target: identifier,
+          status: "failed",
+          detail: (error as Error).message,
+        })
+        verificationFailedSeen = true
       }
     }
   }
@@ -1033,6 +1201,8 @@ export async function applyManifest(
     ? "conflict"
     : failedSeen
     ? (halted ? "stopped-on-failure" : "completed-with-failures")
+    : verificationFailedSeen
+    ? "applied-unverified"
     : "completed"
 
   return {
@@ -1040,8 +1210,40 @@ export async function applyManifest(
     items: results,
     summary,
     createdIdentifiers: checkpoint.createdIdentifiers,
+    verification,
     readBack,
   }
+}
+
+type PlanFile = Pick<
+  ManifestFile,
+  "reference" | "size" | "contentType" | "sha256"
+>
+
+export type PlanContent =
+  | { source: "inline"; size: number }
+  | ({ source: "file" } & PlanFile)
+
+export type PlanSet = Omit<DeliverySet, "description" | "descriptionFile"> & {
+  description?: PlanContent
+}
+
+export interface PlanComment {
+  body?: PlanContent
+  public: boolean
+  files: PlanFile[]
+}
+
+export type PlanAttachment =
+  | Extract<DeliveryAttachment, { kind: "url" }>
+  | (Extract<DeliveryAttachment, { kind: "file" }> & { file: PlanFile })
+
+export interface IssuePlanSummary {
+  team?: string
+  set?: PlanSet
+  comments?: PlanComment[]
+  attachments?: PlanAttachment[]
+  relations?: IssueRelationPlan[]
 }
 
 export interface IssuePlan {
@@ -1050,6 +1252,8 @@ export interface IssuePlan {
   /** Object-level refusal (alias, archived, trashed); null when clean. */
   drift?: string | null
   fields: FieldPlan[]
+  /** Concise request metadata; long Markdown is represented by source/size. */
+  summary: IssuePlanSummary
   items: Array<{ key: string; kind: ItemKind; describe: string }>
 }
 
@@ -1060,6 +1264,70 @@ export interface PlanOutcome {
   files: Array<
     Pick<ManifestFile, "reference" | "size" | "contentType" | "sha256">
   >
+}
+
+function planFile(loaded: LoadedManifest, reference: string): PlanFile {
+  const file = loaded.files.get(reference)
+  if (file == null) {
+    throw new CliError(`Manifest file inventory missing ${reference}`)
+  }
+  const { size, contentType, sha256 } = file
+  return { reference, size, contentType, sha256 }
+}
+
+function planContent(
+  loaded: LoadedManifest,
+  inline: string | undefined,
+  reference: string | undefined,
+): PlanContent | undefined {
+  if (reference != null) {
+    return { source: "file", ...planFile(loaded, reference) }
+  }
+  if (inline != null) {
+    return {
+      source: "inline",
+      size: new TextEncoder().encode(inline).length,
+    }
+  }
+  return undefined
+}
+
+function summarizeIssue(
+  loaded: LoadedManifest,
+  issue: DeliveryIssue,
+  relations: IssueRelationPlan[],
+): IssuePlanSummary {
+  let set: PlanSet | undefined
+  if (issue.set != null) {
+    const { description, descriptionFile, ...otherFields } = issue.set
+    const content = planContent(loaded, description, descriptionFile)
+    set = {
+      ...otherFields,
+      ...(content == null ? {} : { description: content }),
+    }
+  }
+
+  const comments = (issue.comments ?? []).map((comment) => {
+    const body = planContent(loaded, comment.body, comment.bodyFile)
+    return {
+      ...(body == null ? {} : { body }),
+      public: comment.public === true,
+      files: (comment.files ?? []).map((file) => planFile(loaded, file.path)),
+    }
+  })
+  const attachments = (issue.attachments ?? []).map((attachment) =>
+    attachment.kind === "file"
+      ? { ...attachment, file: planFile(loaded, attachment.path) }
+      : attachment
+  )
+
+  return {
+    ...(issue.team == null ? {} : { team: issue.team }),
+    ...(set == null ? {} : { set }),
+    ...(comments.length === 0 ? {} : { comments }),
+    ...(attachments.length === 0 ? {} : { attachments }),
+    ...(relations.length === 0 ? {} : { relations }),
+  }
 }
 
 /**
@@ -1086,6 +1354,7 @@ export async function planManifest(
     )
     let fields: FieldPlan[] = []
     let drift: string | null = null
+    let remoteView: unknown = null
     if (issue.operation === "update") {
       const view = await runner.run([
         "issue",
@@ -1101,7 +1370,8 @@ export async function planManifest(
           }`,
         )
       }
-      const remote = extractRemoteFields(JSON.parse(view.stdout))
+      remoteView = JSON.parse(view.stdout)
+      const remote = extractRemoteFields(remoteView)
       drift = objectDrift(issue.identifier as string, remote)
       if (drift != null) conflict = true
       if (issue.set != null) {
@@ -1117,11 +1387,19 @@ export async function planManifest(
         if (fields.some((plan) => plan.verdict === "conflict")) conflict = true
       }
     }
+    const relations = planIssueRelations(
+      issue.relations ?? [],
+      issue.operation === "create"
+        ? EMPTY_ISSUE_RELATION_SNAPSHOT
+        : extractIssueRelationSnapshot(remoteView),
+    )
+    if (relations.some((plan) => plan.verdict === "conflict")) conflict = true
     issues.push({
       operation: issue.operation,
       target: issue.identifier ?? null,
       drift,
       fields,
+      summary: summarizeIssue(loaded, issue, relations),
       items: items.map(({ key, kind, describe }) => ({ key, kind, describe })),
     })
   }

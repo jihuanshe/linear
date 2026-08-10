@@ -11,7 +11,7 @@ This changelog records the cumulative downstream changes in [`jihuanshe/linear`]
 - Standardized usage errors on stderr with exit code `2`; validation and runtime failures continue to use exit code `1`.
 - Added progressive `linear usage` and `linear <domain> usage` discovery, with optional JSON describing command arguments, options, aliases, write and interaction capabilities, confirmation requirements, and output modes.
 - Added an offline `linear version --json` probe exposing stable distribution identity, release version, and additive protocol capabilities without conflating build identity with installation ownership.
-- Added machine-readable output for `auth whoami`, `team list`, `project list`, `project view`, and `issue update`.
+- Added machine-readable output for `auth whoami`, `team list`, `project list`, `project view`, and `issue update`; update responses include the resulting priority and labels needed for immediate verification.
 - Preserved GraphQL field names and connection shape in JSON. Paginated lists concatenate `nodes`, retain `pageInfo`, validate `--limit`, and stop at a requested bound without losing the continuation cursor.
 - Kept JSON, terminal styling, pagination, prompting, and mutation consent as independent contracts instead of introducing an all-in-one agent mode.
 
@@ -19,8 +19,8 @@ This changelog records the cumulative downstream changes in [`jihuanshe/linear`]
 
 - Embedded five version-matched Chinese workflow guides (core, automation, issue-authoring, issue-delivery, graphql) into the binary behind `linear guides list/read`, with related-guide breadcrumbs in domain usage, leaf help, and usage JSON.
 - Added `linear upload` so uploaded assets can be embedded at any Markdown position, including table cells and comments, with optional public image URLs.
-- Added declarative issue delivery: `linear issue plan` previews a manifest with zero writes and per-field three-way verdicts (write/idempotent/conflict against a recorded base), and `linear issue apply` executes it sequentially with per-item applied/failed/unknown/unattempted/skipped reporting and a full read-back.
-- Made a manifest with multiple issues the batch form of the same protocol: a checkpoint beside the manifest records every mutation as in flight before launching it, skips confirmed successes on resume, refuses resumes after structural drift or unresolved unknown outcomes, and `--continue-on-failure` collects failures without stopping.
+- Added declarative issue delivery: `linear issue plan` previews a manifest with zero writes, concise create metadata, per-field three-way update verdicts (write/idempotent/conflict against a recorded base), and add/idempotent/conflict Relation verdicts that prevent a different edge from being replaced; `linear issue apply` executes it sequentially with per-item applied/failed/unknown/unattempted/skipped reporting and required final read-back. A successful mutation whose view cannot be read remains checkpointed and returns `applied-unverified` instead of a false completion.
+- Made a manifest with multiple issues the batch form of the same protocol: a checkpoint beside the manifest records every mutation as in flight before launching it, skips confirmed successes on resume, refuses resumes after structural drift or unresolved unknown outcomes, and `--continue-on-failure` collects failures without stopping. Duplicate update targets are rejected before remote reads or checkpoint work so one Issue cannot partially mutate before a later entry conflicts.
 - Normalized Linear's equivalent Markdown rewrites (seven observed forms with real-sample regressions) so round-trips stay idempotent instead of reporting false conflicts.
 - Extended `version --json` capabilities to `usage-v1`, `guides-v1`, and `delivery-v1`, and removed the generated Skill manuals — command facts live only in the live command tree and version-matched guides.
 

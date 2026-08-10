@@ -1,7 +1,9 @@
 import { assertEquals, assertRejects, assertStringIncludes } from "@std/assert"
 import {
+  extractIssueRelationSnapshot,
   getIssueIdentifier,
   isLinearUuid,
+  planIssueRelations,
   resolveMilestoneId,
   resolveProjectId,
   resolveWorkflowState,
@@ -16,6 +18,124 @@ import {
   ValidationError,
 } from "../../src/utils/errors.ts"
 import { setupMockLinearServer } from "../utils/test-helpers.ts"
+
+function relationView(
+  outgoing: Array<{ type: string; identifier: string }> = [],
+  incoming: Array<{ type: string; identifier: string }> = [],
+  hasNextPage = false,
+): Record<string, unknown> {
+  return {
+    relations: {
+      nodes: outgoing.map(({ type, identifier }) => ({
+        type,
+        relatedIssue: { identifier },
+      })),
+      pageInfo: { hasNextPage },
+    },
+    inverseRelations: {
+      nodes: incoming.map(({ type, identifier }) => ({
+        type,
+        issue: { identifier },
+      })),
+      pageInfo: { hasNextPage: false },
+    },
+  }
+}
+
+Deno.test("relation planning preserves type and direction for each Issue pair", () => {
+  const plan = (
+    type: "blocks" | "blocked-by" | "related" | "duplicate",
+    view: Record<string, unknown>,
+  ) =>
+    planIssueRelations(
+      [{ type, issue: "ENG-2" }],
+      extractIssueRelationSnapshot(view),
+    )[0].verdict
+
+  assertEquals(plan("blocks", relationView()), "add")
+  assertEquals(
+    plan("blocks", relationView([{ type: "blocks", identifier: "ENG-2" }])),
+    "idempotent",
+  )
+  assertEquals(
+    plan(
+      "blocked-by",
+      relationView([{ type: "blocks", identifier: "ENG-2" }]),
+    ),
+    "conflict",
+  )
+  assertEquals(
+    plan(
+      "blocked-by",
+      relationView([], [{ type: "blocks", identifier: "ENG-2" }]),
+    ),
+    "idempotent",
+  )
+  assertEquals(
+    plan("blocks", relationView([], [{ type: "blocks", identifier: "ENG-2" }])),
+    "conflict",
+  )
+  assertEquals(
+    plan("related", relationView([{ type: "related", identifier: "ENG-2" }])),
+    "idempotent",
+  )
+  assertEquals(
+    plan(
+      "related",
+      relationView([], [{ type: "related", identifier: "ENG-2" }]),
+    ),
+    "idempotent",
+  )
+  assertEquals(
+    plan(
+      "duplicate",
+      relationView([{ type: "duplicate", identifier: "ENG-2" }]),
+    ),
+    "idempotent",
+  )
+  assertEquals(
+    plan(
+      "duplicate",
+      relationView([], [{ type: "duplicate", identifier: "ENG-2" }]),
+    ),
+    "conflict",
+  )
+  assertEquals(
+    plan("related", relationView([{ type: "similar", identifier: "ENG-2" }])),
+    "conflict",
+  )
+  assertEquals(
+    plan("related", relationView([{ type: "blocks", identifier: "ENG-3" }])),
+    "add",
+  )
+})
+
+Deno.test("relation planning fails closed and overlays manifest requests", () => {
+  const incomplete = planIssueRelations(
+    [{ type: "related", issue: "ENG-2" }],
+    extractIssueRelationSnapshot(relationView([], [], true)),
+  )
+  assertEquals(incomplete[0].verdict, "conflict")
+  assertStringIncludes(incomplete[0].detail ?? "", "pagination boundary")
+
+  const conflicting = planIssueRelations(
+    [
+      { type: "related", issue: "ENG-2" },
+      { type: "blocks", issue: "ENG-2" },
+    ],
+    extractIssueRelationSnapshot(relationView()),
+  )
+  assertEquals(conflicting.map(({ verdict }) => verdict), ["add", "conflict"])
+
+  const duplicate = planIssueRelations(
+    [
+      { type: "related", issue: "ENG-2" },
+      { type: "related", issue: "eng-2" },
+    ],
+    extractIssueRelationSnapshot(relationView()),
+  )
+  assertEquals(duplicate.map(({ verdict }) => verdict), ["add", "idempotent"])
+})
 
 Deno.test("getIssueId - handles full issue identifiers", async () => {
   const result = await getIssueIdentifier("ABC-123")

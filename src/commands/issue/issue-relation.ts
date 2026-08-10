@@ -1,7 +1,12 @@
 import { Command } from "@cliffy/command"
 import { gql } from "../../__codegen__/gql.ts"
 import { getGraphQLClient } from "../../utils/graphql.ts"
-import { getIssueId, getIssueIdentifier } from "../../utils/linear.ts"
+import {
+  extractIssueRelationSnapshot,
+  getIssueId,
+  getIssueIdentifier,
+  planIssueRelations,
+} from "../../utils/linear.ts"
 import {
   handleError,
   isClientError,
@@ -112,6 +117,66 @@ const addRelationCommand = withUsageMetadata(new Command(), { writes: true })
         ? [relatedIssueId, issueId]
         : [issueId, relatedIssueId]
 
+      // Linear stores only one relation per Issue pair. Creating a different
+      // type silently replaces the existing edge, so `add` must fail closed
+      // unless this is a new pair or an equivalent idempotent request.
+      const existingRelationsQuery = gql(`
+        query GetExistingIssueRelations($issueId: String!) {
+          issue(id: $issueId) {
+            relations(first: 250) {
+              nodes {
+                type
+                relatedIssue { id identifier }
+              }
+              pageInfo { hasNextPage }
+            }
+            inverseRelations(first: 250) {
+              nodes {
+                type
+                issue { id identifier }
+              }
+              pageInfo { hasNextPage }
+            }
+          }
+        }
+      `)
+
+      const client = getGraphQLClient()
+      const existingData = await client.request(existingRelationsQuery, {
+        issueId,
+      })
+      if (existingData.issue == null) {
+        spinner?.stop()
+        throw new NotFoundError("Issue", issueIdentifier)
+      }
+      const relationPlan = planIssueRelations(
+        [{
+          type: relationType,
+          issue: relatedIssueIdentifier,
+          issueId: relatedIssueId,
+        }],
+        extractIssueRelationSnapshot(existingData.issue),
+      )[0]
+      if (relationPlan.verdict === "conflict") {
+        spinner?.stop()
+        throw new ValidationError(
+          `Cannot add ${issueIdentifier} ${relationType} ${relatedIssueIdentifier}: ${
+            relationPlan.detail ?? "an existing relation would be replaced"
+          }`,
+          {
+            suggestion:
+              "Delete the existing relation explicitly before adding a different type or direction.",
+          },
+        )
+      }
+      if (relationPlan.verdict === "idempotent") {
+        spinner?.stop()
+        console.log(
+          `✓ Relation already exists: ${issueIdentifier} ${relationType} ${relatedIssueIdentifier}`,
+        )
+        return
+      }
+
       const createRelationMutation = gql(`
         mutation CreateIssueRelation($input: IssueRelationCreateInput!) {
           issueRelationCreate(input: $input) {
@@ -123,7 +188,6 @@ const addRelationCommand = withUsageMetadata(new Command(), { writes: true })
         }
       `)
 
-      const client = getGraphQLClient()
       const data = await client.request(createRelationMutation, {
         input: {
           issueId: fromId,

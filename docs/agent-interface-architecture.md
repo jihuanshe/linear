@@ -128,7 +128,7 @@ Use --help to see available commands
 4. 单命令语义事实属于该命令的描述和帮助。指南拥有真正跨命令的工作流；外部激活 Skill 不得重复那些帮助在执行前就能暴露的事实。
 5. 在零参数导航之后、指南编写之前，用少量全新 Amp agent 探测单一激活 Skill 的真实发现路径。探测用于发现缺失上下文，不做统计 A/B，也不自动把每次失败升级成 CLI 功能；先判断它属于命令事实、跨命令指导、宿主策略，还是 agent 可以自行恢复的一次性偏差。最终迁移只在访问诊断、Issue authoring、文件驱动的 Issue 交付和 batch 都有 CLI 拥有者之后进行场景验证。
 6. 本地生成参考的移除与最终对 `jihuanshe/skills` 的原子化替换是两个独立的评审边界。
-7. 技术审计结果不等于写给接手者的 Issue。CLI 应提供 authoring 指导和完整预览，但不判断用户是否完成了业务思考，也不把机械字段更新强制送入一套审批流程。
+7. 技术审计结果不等于写给接手者的 Issue。CLI 应提供 authoring 指导、风险相称的执行摘要和 update 三方 verdict，但不判断用户是否完成了业务思考，也不把 create 或机械字段更新强制送入一套审批流程；需要审核的新拟正文由 Agent 在对话中展示。
 8. 2026-08-08 的用户决定：不做渐进式交付。剩余能力在一个集成分支上以可评审 commit 完成，经一次 merge 触发单个 release，外部 Skill family 在同一发布窗口内原子替换。作为初创组织，向后兼容不是交付约束；发布后的真实使用信号驱动后续优化，预防性门禁不得阻塞完整交付。
 
 这些决定收窄了第一版指南实现，把实证发现提前到序列中更早的位置，并把交付边界从多次发布收敛为一个发布窗口。
@@ -233,7 +233,7 @@ JSON 契约目前为 `schemaVersion: 1`。隐藏命令和选项保持隐藏，�
 已完成的第一阶段加固：
 
 - 补充元数据注解与其定义和 action 一起位于叶子命令模块中，而不是父级接线文件里；
-- 一个包含隐藏命令的精确完整性测试，固定了全部能写入持久远端状态或用户配置的本地状态的规范路径（清单的 canonical home 是该测试自身）。`issue view` 被包含在内，因为下载可以写入配置的 `attachment_dir`；瞬态缓存写入和显式导出被排除；
+- 一个包含隐藏命令的精确完整性测试，固定了全部能修改持久远端状态或用户配置本身的规范路径（清单的 canonical home 是该测试自身）。瞬态缓存、下载得到的只读副本和显式导出被排除，因此 `issue view` 不会被误报成 Linear mutation；
 - 测试冻结了 `Writes`、`Interactive`、`Confirmation required unless`、`Output modes` 这些 Cliffy 标签，以及人类 `usage` 输出中的小写标签；
 - 选项省略 `default` 意味着：要么没有可在 usage JSON v1 中表示的静态默认值，要么是动态或不可序列化的默认值，并不必然表示运行时没有默认值；
 - usage JSON v1 的读取方忽略新增字段。Schema 版本 1 在只增加字段时保持有效；移除或改变现有字段的类型需要递增版本。
@@ -521,7 +521,7 @@ linear issue plan --file delivery.json
 `plan` 必须：
 
 1. 对远端零写入；允许只读解析 workspace、Issue、字段值和 IssueRelation target。
-2. 展示本次请求将设置的 Issue 字段、将新增的 Comment 及其上传文件、将提交的 Attachments 和将新增的 IssueRelations；同 URL 的 Attachment 可能更新既有对象。
+2. 输出与风险相称的结构化执行摘要：create 展示目标、标题和关键归属，长正文显示 inline/file 来源与大小，文件正文附 hash，并逐项列出 Comment 上传公开性、文件、Attachment 和 IssueRelation；update 展示本次字段的三方 verdict，IssueRelation 展示 add/idempotent/conflict。同一对 Issue 已有不同类型或方向的关系时必须拒绝，不能让 Linear 的 create mutation 隐式替换旧关系。plan 不复制完整长正文，也不充当人类审批界面；同 URL 的 Attachment 可能更新既有对象。
 3. 在第一笔 mutation 前验证整个 manifest 的全部本地文件，包括存在性、可读性、大小和 MIME。
 4. 对 update 只比较本次要修改的字段，沿用现有 batch 对 workspace、目标 Issue、team、workflow state 和字段变化的保护。这是 CLI 拥有的并发安全兜底：AI 准备材料需要时间，期间上游 Issue 可能已被他人修改。无关评论或 Attachment 变化不制造冲突。
 5. 输出确定的执行顺序、解析结果、文件 size/MIME/SHA-256 和结构化机器结果。
@@ -548,13 +548,14 @@ linear issue apply \
 - `applied` 项在续跑时跳过；确认未产生副作用的 `failed` 项可以按调用者选择继续或重试；
 - `unknown` 立即停止当前 apply 或 batch，在显式对账前不得续跑或重试。
 
-执行结束后读取每个目标 Issue 的当前视图并随结果返回，只核对本次修改字段和已知请求项。V1 不遍历全部历史 Comment、Attachment 或 IssueRelation，也不把读回结果保存成远端快照。
+执行结束后读取每个本次已应用或从 checkpoint 恢复的目标 Issue 的当前视图并随结果返回。mutation 成功但读回失败时，执行项保持 `applied`，整体返回 `applied-unverified` 和非零退出；续跑跳过 mutation 并重试读回。V1 不自动遍历并对账全部历史对象，也不把读回结果保存成远端快照。
 
 ### Batch 只是多个 Issue
 
 同一个 manifest 的 `issues[]` 同时支持单次和 batch。Batch V1 只额外需要：
 
 - 整批本地可验证输入在首笔 mutation 前验证；远端引用与字段按 Issue 在其首笔 mutation 前验证；
+- 每个现有 Issue 在一份 manifest 中至多出现一个 update 条目；重复 identifier 必须在远端读取和 checkpoint 之前拒绝，调用方把同一 Issue 的全部交付项合并进一个条目；
 - 顺序执行；
 - 逐 Issue、逐请求项 checkpoint；
 - 对确认无副作用的 `failed` 使用 stop/continue 策略；`unknown` 始终立即停止；

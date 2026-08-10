@@ -1,4 +1,4 @@
-import { assertEquals, assertRejects } from "@std/assert"
+import { assertEquals, assertRejects, assertStringIncludes } from "@std/assert"
 import { join } from "@std/path"
 import { loadManifest } from "../../src/delivery/manifest.ts"
 import { ValidationError } from "../../src/utils/errors.ts"
@@ -149,6 +149,19 @@ Deno.test("manifest validation fails before any mutation could run", async (t) =
       "estimate",
     ],
     [
+      "relation target needs a complete identifier",
+      {
+        schemaVersion: 1,
+        workspace: "jihuanshe",
+        issues: [{
+          operation: "update",
+          identifier: "DATA-1",
+          relations: [{ type: "related", issue: "580" }],
+        }],
+      },
+      "complete Linear issue identifier",
+    ],
+    [
       "missing referenced file",
       {
         schemaVersion: 1,
@@ -170,6 +183,51 @@ Deno.test("manifest validation fails before any mutation could run", async (t) =
           ValidationError,
           message,
         )
+      })
+    })
+  }
+})
+
+Deno.test("manifest normalizes relation target identifiers", async () => {
+  await withManifest({
+    schemaVersion: 1,
+    workspace: "jihuanshe",
+    issues: [{
+      operation: "update",
+      identifier: "DATA-1",
+      relations: [{ type: "related", issue: "data-580" }],
+    }],
+  }, async (manifestPath) => {
+    const loaded = await loadManifest(manifestPath)
+    assertEquals(loaded.manifest.issues[0].relations?.[0].issue, "DATA-580")
+  })
+})
+
+Deno.test("manifest rejects duplicate update identifiers", async (t) => {
+  for (
+    const [name, identifiers] of [
+      ["exact duplicate", ["DATA-1", "DATA-1"]],
+      ["case-insensitive duplicate", ["data-1", "DATA-1"]],
+    ] as const
+  ) {
+    await t.step(name, async () => {
+      await withManifest({
+        schemaVersion: 1,
+        workspace: "jihuanshe",
+        issues: identifiers.map((identifier, index) => ({
+          operation: "update",
+          identifier,
+          set: { title: `title ${index}` },
+        })),
+      }, async (manifestPath) => {
+        const error = await assertRejects(
+          () => loadManifest(manifestPath),
+          ValidationError,
+          "duplicate update target",
+        )
+        assertStringIncludes(error.message, "issues[1]")
+        assertStringIncludes(error.message, "issues[0]")
+        assertStringIncludes(error.suggestion ?? "", "one issues[] entry")
       })
     })
   }
@@ -201,6 +259,34 @@ Deno.test("manifest inventories referenced files with size, MIME, and sha256", a
   } finally {
     await Deno.remove(dir, { recursive: true })
   }
+})
+
+Deno.test("issue-delivery guide file attachment example parses", async () => {
+  const guide = await Deno.readTextFile(
+    new URL("../../docs/guides/issue-delivery.md", import.meta.url),
+  )
+  const example = guide.match(/```json\n([\s\S]*?)\n```/)
+  if (example == null) {
+    throw new Error("issue-delivery guide has no JSON example")
+  }
+
+  await withManifest(JSON.parse(example[1]), async (manifestPath, dir) => {
+    await Deno.writeTextFile(join(dir, "description.md"), "description")
+    await Deno.writeTextFile(join(dir, "evidence.md"), "evidence")
+    await Deno.writeFile(join(dir, "replay-a.yrp"), new Uint8Array([1, 2, 3]))
+
+    const loaded = await loadManifest(manifestPath)
+    assertEquals(loaded.manifest.issues[0].attachments?.[1], {
+      kind: "file",
+      path: "replay-a.yrp",
+      title: "Raw replay",
+    })
+    assertEquals(loaded.manifest.issues[1], {
+      operation: "create",
+      team: "DATA",
+      set: { title: "新建 Issue", priority: 3 },
+    })
+  })
 })
 
 Deno.test("manifest inventory rejects files over the upload limit", async () => {

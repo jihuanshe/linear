@@ -5,8 +5,6 @@ stdout:
 "
 Usage: view [issueId]
 
-Writes: true
-
 Description:
 
   View issue details (default) or open in browser/app
@@ -289,6 +287,36 @@ stdout:
         "createdAt": "2024-01-15T10:30:00Z"
       }
     ]
+  },
+  "relations": {
+    "nodes": [
+      {
+        "id": "relation-outgoing",
+        "type": "blocks",
+        "relatedIssue": {
+          "identifier": "TEST-247",
+          "title": "Blocked follow-up"
+        }
+      }
+    ],
+    "pageInfo": {
+      "hasNextPage": false
+    }
+  },
+  "inverseRelations": {
+    "nodes": [
+      {
+        "id": "relation-incoming",
+        "type": "related",
+        "issue": {
+          "identifier": "TEST-245",
+          "title": "Related investigation"
+        }
+      }
+    ],
+    "pageInfo": {
+      "hasNextPage": false
+    }
   },
   "documents": {
     "nodes": [

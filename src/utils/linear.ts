@@ -69,6 +69,243 @@ export function isIssueBlocked(issue: {
   return false
 }
 
+export type IssueRelationType =
+  | "blocks"
+  | "blocked-by"
+  | "related"
+  | "duplicate"
+
+export interface IssueRelationRequest {
+  type: IssueRelationType
+  issue: string
+  /** Resolved UUID when available; identifiers remain the display contract. */
+  issueId?: string
+}
+
+export interface ExistingIssueRelation {
+  direction: "outgoing" | "incoming"
+  type: string
+  issue: string
+  issueId?: string
+  source: "remote" | "virtual"
+}
+
+export interface IssueRelationSnapshot {
+  complete: boolean
+  relations: ExistingIssueRelation[]
+  detail?: string
+}
+
+export interface IssueRelationPlan extends IssueRelationRequest {
+  verdict: "add" | "idempotent" | "conflict"
+  existing?: ExistingIssueRelation[]
+  idempotentSource?: "remote" | "virtual"
+  detail?: string
+}
+
+export const EMPTY_ISSUE_RELATION_SNAPSHOT: IssueRelationSnapshot = {
+  complete: true,
+  relations: [],
+}
+
+function relationConnection(
+  view: Record<string, unknown>,
+  key: "relations" | "inverseRelations",
+): { nodes: unknown[]; hasNextPage: boolean } | null {
+  const connection = view[key]
+  if (connection == null || typeof connection !== "object") return null
+  const data = connection as Record<string, unknown>
+  if (!Array.isArray(data.nodes)) return null
+  const pageInfo = data.pageInfo
+  if (pageInfo == null || typeof pageInfo !== "object") return null
+  const hasNextPage = (pageInfo as Record<string, unknown>).hasNextPage
+  if (typeof hasNextPage !== "boolean") return null
+  return { nodes: data.nodes, hasNextPage }
+}
+
+/** Parse the two relation connections returned by `issue view --json`. */
+export function extractIssueRelationSnapshot(
+  view: unknown,
+): IssueRelationSnapshot {
+  if (view == null || typeof view !== "object" || Array.isArray(view)) {
+    return {
+      complete: false,
+      relations: [],
+      detail: "issue view returned no relation inventory",
+    }
+  }
+  const data = view as Record<string, unknown>
+  const outgoing = relationConnection(data, "relations")
+  const incoming = relationConnection(data, "inverseRelations")
+  if (outgoing == null || incoming == null) {
+    return {
+      complete: false,
+      relations: [],
+      detail: "issue view returned an incomplete relation inventory",
+    }
+  }
+  if (outgoing.hasNextPage || incoming.hasNextPage) {
+    return {
+      complete: false,
+      relations: [],
+      detail: "issue relation inventory exceeds the view pagination boundary",
+    }
+  }
+
+  const relations: ExistingIssueRelation[] = []
+  const append = (
+    node: unknown,
+    direction: ExistingIssueRelation["direction"],
+    issueKey: "relatedIssue" | "issue",
+  ): boolean => {
+    if (node == null || typeof node !== "object" || Array.isArray(node)) {
+      return false
+    }
+    const relation = node as Record<string, unknown>
+    const type = relation.type
+    const issue = relation[issueKey]
+    if (
+      typeof type !== "string" || issue == null || typeof issue !== "object" ||
+      Array.isArray(issue)
+    ) {
+      return false
+    }
+    const issueData = issue as Record<string, unknown>
+    if (typeof issueData.identifier !== "string") return false
+    relations.push({
+      direction,
+      type,
+      issue: issueData.identifier,
+      ...(typeof issueData.id === "string" ? { issueId: issueData.id } : {}),
+      source: "remote",
+    })
+    return true
+  }
+  for (const node of outgoing.nodes) {
+    if (!append(node, "outgoing", "relatedIssue")) {
+      return {
+        complete: false,
+        relations: [],
+        detail: "issue view returned a malformed outgoing relation",
+      }
+    }
+  }
+  for (const node of incoming.nodes) {
+    if (!append(node, "incoming", "issue")) {
+      return {
+        complete: false,
+        relations: [],
+        detail: "issue view returned a malformed incoming relation",
+      }
+    }
+  }
+  return { complete: true, relations }
+}
+
+export function describeExistingIssueRelation(
+  relation: ExistingIssueRelation,
+): string {
+  const type = relation.direction === "incoming"
+    ? relation.type === "blocks"
+      ? "blocked-by"
+      : relation.type === "related"
+      ? "related"
+      : `incoming ${relation.type}`
+    : relation.type
+  return `${type} ${relation.issue}`
+}
+
+function sameRelationIssue(
+  request: IssueRelationRequest,
+  existing: ExistingIssueRelation,
+): boolean {
+  if (request.issueId != null && existing.issueId != null) {
+    return request.issueId === existing.issueId
+  }
+  return request.issue.toUpperCase() === existing.issue.toUpperCase()
+}
+
+function relationIsEquivalent(
+  desired: IssueRelationType,
+  existing: ExistingIssueRelation,
+): boolean {
+  switch (desired) {
+    case "blocked-by":
+      return existing.direction === "incoming" && existing.type === "blocks"
+    case "related":
+      return existing.type === "related"
+    case "blocks":
+    case "duplicate":
+      return existing.direction === "outgoing" && existing.type === desired
+  }
+}
+
+function virtualRelation(request: IssueRelationRequest): ExistingIssueRelation {
+  return request.type === "blocked-by"
+    ? {
+      direction: "incoming",
+      type: "blocks",
+      issue: request.issue,
+      ...(request.issueId == null ? {} : { issueId: request.issueId }),
+      source: "virtual",
+    }
+    : {
+      direction: "outgoing",
+      type: request.type,
+      issue: request.issue,
+      ...(request.issueId == null ? {} : { issueId: request.issueId }),
+      source: "virtual",
+    }
+}
+
+/**
+ * Plan relation additions against a complete snapshot and an in-memory
+ * overlay. Linear keeps one relation per Issue pair, so a different type or
+ * direction would replace the existing edge instead of adding another one.
+ */
+export function planIssueRelations(
+  requests: ReadonlyArray<IssueRelationRequest>,
+  snapshot: IssueRelationSnapshot,
+): IssueRelationPlan[] {
+  const virtual = [...snapshot.relations]
+  return requests.map((request) => {
+    if (!snapshot.complete) {
+      return {
+        ...request,
+        verdict: "conflict",
+        detail: snapshot.detail ?? "issue relation inventory is incomplete",
+      }
+    }
+    const existing = virtual.filter((relation) =>
+      sameRelationIssue(request, relation)
+    )
+    if (existing.length === 0) {
+      virtual.push(virtualRelation(request))
+      return { ...request, verdict: "add" }
+    }
+    if (
+      existing.every((relation) => relationIsEquivalent(request.type, relation))
+    ) {
+      return {
+        ...request,
+        verdict: "idempotent",
+        existing,
+        idempotentSource: existing.some(({ source }) => source === "remote")
+          ? "remote"
+          : "virtual",
+      }
+    }
+    return {
+      ...request,
+      verdict: "conflict",
+      existing,
+      detail: `existing: ${
+        existing.map(describeExistingIssueRelation).join(", ")
+      }`,
+    }
+  })
+}
+
 export function formatIssueIdentifier(providedId: string): string {
   return normalizeIssueIdentifier(providedId) ?? providedId.toUpperCase()
 }
@@ -341,6 +578,32 @@ const issueDetailsWithCommentsQuery = gql(/* GraphQL */ `
           createdAt
         }
       }
+      relations(first: 250) {
+        nodes {
+          id
+          type
+          relatedIssue {
+            identifier
+            title
+          }
+        }
+        pageInfo {
+          hasNextPage
+        }
+      }
+      inverseRelations(first: 250) {
+        nodes {
+          id
+          type
+          issue {
+            identifier
+            title
+          }
+        }
+        pageInfo {
+          hasNextPage
+        }
+      }
       documents(first: 50) {
         nodes {
           id
@@ -435,6 +698,32 @@ const issueDetailsQuery = gql(/* GraphQL */ `
           sourceType
           metadata
           createdAt
+        }
+      }
+      relations(first: 250) {
+        nodes {
+          id
+          type
+          relatedIssue {
+            identifier
+            title
+          }
+        }
+        pageInfo {
+          hasNextPage
+        }
+      }
+      inverseRelations(first: 250) {
+        nodes {
+          id
+          type
+          issue {
+            identifier
+            title
+          }
+        }
+        pageInfo {
+          hasNextPage
         }
       }
       documents(first: 50) {

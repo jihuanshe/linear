@@ -2,6 +2,7 @@ import { encodeHex } from "@std/encoding/hex"
 import { dirname, isAbsolute, join } from "@std/path"
 import * as v from "valibot"
 import { ValidationError } from "../utils/errors.ts"
+import { normalizeIssueIdentifier } from "../utils/issue-identifier.ts"
 import { MAX_FILE_SIZE } from "../utils/upload.ts"
 import { getMimeType } from "../utils/upload.ts"
 
@@ -76,7 +77,14 @@ const attachmentSchema = v.variant("kind", [
 
 const relationSchema = v.strictObject({
   type: v.picklist(["related", "blocks", "blocked-by", "duplicate"]),
-  issue: v.string(),
+  issue: v.pipe(
+    v.string(),
+    v.check(
+      (value) => normalizeIssueIdentifier(value) != null,
+      "Expected a complete Linear issue identifier like ENG-123",
+    ),
+    v.transform((value) => normalizeIssueIdentifier(value) as string),
+  ),
 })
 
 const issueSchema = v.strictObject({
@@ -228,6 +236,30 @@ function validateIssueShape(issue: DeliveryIssue, label: string): void {
   }
 }
 
+function validateUniqueUpdateIdentifiers(issues: DeliveryIssue[]): void {
+  const firstByIdentifier = new Map<
+    string,
+    { index: number; identifier: string }
+  >()
+  for (const [index, issue] of issues.entries()) {
+    if (issue.operation !== "update" || issue.identifier == null) continue
+
+    const key = normalizeIssueIdentifier(issue.identifier) ??
+      issue.identifier.toUpperCase()
+    const first = firstByIdentifier.get(key)
+    if (first != null) {
+      throw new ValidationError(
+        `issues[${index}] (${issue.identifier}): duplicate update target; issues[${first.index}] (${first.identifier}) already updates the same Issue`,
+        {
+          suggestion:
+            `Combine the fields, comments, attachments, and relations for ${issue.identifier} into one issues[] entry.`,
+        },
+      )
+    }
+    firstByIdentifier.set(key, { index, identifier: issue.identifier })
+  }
+}
+
 function* fileReferences(issue: DeliveryIssue): Generator<string> {
   if (issue.set?.descriptionFile != null) yield issue.set.descriptionFile
   for (const comment of issue.comments ?? []) {
@@ -316,6 +348,7 @@ export async function loadManifest(
   for (const [index, issue] of manifest.issues.entries()) {
     validateIssueShape(issue, issueLabel(index, issue))
   }
+  validateUniqueUpdateIdentifiers(manifest.issues)
 
   const manifestDir = dirname(manifestPath)
   const files = new Map<string, ManifestFile>()

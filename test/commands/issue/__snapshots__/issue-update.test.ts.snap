@@ -33,7 +33,7 @@ Options:
                                        negatives). Use --clear-cycle to remove the issue from its cycle                                               
   --clear-cycle                      - Remove the issue from its cycle                                                                                
   -t, --title         <title>        - Title of the issue                                                                                             
-  -j, --json                         - Output the mutation result, including resulting labels, as JSON                                                
+  -j, --json                         - Output the mutation result, including resulting priority and labels, as JSON                                   
 
 "
 stderr:

@@ -39,6 +39,20 @@ export function formatApply(outcome: ApplyOutcome): string {
   if (created.length > 0) {
     lines.push(`created: ${created.join(", ")}`)
   }
+  if (outcome.verification.length > 0) {
+    lines.push("", "verification:")
+    for (const result of outcome.verification) {
+      lines.push(
+        `  ${result.status} ${result.target}${
+          result.url != null
+            ? ` — ${result.url}`
+            : result.detail == null
+            ? ""
+            : ` — ${result.detail}`
+        }`,
+      )
+    }
+  }
   return lines.join("\n")
 }
 
