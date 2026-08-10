@@ -251,6 +251,11 @@ Deno.test("issue-delivery guide file attachment example parses", async () => {
       path: "replay-a.yrp",
       title: "Raw replay",
     })
+    assertEquals(loaded.manifest.issues[1], {
+      operation: "create",
+      team: "DATA",
+      set: { title: "新建 Issue", priority: 3 },
+    })
   })
 })
 
