@@ -1,6 +1,6 @@
 ---
 name: releasing
-description: Verifies and ships the current main branch through the repository's rolling GitHub Release workflow. Use when asked to release, publish, or ship this CLI.
+description: Verifies and publishes the current main branch through the repository's rolling GitHub Release workflow. Use when asked to release, publish, or ship this CLI.
 ---
 
 # Main Release
@@ -11,7 +11,8 @@ Use this procedure only after the user explicitly asks to ship, publish, or rele
 
 - Keep `deno.json` at `0.0.0-dev` in source control.
 - `.github/workflows/ship-main.yml` derives `0.0.<commit timestamp>-g<short commit>` from the pushed commit.
-- A successful `main` push creates the tag and GitHub Release automatically.
+- A successful, non-superseded `main` run creates the tag and GitHub Release automatically.
+- Release runs are serialized without canceling a run already in progress. GitHub may replace older pending runs with the newest pending `main` update, so do not promise one published release per merge.
 - Do not manually bump versions, create release tags, or push tags.
 - Do not create npm, JSR, Homebrew, or cargo-dist releases.
 
@@ -61,14 +62,15 @@ If the push is rejected because `origin/main` advanced, fetch, rebase, rerun `de
 
 ## CI release workflow
 
-`Ship main` runs these stages:
+`Publish Linear CLI rolling release` runs these stages:
 
 1. In parallel, run the Linux Keyring integration test and build all five targets.
 2. For each target, produce one install archive, one standalone self-update binary, and their SHA-256 sidecars.
 3. Merge the artifacts; require 10 distributables and 10 checksum sidecars; generate `sha256.sum`.
 4. Create or resume a draft Release, attest the binary assets, then publish it as latest.
+5. After the GitHub Release succeeds, record one completed Linear Release and require its ID and URL to be non-empty and its version to match the GitHub Release version.
 
-The Release job must not run unless Keyring integration and every target build succeed.
+The GitHub Release job must not run unless Keyring integration and every target build succeed. The Linear Release job must not run unless the GitHub Release job succeeds.
 
 ## Post-release validation
 
@@ -96,6 +98,6 @@ test "$actual" = "linear $version"
 ## Failure handling
 
 - A failed local source check, CI keyring integration check, or build must not produce a published Release. Fix forward with a new `main` commit.
-- A canceled stale run may leave an invisible draft. Do not rerun it after `main` advances; clean it up later if needed.
-- `concurrency.cancel-in-progress` keeps only the newest overlapping `main` run active. Completed historical Releases remain immutable and downloadable.
+- A canceled or superseded run is not a published release. A canceled run may leave an invisible draft; do not rerun it after `main` advances, and clean it up later if needed.
+- The fixed concurrency group serializes release runs and does not cancel one already in progress. GitHub may still coalesce multiple waiting `main` updates into the newest pending run. Completed historical Releases remain immutable and downloadable.
 - If GitHub rejects write permissions, attestations, or Release creation, report the repository setting that blocked it instead of switching to a personal token or private runner.

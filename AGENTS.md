@@ -2,17 +2,18 @@
 
 ## Sources of truth
 
-| Concern                              | Source                                 |
-| ------------------------------------ | -------------------------------------- |
-| Runtime version and developer tasks  | `mise.toml`, `deno.json`               |
-| Orb bootstrap and source wrapper     | `.agents/setup`, `.agents/resume`      |
-| Linear GraphQL schema and generation | `graphql/schema.graphql`, `codegen.ts` |
-| Production code and mirrored tests   | `src/`, `test/`                        |
-| Deno permission changes              | `docs/deno-permissions.md`             |
-| Embedded workflow guides             | `docs/guides/`, `src/guides/`          |
-| Release procedure                    | `.agents/skills/releasing/SKILL.md`    |
-| CI release implementation            | `.github/workflows/ship-main.yml`      |
-| Cumulative downstream changes        | `CHANGELOG.md`                         |
+| Concern                              | Source                                      |
+| ------------------------------------ | ------------------------------------------- |
+| Runtime version and developer tasks  | `mise.toml`, `deno.json`                    |
+| Orb bootstrap and source wrapper     | `.agents/setup`, `.agents/resume`           |
+| Linear GraphQL schema and generation | `graphql/schema.graphql`, `codegen.ts`      |
+| Production code and mirrored tests   | `src/`, `test/`                             |
+| Deno permission changes              | `docs/deno-permissions.md`                  |
+| Embedded workflow guides             | `docs/guides/`, `src/guides/`               |
+| Release procedure                    | `.agents/skills/releasing/SKILL.md`         |
+| Pull request source verification     | `.github/workflows/verify-pull-request.yml` |
+| CI release implementation            | `.github/workflows/ship-main.yml`           |
+| Cumulative downstream changes        | `CHANGELOG.md`                              |
 
 `AGENTS.md` is the repository guidance source. `CLAUDE.md` is only a compatibility pointer to this file.
 
@@ -41,6 +42,7 @@
 ## Verification and release
 
 - `deno task verify-source` is the source verification task: GraphQL type generation, format check, lint, type check, and all non-Keyring tests.
-- `deno task verify-release` is the complete local release gate; it runs the source verification, which already validates embedded guide contracts.
+- `deno task verify-release` is the complete local release gate and the pull request source gate; it runs the source verification, which already validates embedded guide contracts.
 - Do not push or release without explicit user authorization. When asked to ship, load and follow `.agents/skills/releasing/SKILL.md`; it is the only release procedure.
 - The CI release workflow intentionally does not repeat the local release gate. It runs the Linux Keyring integration test, builds five platforms, verifies release assets, attests them, and publishes the GitHub Release.
+- Rolling release runs are serialized. GitHub may replace an older pending `main` run with a newer pending run, so canceled or superseded runs are not published releases and each merge is not guaranteed a distinct release.

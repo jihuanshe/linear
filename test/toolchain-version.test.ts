@@ -8,6 +8,7 @@ const MIRRORS = [
   ".agents/resume",
   "AGENTS.md",
   ".github/workflows/ship-main.yml",
+  ".github/workflows/verify-pull-request.yml",
 ]
 
 Deno.test("toolchain version mirrors follow mise.toml", async () => {

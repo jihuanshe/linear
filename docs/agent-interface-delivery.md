@@ -4,7 +4,7 @@
 
 ## 实现 TODO
 
-本仓库推送到 `main` 即触发滚动的 `Ship main` workflow。按 2026-08-08 的一次性交付决定，`main` 只在集成完成时接受一次合并：剩余能力全部在集成分支（PR #5，`docs/context-continuity`）上以可评审 commit 累积，一次 merge 产出一个携带全部能力的 release。中间状态不单独发布，向后兼容不是约束。
+本仓库推送到 `main` 即触发 `Publish Linear CLI rolling release` workflow。按 2026-08-08 的一次性交付决定，`main` 只在集成完成时接受一次合并：剩余能力全部在集成分支（PR #5，`docs/context-continuity`）上以可评审 commit 累积，一次 merge 产出一个携带全部能力的 release。中间状态不单独发布，向后兼容不是约束。
 
 已完成：
 
@@ -325,7 +325,7 @@ Commit 8–10 与 Skill 迁移零耦合：delivery 与 batch 使用现有 `--jso
 两个仓库、一个发布窗口、一次完整状态切换：
 
 1. **集成完成**：`jihuanshe/linear` 集成分支完成本次发布范围的全部 commit，`deno task verify-release` 通过。
-2. **merge 与发布**：集成分支一次 merge 进 `main`；`Ship main` 构建并发布携带新 capability 的 release。capability 词汇随本次 release 从 `usage-v1` 扩展为 `usage-v1`、`guides-v1`、`delivery-v1`。
+2. **merge 与发布**：集成分支一次 merge 进 `main`；`Publish Linear CLI rolling release` 构建并发布携带新 capability 的 release。capability 词汇随本次 release 从 `usage-v1` 扩展为 `usage-v1`、`guides-v1`、`delivery-v1`。
 3. **安装验证**：通过 mise（非受管机器）或 Rotom（受管机器）收敛到新版本；`linear version --json` 报告新 capability，`linear guides list` 与 delivery `plan` 冒烟通过。
 4. **Skill 替换**：merge `jihuanshe/skills#219`——`preserving-context-continuity`、新 `linear` 激活 Skill、四个旧 Skill 的删除与迁移台账是同一个原子评审单元。
 5. **Live**：skillshare sync 使替换在全部配置目标生效；按 lifecycle 规则验证投影内容并运行最小冒烟。

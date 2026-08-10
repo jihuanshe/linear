@@ -38,7 +38,7 @@ Its current priorities are:
 - global prompt suppression through `LINEAR_PROMPT_DISABLED=1`;
 - explicit confirmation for destructive operations;
 - incremental patch-style updates where replacement would be unnecessarily destructive;
-- rolling binaries built directly from `main`.
+- rolling published builds produced from `main`.
 
 It deliberately does **not** provide an all-in-one "agent mode." JSON output, terminal styling, pagination, prompting, and mutation consent remain separate contracts.
 
@@ -287,7 +287,9 @@ Before a release, run the complete local release gate:
 deno task verify-release
 ```
 
-The [release Skill](.agents/skills/releasing/SKILL.md) is the release procedure. An authorized push to `main` starts [`Ship main`](.github/workflows/ship-main.yml), which runs Linux Keyring integration, builds five platforms, verifies and attests the assets, and publishes the GitHub Release. Source-controlled versions remain `0.0.0-dev`; published versions come from the commit timestamp and SHA.
+Pull requests to `main` run the [`Source gate`](.github/workflows/verify-pull-request.yml), which executes `deno task verify-release` before merge. The [release Skill](.agents/skills/releasing/SKILL.md) is the release procedure. An authorized push to `main` starts [`Publish Linear CLI rolling release`](.github/workflows/ship-main.yml), which runs Linux Keyring integration, builds five platforms, verifies and attests the assets, and publishes the GitHub Release. Source-controlled versions remain `0.0.0-dev`; published versions come from the commit timestamp and SHA.
+
+Rolling release runs are serialized without canceling a release already in progress. GitHub concurrency may replace older waiting runs with the newest pending `main` update, so a canceled or superseded run is not a published release and every merge is not guaranteed its own version. Every published GitHub Release is then recorded as one completed Linear Release with the same version and a link back to GitHub.
 
 ## Upstream and credits
 
@@ -295,7 +297,7 @@ This repository is a downstream fork of [`schpet/linear-cli`](https://github.com
 
 The original project was created by Peter Schilling. Many features, command designs, tests, documentation sections, and integrations in this repository were created by the [upstream contributors](https://github.com/schpet/linear-cli/graphs/contributors).
 
-The downstream changelog summarizes this fork's changes without copying the upstream release history. Exact rolling-build history remains available in this repository's Git history and GitHub Releases.
+The downstream changelog summarizes this fork's changes without copying the upstream release history. Exact rolling published-build history remains available in this repository's Git history and GitHub Releases.
 
 When reporting an issue:
 

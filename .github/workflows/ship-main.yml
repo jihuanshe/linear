@@ -1,4 +1,4 @@
-name: Ship main
+name: Publish Linear CLI rolling release
 
 on:
   push:
@@ -6,8 +6,8 @@ on:
       - main
 
 concurrency:
-  group: ship-main
-  cancel-in-progress: true
+  group: publish-linear-cli-rolling-release
+  cancel-in-progress: false
 
 permissions:
   contents: read
@@ -18,7 +18,7 @@ env:
 
 jobs:
   keyring:
-    name: Verify keyring integration
+    name: Verify Linux Keyring integration
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -177,7 +177,7 @@ jobs:
           retention-days: 1
 
   release:
-    name: Publish release
+    name: Publish GitHub rolling release
     needs:
       - keyring
       - build
@@ -289,7 +289,7 @@ jobs:
             artifacts/linear-self-update-*-linux-gnu
             artifacts/linear-self-update-*-windows-msvc.exe
 
-      - name: Publish release
+      - name: Publish GitHub rolling release
         if: steps.prepare.outputs.skip != 'true'
         run: |
           gh release edit "$VERSION" \
@@ -308,7 +308,7 @@ jobs:
           echo "Released [$VERSION]($url)" >> "$GITHUB_STEP_SUMMARY"
 
   linear-release:
-    name: Record Linear release
+    name: Record completed Linear release
     needs: release
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -331,7 +331,8 @@ jobs:
           echo "version=$version" >> "$GITHUB_OUTPUT"
           echo "url=$url" >> "$GITHUB_OUTPUT"
 
-      - name: Record completed release in Linear
+      - id: linear_release
+        name: Record completed release in Linear
         uses: linear/linear-release-action@af56a9a388625921f3757a2f988e4d7aca958377
         with:
           access_key: ${{ secrets.LINEAR_ACCESS_KEY }}
@@ -339,3 +340,19 @@ jobs:
           name: ${{ steps.metadata.outputs.version }}
           links: |
             GitHub Release=${{ steps.metadata.outputs.url }}
+
+      - name: Verify completed Linear release
+        shell: bash
+        env:
+          EXPECTED_VERSION: ${{ steps.metadata.outputs.version }}
+          RELEASE_ID: ${{ steps.linear_release.outputs.release-id }}
+          RELEASE_URL: ${{ steps.linear_release.outputs.release-url }}
+          RELEASE_VERSION: ${{ steps.linear_release.outputs.release-version }}
+        run: |
+          set -euo pipefail
+          test -n "$RELEASE_ID"
+          test -n "$RELEASE_URL"
+          if [[ "$RELEASE_VERSION" != "$EXPECTED_VERSION" ]]; then
+            echo "Expected Linear release $EXPECTED_VERSION, got $RELEASE_VERSION" >&2
+            exit 1
+          fi
