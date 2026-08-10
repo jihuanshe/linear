@@ -26,6 +26,20 @@
 5. After changing the command tree or `docs/guides/`, run the guides tests; guide frontmatter owns command-to-guide relationships and is validated against the live command tree.
 6. During development run the narrowest relevant test or diagnostic. Use `deno check`, `deno lint`, and Deno tasks; do not use `tsc` or rely on LSP diagnostics.
 
+## Kadoraba live API experiments
+
+`LINEAR_KADORABA_API_KEY` may be available as a dedicated credential for experiments against the Kadoraba test workspace. Prefer a scoped live experiment over speculation when correctness depends on undocumented or uncertain Linear API behavior that deterministic local tests cannot settle.
+
+- The credential's presence provides authentication, not authorization to mutate Linear. Ask the user for explicit authorization for the current experiment, stating why live API evidence is needed and what objects or behavior it will affect.
+- Once the user authorizes that scope, run the necessary destructive tests without asking before every command. Ask again before expanding to another workspace, shared pre-existing data, unexpected cost or downtime, or resources that cannot be cleaned up.
+- Only check whether the dedicated credential is present. Never print, derive, fingerprint, compare, or otherwise inspect it, and never read, use, or fall back to a pre-existing `LINEAR_API_KEY` for a Kadoraba experiment.
+- When the CLI requires `LINEAR_API_KEY`, map the test credential for one process only: `env LINEAR_API_KEY="$LINEAR_KADORABA_API_KEY" <linear-command>`.
+- Before the first mutation, run `auth whoami --json` with the same executable. Continue only when `organization.name` is `Kadoraba` or `organization.urlKey` is `kadoraba`; any other identity is a hard stop.
+- Use uniquely named test objects and prefer mutating objects created by the experiment instead of shared data. Clean up through the production CLI entry point, allow for propagation delay, and structurally verify the final state. Report every object or asset that cannot be removed.
+- Avoid standalone uploads unless upload behavior is the subject of the experiment, because the CLI has no corresponding delete command.
+- For pull request acceptance, test the exact requested commit. Run `deno task install` and invoke the compiled binary by absolute path; the Orb's `linear` on `PATH` is a source wrapper, not the installed artifact.
+- Do not manufacture live `unknown` outcomes by interrupting mutation requests or breaking authentication or networking. Cover those paths with deterministic fault-injection tests unless the user explicitly authorizes a bounded live experiment and its reconciliation plan.
+
 ## Implementation contracts
 
 - Prefer static imports. Use dynamic imports only when required.
