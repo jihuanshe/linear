@@ -1,6 +1,6 @@
 ---
 name: releasing
-description: Verifies and ships the current main branch through the repository's rolling GitHub Release workflow. Use when asked to release, publish, or ship this CLI.
+description: Verifies and publishes the current main branch through the repository's rolling GitHub Release workflow. Use when asked to release, publish, or ship this CLI.
 ---
 
 # Main Release
@@ -11,7 +11,8 @@ Use this procedure only after the user explicitly asks to ship, publish, or rele
 
 - Keep `deno.json` at `0.0.0-dev` in source control.
 - `.github/workflows/ship-main.yml` derives `0.0.<commit timestamp>-g<short commit>` from the pushed commit.
-- A successful `main` push creates the tag and GitHub Release automatically.
+- Each `main` update enters a serialized release queue. A successful run creates the tag and GitHub Release automatically.
+- Release runs do not cancel one already in progress, and the queue retains up to 100 waiting runs.
 - Do not manually bump versions, create release tags, or push tags.
 - Do not create npm, JSR, Homebrew, or cargo-dist releases.
 
@@ -61,14 +62,15 @@ If the push is rejected because `origin/main` advanced, fetch, rebase, rerun `de
 
 ## CI release workflow
 
-`Ship main` runs these stages:
+`Publish Linear CLI rolling release` runs these stages:
 
 1. In parallel, run the Linux Keyring integration test and build all five targets.
 2. For each target, produce one install archive, one standalone self-update binary, and their SHA-256 sidecars.
 3. Merge the artifacts; require 10 distributables and 10 checksum sidecars; generate `sha256.sum`.
-4. Create or resume a draft Release, attest the binary assets, then publish it as latest.
+4. Create or resume a draft Release, attest the binary assets, then publish it. Mark it latest only while its commit is still the current `main` head, so an older queued run cannot move latest backward.
+5. After the GitHub Release succeeds, record one completed Linear Release from the exact `before..HEAD` push range, and require its ID and URL to be non-empty and its version to match the GitHub Release version.
 
-The Release job must not run unless Keyring integration and every target build succeed.
+The GitHub Release job must not run unless Keyring integration and every target build succeed. The Linear Release job must not run unless the GitHub Release job succeeds.
 
 ## Post-release validation
 
@@ -79,15 +81,18 @@ timestamp="$(git show -s --format=%ct HEAD)"
 version="0.0.${timestamp}-g$(git rev-parse HEAD | cut -c1-7)"
 gh release view "$version" \
   --json tagName,targetCommitish,isDraft,isPrerelease,url,assets
-test "$(gh api repos/jihuanshe/linear/releases/latest --jq .tag_name)" = "$version"
+git fetch origin main
+if [[ "$(git rev-parse origin/main)" == "$(git rev-parse HEAD)" ]]; then
+  test "$(gh api repos/jihuanshe/linear/releases/latest --jq .tag_name)" = "$version"
+fi
 ```
 
-Require the Release to target the pushed commit, be published, non-prerelease, and latest. It must contain 21 files: 10 distributables, 10 checksum sidecars, and `sha256.sum`.
+Require the Release to target the pushed commit, be published, and be non-prerelease. If the pushed commit is still current `main`, also require it to be latest. It must contain 21 files: 10 distributables, 10 checksum sidecars, and `sha256.sum`.
 
 When mise is available, verify that the public installation resolves to the expected version:
 
 ```bash
-actual="$(mise x "github:jihuanshe/linear[minimum_release_age=0s]@latest" -- linear --version)"
+actual="$(mise x "github:jihuanshe/linear[minimum_release_age=0s]@$version" -- linear --version)"
 test "$actual" = "linear $version"
 ```
 
@@ -96,6 +101,6 @@ test "$actual" = "linear $version"
 ## Failure handling
 
 - A failed local source check, CI keyring integration check, or build must not produce a published Release. Fix forward with a new `main` commit.
-- A canceled stale run may leave an invisible draft. Do not rerun it after `main` advances; clean it up later if needed.
-- `concurrency.cancel-in-progress` keeps only the newest overlapping `main` run active. Completed historical Releases remain immutable and downloadable.
+- A canceled run is not a published release and may leave an invisible draft. Do not rerun it after `main` advances; clean it up later if needed.
+- The fixed concurrency group serializes release runs and retains up to 100 pending `main` updates. Completed historical Releases remain immutable and downloadable.
 - If GitHub rejects write permissions, attestations, or Release creation, report the repository setting that blocked it instead of switching to a personal token or private runner.
