@@ -102,7 +102,7 @@ Deno.test("plan reads update targets and never writes", async () => {
         operation: "update",
         identifier: "DATA-606",
         set: { title: "New title", priority: 1 },
-        base: { title: "Old title" },
+        base: { title: "Old title", priority: 2 },
         comments: [{ body: "evidence", files: [{ path: "evidence.yrp" }] }],
         attachments: [{
           kind: "url",
@@ -211,6 +211,7 @@ Deno.test("relation conflicts refuse an update before any mutation", async () =>
         operation: "update",
         identifier: "DATA-606",
         set: { title: "New title" },
+        base: { title: "Old title" },
         comments: [{ body: "Evidence" }],
         relations: [{ type: "blocks", issue: "DATA-580" }],
       }],
@@ -365,6 +366,7 @@ Deno.test("relation conflicts preserve applied checkpoint items on resume", asyn
         operation: "update",
         identifier: "DATA-606",
         set: { title: "New title" },
+        base: { title: "Old title" },
         relations: [{ type: "blocks", issue: "DATA-580" }],
       }],
     })
@@ -474,6 +476,43 @@ Deno.test("plan flags a conflict when a colleague changed the field since base",
   }
 })
 
+Deno.test("description updates preserve an explicit null base", async () => {
+  const dir = await Deno.makeTempDir()
+  try {
+    await Deno.writeTextFile(join(dir, "description.md"), "New body")
+    const manifestPath = await writeManifest(dir, {
+      schemaVersion: 1,
+      workspace: "jihuanshe",
+      issues: [{
+        operation: "update",
+        identifier: "DATA-606",
+        set: { descriptionFile: "description.md" },
+        base: { description: null },
+      }],
+    })
+    const loaded = await loadManifest(manifestPath)
+    const ready = await planManifest({
+      loaded,
+      runner: fakeRunner((args) =>
+        args[1] === "view" ? viewResult({ description: null }) : undefined
+      ),
+    })
+    const conflict = await planManifest({
+      loaded,
+      runner: fakeRunner((args) =>
+        args[1] === "view"
+          ? viewResult({ description: "Colleague body" })
+          : undefined
+      ),
+    })
+
+    assertEquals(ready.issues[0].fields[0].verdict, "write")
+    assertEquals(conflict.issues[0].fields[0].verdict, "conflict")
+  } finally {
+    await Deno.remove(dir, { recursive: true })
+  }
+})
+
 Deno.test("field guards compare canonical priority, state, and project values", async () => {
   const dir = await Deno.makeTempDir()
   try {
@@ -523,6 +562,7 @@ Deno.test("field guards compare canonical priority, state, and project values", 
           operation: "update",
           identifier: "DATA-606",
           set: { state: "started", project: "alpha-slug" },
+          base: { state: "Todo", project: null },
         }],
       }),
     )
@@ -563,6 +603,7 @@ Deno.test("label guards refuse a truncated remote set", async () => {
         operation: "update",
         identifier: "DATA-606",
         set: { labels: ["bug"] },
+        base: { labels: ["bug"] },
       }],
     })
     const runner = fakeRunner((args) =>
@@ -680,13 +721,14 @@ Deno.test("apply reports successful mutations with failed read-back as unverifie
           operation: "update",
           identifier: "DATA-606",
           set: { title: "New title" },
+          base: { title: "Old title" },
         }],
       })
       let viewCalls = 0
       const runner = fakeRunner((args) => {
         if (args[1] === "view") {
           viewCalls += 1
-          return viewCalls === 1 ? viewResult() : testCase.readBack
+          return viewCalls < 3 ? viewResult() : testCase.readBack
         }
         return undefined
       })
@@ -720,13 +762,14 @@ Deno.test("an all-skipped resume retries final read-back", async () => {
         operation: "update",
         identifier: "DATA-606",
         set: { title: "New title" },
+        base: { title: "Old title" },
       }],
     })
     let viewCalls = 0
     const runner = fakeRunner((args) => {
       if (args[1] === "view") {
         viewCalls += 1
-        return viewCalls === 2
+        return viewCalls === 3
           ? { code: 1, stdout: "", stderr: "✗ temporary read-back failure" }
           : viewResult()
       }
@@ -794,6 +837,7 @@ Deno.test("all-skipped verification failures stay applied-unverified", async () 
           operation: "update",
           identifier: "DATA-606",
           set: { title: "New title" },
+          base: { title: "Old title" },
         }],
       })
       let failVerification = false
@@ -845,6 +889,7 @@ Deno.test("apply reports partial success and resumes without repeating", async (
         operation: "update",
         identifier: "DATA-606",
         set: { title: "New title" },
+        base: { title: "Old title" },
         comments: [{ body: "evidence", files: [{ path: "evidence.yrp" }] }],
         attachments: [{
           kind: "file",
@@ -1080,6 +1125,7 @@ Deno.test("apply refuses archived, trashed, and alias-resolved targets", async (
           operation: "update",
           identifier: "DATA-606",
           set: { title: "New title" },
+          base: { title: "Old title" },
         }],
       })
       const runner = fakeRunner((args) =>
@@ -1109,6 +1155,7 @@ Deno.test("plan reports object drift as a conflict", async () => {
         operation: "update",
         identifier: "DATA-606",
         set: { title: "New title" },
+        base: { title: "Old title" },
       }],
     })
     const runner = fakeRunner((args) =>
@@ -1137,6 +1184,7 @@ Deno.test("apply refuses when resolved credentials mismatch the manifest workspa
         operation: "update",
         identifier: "DATA-606",
         set: { title: "New title" },
+        base: { title: "Old title" },
       }],
     })
     const runner = fakeRunner((args) =>
@@ -1287,6 +1335,7 @@ Deno.test("idempotent and conflicting updates never invoke issue update", async 
         operation: "update",
         identifier: "DATA-606",
         set: { title: "Old title", labels: ["bug"] },
+        base: { title: "Old title", labels: ["bug"] },
       }],
     })
     const runner = fakeRunner((args) =>
@@ -1331,6 +1380,100 @@ Deno.test("idempotent and conflicting updates never invoke issue update", async 
   }
 })
 
+Deno.test("batch preflight refuses a later conflict before any mutation", async () => {
+  const dir = await Deno.makeTempDir()
+  try {
+    const manifestPath = await writeManifest(dir, {
+      schemaVersion: 1,
+      workspace: "jihuanshe",
+      issues: [
+        {
+          operation: "update",
+          identifier: "DATA-1",
+          set: { title: "First" },
+          base: { title: "Old title" },
+        },
+        {
+          operation: "update",
+          identifier: "DATA-2",
+          set: { title: "Second" },
+          base: { title: "Old title" },
+        },
+      ],
+    })
+    const runner = fakeRunner((args) =>
+      args[1] === "view"
+        ? viewResult({
+          identifier: args[2],
+          title: args[2] === "DATA-2" ? "Colleague title" : "Old title",
+        })
+        : undefined
+    )
+    const outcome = await applyManifest({
+      loaded: await loadManifest(manifestPath),
+      runner,
+    })
+
+    assertEquals(outcome.status, "conflict")
+    assertEquals(outcome.items.map((item) => item.status), [
+      "unattempted",
+      "failed",
+    ])
+    assertEquals(runner.calls.some((args) => args[1] === "update"), false)
+
+    const continued = await applyManifest({
+      loaded: await loadManifest(manifestPath),
+      runner,
+      continueOnFailure: true,
+    })
+    assertEquals(continued.status, "conflict")
+    assertEquals(continued.items.map((item) => item.status), [
+      "applied",
+      "failed",
+    ])
+    assertEquals(
+      runner.calls.filter((args) => args[1] === "update").length,
+      1,
+    )
+  } finally {
+    await Deno.remove(dir, { recursive: true })
+  }
+})
+
+Deno.test("per-issue guard rechecks after a clean batch preflight", async () => {
+  const dir = await Deno.makeTempDir()
+  try {
+    const manifestPath = await writeManifest(dir, {
+      schemaVersion: 1,
+      workspace: "jihuanshe",
+      issues: [{
+        operation: "update",
+        identifier: "DATA-606",
+        set: { title: "New title" },
+        base: { title: "Old title" },
+      }],
+    })
+    let viewCalls = 0
+    const runner = fakeRunner((args) => {
+      if (args[1] !== "view") return undefined
+      viewCalls += 1
+      return viewResult({
+        title: viewCalls === 1 ? "Old title" : "Colleague title",
+      })
+    })
+    const outcome = await applyManifest({
+      loaded: await loadManifest(manifestPath),
+      runner,
+    })
+
+    assertEquals(outcome.status, "conflict")
+    assertStringIncludes(outcome.items[0].detail ?? "", "changed remotely")
+    assertEquals(runner.calls.some((args) => args[1] === "update"), false)
+  } finally {
+    await Deno.remove(dir, { recursive: true })
+  }
+})
+
 Deno.test("a batch stops at the first failure by default and continues with the flag", async () => {
   const batchManifest = {
     schemaVersion: 1,
@@ -1340,11 +1483,13 @@ Deno.test("a batch stops at the first failure by default and continues with the 
         operation: "update",
         identifier: "DATA-1",
         set: { title: "First" },
+        base: { title: "Old title" },
       },
       {
         operation: "update",
         identifier: "DATA-2",
         set: { title: "Second" },
+        base: { title: "Old title" },
       },
     ],
   }

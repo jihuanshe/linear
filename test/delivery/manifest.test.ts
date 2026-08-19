@@ -57,6 +57,20 @@ Deno.test("manifest validation fails before any mutation could run", async (t) =
       "base.priority",
     ],
     [
+      "update field without matching base",
+      {
+        schemaVersion: 1,
+        workspace: "jihuanshe",
+        issues: [{
+          operation: "update",
+          identifier: "DATA-1",
+          set: { title: "x", priority: 1 },
+          base: { title: "old" },
+        }],
+      },
+      "set.priority requires base.priority",
+    ],
+    [
       "team on update",
       {
         schemaVersion: 1,
@@ -218,6 +232,7 @@ Deno.test("manifest rejects duplicate update identifiers", async (t) => {
           operation: "update",
           identifier,
           set: { title: `title ${index}` },
+          base: { title: "old title" },
         })),
       }, async (manifestPath) => {
         const error = await assertRejects(
@@ -231,6 +246,22 @@ Deno.test("manifest rejects duplicate update identifiers", async (t) => {
       })
     })
   }
+})
+
+Deno.test("manifest accepts an explicit null description base", async () => {
+  await withManifest({
+    schemaVersion: 1,
+    workspace: "jihuanshe",
+    issues: [{
+      operation: "update",
+      identifier: "DATA-1",
+      set: { description: "new body" },
+      base: { description: null },
+    }],
+  }, async (manifestPath) => {
+    const loaded = await loadManifest(manifestPath)
+    assertEquals(loaded.manifest.issues[0].base?.description, null)
+  })
 })
 
 Deno.test("manifest inventories referenced files with size, MIME, and sha256", async () => {

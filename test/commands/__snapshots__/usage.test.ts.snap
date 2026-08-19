@@ -47,7 +47,7 @@ snapshot[`usage JSON v1 freezes its existing fields and types 1`] = `
     details: "linear issue usage",
     guides: [
       {
-        description: "渐进发现、专用命令优先级、写入授权边界，以及影响命令选择的语义陷阱",
+        description: "渐进发现、typed command 与 GraphQL 的分工、写入授权边界，以及影响命令选择的语义陷阱",
         name: "core",
       },
       {
@@ -481,6 +481,24 @@ snapshot[`usage JSON v1 freezes its existing fields and types 1`] = `
             "--state",
           ],
           name: "state",
+          repeatable: true,
+          staticallyRequired: false,
+        },
+        {
+          arguments: [
+            {
+              list: false,
+              name: "name",
+              required: true,
+              type: "string",
+              variadic: false,
+            },
+          ],
+          description: "Filter by exact workflow state name (case-insensitive; can be repeated)",
+          flags: [
+            "--state-name",
+          ],
+          name: "state-name",
           repeatable: true,
           staticallyRequired: false,
         },
@@ -1589,7 +1607,7 @@ snapshot[`usage JSON v1 freezes its existing fields and types 1`] = `
       details: "linear issue update --help",
       guides: [
         {
-          description: "渐进发现、专用命令优先级、写入授权边界，以及影响命令选择的语义陷阱",
+          description: "渐进发现、typed command 与 GraphQL 的分工、写入授权边界，以及影响命令选择的语义陷阱",
           name: "core",
         },
         {
@@ -1947,7 +1965,7 @@ snapshot[`usage JSON v1 freezes its existing fields and types 1`] = `
       details: "linear issue comment --help",
       guides: [
         {
-          description: "渐进发现、专用命令优先级、写入授权边界，以及影响命令选择的语义陷阱",
+          description: "渐进发现、typed command 与 GraphQL 的分工、写入授权边界，以及影响命令选择的语义陷阱",
           name: "core",
         },
         {
@@ -1993,7 +2011,7 @@ snapshot[`usage JSON v1 freezes its existing fields and types 1`] = `
       details: "linear issue attach --help",
       guides: [
         {
-          description: "渐进发现、专用命令优先级、写入授权边界，以及影响命令选择的语义陷阱",
+          description: "渐进发现、typed command 与 GraphQL 的分工、写入授权边界，以及影响命令选择的语义陷阱",
           name: "core",
         },
         {

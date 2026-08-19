@@ -1183,10 +1183,27 @@ export type FetchedQueryIssuePayload = {
   pageInfo: QueryIssuesPayload["pageInfo"]
 }
 
+function buildWorkflowStateFilter(
+  stateTypes?: string[],
+  stateNames?: string[],
+): NonNullable<IssueFilter["state"]> | undefined {
+  if (stateTypes != null && stateTypes.length > 0) {
+    return { type: { in: stateTypes } }
+  }
+  if (stateNames == null || stateNames.length === 0) return undefined
+  if (stateNames.length === 1) {
+    return { name: { eqIgnoreCase: stateNames[0] } }
+  }
+  return {
+    or: stateNames.map((name) => ({ name: { eqIgnoreCase: name } })),
+  }
+}
+
 export interface FetchIssuesForQueryOptions {
   teamKeys?: string[]
   allTeams?: boolean
   state?: string[]
+  stateNames?: string[]
   assignee?: string
   unassigned?: boolean
   sort?: "manual" | "priority"
@@ -1218,9 +1235,11 @@ export async function fetchIssuesForQuery(
     }
   }
 
-  if (options.state && options.state.length > 0) {
-    filter.state = { type: { in: options.state } }
-  }
+  const stateFilter = buildWorkflowStateFilter(
+    options.state,
+    options.stateNames,
+  )
+  if (stateFilter != null) filter.state = stateFilter
 
   if (options.unassigned) {
     filter.assignee = { null: true }
@@ -1451,6 +1470,7 @@ export interface SearchIssuesByTermOptions {
   teamKey?: string
   teamKeys?: string[]
   state?: string[]
+  stateNames?: string[]
   assignee?: string
   unassigned?: boolean
   limit?: number
@@ -1483,9 +1503,11 @@ export async function searchIssuesByTerm(
     filter.team = { key: { eq: options.teamKey } }
   }
 
-  if (options.state != null && options.state.length > 0) {
-    filter.state = { type: { in: options.state } }
-  }
+  const stateFilter = buildWorkflowStateFilter(
+    options.state,
+    options.stateNames,
+  )
+  if (stateFilter != null) filter.state = stateFilter
 
   if (options.unassigned) {
     filter.assignee = { null: true }

@@ -20,6 +20,7 @@ commands:
 seeAlso:
   - issue-authoring
   - automation
+  - graphql
 ---
 
 # 用 manifest 交付完整 Issue
@@ -37,7 +38,7 @@ seeAlso:
       "operation": "update",
       "identifier": "DATA-606",
       "set": { "title": "新标题", "descriptionFile": "description.md" },
-      "base": { "title": "旧标题" },
+      "base": { "title": "旧标题", "description": "旧正文" },
       "comments": [
         { "bodyFile": "evidence.md", "files": [{ "path": "replay-a.yrp" }] }
       ],
@@ -65,7 +66,7 @@ seeAlso:
 ```
 
 - 文件路径相对 manifest 所在目录解析；plan 和 apply 都会在第一笔写入前校验整批文件的存在、大小和 MIME。
-- `set` 的字段词表与 `issue create/update` 一致：title、description/descriptionFile、priority、state、assignee（null 表示清除）、labels（完整集合）、project、parent。create 另需把 `team` 放在 Issue 条目顶层，与 `operation` 和 `set` 同级；`team` 不是 `set` 字段。
+- `set` 的字段词表与 `issue create/update` 一致：title、description/descriptionFile、priority、state、assignee（null 表示清除）、labels（完整集合）、project、parent。update 的每个 `set` 字段必须在 `base` 中记录上次从 Linear 读到的值；create 不使用 `base`。create 另需把 `team` 放在 Issue 条目顶层，与 `operation` 和 `set` 同级；`team` 不是 `set` 字段。
 - 同一个现有 Issue 在一份 manifest 中只能有一个 update 条目；把它的字段、Comment、Attachment 和 Relation 合并在该条目中。重复 identifier（包括大小写等价形式）会在任何远端读取、checkpoint 或 mutation 前被拒绝，避免后一个条目的 conflict 发生在前一个条目已经写入之后。
 - `comments[].files` 上传文件并内联进评论。`attachments` 的 `url` 与 `file` 两种 kind 都创建侧栏 Attachment：`url` 直接链接外部地址，`file` 通过 `path` 指定要先上传的本地文件。
 - `relations` 的 `issue` 必须使用 `DATA-580` 形态的完整 identifier，类型词表与 `issue relation add` 一致：related、blocks、blocked-by（由 CLI 反转为上游的 blocks）、duplicate。duplicate 的方向：本条目所在 Issue 成为 `issue` 字段所指 Issue 的 duplicate。Linear 的同一对 Issue 只能保留一种关系：同类型和方向按幂等处理，不同类型或方向在 plan/apply 中报告 conflict；需要替换时先用 `issue relation delete` 显式删除旧关系。
@@ -73,13 +74,13 @@ seeAlso:
 
 ## base：并发安全
 
-你准备材料需要时间，期间同事可能改了同一个 Issue。给字段写上 `base`（你上次读到的值）后，apply 对每个字段做三方比较，比较 base、目标值和远端当前值，verdict 用同一词表出现在 plan 输出里：
+你准备材料需要时间，期间同事可能改了同一个 Issue。update 的每个替换字段都必须写 `base`（你上次读到的值）；缺失会在本地校验阶段失败，不会降级成无条件覆盖。当前值为空时显式写 `null`，空标签集合写 `[]`。apply 对每个字段做三方比较，比较 base、目标值和远端当前值，verdict 用同一词表出现在 plan 输出里：
 
 - `write`：远端仍等于 base，写入。
 - `idempotent`：远端已等于目标值，跳过。
 - `conflict`：两者都不是，同事改过这个字段，拒绝覆盖。
 
-只改 priority/state/labels 的机械更新不需要 base，直接写。
+`set.labels` 表示完整集合替换，因此同样必须带完整 `base.labels`。只需增删标签时使用 `issue update --add-label/--remove-label`；它们映射 Linear 的增量标签原语，不需要先读取并替换整个集合。Comment、Attachment 和 Relation 的追加也不需要字段 base；Relation 保留自己的冲突检查。
 
 报 conflict 后，把远端当前值与你的意图一起交给用户裁决；执行裁决时把 base 刷新为远端当前值、把 set 改成裁决后的目标，重新 plan/apply。这条路保留 base 保护：裁决与执行之间同事再次修改会再次报 conflict，而不是被静默覆盖。不要为绕过 conflict 改用无 base 的直接更新。
 
@@ -96,7 +97,7 @@ linear issue apply --file delivery.json --confirm-workspace jihuanshe
 
 plan 是可选的安全与执行摘要，不是人类审批界面，也不是每次 create 前的强制仪式。create 展示目标 workspace/team、标题和归属、长正文的来源与大小、Comment 上传公开性、文件、Attachment 和关系，但不把完整长正文复制进终端；需要用户审核 Agent 新拟的正文时，Agent 必须在对话中展示草稿。update 继续展示本次字段的 base/desired/remote verdict；Relation 逐项显示 add/idempotent/conflict。用户已经明确要求按给定内容写入时，不需要为了确认而重复确认。
 
-apply 在第一笔写入前重复 manifest 与文件校验；三方比较和对象核对发生在每个 Issue 条目自己的写入之前，中途失败由 checkpoint 续跑承接，不做整批远端预读。`--confirm-workspace` 必须重复 manifest 里的 workspace，防止把准备好的 manifest 打到错误目标——它不是授权，写入授权始终来自宿主和用户。
+apply 在第一笔写入前重复 manifest 与文件校验。没有已应用 checkpoint 的首次执行会先预读整批 update 目标；默认情况下，任何已经存在的字段、对象或 Relation 冲突都会在第一笔 mutation 前停止。显式 `--continue-on-failure` 会跳过冲突条目并继续干净条目。真正执行时仍在每个 Issue 自己的写入前重新读取并比较，不把整批预检结果当锁。checkpoint 续跑已经处于部分执行状态，因此直接沿用逐 Issue 检查。`--confirm-workspace` 必须重复 manifest 里的 workspace，防止把准备好的 manifest 打到错误目标——它不是授权，写入授权始终来自宿主和用户。
 
 apply 逐执行项返回 applied / failed / unknown / unattempted / skipped，结束后读回每个本次已应用或从 checkpoint 跳过的目标 Issue。mutation 已成功但当前视图读回失败时，执行项仍保持 applied 以免误重试，整体状态返回 applied-unverified 并以非零退出；修复访问后重跑会跳过 mutation，只重试读回。
 

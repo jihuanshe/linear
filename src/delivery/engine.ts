@@ -278,13 +278,12 @@ export function planFields(
       ? resolveDescription(set)
       : set[field as keyof DeliverySet]
     if (desired === undefined) continue
+    const hasBase = Object.hasOwn(base ?? {}, field)
     const baseValue = base?.[field]
     let verdict: FieldVerdict
     if (fieldEquals(field, desired, remote)) {
       verdict = "idempotent"
-    } else if (
-      baseValue === undefined || fieldEquals(field, baseValue, remote)
-    ) {
+    } else if (hasBase && fieldEquals(field, baseValue, remote)) {
       verdict = "write"
     } else {
       verdict = "conflict"
@@ -292,7 +291,7 @@ export function planFields(
     plans.push({
       field,
       desired,
-      ...(baseValue === undefined ? {} : { base: baseValue }),
+      ...(hasBase ? { base: baseValue } : {}),
       remote: remote[field] ?? null,
       verdict,
     })
@@ -597,6 +596,20 @@ export interface ItemResult {
   detail?: string
 }
 
+function summarizeItemResults(
+  results: ItemResult[],
+): Record<ItemStatus, number> {
+  const summary: Record<ItemStatus, number> = {
+    applied: 0,
+    failed: 0,
+    unknown: 0,
+    unattempted: 0,
+    skipped: 0,
+  }
+  for (const item of results) summary[item.status] += 1
+  return summary
+}
+
 export interface ApplyOutcome {
   status:
     | "completed"
@@ -756,6 +769,27 @@ export async function applyManifest(
     items: {},
   }
   checkpoint.manifestSha256 = loaded.manifestSha256
+
+  const hasAppliedCheckpoint = Object.values(checkpoint.items).some((item) =>
+    item.status === "applied"
+  )
+  if (!hasAppliedCheckpoint) {
+    const preflight = await planManifestWithWorkspace(
+      context,
+      workspaceFlags,
+      expansions,
+    )
+    if (
+      preflight.status === "conflict" &&
+      context.continueOnFailure !== true
+    ) {
+      return preflightConflictOutcome(
+        preflight,
+        expansions,
+        checkpoint.createdIdentifiers,
+      )
+    }
+  }
 
   const results: ItemResult[] = []
   const verification: VerificationResult[] = []
@@ -1186,14 +1220,7 @@ export async function applyManifest(
     }
   }
 
-  const summary: Record<ItemStatus, number> = {
-    applied: 0,
-    failed: 0,
-    unknown: 0,
-    unattempted: 0,
-    skipped: 0,
-  }
-  for (const item of results) summary[item.status] += 1
+  const summary = summarizeItemResults(results)
 
   const status: ApplyOutcome["status"] = unknownSeen
     ? "stopped-on-unknown"
@@ -1330,6 +1357,63 @@ function summarizeIssue(
   }
 }
 
+function preflightConflictOutcome(
+  plan: PlanOutcome,
+  expansions: DeliveryItem[][],
+  createdIdentifiers: Record<string, string>,
+): ApplyOutcome {
+  const results: ItemResult[] = []
+  let fieldOrRelationConflict = false
+  for (const [issueIndex, issue] of plan.issues.entries()) {
+    const fieldConflicts = issue.fields.filter((field) =>
+      field.verdict === "conflict"
+    )
+    if (fieldConflicts.length > 0) fieldOrRelationConflict = true
+    const relations = issue.summary.relations ?? []
+    let driftPending = issue.drift
+    for (const item of expansions[issueIndex]) {
+      const details: string[] = []
+      if (driftPending != null) {
+        details.push(driftPending)
+        driftPending = null
+      }
+      if (item.kind === "fields" && fieldConflicts.length > 0) {
+        details.push(
+          `conflict: ${
+            fieldConflicts.map((field) => field.field).join(", ")
+          } changed remotely since base`,
+        )
+      }
+      if (item.kind === "relation") {
+        const relation = relations[item.subIndex]
+        if (relation?.verdict === "conflict") {
+          fieldOrRelationConflict = true
+          details.push(
+            `conflict: ${
+              relation.detail ?? "relation would replace an existing edge"
+            }`,
+          )
+        }
+      }
+      results.push({
+        key: item.key,
+        kind: item.kind,
+        describe: item.describe,
+        status: details.length > 0 ? "failed" : "unattempted",
+        ...(details.length === 0 ? {} : { detail: details.join("; ") }),
+      })
+    }
+  }
+  return {
+    status: fieldOrRelationConflict ? "conflict" : "stopped-on-failure",
+    items: results,
+    summary: summarizeItemResults(results),
+    createdIdentifiers: { ...createdIdentifiers },
+    verification: [],
+    readBack: {},
+  }
+}
+
 /**
  * The zero-write preview: read-only resolution of every update target plus
  * the full local file inventory. Optional by design — apply performs the same
@@ -1339,19 +1423,28 @@ function summarizeIssue(
 export async function planManifest(
   context: ApplyContext,
 ): Promise<PlanOutcome> {
+  const workspaceFlags = await verifyWorkspaceIdentity(context)
+  return await planManifestWithWorkspace(context, workspaceFlags)
+}
+
+async function planManifestWithWorkspace(
+  context: ApplyContext,
+  workspaceFlags: string[],
+  expansions?: DeliveryItem[][],
+): Promise<PlanOutcome> {
   const { loaded, runner } = context
   const { manifest } = loaded
   const issues: IssuePlan[] = []
   let conflict = false
-  const workspaceFlags = await verifyWorkspaceIdentity(context)
 
   for (const [issueIndex, issue] of manifest.issues.entries()) {
-    const items = await expandIssue(
-      issue,
-      issueIndex,
-      workspaceFlags,
-      loaded.files,
-    )
+    const items = expansions?.[issueIndex] ??
+      await expandIssue(
+        issue,
+        issueIndex,
+        workspaceFlags,
+        loaded.files,
+      )
     let fields: FieldPlan[] = []
     let drift: string | null = null
     let remoteView: unknown = null
