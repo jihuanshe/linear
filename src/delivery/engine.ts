@@ -207,6 +207,15 @@ function fieldEquals(
         normalizeMarkdown(remoteValue as string)
     }
     case "labels": {
+      if (remote.labelsComplete === false) {
+        throw new ValidationError(
+          "Issue label set exceeds the issue view pagination boundary",
+          {
+            suggestion:
+              "Reduce the issue's labels before using a delivery manifest to replace the complete label set",
+          },
+        )
+      }
       const a = [...(manifestValue as string[] ?? [])].sort()
       const b = [...(remoteValue as string[] ?? [])].sort()
       return a.length === b.length &&
@@ -246,7 +255,6 @@ export interface FieldPlan {
   base?: unknown
   remote?: unknown
   verdict: FieldVerdict
-  detail?: string
 }
 
 /**
@@ -272,17 +280,6 @@ export function planFields(
     if (desired === undefined) continue
     const hasBase = Object.hasOwn(base ?? {}, field)
     const baseValue = base?.[field]
-    if (field === "labels" && remote.labelsComplete === false) {
-      plans.push({
-        field,
-        desired,
-        ...(hasBase ? { base: baseValue } : {}),
-        remote: remote[field] ?? null,
-        verdict: "conflict",
-        detail: "remote label set exceeds the issue view pagination boundary",
-      })
-      continue
-    }
     let verdict: FieldVerdict
     if (fieldEquals(field, desired, remote)) {
       verdict = "idempotent"
@@ -300,21 +297,6 @@ export function planFields(
     })
   }
   return plans
-}
-
-function fieldConflictDetail(conflicts: FieldPlan[]): string {
-  const changed = conflicts.filter((plan) => plan.detail == null)
-  const details = conflicts
-    .filter((plan) => plan.detail != null)
-    .map((plan) => `${plan.field}: ${plan.detail}`)
-  if (changed.length > 0) {
-    details.unshift(
-      `${
-        changed.map((plan) => plan.field).join(", ")
-      } changed remotely since base`,
-    )
-  }
-  return `conflict: ${details.join("; ")}`
 }
 
 export type ItemKind = "fields" | "comment" | "attachment" | "relation"
@@ -1012,7 +994,9 @@ export async function applyManifest(
             kind: item.kind,
             describe: item.describe,
             status: "failed",
-            detail: fieldConflictDetail(conflicts),
+            detail: `conflict: ${
+              conflicts.map((plan) => plan.field).join(", ")
+            } changed remotely since base`,
           })
           conflictSeen = true
           halted = !continueOnFailure
@@ -1419,7 +1403,11 @@ function preflightConflictOutcome(
         driftPending = null
       }
       if (item.kind === "fields" && fieldConflicts.length > 0) {
-        details.push(fieldConflictDetail(fieldConflicts))
+        details.push(
+          `conflict: ${
+            fieldConflicts.map((field) => field.field).join(", ")
+          } changed remotely since base`,
+        )
       }
       if (item.kind === "relation") {
         const relation = relations[item.subIndex]

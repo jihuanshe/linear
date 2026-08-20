@@ -80,7 +80,7 @@ seeAlso:
 - `idempotent`：远端已等于目标值，跳过。
 - `conflict`：两者都不是，同事改过这个字段，拒绝覆盖。
 
-`set.labels` 表示完整集合替换，因此同样必须带完整 `base.labels`。如果 `issue view` 无法在一页内返回完整标签集合，plan/apply 会报告 conflict，不会用截断视图覆盖远端。只需增删标签时使用 `issue update --add-label/--remove-label`；它们映射 Linear 的增量标签原语，不需要先读取并替换整个集合。Comment、Attachment 和 Relation 的追加也不需要字段 base；Relation 保留自己的冲突检查。
+`set.labels` 表示完整集合替换，因此同样必须带完整 `base.labels`。只需增删标签时使用 `issue update --add-label/--remove-label`；它们映射 Linear 的增量标签原语，不需要先读取并替换整个集合。Comment、Attachment 和 Relation 的追加也不需要字段 base；Relation 保留自己的冲突检查。
 
 报 conflict 后，把远端当前值与你的意图一起交给用户裁决；执行裁决时把 base 刷新为远端当前值、把 set 改成裁决后的目标，重新 plan/apply。这条路保留 base 保护：裁决与执行之间同事再次修改会再次报 conflict，而不是被静默覆盖。不要为绕过 conflict 改用无 base 的直接更新。
 

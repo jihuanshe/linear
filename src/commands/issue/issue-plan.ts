@@ -85,9 +85,6 @@ export function formatPlan(plan: PlanOutcome): string {
         if ("base" in field) {
           parts.push(`    base:    ${JSON.stringify(field.base)}`)
         }
-        if (field.detail != null) {
-          parts.push(`    detail:  ${field.detail}`)
-        }
       }
       lines.push(...parts)
     }

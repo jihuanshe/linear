@@ -593,7 +593,7 @@ Deno.test("field guards compare canonical priority, state, and project values", 
   }
 })
 
-Deno.test("label guards report a truncated remote set as a conflict", async () => {
+Deno.test("label guards refuse a truncated remote set", async () => {
   const dir = await Deno.makeTempDir()
   try {
     const manifestPath = await writeManifest(dir, {
@@ -617,18 +617,15 @@ Deno.test("label guards report a truncated remote set as a conflict", async () =
         : undefined
     )
 
-    const plan = await planManifest({
-      loaded: await loadManifest(manifestPath),
-      runner,
-    })
-
-    assertEquals(plan.status, "conflict")
-    assertEquals(plan.issues[0].fields[0].verdict, "conflict")
-    assertStringIncludes(
-      plan.issues[0].fields[0].detail ?? "",
+    await assertRejects(
+      async () =>
+        planManifest({
+          loaded: await loadManifest(manifestPath),
+          runner,
+        }),
+      ValidationError,
       "label set exceeds",
     )
-    assertStringIncludes(formatPlan(plan), "detail:  remote label set exceeds")
   } finally {
     await Deno.remove(dir, { recursive: true })
   }
@@ -1538,80 +1535,6 @@ Deno.test("continue mode handles read failures per issue", async () => {
     assertEquals(
       runner.calls.filter((args) => args[1] === "update").length,
       1,
-    )
-  } finally {
-    await Deno.remove(dir, { recursive: true })
-  }
-})
-
-Deno.test("truncated labels remain structured in default and continue modes", async () => {
-  const dir = await Deno.makeTempDir()
-  try {
-    const manifestPath = await writeManifest(dir, {
-      schemaVersion: 1,
-      workspace: "jihuanshe",
-      issues: [
-        {
-          operation: "update",
-          identifier: "DATA-1",
-          set: { title: "First" },
-          base: { title: "Old title" },
-        },
-        {
-          operation: "update",
-          identifier: "DATA-2",
-          set: { labels: ["bug"] },
-          base: { labels: ["bug"] },
-        },
-        {
-          operation: "update",
-          identifier: "DATA-3",
-          set: { title: "Third" },
-          base: { title: "Old title" },
-        },
-      ],
-    })
-    const runner = fakeRunner((args) =>
-      args[1] === "view"
-        ? viewResult({
-          identifier: args[2],
-          labels: {
-            nodes: [{ name: "bug" }],
-            pageInfo: { hasNextPage: args[2] === "DATA-2" },
-          },
-        })
-        : undefined
-    )
-    const stopped = await applyManifest({
-      loaded: await loadManifest(manifestPath),
-      runner,
-    })
-
-    assertEquals(stopped.status, "conflict")
-    assertEquals(stopped.items.map((item) => item.status), [
-      "unattempted",
-      "failed",
-      "unattempted",
-    ])
-    assertStringIncludes(stopped.items[1].detail ?? "", "label set exceeds")
-    assertEquals(runner.calls.some((args) => args[1] === "update"), false)
-
-    const continued = await applyManifest({
-      loaded: await loadManifest(manifestPath),
-      runner,
-      continueOnFailure: true,
-    })
-
-    assertEquals(continued.status, "conflict")
-    assertEquals(continued.items.map((item) => item.status), [
-      "applied",
-      "failed",
-      "applied",
-    ])
-    assertStringIncludes(continued.items[1].detail ?? "", "label set exceeds")
-    assertEquals(
-      runner.calls.filter((args) => args[1] === "update").length,
-      2,
     )
   } finally {
     await Deno.remove(dir, { recursive: true })
