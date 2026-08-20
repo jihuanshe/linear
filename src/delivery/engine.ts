@@ -633,6 +633,23 @@ export interface VerificationResult {
   url?: string
 }
 
+class ManifestReadError extends CliError {
+  readonly issueIndex: number
+  readonly result: CommandResult
+
+  constructor(issueIndex: number, identifier: string, result: CommandResult) {
+    super(
+      `Failed to read ${identifier}: ${
+        result.stderr.trim().split("\n")[0] ||
+        `issue view exited with code ${result.code}`
+      }`,
+    )
+    this.name = "ManifestReadError"
+    this.issueIndex = issueIndex
+    this.result = result
+  }
+}
+
 function classifyFailure(result: CommandResult): "failed" | "unknown" {
   // A handled CLI error prints "✗ ..." before a nonzero exit; that pattern is
   // treated as "failed without remote effect". Anything else — crash, signal,
@@ -773,21 +790,29 @@ export async function applyManifest(
   const hasAppliedCheckpoint = Object.values(checkpoint.items).some((item) =>
     item.status === "applied"
   )
-  if (!hasAppliedCheckpoint) {
-    const preflight = await planManifestWithWorkspace(
-      context,
-      workspaceFlags,
-      expansions,
-    )
-    if (
-      preflight.status === "conflict" &&
-      context.continueOnFailure !== true
-    ) {
-      return preflightConflictOutcome(
-        preflight,
+  if (!hasAppliedCheckpoint && context.continueOnFailure !== true) {
+    try {
+      const preflight = await planManifestWithWorkspace(
+        context,
+        workspaceFlags,
         expansions,
-        checkpoint.createdIdentifiers,
       )
+      if (preflight.status === "conflict") {
+        return preflightConflictOutcome(
+          preflight,
+          expansions,
+          checkpoint.createdIdentifiers,
+        )
+      }
+    } catch (error) {
+      if (error instanceof ManifestReadError) {
+        return preflightReadFailureOutcome(
+          error,
+          expansions,
+          checkpoint.createdIdentifiers,
+        )
+      }
+      throw error
     }
   }
 
@@ -1414,6 +1439,42 @@ function preflightConflictOutcome(
   }
 }
 
+function preflightReadFailureOutcome(
+  error: ManifestReadError,
+  expansions: DeliveryItem[][],
+  createdIdentifiers: Record<string, string>,
+): ApplyOutcome {
+  const status = classifyFailure(error.result)
+  const results: ItemResult[] = []
+  for (const [issueIndex, items] of expansions.entries()) {
+    if (issueIndex === error.issueIndex) {
+      results.push({
+        key: `${issueIndex}:fields:0:read`,
+        kind: "fields",
+        describe: "read current state before delivery",
+        status,
+        detail: error.userMessage,
+      })
+    }
+    for (const item of items) {
+      results.push({
+        key: item.key,
+        kind: item.kind,
+        describe: item.describe,
+        status: "unattempted",
+      })
+    }
+  }
+  return {
+    status: status === "unknown" ? "stopped-on-unknown" : "stopped-on-failure",
+    items: results,
+    summary: summarizeItemResults(results),
+    createdIdentifiers: { ...createdIdentifiers },
+    verification: [],
+    readBack: {},
+  }
+}
+
 /**
  * The zero-write preview: read-only resolution of every update target plus
  * the full local file inventory. Optional by design — apply performs the same
@@ -1457,10 +1518,10 @@ async function planManifestWithWorkspace(
         "--json",
       ])
       if (view.code !== 0) {
-        throw new CliError(
-          `Failed to read ${issue.identifier}: ${
-            view.stderr.trim().split("\n")[0]
-          }`,
+        throw new ManifestReadError(
+          issueIndex,
+          issue.identifier as string,
+          view,
         )
       }
       remoteView = JSON.parse(view.stdout)

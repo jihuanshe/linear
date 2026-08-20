@@ -1440,6 +1440,107 @@ Deno.test("batch preflight refuses a later conflict before any mutation", async 
   }
 })
 
+Deno.test("batch preflight reports read failure without mutating", async () => {
+  const dir = await Deno.makeTempDir()
+  try {
+    const manifestPath = await writeManifest(dir, {
+      schemaVersion: 1,
+      workspace: "jihuanshe",
+      issues: [
+        {
+          operation: "update",
+          identifier: "DATA-1",
+          set: { title: "First" },
+          base: { title: "Old title" },
+        },
+        {
+          operation: "update",
+          identifier: "DATA-2",
+          set: { title: "Second" },
+          base: { title: "Old title" },
+        },
+      ],
+    })
+    const runner = fakeRunner((args) =>
+      args[1] === "view" && args[2] === "DATA-2"
+        ? { code: 1, stdout: "", stderr: "✗ issue not found" }
+        : undefined
+    )
+    const outcome = await applyManifest({
+      loaded: await loadManifest(manifestPath),
+      runner,
+    })
+
+    assertEquals(outcome.status, "stopped-on-failure")
+    assertEquals(outcome.items.map((item) => item.status), [
+      "unattempted",
+      "failed",
+      "unattempted",
+    ])
+    assertStringIncludes(outcome.items[1].detail ?? "", "issue not found")
+    assertEquals(outcome.summary.failed, 1)
+    assertEquals(outcome.summary.unattempted, 2)
+    assertEquals(runner.calls.some((args) => args[1] === "update"), false)
+  } finally {
+    await Deno.remove(dir, { recursive: true })
+  }
+})
+
+Deno.test("continue mode handles read failures per issue", async () => {
+  const dir = await Deno.makeTempDir()
+  try {
+    const manifestPath = await writeManifest(dir, {
+      schemaVersion: 1,
+      workspace: "jihuanshe",
+      issues: [
+        {
+          operation: "update",
+          identifier: "DATA-1",
+          set: { title: "First" },
+          base: { title: "Old title" },
+        },
+        {
+          operation: "update",
+          identifier: "DATA-2",
+          set: { title: "Second" },
+          base: { title: "Old title" },
+        },
+      ],
+    })
+    const runner = fakeRunner((args) => {
+      if (args[1] === "view" && args[2] === "DATA-1") {
+        return { code: 1, stdout: "", stderr: "✗ issue not found" }
+      }
+      if (args[1] === "view" && args[2] === "DATA-2") {
+        return viewResult({ identifier: "DATA-2", title: "Old title" })
+      }
+      return undefined
+    })
+    const outcome = await applyManifest({
+      loaded: await loadManifest(manifestPath),
+      runner,
+      continueOnFailure: true,
+    })
+
+    assertEquals(outcome.status, "completed-with-failures")
+    assertEquals(outcome.items.map((item) => item.status), [
+      "failed",
+      "unattempted",
+      "applied",
+    ])
+    assertEquals(
+      runner.calls.filter((args) => args[1] === "view").length,
+      3,
+    )
+    assertEquals(
+      runner.calls.filter((args) => args[1] === "update").length,
+      1,
+    )
+  } finally {
+    await Deno.remove(dir, { recursive: true })
+  }
+})
+
 Deno.test("per-issue guard rechecks after a clean batch preflight", async () => {
   const dir = await Deno.makeTempDir()
   try {
