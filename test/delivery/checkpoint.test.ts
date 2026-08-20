@@ -35,10 +35,14 @@ Deno.test("checkpoint accepts only persisted item statuses", async () => {
     },
   }, async (manifestPath) => {
     const checkpoint = await loadCheckpoint(manifestPath)
-    assertEquals(checkpoint?.items, {
-      applied: { status: "applied" },
-      failed: { status: "failed", note: "retryable" },
-      unknown: { status: "unknown" },
+    assertEquals(checkpoint, {
+      schemaVersion: 1,
+      createdIdentifiers: { "0": "DATA-1" },
+      items: {
+        applied: { status: "applied" },
+        failed: { status: "failed", note: "retryable" },
+        unknown: { status: "unknown" },
+      },
     })
   })
 })
@@ -72,7 +76,7 @@ Deno.test("checkpoint rejects malformed JSON and incomplete shapes", async () =>
     await assertRejects(
       () => loadCheckpoint(manifestPath),
       ValidationError,
-      "manifestSha256",
+      "createdIdentifiers",
     )
   })
 })

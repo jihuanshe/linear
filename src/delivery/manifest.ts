@@ -108,11 +108,9 @@ export type DeliveryManifest = v.InferOutput<typeof manifestSchema>
 export type DeliveryIssue = DeliveryManifest["issues"][number]
 export type DeliverySet = NonNullable<DeliveryIssue["set"]>
 export type DeliveryBase = NonNullable<DeliveryIssue["base"]>
-export type DeliveryComment = NonNullable<DeliveryIssue["comments"]>[number]
 export type DeliveryAttachment = NonNullable<
   DeliveryIssue["attachments"]
 >[number]
-export type DeliveryRelation = NonNullable<DeliveryIssue["relations"]>[number]
 
 /** A local file referenced by the manifest, validated before any mutation. */
 export interface ManifestFile {
@@ -128,7 +126,6 @@ export interface ManifestFile {
 export interface LoadedManifest {
   manifest: DeliveryManifest
   manifestPath: string
-  manifestSha256: string
   /** Keyed by the manifest-relative reference. */
   files: Map<string, ManifestFile>
 }
@@ -377,14 +374,9 @@ export async function loadManifest(
     }
   }
 
-  const manifestDigest = await crypto.subtle.digest(
-    "SHA-256",
-    new TextEncoder().encode(raw),
-  )
   return {
     manifest,
     manifestPath,
-    manifestSha256: encodeHex(manifestDigest),
     files,
   }
 }

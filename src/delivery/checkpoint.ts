@@ -10,12 +10,22 @@ const checkpointItemSchema = v.strictObject({
   note: v.optional(v.string()),
 })
 
-const checkpointSchema = v.strictObject({
-  schemaVersion: v.literal(1),
-  manifestSha256: v.string(),
-  createdIdentifiers: v.record(v.string(), v.string()),
-  items: v.record(v.string(), checkpointItemSchema),
-})
+const checkpointSchema = v.pipe(
+  v.strictObject({
+    schemaVersion: v.literal(1),
+    // Early schema v1 writers emitted this unused digest. Accept it so their
+    // checkpoints remain resumable, but drop it from the runtime state and
+    // all subsequent writes.
+    manifestSha256: v.optional(v.string()),
+    createdIdentifiers: v.record(v.string(), v.string()),
+    items: v.record(v.string(), checkpointItemSchema),
+  }),
+  v.transform(({ schemaVersion, createdIdentifiers, items }) => ({
+    schemaVersion,
+    createdIdentifiers,
+    items,
+  })),
+)
 
 export type Checkpoint = v.InferOutput<typeof checkpointSchema>
 
@@ -56,7 +66,6 @@ export async function loadCheckpoint(
 
 export async function prepareCheckpoint(
   manifestPath: string,
-  manifestSha256: string,
   currentItemKeys: Iterable<string>,
 ): Promise<Checkpoint> {
   const existing = await loadCheckpoint(manifestPath)
@@ -103,11 +112,9 @@ export async function prepareCheckpoint(
 
   const checkpoint = existing ?? {
     schemaVersion: 1 as const,
-    manifestSha256,
     createdIdentifiers: {},
     items: {},
   }
-  checkpoint.manifestSha256 = manifestSha256
   return checkpoint
 }
 
