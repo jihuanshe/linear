@@ -2,12 +2,12 @@ import { assertEquals, assertRejects, assertStringIncludes } from "@std/assert"
 import { join } from "@std/path"
 import {
   applyManifest,
-  checkpointPath,
   type CommandResult,
   type CommandRunner,
   normalizeMarkdown,
   planManifest,
 } from "../../src/delivery/engine.ts"
+import { checkpointPath } from "../../src/delivery/checkpoint.ts"
 import { formatApply } from "../../src/commands/issue/issue-apply.ts"
 import { formatPlan } from "../../src/commands/issue/issue-plan.ts"
 import { loadManifest } from "../../src/delivery/manifest.ts"
@@ -1320,6 +1320,44 @@ Deno.test("an unknown outcome blocks further runs until reconciled", async () =>
       checkpoint.items as Record<string, { status: string }>,
     )
     assertEquals(statuses[0].status, "unknown")
+  } finally {
+    await Deno.remove(dir, { recursive: true })
+  }
+})
+
+Deno.test("apply rejects an invalid checkpoint before issue work", async () => {
+  const dir = await Deno.makeTempDir()
+  try {
+    const manifestPath = await writeManifest(dir, {
+      schemaVersion: 1,
+      workspace: "jihuanshe",
+      issues: [{
+        operation: "create",
+        team: "DATA",
+        set: { title: "New issue" },
+      }],
+    })
+    await Deno.writeTextFile(
+      checkpointPath(manifestPath),
+      JSON.stringify({
+        schemaVersion: 1,
+        manifestSha256: "abc",
+        createdIdentifiers: {},
+        items: { item: { status: "skipped" } },
+      }),
+    )
+    const runner = fakeRunner(() => undefined)
+
+    await assertRejects(
+      async () =>
+        await applyManifest({
+          loaded: await loadManifest(manifestPath),
+          runner,
+        }),
+      ValidationError,
+      "items.item.status",
+    )
+    assertEquals(runner.calls, [])
   } finally {
     await Deno.remove(dir, { recursive: true })
   }

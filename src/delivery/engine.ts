@@ -15,6 +15,7 @@ import type {
   LoadedManifest,
   ManifestFile,
 } from "./manifest.ts"
+import { prepareCheckpoint, saveCheckpoint } from "./checkpoint.ts"
 
 // The delivery engine reuses the CLI's own commands as its execution layer by
 // re-invoking this program per step. That inherits every existing resolution,
@@ -523,68 +524,6 @@ export async function buildCommentArgs(
 }
 
 // ---------------------------------------------------------------------------
-// Checkpoint
-// ---------------------------------------------------------------------------
-
-/**
- * The checkpoint lives beside the manifest (`<manifest>.checkpoint.json`) so
- * the next person or agent finds it with the manifest it belongs to. Items
- * are keyed by position plus a content hash: editing a failed item changes
- * its hash and re-runs it, while confirmed successes keep matching and are
- * skipped. An `unknown` entry blocks every further run until someone
- * verifies the remote outcome and edits or removes the entry — that explicit
- * reconciliation is the whole point of recording it.
- *
- * Because keys embed manifest positions, a resume refuses to run when any
- * applied entry no longer matches a current item: inserting, reordering,
- * removing, or editing applied issues would shift or orphan their keys and
- * silently repeat writes. Only in-place fixes of failed items and appends at
- * the end are safe edits while a checkpoint exists. The checkpoint is not a
- * lock — concurrent executors of the same manifest cannot see each other, so
- * a handoff must be a handover, never a fork.
- */
-export interface Checkpoint {
-  schemaVersion: 1
-  manifestSha256: string
-  createdIdentifiers: Record<string, string>
-  items: Record<string, { status: ItemStatus; note?: string }>
-}
-
-export function checkpointPath(manifestPath: string): string {
-  return `${manifestPath}.checkpoint.json`
-}
-
-export async function loadCheckpoint(
-  manifestPath: string,
-): Promise<Checkpoint | null> {
-  try {
-    const raw = await Deno.readTextFile(checkpointPath(manifestPath))
-    const parsed = JSON.parse(raw) as Checkpoint
-    if (parsed.schemaVersion !== 1) {
-      throw new ValidationError(
-        `Unsupported checkpoint schemaVersion in ${
-          checkpointPath(manifestPath)
-        }`,
-      )
-    }
-    return parsed
-  } catch (error) {
-    if (error instanceof Deno.errors.NotFound) return null
-    throw error
-  }
-}
-
-export async function saveCheckpoint(
-  manifestPath: string,
-  checkpoint: Checkpoint,
-): Promise<void> {
-  const target = checkpointPath(manifestPath)
-  const temp = `${target}.tmp`
-  await Deno.writeTextFile(temp, JSON.stringify(checkpoint, null, 2) + "\n")
-  await Deno.rename(temp, target)
-}
-
-// ---------------------------------------------------------------------------
 // Execution
 // ---------------------------------------------------------------------------
 
@@ -706,55 +645,11 @@ export async function applyManifest(
     )
   }
 
-  const existing = await loadCheckpoint(manifestPath)
-  if (existing != null) {
-    const unknownKeys = Object.entries(existing.items)
-      .filter(([, item]) => item.status === "unknown")
-      .map(([key]) => key)
-    if (unknownKeys.length > 0) {
-      throw new ValidationError(
-        `Checkpoint has unresolved unknown outcomes: ${unknownKeys.join(", ")}`,
-        {
-          suggestion:
-            `Verify each item's remote state, then edit or remove its entry in ${
-              checkpointPath(manifestPath)
-            } before re-running`,
-        },
-      )
-    }
-    // Checkpoint keys embed each item's manifest position. Inserting,
-    // reordering, or removing an issue shifts the positions of everything
-    // after it, so every applied entry must still match a current item —
-    // otherwise a resume would silently repeat writes that already landed.
-    const currentKeys = new Set(
-      expansions.flat().map((item) => item.key),
-    )
-    const displaced = Object.entries(existing.items)
-      .filter(([key, item]) =>
-        item.status === "applied" && !currentKeys.has(key)
-      )
-      .map(([key]) => key)
-    if (displaced.length > 0) {
-      throw new ValidationError(
-        `Checkpoint has applied entries that no longer match any manifest item: ${
-          displaced.join(", ")
-        }`,
-        {
-          suggestion:
-            `While a checkpoint exists, only fix failed items in place or append new issues at the end; inserting, reordering, removing, or editing applied entries shifts or orphans their positions and a resume would repeat writes that already landed. If the restructure is intentional, verify remote state in Linear, then rebuild or remove ${
-              checkpointPath(manifestPath)
-            }`,
-        },
-      )
-    }
-  }
-  const checkpoint: Checkpoint = existing ?? {
-    schemaVersion: 1,
-    manifestSha256: loaded.manifestSha256,
-    createdIdentifiers: {},
-    items: {},
-  }
-  checkpoint.manifestSha256 = loaded.manifestSha256
+  const checkpoint = await prepareCheckpoint(
+    manifestPath,
+    loaded.manifestSha256,
+    expansions.flat().map((item) => item.key),
+  )
 
   const results: ItemResult[] = []
   const verification: VerificationResult[] = []
