@@ -2,12 +2,12 @@ import { assertEquals, assertRejects, assertStringIncludes } from "@std/assert"
 import { join } from "@std/path"
 import {
   applyManifest,
-  checkpointPath,
   type CommandResult,
   type CommandRunner,
   normalizeMarkdown,
   planManifest,
 } from "../../src/delivery/engine.ts"
+import { checkpointPath } from "../../src/delivery/checkpoint.ts"
 import { formatApply } from "../../src/commands/issue/issue-apply.ts"
 import { formatPlan } from "../../src/commands/issue/issue-plan.ts"
 import { loadManifest } from "../../src/delivery/manifest.ts"
@@ -652,6 +652,7 @@ Deno.test("apply creates, threads the identifier, and reads back", async () => {
         relations: [{ type: "blocks", issue: "DATA-1" }],
       }],
     })
+    let commentBody: string | null = null
     const runner = fakeRunner((args) => {
       if (args[1] === "create") {
         return {
@@ -665,6 +666,10 @@ Deno.test("apply creates, threads the identifier, and reads back", async () => {
       }
       if (args[1] === "view") {
         return viewResult({ identifier: "DATA-700", title: "New issue" })
+      }
+      if (args[1] === "comment") {
+        const bodyFile = args[args.indexOf("--body-file") + 1]
+        commentBody = Deno.readTextFileSync(bodyFile)
       }
       return undefined
     })
@@ -681,6 +686,11 @@ Deno.test("apply creates, threads the identifier, and reads back", async () => {
     assertEquals(kinds[0].startsWith("issue create"), true)
     assertEquals(kinds[1], "issue comment add")
     assertEquals(runner.calls[1][3], "DATA-700")
+    assertEquals(commentBody, "screenshot")
+    const commentBodyFile = runner.calls[1][
+      runner.calls[1].indexOf("--body-file") + 1
+    ]
+    await assertRejects(() => Deno.stat(commentBodyFile), Deno.errors.NotFound)
     assertEquals(kinds[2], "issue link DATA-700")
     assertEquals(kinds[3], "issue relation add")
     assertEquals(outcome.readBack["DATA-700"] != null, true)
@@ -1249,6 +1259,7 @@ Deno.test("a launched mutation is checkpointed before its result", async () => {
       await Deno.readTextFile(checkpointPath(manifestPath)),
     ) as { items: Record<string, { status: string }> }
     assertEquals(Object.values(final.items)[0].status, "applied")
+    assertEquals(Object.hasOwn(final, "manifestSha256"), false)
   } finally {
     await Deno.remove(dir, { recursive: true })
   }
@@ -1320,6 +1331,44 @@ Deno.test("an unknown outcome blocks further runs until reconciled", async () =>
       checkpoint.items as Record<string, { status: string }>,
     )
     assertEquals(statuses[0].status, "unknown")
+  } finally {
+    await Deno.remove(dir, { recursive: true })
+  }
+})
+
+Deno.test("apply rejects an invalid checkpoint before issue work", async () => {
+  const dir = await Deno.makeTempDir()
+  try {
+    const manifestPath = await writeManifest(dir, {
+      schemaVersion: 1,
+      workspace: "jihuanshe",
+      issues: [{
+        operation: "create",
+        team: "DATA",
+        set: { title: "New issue" },
+      }],
+    })
+    await Deno.writeTextFile(
+      checkpointPath(manifestPath),
+      JSON.stringify({
+        schemaVersion: 1,
+        manifestSha256: "abc",
+        createdIdentifiers: {},
+        items: { item: { status: "skipped" } },
+      }),
+    )
+    const runner = fakeRunner(() => undefined)
+
+    await assertRejects(
+      async () =>
+        await applyManifest({
+          loaded: await loadManifest(manifestPath),
+          runner,
+        }),
+      ValidationError,
+      "items.item.status",
+    )
+    assertEquals(runner.calls, [])
   } finally {
     await Deno.remove(dir, { recursive: true })
   }

@@ -15,6 +15,7 @@ import type {
   LoadedManifest,
   ManifestFile,
 } from "./manifest.ts"
+import { prepareCheckpoint, saveCheckpoint } from "./checkpoint.ts"
 
 // The delivery engine reuses the CLI's own commands as its execution layer by
 // re-invoking this program per step. That inherits every existing resolution,
@@ -299,22 +300,24 @@ export function planFields(
   return plans
 }
 
-export type ItemKind = "fields" | "comment" | "attachment" | "relation"
-export type ItemStatus =
+type ItemKind = "fields" | "comment" | "attachment" | "relation"
+type ItemStatus =
   | "applied"
   | "failed"
   | "unknown"
   | "unattempted"
   | "skipped"
 
-export interface DeliveryItem {
+interface BuiltCommand {
+  args: string[]
+  cleanup?: () => Promise<void>
+}
+
+interface DeliveryItem {
   key: string
-  issueIndex: number
   kind: ItemKind
   subIndex: number
-  /** Identifier when known; create issues resolve it at apply time. */
-  target: string | null
-  args: (identifier: string) => string[]
+  buildCommand: (identifier: string) => BuiltCommand | Promise<BuiltCommand>
   describe: string
 }
 
@@ -338,14 +341,13 @@ function fileFingerprint(
  * always comes first so create issues have an identifier before comments,
  * attachments, and relations target them.
  */
-export async function expandIssue(
+async function expandIssue(
   issue: DeliveryIssue,
   issueIndex: number,
   workspaceFlags: string[],
   files: Map<string, ManifestFile>,
 ): Promise<DeliveryItem[]> {
   const items: DeliveryItem[] = []
-  const target = issue.identifier ?? null
   const ws = workspaceFlags
 
   if (issue.set != null || issue.operation === "create") {
@@ -359,14 +361,12 @@ export async function expandIssue(
     })
     items.push({
       key: `${issueIndex}:fields:0:${hash}`,
-      issueIndex,
       kind: "fields",
       subIndex: 0,
-      target,
       describe: issue.operation === "create"
         ? `create issue in team ${issue.team}`
         : `update fields of ${issue.identifier}`,
-      args: (identifier) => {
+      buildCommand: (identifier) => {
         const flags: string[] = []
         if (set.title != null) flags.push("--title", set.title)
         if (set.descriptionFile != null) {
@@ -386,18 +386,22 @@ export async function expandIssue(
         if (set.project != null) flags.push("--project", set.project)
         if (set.parent != null) flags.push("--parent", set.parent)
         if (issue.operation === "create") {
-          return [
-            "issue",
-            "create",
-            "--no-interactive",
-            "--team",
-            issue.team as string,
-            ...ws,
-            ...flags,
-            "--json",
-          ]
+          return {
+            args: [
+              "issue",
+              "create",
+              "--no-interactive",
+              "--team",
+              issue.team as string,
+              ...ws,
+              ...flags,
+              "--json",
+            ],
+          }
         }
-        return ["issue", "update", identifier, ...ws, ...flags, "--json"]
+        return {
+          args: ["issue", "update", identifier, ...ws, ...flags, "--json"],
+        }
       },
     })
   }
@@ -414,17 +418,36 @@ export async function expandIssue(
     })
     items.push({
       key: `${issueIndex}:comment:${subIndex}:${hash}`,
-      issueIndex,
       kind: "comment",
       subIndex,
-      target,
       describe: `add comment ${subIndex + 1} with ${
         (comment.files ?? []).length
       } file(s)`,
-      // Comment bodies may need a temp file on disk, so the executor calls
-      // buildCommentArgs for comment items instead of this synchronous hook.
-      args: () => {
-        throw new CliError("comment items resolve through buildCommentArgs")
+      buildCommand: async (identifier) => {
+        const args = ["issue", "comment", "add", identifier, ...ws]
+        let temp: string | null = null
+        if (comment.bodyFile != null) {
+          args.push(
+            "--body-file",
+            files.get(comment.bodyFile)?.resolvedPath ?? comment.bodyFile,
+          )
+        } else if (comment.body != null) {
+          temp = await Deno.makeTempFile({ suffix: ".md" })
+          await Deno.writeTextFile(temp, comment.body)
+          args.push("--body-file", temp)
+        }
+        for (const file of comment.files ?? []) {
+          args.push("--attach", files.get(file.path)?.resolvedPath ?? file.path)
+        }
+        if (comment.public === true) args.push("--public")
+        return {
+          args,
+          ...(temp == null ? {} : {
+            cleanup: async () => {
+              await Deno.remove(temp).catch(() => {})
+            },
+          }),
+        }
       },
     })
   }
@@ -438,15 +461,13 @@ export async function expandIssue(
     })
     items.push({
       key: `${issueIndex}:attachment:${subIndex}:${hash}`,
-      issueIndex,
       kind: "attachment",
       subIndex,
-      target,
       describe: attachment.kind === "url"
         ? `link ${attachment.url}`
         : `attach ${attachment.path}`,
-      args: (identifier) =>
-        attachment.kind === "url"
+      buildCommand: (identifier) => ({
+        args: attachment.kind === "url"
           ? [
             "issue",
             "link",
@@ -463,6 +484,7 @@ export async function expandIssue(
             ...ws,
             ...(attachment.title == null ? [] : ["--title", attachment.title]),
           ],
+      }),
     })
   }
 
@@ -470,118 +492,24 @@ export async function expandIssue(
     const hash = await itemHash({ relation })
     items.push({
       key: `${issueIndex}:relation:${subIndex}:${hash}`,
-      issueIndex,
       kind: "relation",
       subIndex,
-      target,
       describe: `relate ${relation.type} ${relation.issue}`,
-      args: (identifier) => [
-        "issue",
-        "relation",
-        "add",
-        identifier,
-        relation.type,
-        relation.issue,
-        ...ws,
-      ],
+      buildCommand: (identifier) => ({
+        args: [
+          "issue",
+          "relation",
+          "add",
+          identifier,
+          relation.type,
+          relation.issue,
+          ...ws,
+        ],
+      }),
     })
   }
 
   return items
-}
-
-export async function buildCommentArgs(
-  issue: DeliveryIssue,
-  subIndex: number,
-  identifier: string,
-  workspaceFlags: string[],
-  files: Map<string, ManifestFile>,
-): Promise<{ args: string[]; cleanup: () => Promise<void> }> {
-  const comment = (issue.comments ?? [])[subIndex]
-  const args = ["issue", "comment", "add", identifier, ...workspaceFlags]
-  let temp: string | null = null
-  if (comment.bodyFile != null) {
-    args.push(
-      "--body-file",
-      files.get(comment.bodyFile)?.resolvedPath ?? comment.bodyFile,
-    )
-  } else if (comment.body != null) {
-    temp = await Deno.makeTempFile({ suffix: ".md" })
-    await Deno.writeTextFile(temp, comment.body)
-    args.push("--body-file", temp)
-  }
-  for (const file of comment.files ?? []) {
-    args.push("--attach", files.get(file.path)?.resolvedPath ?? file.path)
-  }
-  if (comment.public === true) args.push("--public")
-  return {
-    args,
-    cleanup: async () => {
-      if (temp != null) await Deno.remove(temp).catch(() => {})
-    },
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Checkpoint
-// ---------------------------------------------------------------------------
-
-/**
- * The checkpoint lives beside the manifest (`<manifest>.checkpoint.json`) so
- * the next person or agent finds it with the manifest it belongs to. Items
- * are keyed by position plus a content hash: editing a failed item changes
- * its hash and re-runs it, while confirmed successes keep matching and are
- * skipped. An `unknown` entry blocks every further run until someone
- * verifies the remote outcome and edits or removes the entry — that explicit
- * reconciliation is the whole point of recording it.
- *
- * Because keys embed manifest positions, a resume refuses to run when any
- * applied entry no longer matches a current item: inserting, reordering,
- * removing, or editing applied issues would shift or orphan their keys and
- * silently repeat writes. Only in-place fixes of failed items and appends at
- * the end are safe edits while a checkpoint exists. The checkpoint is not a
- * lock — concurrent executors of the same manifest cannot see each other, so
- * a handoff must be a handover, never a fork.
- */
-export interface Checkpoint {
-  schemaVersion: 1
-  manifestSha256: string
-  createdIdentifiers: Record<string, string>
-  items: Record<string, { status: ItemStatus; note?: string }>
-}
-
-export function checkpointPath(manifestPath: string): string {
-  return `${manifestPath}.checkpoint.json`
-}
-
-export async function loadCheckpoint(
-  manifestPath: string,
-): Promise<Checkpoint | null> {
-  try {
-    const raw = await Deno.readTextFile(checkpointPath(manifestPath))
-    const parsed = JSON.parse(raw) as Checkpoint
-    if (parsed.schemaVersion !== 1) {
-      throw new ValidationError(
-        `Unsupported checkpoint schemaVersion in ${
-          checkpointPath(manifestPath)
-        }`,
-      )
-    }
-    return parsed
-  } catch (error) {
-    if (error instanceof Deno.errors.NotFound) return null
-    throw error
-  }
-}
-
-export async function saveCheckpoint(
-  manifestPath: string,
-  checkpoint: Checkpoint,
-): Promise<void> {
-  const target = checkpointPath(manifestPath)
-  const temp = `${target}.tmp`
-  await Deno.writeTextFile(temp, JSON.stringify(checkpoint, null, 2) + "\n")
-  await Deno.rename(temp, target)
 }
 
 // ---------------------------------------------------------------------------
@@ -617,6 +545,80 @@ export interface VerificationResult {
   status: "verified" | "failed"
   detail?: string
   url?: string
+}
+
+interface ReadBackResult {
+  verification: VerificationResult
+  data?: Record<string, unknown>
+}
+
+async function readBackIssue(
+  runner: CommandRunner,
+  issueIndex: number,
+  identifier: string,
+  workspaceFlags: string[],
+): Promise<ReadBackResult> {
+  const failed = (detail: string): ReadBackResult => ({
+    verification: {
+      issueIndex,
+      target: identifier,
+      status: "failed",
+      detail,
+    },
+  })
+
+  try {
+    const view = await runner.run([
+      "issue",
+      "view",
+      identifier,
+      ...workspaceFlags,
+      "--json",
+    ])
+    if (view.code !== 0) {
+      return failed(
+        view.stderr.trim().split("\n")[0] ||
+          `issue view exited with code ${view.code}`,
+      )
+    }
+
+    let parsed: unknown
+    try {
+      parsed = JSON.parse(view.stdout)
+    } catch (error) {
+      return failed(
+        `issue view returned invalid JSON: ${(error as Error).message}`,
+      )
+    }
+    if (parsed == null || typeof parsed !== "object" || Array.isArray(parsed)) {
+      return failed("issue view returned no issue object")
+    }
+
+    const data = parsed as Record<string, unknown>
+    const readIdentifier = data.identifier
+    if (
+      typeof readIdentifier !== "string" ||
+      readIdentifier.toUpperCase() !== identifier.toUpperCase()
+    ) {
+      return failed(
+        `issue view returned ${
+          typeof readIdentifier === "string" ? readIdentifier : "no identifier"
+        }`,
+      )
+    }
+
+    return {
+      verification: {
+        issueIndex,
+        target: identifier,
+        status: "verified",
+        ...(typeof data.url === "string" ? { url: data.url } : {}),
+      },
+      data,
+    }
+  } catch (error) {
+    return failed((error as Error).message)
+  }
 }
 
 function classifyFailure(result: CommandResult): "failed" | "unknown" {
@@ -706,55 +708,10 @@ export async function applyManifest(
     )
   }
 
-  const existing = await loadCheckpoint(manifestPath)
-  if (existing != null) {
-    const unknownKeys = Object.entries(existing.items)
-      .filter(([, item]) => item.status === "unknown")
-      .map(([key]) => key)
-    if (unknownKeys.length > 0) {
-      throw new ValidationError(
-        `Checkpoint has unresolved unknown outcomes: ${unknownKeys.join(", ")}`,
-        {
-          suggestion:
-            `Verify each item's remote state, then edit or remove its entry in ${
-              checkpointPath(manifestPath)
-            } before re-running`,
-        },
-      )
-    }
-    // Checkpoint keys embed each item's manifest position. Inserting,
-    // reordering, or removing an issue shifts the positions of everything
-    // after it, so every applied entry must still match a current item —
-    // otherwise a resume would silently repeat writes that already landed.
-    const currentKeys = new Set(
-      expansions.flat().map((item) => item.key),
-    )
-    const displaced = Object.entries(existing.items)
-      .filter(([key, item]) =>
-        item.status === "applied" && !currentKeys.has(key)
-      )
-      .map(([key]) => key)
-    if (displaced.length > 0) {
-      throw new ValidationError(
-        `Checkpoint has applied entries that no longer match any manifest item: ${
-          displaced.join(", ")
-        }`,
-        {
-          suggestion:
-            `While a checkpoint exists, only fix failed items in place or append new issues at the end; inserting, reordering, removing, or editing applied entries shifts or orphans their positions and a resume would repeat writes that already landed. If the restructure is intentional, verify remote state in Linear, then rebuild or remove ${
-              checkpointPath(manifestPath)
-            }`,
-        },
-      )
-    }
-  }
-  const checkpoint: Checkpoint = existing ?? {
-    schemaVersion: 1,
-    manifestSha256: loaded.manifestSha256,
-    createdIdentifiers: {},
-    items: {},
-  }
-  checkpoint.manifestSha256 = loaded.manifestSha256
+  const checkpoint = await prepareCheckpoint(
+    manifestPath,
+    expansions.flat().map((item) => item.key),
+  )
 
   const results: ItemResult[] = []
   const verification: VerificationResult[] = []
@@ -766,7 +723,6 @@ export async function applyManifest(
   let unknownSeen = false
   let conflictSeen = false
   let failedSeen = false
-  let verificationFailedSeen = false
   const continueOnFailure = context.continueOnFailure === true
 
   for (const [issueIndex, issue] of manifest.issues.entries()) {
@@ -987,21 +943,7 @@ export async function applyManifest(
       }
 
       progress(`→ ${item.describe}`)
-      let commandArgs: string[]
-      let cleanup: (() => Promise<void>) | null = null
-      if (item.kind === "comment") {
-        const built = await buildCommentArgs(
-          issue,
-          item.subIndex,
-          identifier as string,
-          workspaceFlags,
-          loaded.files,
-        )
-        commandArgs = built.args
-        cleanup = built.cleanup
-      } else {
-        commandArgs = item.args(identifier ?? "")
-      }
+      const command = await item.buildCommand(identifier ?? "")
 
       // Record the launch before the mutation goes out: a hard crash while
       // the child is in flight leaves an unknown entry, so the next run stops
@@ -1013,7 +955,7 @@ export async function applyManifest(
       await saveCheckpoint(manifestPath, checkpoint)
       let result: CommandResult
       try {
-        result = await runner.run(commandArgs)
+        result = await runner.run(command.args)
       } catch (error) {
         checkpoint.items[item.key] = {
           status: "unknown",
@@ -1031,7 +973,7 @@ export async function applyManifest(
         halted = true
         continue
       } finally {
-        await cleanup?.()
+        await command.cleanup?.()
       }
 
       if (result.code === 0) {
@@ -1098,90 +1040,14 @@ export async function applyManifest(
     }
 
     if (issueNeedsVerification && identifier != null) {
-      try {
-        const view = await runner.run([
-          "issue",
-          "view",
-          identifier,
-          ...workspaceFlags,
-          "--json",
-        ])
-        if (view.code !== 0) {
-          verification.push({
-            issueIndex,
-            target: identifier,
-            status: "failed",
-            detail: view.stderr.trim().split("\n")[0] ||
-              `issue view exited with code ${view.code}`,
-          })
-          verificationFailedSeen = true
-          continue
-        }
-
-        let parsed: unknown
-        try {
-          parsed = JSON.parse(view.stdout)
-        } catch (error) {
-          verification.push({
-            issueIndex,
-            target: identifier,
-            status: "failed",
-            detail: `issue view returned invalid JSON: ${
-              (error as Error).message
-            }`,
-          })
-          verificationFailedSeen = true
-          continue
-        }
-        if (
-          parsed == null || typeof parsed !== "object" || Array.isArray(parsed)
-        ) {
-          verification.push({
-            issueIndex,
-            target: identifier,
-            status: "failed",
-            detail: "issue view returned no issue object",
-          })
-          verificationFailedSeen = true
-          continue
-        }
-
-        const data = parsed as Record<string, unknown>
-        const readIdentifier = data.identifier
-        if (
-          typeof readIdentifier !== "string" ||
-          readIdentifier.toUpperCase() !== identifier.toUpperCase()
-        ) {
-          verification.push({
-            issueIndex,
-            target: identifier,
-            status: "failed",
-            detail: `issue view returned ${
-              typeof readIdentifier === "string"
-                ? readIdentifier
-                : "no identifier"
-            }`,
-          })
-          verificationFailedSeen = true
-          continue
-        }
-
-        readBack[identifier] = parsed
-        verification.push({
-          issueIndex,
-          target: identifier,
-          status: "verified",
-          ...(typeof data.url === "string" ? { url: data.url } : {}),
-        })
-      } catch (error) {
-        verification.push({
-          issueIndex,
-          target: identifier,
-          status: "failed",
-          detail: (error as Error).message,
-        })
-        verificationFailedSeen = true
-      }
+      const result = await readBackIssue(
+        runner,
+        issueIndex,
+        identifier,
+        workspaceFlags,
+      )
+      verification.push(result.verification)
+      if (result.data != null) readBack[identifier] = result.data
     }
   }
 
@@ -1200,7 +1066,7 @@ export async function applyManifest(
     ? "conflict"
     : failedSeen
     ? (halted ? "stopped-on-failure" : "completed-with-failures")
-    : verificationFailedSeen
+    : verification.some((result) => result.status === "failed")
     ? "applied-unverified"
     : "completed"
 
