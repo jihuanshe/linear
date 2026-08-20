@@ -544,7 +544,7 @@ linear issue apply \
 
 `apply` 应复用现有 create/update/comment/attach/link/relation 命令实现，而不是建立第二套 API client。它必须：
 
-- 在整批首笔 mutation 前验证 workspace、manifest 结构和全部本地文件；没有已应用 checkpoint 时，默认策略预读所有 update 目标，在发现已有冲突或目标读取失败时以结构化结果零写入停止；显式 continue 策略不做整批远端预检，改为逐 Issue 跳过失败或冲突条目；每个 Issue 的目标与字段在该 Issue 自己的首笔 mutation 前再次验证；
+- 在整批首笔 mutation 前验证 workspace、manifest 结构和全部本地文件；每个 Issue 的目标与字段在该 Issue 自己的首笔 mutation 前验证；默认策略遇到失败或 conflict 停止，显式 continue 策略跳过该条目并继续；
 - 按 manifest 顺序执行 Issue 字段、Comment 及其上传文件、Attachment 和 IssueRelation；
 - 为每个请求项返回 `applied`、`failed`、`unknown` 或 `unattempted`，成功项带远端 ID/URL；
 - 在请求前记录正在执行的步骤，每个确认成功的步骤后更新简单 checkpoint；进程中断时，正在执行的步骤视为结果未知；
@@ -558,14 +558,14 @@ linear issue apply \
 
 同一个 manifest 的 `issues[]` 同时支持单次和 batch。Batch V1 只额外需要：
 
-- 整批本地可验证输入在首笔 mutation 前验证；首次执行的默认策略还会预检整批远端 update 目标，真正执行时仍按 Issue 在其首笔 mutation 前重新验证；显式 continue 策略只做逐 Issue 远端检查；
+- 整批本地可验证输入在首笔 mutation 前验证；远端目标与字段按 Issue 在其首笔 mutation 前验证；
 - 每个现有 Issue 在一份 manifest 中至多出现一个 update 条目；重复 identifier 必须在远端读取和 checkpoint 之前拒绝，调用方把同一 Issue 的全部交付项合并进一个条目；
 - 顺序执行；
 - 逐 Issue、逐请求项 checkpoint；
 - 对确认无副作用的 `failed` 使用 stop/continue 策略；`unknown` 始终立即停止；
 - 部分成功和剩余项的精确汇总。
 
-V1 不需要并发执行、通用事务日志、集合协调器或独立的 batch schema。整批预检只避免启动前已经可见的冲突，不是锁或事务；预检后的新漂移仍可能造成部分成功，由逐项 checkpoint 承接。
+V1 不需要并发执行、通用事务日志、集合协调器或独立的 batch schema。Batch 顺序执行，远端冲突按 Issue 在写前发现；已经成功的结果与剩余项由逐项 checkpoint 承接，不承诺锁、事务或自动回滚。
 
 ### 明确的非目标与后续证据门禁
 

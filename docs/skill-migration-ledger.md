@@ -73,4 +73,4 @@ commits 11–12 已把可执行工作流全部迁入一等 CLI 命令；外部 S
 | snapshot 子命令（初始化 update manifest 的 base）                    | 删除：base 由调用者从 `issue view --json` 自取；需要时可由信号驱动恢复为专用命令                               |
 | 退出码契约 0/2/3/4                                                   | 删除：收敛到 CLI 统一错误约定（非零 + `✗` stderr），plan 的 `status` 字段与 apply 的逐项结果承载语义           |
 | nullable 字段显式 null 清空（project/parent 等）                     | 收窄：v1 仅 assignee 支持清除（`--unassign`）；其余等 `issue update` 长出对应 clear flag 后由信号驱动恢复      |
-| 批量语义（整批预校验、顺序执行、部分成功保留、不回滚）               | CLI apply + `--continue-on-failure`；测试覆盖 stop/continue 两种策略                                           |
+| 批量语义（整批本地输入预校验、顺序执行、部分成功保留、不回滚）       | CLI apply + `--continue-on-failure`；测试覆盖 stop/continue 两种策略                                           |

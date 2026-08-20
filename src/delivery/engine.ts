@@ -596,20 +596,6 @@ export interface ItemResult {
   detail?: string
 }
 
-function summarizeItemResults(
-  results: ItemResult[],
-): Record<ItemStatus, number> {
-  const summary: Record<ItemStatus, number> = {
-    applied: 0,
-    failed: 0,
-    unknown: 0,
-    unattempted: 0,
-    skipped: 0,
-  }
-  for (const item of results) summary[item.status] += 1
-  return summary
-}
-
 export interface ApplyOutcome {
   status:
     | "completed"
@@ -631,23 +617,6 @@ export interface VerificationResult {
   status: "verified" | "failed"
   detail?: string
   url?: string
-}
-
-class ManifestReadError extends CliError {
-  readonly issueIndex: number
-  readonly result: CommandResult
-
-  constructor(issueIndex: number, identifier: string, result: CommandResult) {
-    super(
-      `Failed to read ${identifier}: ${
-        result.stderr.trim().split("\n")[0] ||
-        `issue view exited with code ${result.code}`
-      }`,
-    )
-    this.name = "ManifestReadError"
-    this.issueIndex = issueIndex
-    this.result = result
-  }
 }
 
 function classifyFailure(result: CommandResult): "failed" | "unknown" {
@@ -786,35 +755,6 @@ export async function applyManifest(
     items: {},
   }
   checkpoint.manifestSha256 = loaded.manifestSha256
-
-  const hasAppliedCheckpoint = Object.values(checkpoint.items).some((item) =>
-    item.status === "applied"
-  )
-  if (!hasAppliedCheckpoint && context.continueOnFailure !== true) {
-    try {
-      const preflight = await planManifestWithWorkspace(
-        context,
-        workspaceFlags,
-        expansions,
-      )
-      if (preflight.status === "conflict") {
-        return preflightConflictOutcome(
-          preflight,
-          expansions,
-          checkpoint.createdIdentifiers,
-        )
-      }
-    } catch (error) {
-      if (error instanceof ManifestReadError) {
-        return preflightReadFailureOutcome(
-          error,
-          expansions,
-          checkpoint.createdIdentifiers,
-        )
-      }
-      throw error
-    }
-  }
 
   const results: ItemResult[] = []
   const verification: VerificationResult[] = []
@@ -1245,7 +1185,14 @@ export async function applyManifest(
     }
   }
 
-  const summary = summarizeItemResults(results)
+  const summary: Record<ItemStatus, number> = {
+    applied: 0,
+    failed: 0,
+    unknown: 0,
+    unattempted: 0,
+    skipped: 0,
+  }
+  for (const item of results) summary[item.status] += 1
 
   const status: ApplyOutcome["status"] = unknownSeen
     ? "stopped-on-unknown"
@@ -1382,130 +1329,29 @@ function summarizeIssue(
   }
 }
 
-function preflightConflictOutcome(
-  plan: PlanOutcome,
-  expansions: DeliveryItem[][],
-  createdIdentifiers: Record<string, string>,
-): ApplyOutcome {
-  const results: ItemResult[] = []
-  let fieldOrRelationConflict = false
-  for (const [issueIndex, issue] of plan.issues.entries()) {
-    const fieldConflicts = issue.fields.filter((field) =>
-      field.verdict === "conflict"
-    )
-    if (fieldConflicts.length > 0) fieldOrRelationConflict = true
-    const relations = issue.summary.relations ?? []
-    let driftPending = issue.drift
-    for (const item of expansions[issueIndex]) {
-      const details: string[] = []
-      if (driftPending != null) {
-        details.push(driftPending)
-        driftPending = null
-      }
-      if (item.kind === "fields" && fieldConflicts.length > 0) {
-        details.push(
-          `conflict: ${
-            fieldConflicts.map((field) => field.field).join(", ")
-          } changed remotely since base`,
-        )
-      }
-      if (item.kind === "relation") {
-        const relation = relations[item.subIndex]
-        if (relation?.verdict === "conflict") {
-          fieldOrRelationConflict = true
-          details.push(
-            `conflict: ${
-              relation.detail ?? "relation would replace an existing edge"
-            }`,
-          )
-        }
-      }
-      results.push({
-        key: item.key,
-        kind: item.kind,
-        describe: item.describe,
-        status: details.length > 0 ? "failed" : "unattempted",
-        ...(details.length === 0 ? {} : { detail: details.join("; ") }),
-      })
-    }
-  }
-  return {
-    status: fieldOrRelationConflict ? "conflict" : "stopped-on-failure",
-    items: results,
-    summary: summarizeItemResults(results),
-    createdIdentifiers: { ...createdIdentifiers },
-    verification: [],
-    readBack: {},
-  }
-}
-
-function preflightReadFailureOutcome(
-  error: ManifestReadError,
-  expansions: DeliveryItem[][],
-  createdIdentifiers: Record<string, string>,
-): ApplyOutcome {
-  const status = classifyFailure(error.result)
-  const results: ItemResult[] = []
-  for (const [issueIndex, items] of expansions.entries()) {
-    if (issueIndex === error.issueIndex) {
-      results.push({
-        key: `${issueIndex}:fields:0:read`,
-        kind: "fields",
-        describe: "read current state before delivery",
-        status,
-        detail: error.userMessage,
-      })
-    }
-    for (const item of items) {
-      results.push({
-        key: item.key,
-        kind: item.kind,
-        describe: item.describe,
-        status: "unattempted",
-      })
-    }
-  }
-  return {
-    status: status === "unknown" ? "stopped-on-unknown" : "stopped-on-failure",
-    items: results,
-    summary: summarizeItemResults(results),
-    createdIdentifiers: { ...createdIdentifiers },
-    verification: [],
-    readBack: {},
-  }
-}
-
 /**
  * The zero-write preview: read-only resolution of every update target plus
  * the full local file inventory. Optional by design — apply performs the same
- * validation and reads before its first mutation, so plan is for humans and
- * agents who want to see the complete delivery before consenting to it.
+ * local validation, then reads each update target immediately before that
+ * Issue's first mutation. Plan is for callers that want the complete remote
+ * preview before consenting to sequential execution.
  */
 export async function planManifest(
   context: ApplyContext,
-): Promise<PlanOutcome> {
-  const workspaceFlags = await verifyWorkspaceIdentity(context)
-  return await planManifestWithWorkspace(context, workspaceFlags)
-}
-
-async function planManifestWithWorkspace(
-  context: ApplyContext,
-  workspaceFlags: string[],
-  expansions?: DeliveryItem[][],
 ): Promise<PlanOutcome> {
   const { loaded, runner } = context
   const { manifest } = loaded
   const issues: IssuePlan[] = []
   let conflict = false
+  const workspaceFlags = await verifyWorkspaceIdentity(context)
 
   for (const [issueIndex, issue] of manifest.issues.entries()) {
-    const items = expansions?.[issueIndex] ??
-      await expandIssue(
-        issue,
-        issueIndex,
-        workspaceFlags,
-        loaded.files,
-      )
+    const items = await expandIssue(
+      issue,
+      issueIndex,
+      workspaceFlags,
+      loaded.files,
+    )
     let fields: FieldPlan[] = []
     let drift: string | null = null
     let remoteView: unknown = null
@@ -1518,10 +1364,10 @@ async function planManifestWithWorkspace(
         "--json",
       ])
       if (view.code !== 0) {
-        throw new ManifestReadError(
-          issueIndex,
-          issue.identifier as string,
-          view,
+        throw new CliError(
+          `Failed to read ${issue.identifier}: ${
+            view.stderr.trim().split("\n")[0]
+          }`,
         )
       }
       remoteView = JSON.parse(view.stdout)

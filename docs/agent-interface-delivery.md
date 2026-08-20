@@ -274,7 +274,7 @@ Commit 8–10 与 Skill 迁移零耦合：delivery 与 batch 使用现有 `--jso
 范围：
 
 - 让同一个 manifest 的 `issues[]` 支持单次与 batch；
-- 在首笔 mutation 前验证整批本地输入；默认策略预检全部 update 目标，continue 策略逐 Issue 检查；远端引用与字段在各 Issue 首笔 mutation 前再次验证；
+- 在首笔 mutation 前验证整批本地输入；远端引用与字段在各 Issue 首笔 mutation 前验证；
 - 顺序执行并原子记录逐 Issue、逐请求项 checkpoint；
 - 添加 stop/continue 策略和结构化汇总；
 - 迁移当前受保护 batch Skill 的已接受行为和 fixture；

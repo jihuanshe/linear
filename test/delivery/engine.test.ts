@@ -728,7 +728,7 @@ Deno.test("apply reports successful mutations with failed read-back as unverifie
       const runner = fakeRunner((args) => {
         if (args[1] === "view") {
           viewCalls += 1
-          return viewCalls < 3 ? viewResult() : testCase.readBack
+          return viewCalls === 1 ? viewResult() : testCase.readBack
         }
         return undefined
       })
@@ -769,7 +769,7 @@ Deno.test("an all-skipped resume retries final read-back", async () => {
     const runner = fakeRunner((args) => {
       if (args[1] === "view") {
         viewCalls += 1
-        return viewCalls === 3
+        return viewCalls === 2
           ? { code: 1, stdout: "", stderr: "✗ temporary read-back failure" }
           : viewResult()
       }
@@ -1380,7 +1380,7 @@ Deno.test("idempotent and conflicting updates never invoke issue update", async 
   }
 })
 
-Deno.test("batch preflight refuses a later conflict before any mutation", async () => {
+Deno.test("batch guards each Issue immediately before its mutation", async () => {
   const dir = await Deno.makeTempDir()
   try {
     const manifestPath = await writeManifest(dir, {
@@ -1416,18 +1416,6 @@ Deno.test("batch preflight refuses a later conflict before any mutation", async 
 
     assertEquals(outcome.status, "conflict")
     assertEquals(outcome.items.map((item) => item.status), [
-      "unattempted",
-      "failed",
-    ])
-    assertEquals(runner.calls.some((args) => args[1] === "update"), false)
-
-    const continued = await applyManifest({
-      loaded: await loadManifest(manifestPath),
-      runner,
-      continueOnFailure: true,
-    })
-    assertEquals(continued.status, "conflict")
-    assertEquals(continued.items.map((item) => item.status), [
       "applied",
       "failed",
     ])
@@ -1435,52 +1423,6 @@ Deno.test("batch preflight refuses a later conflict before any mutation", async 
       runner.calls.filter((args) => args[1] === "update").length,
       1,
     )
-  } finally {
-    await Deno.remove(dir, { recursive: true })
-  }
-})
-
-Deno.test("batch preflight reports read failure without mutating", async () => {
-  const dir = await Deno.makeTempDir()
-  try {
-    const manifestPath = await writeManifest(dir, {
-      schemaVersion: 1,
-      workspace: "jihuanshe",
-      issues: [
-        {
-          operation: "update",
-          identifier: "DATA-1",
-          set: { title: "First" },
-          base: { title: "Old title" },
-        },
-        {
-          operation: "update",
-          identifier: "DATA-2",
-          set: { title: "Second" },
-          base: { title: "Old title" },
-        },
-      ],
-    })
-    const runner = fakeRunner((args) =>
-      args[1] === "view" && args[2] === "DATA-2"
-        ? { code: 1, stdout: "", stderr: "✗ issue not found" }
-        : undefined
-    )
-    const outcome = await applyManifest({
-      loaded: await loadManifest(manifestPath),
-      runner,
-    })
-
-    assertEquals(outcome.status, "stopped-on-failure")
-    assertEquals(outcome.items.map((item) => item.status), [
-      "unattempted",
-      "failed",
-      "unattempted",
-    ])
-    assertStringIncludes(outcome.items[1].detail ?? "", "issue not found")
-    assertEquals(outcome.summary.failed, 1)
-    assertEquals(outcome.summary.unattempted, 2)
-    assertEquals(runner.calls.some((args) => args[1] === "update"), false)
   } finally {
     await Deno.remove(dir, { recursive: true })
   }
@@ -1536,40 +1478,6 @@ Deno.test("continue mode handles read failures per issue", async () => {
       runner.calls.filter((args) => args[1] === "update").length,
       1,
     )
-  } finally {
-    await Deno.remove(dir, { recursive: true })
-  }
-})
-
-Deno.test("per-issue guard rechecks after a clean batch preflight", async () => {
-  const dir = await Deno.makeTempDir()
-  try {
-    const manifestPath = await writeManifest(dir, {
-      schemaVersion: 1,
-      workspace: "jihuanshe",
-      issues: [{
-        operation: "update",
-        identifier: "DATA-606",
-        set: { title: "New title" },
-        base: { title: "Old title" },
-      }],
-    })
-    let viewCalls = 0
-    const runner = fakeRunner((args) => {
-      if (args[1] !== "view") return undefined
-      viewCalls += 1
-      return viewResult({
-        title: viewCalls === 1 ? "Old title" : "Colleague title",
-      })
-    })
-    const outcome = await applyManifest({
-      loaded: await loadManifest(manifestPath),
-      runner,
-    })
-
-    assertEquals(outcome.status, "conflict")
-    assertStringIncludes(outcome.items[0].detail ?? "", "changed remotely")
-    assertEquals(runner.calls.some((args) => args[1] === "update"), false)
   } finally {
     await Deno.remove(dir, { recursive: true })
   }

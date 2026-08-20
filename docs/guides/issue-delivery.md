@@ -97,7 +97,7 @@ linear issue apply --file delivery.json --confirm-workspace jihuanshe
 
 plan 是可选的安全与执行摘要，不是人类审批界面，也不是每次 create 前的强制仪式。create 展示目标 workspace/team、标题和归属、长正文的来源与大小、Comment 上传公开性、文件、Attachment 和关系，但不把完整长正文复制进终端；需要用户审核 Agent 新拟的正文时，Agent 必须在对话中展示草稿。update 继续展示本次字段的 base/desired/remote verdict；Relation 逐项显示 add/idempotent/conflict。用户已经明确要求按给定内容写入时，不需要为了确认而重复确认。
 
-apply 在第一笔写入前重复 manifest 与文件校验。没有已应用 checkpoint 的首次执行在默认策略下会先预读整批 update 目标；任何已经存在的字段、对象或 Relation 冲突，以及无法读取的目标，都会在第一笔 mutation 前以结构化结果停止。显式 `--continue-on-failure` 不做整批远端预检，而是逐 Issue 读取、跳过失败或冲突条目并继续干净条目。真正执行时仍在每个 Issue 自己的写入前重新读取并比较，不把整批预检结果当锁。checkpoint 续跑已经处于部分执行状态，因此直接沿用逐 Issue 检查。`--confirm-workspace` 必须重复 manifest 里的 workspace，防止把准备好的 manifest 打到错误目标——它不是授权，写入授权始终来自宿主和用户。
+apply 在第一笔写入前重复整批 manifest 与文件校验，然后按顺序在每个 Issue 自己的第一笔 mutation 前读取远端并比较。默认策略遇到读取失败或 conflict 就停止，保留已经成功的结果；显式 `--continue-on-failure` 跳过失败或冲突条目并继续后续干净条目。需要在执行前查看全部远端 verdict 时显式运行 plan；apply 不重复整批远端预读，也不把客户端检查描述成锁或事务。checkpoint 续跑沿用同一套逐 Issue 检查。`--confirm-workspace` 必须重复 manifest 里的 workspace，防止把准备好的 manifest 打到错误目标——它不是授权，写入授权始终来自宿主和用户。
 
 apply 逐执行项返回 applied / failed / unknown / unattempted / skipped，结束后读回每个本次已应用或从 checkpoint 跳过的目标 Issue。mutation 已成功但当前视图读回失败时，执行项仍保持 applied 以免误重试，整体状态返回 applied-unverified 并以非零退出；修复访问后重跑会跳过 mutation，只重试读回。
 
