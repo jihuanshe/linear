@@ -2,11 +2,11 @@ export const snapshot = {};
 
 snapshot[`guides list prints the concise index 1`] = `
 "Version-matched workflow guides:
-  core             渐进发现、专用命令优先级、写入授权边界，以及影响命令选择的语义陷阱
+  core             渐进发现、typed command 与 GraphQL 的分工、写入授权边界，以及影响命令选择的语义陷阱
   automation       无人值守执行的输出契约、JSON 校验、Markdown 文件 flag 与写后读回验证
   issue-authoring  事实源判断、证据持久化、写前确认与写后读回、关闭原因与下一跳，让无上下文的接手者能独立继续
   issue-delivery   delivery manifest 的字段保护、checkpoint 续跑、unknown 对账与批量语义，单次和批量共用同一协议
-  graphql          schema 发现、linear api 变量与 heredoc 用法、查询拆分，以及何时降级到直接 HTTP
+  graphql          schema 发现、精确批量读取、linear api 变量与分页，以及何时降级到直接 HTTP
 
 read: linear guides read <name>
 machine-readable: linear guides list --json

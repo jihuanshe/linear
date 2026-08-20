@@ -11,10 +11,10 @@ import { withUsageMetadata } from "../usage.ts"
 
 // `issue plan` previews a delivery manifest with zero remote writes: it
 // validates the manifest and every referenced file, reads each update
-// target's current state, and shows exactly what apply would do — including
-// three-way field verdicts, so a conflict a colleague created while the
-// caller prepared material is visible before anything is written. Plan is
-// optional: apply repeats this validation itself (design:
+// target's current state, and shows the manifest request with three-way field
+// verdicts. Apply handles checkpointed items separately and re-reads pending
+// update targets immediately before their own mutations. Plan is optional:
+// apply repeats the local validation itself (design:
 // docs/agent-interface-architecture.md, "`plan`").
 
 function formatContent(content: PlanContent): string {

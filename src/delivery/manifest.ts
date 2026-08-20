@@ -18,10 +18,10 @@ import { getMimeType } from "../utils/upload.ts"
 //   clearing project/parent) stay out until the commands grow them.
 // - `base` carries the values the caller last read. It exists because an
 //   agent prepares material slowly while colleagues keep editing: a field
-//   with a base is only written when the remote still matches it (three-way
-//   compare inherited from the retired batch-write Skill). A field without a
-//   base is written unconditionally — the lightweight path for mechanical
-//   updates.
+//   is only written when the remote still matches its base (three-way compare
+//   inherited from the retired batch-write Skill). Every replacement field in
+//   an update requires a matching base; incremental operations remain owned by
+//   their dedicated commands instead of gaining an unguarded manifest path.
 // - Existing comments, attachments, and relations are never edited or
 //   removed here; dedicated commands own explicit single-object changes.
 
@@ -41,7 +41,7 @@ const setSchema = v.strictObject({
 
 const baseSchema = v.strictObject({
   title: v.optional(v.string()),
-  description: v.optional(v.string()),
+  description: v.optional(v.nullable(v.string())),
   priority: v.optional(v.nullable(priority)),
   state: v.optional(v.string()),
   assignee: v.optional(v.nullable(v.string())),
@@ -192,10 +192,10 @@ function validateIssueShape(issue: DeliveryIssue, label: string): void {
       `${label}: set.description and set.descriptionFile are mutually exclusive`,
     )
   }
+  const managed = new Set(Object.keys(issue.set ?? {}))
+  managed.delete("descriptionFile")
+  if (issue.set?.descriptionFile != null) managed.add("description")
   if (issue.base != null) {
-    const managed = new Set(Object.keys(issue.set ?? {}))
-    managed.delete("descriptionFile")
-    if (issue.set?.descriptionFile != null) managed.add("description")
     for (const key of Object.keys(issue.base)) {
       if (!managed.has(key)) {
         throw new ValidationError(
@@ -226,6 +226,23 @@ function validateIssueShape(issue: DeliveryIssue, label: string): void {
   }
   if (issue.set != null && Object.keys(issue.set).length === 0) {
     throw new ValidationError(`${label}: set must contain at least one field`)
+  }
+  if (issue.operation === "update") {
+    for (const key of managed) {
+      if (!Object.hasOwn(issue.base ?? {}, key)) {
+        const setKey =
+          key === "description" && issue.set?.descriptionFile != null
+            ? "descriptionFile"
+            : key
+        throw new ValidationError(
+          `${label}: set.${setKey} requires base.${key}`,
+          {
+            suggestion:
+              `Record the last value read from Linear in base.${key} before applying this update.`,
+          },
+        )
+      }
+    }
   }
   if (
     issue.set == null && (issue.comments ?? []).length === 0 &&

@@ -484,6 +484,10 @@ linear upload <file...>
         "title": "调查回放中未知卡牌编号的来源（附原始证据）",
         "descriptionFile": "description.md"
       },
+      "base": {
+        "title": "调查回放中的未知卡牌编号",
+        "description": null
+      },
       "comments": [
         {
           "bodyFile": "replay-evidence.md",
@@ -523,7 +527,7 @@ linear issue plan --file delivery.json
 1. 对远端零写入；允许只读解析 workspace、Issue、字段值和 IssueRelation target。
 2. 输出与风险相称的结构化执行摘要：create 展示目标、标题和关键归属，长正文显示 inline/file 来源与大小，文件正文附 hash，并逐项列出 Comment 上传公开性、文件、Attachment 和 IssueRelation；update 展示本次字段的三方 verdict，IssueRelation 展示 add/idempotent/conflict。同一对 Issue 已有不同类型或方向的关系时必须拒绝，不能让 Linear 的 create mutation 隐式替换旧关系。plan 不复制完整长正文，也不充当人类审批界面；同 URL 的 Attachment 可能更新既有对象。
 3. 在第一笔 mutation 前验证整个 manifest 的全部本地文件，包括存在性、可读性、大小和 MIME。
-4. 对 update 只比较本次要修改的字段，沿用现有 batch 对 workspace、目标 Issue、team、workflow state 和字段变化的保护。这是 CLI 拥有的并发安全兜底：AI 准备材料需要时间，期间上游 Issue 可能已被他人修改。无关评论或 Attachment 变化不制造冲突。
+4. 对 update 只比较本次要修改的字段，每个替换字段必须携带上次读取值 `base`；缺失 base 在本地校验阶段失败，不能降级成无条件覆盖。三方比较沿用现有 batch 对 workspace、目标 Issue、team、workflow state 和字段变化的保护。这是 CLI 拥有的并发安全兜底：AI 准备材料需要时间，期间上游 Issue 可能已被他人修改。无关评论或 Attachment 变化不制造冲突。
 5. 输出确定的执行顺序、解析结果、文件 size/MIME/SHA-256 和结构化机器结果。
 
 `plan` 是可选的零副作用预览，不是每次写入前的强制仪式。调用者已经明确目标时，可以直接执行 `apply`；`apply` 自己仍须在第一笔 mutation 前完成同样的输入验证。V1 不冻结完整 Issue 历史，也不替用户授权写入。
@@ -540,7 +544,7 @@ linear issue apply \
 
 `apply` 应复用现有 create/update/comment/attach/link/relation 命令实现，而不是建立第二套 API client。它必须：
 
-- 在整批首笔 mutation 前验证 workspace、manifest 结构和全部本地文件；每个 Issue 的目标与字段在该 Issue 自己的首笔 mutation 前验证；
+- 在整批首笔 mutation 前验证 workspace、manifest 结构和全部本地文件；每个 Issue 的目标与字段在该 Issue 自己的首笔 mutation 前验证；默认策略遇到失败或 conflict 停止，显式 continue 策略跳过该条目并继续；
 - 按 manifest 顺序执行 Issue 字段、Comment 及其上传文件、Attachment 和 IssueRelation；
 - 为每个请求项返回 `applied`、`failed`、`unknown` 或 `unattempted`，成功项带远端 ID/URL；
 - 在请求前记录正在执行的步骤，每个确认成功的步骤后更新简单 checkpoint；进程中断时，正在执行的步骤视为结果未知；
@@ -554,14 +558,14 @@ linear issue apply \
 
 同一个 manifest 的 `issues[]` 同时支持单次和 batch。Batch V1 只额外需要：
 
-- 整批本地可验证输入在首笔 mutation 前验证；远端引用与字段按 Issue 在其首笔 mutation 前验证；
+- 整批本地可验证输入在首笔 mutation 前验证；远端目标与字段按 Issue 在其首笔 mutation 前验证；
 - 每个现有 Issue 在一份 manifest 中至多出现一个 update 条目；重复 identifier 必须在远端读取和 checkpoint 之前拒绝，调用方把同一 Issue 的全部交付项合并进一个条目；
 - 顺序执行；
 - 逐 Issue、逐请求项 checkpoint；
 - 对确认无副作用的 `failed` 使用 stop/continue 策略；`unknown` 始终立即停止；
 - 部分成功和剩余项的精确汇总。
 
-V1 不需要并发执行、通用事务日志、集合协调器或独立的 batch schema。
+V1 不需要并发执行、通用事务日志、集合协调器或独立的 batch schema。Batch 顺序执行，远端冲突按 Issue 在写前发现；已经成功的结果与剩余项由逐项 checkpoint 承接，不承诺锁、事务或自动回滚。
 
 ### 明确的非目标与后续证据门禁
 

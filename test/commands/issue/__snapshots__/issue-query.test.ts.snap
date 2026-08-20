@@ -20,6 +20,8 @@ Options:
   --all-teams                          - Query across all teams                                                                                      
   -s, --state          <state>         - Filter by issue state (can be repeated for multiple         (Values: "triage", "backlog", "unstarted",      
                                          states)                                                     "started", "completed", "canceled")             
+  --state-name         <name>          - Filter by exact workflow state name (case-insensitive; can                                                  
+                                         be repeated)                                                                                                
   --all-states                         - Show issues from all states (this is the default)                                                           
   --assignee           <assignee>      - Filter by assignee (username)                                                                               
   -A, --all-assignees                  - Show issues for all assignees (this is the default)                                                         

@@ -70,6 +70,11 @@ export const queryCommand = withUsageMetadata(new Command(), {
     "Filter by issue state (can be repeated for multiple states)",
     { collect: true },
   )
+  .option(
+    "--state-name <name:string>",
+    "Filter by exact workflow state name (case-insensitive; can be repeated)",
+    { collect: true },
+  )
   .option("--all-states", "Show issues from all states (this is the default)")
   .option("--assignee <assignee:string>", "Filter by assignee (username)")
   .option(
@@ -126,6 +131,7 @@ export const queryCommand = withUsageMetadata(new Command(), {
       team: teamFlags,
       allTeams,
       state,
+      stateName,
       allStates,
       assignee,
       allAssignees,
@@ -175,8 +181,41 @@ export const queryCommand = withUsageMetadata(new Command(), {
         ? (Array.isArray(state) ? state.flat() : [state])
         : undefined
 
+      const stateNames = stateName
+        ? (Array.isArray(stateName) ? stateName.flat() : [stateName]).map((
+          name: string,
+        ) => name.trim())
+        : undefined
+
+      if (stateNames?.some((name: string) => name.length === 0)) {
+        throw new ValidationError("--state-name cannot be empty")
+      }
+
+      if (
+        stateArray && stateArray.length > 0 &&
+        stateNames && stateNames.length > 0
+      ) {
+        throw new ValidationError(
+          "Cannot use both --state and --state-name flags",
+          {
+            suggestion:
+              "Use --state for a broad Linear state type, or --state-name for an exact workflow state name.",
+          },
+        )
+      }
+
       if (allStates && stateArray && stateArray.length > 0) {
         throw new ValidationError("Cannot use --all-states with --state flag")
+      }
+
+      if (allStates && stateNames && stateNames.length > 0) {
+        throw new ValidationError(
+          "Cannot use --all-states with --state-name flag",
+          {
+            suggestion:
+              "Remove --all-states; showing all states is already the default.",
+          },
+        )
       }
 
       if (project != null && projectLabel != null) {
@@ -332,6 +371,7 @@ export const queryCommand = withUsageMetadata(new Command(), {
         const result = await searchIssuesByTerm(searchTerm, {
           teamKeys: resolvedTeamKeys,
           state: stateArray,
+          stateNames,
           assignee,
           unassigned,
           limit: limit === 0 ? 0 : limit,
@@ -370,6 +410,7 @@ export const queryCommand = withUsageMetadata(new Command(), {
           teamKeys: resolvedTeamKeys,
           allTeams: allTeams === true,
           state: stateArray,
+          stateNames,
           assignee,
           unassigned,
           sort,

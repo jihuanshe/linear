@@ -1,7 +1,7 @@
 ---
 name: core
-title: Command discovery and selection
-description: 渐进发现、专用命令优先级、写入授权边界，以及影响命令选择的语义陷阱
+title: Command discovery and operation routing
+description: 渐进发现、typed command 与 GraphQL 的分工、写入授权边界，以及影响命令选择的语义陷阱
 keywords:
   - discovery
   - usage
@@ -43,9 +43,11 @@ linear usage --json       # 机器可读的命令树（含 writes/interactive/co
 
 `usage --json` 中 `writes: true` 表示该命令能修改远端状态或本地的用户配置。这是能力描述，不是授权：是否允许写入由宿主（运行本 CLI 的 agent 环境及其权限系统）与用户决定，`--force`、`--yes`、`LINEAR_PROMPT_DISABLED=1` 和 JSON 输出都不构成同意。
 
-## 专用命令 > `linear api` > 直接 HTTP
+## 按责任选择专用命令、GraphQL 与 HTTP
 
-优先使用专用命令：它们带输入校验、冲突保护和结构化输出。专用命令不覆盖的长尾操作用 `linear api`（见 graphql 指南）。只有需要完整 HTTP 控制时才用 `curl` 加 `linear auth token`。
+常见领域操作、名称解析和安全写入优先使用专用命令；输入校验、冲突保护和结构化输出等具体保障以目标命令的 `--help` 与指南为准。精确字段选择、批量正文、少见 filter 和跨实体只读查询直接使用 `schema` + `linear api`（见 graphql 指南），不要为了临时读取形状扩建命令面。只有需要完整 HTTP 控制时才用 `curl` 加 `linear auth token`。
+
+`linear api` 也能发送 mutation，但不拥有专用写命令的名称解析、增量更新、冲突保护或写后核算。存在专用写命令时不要改用 raw mutation 绕过其边界。
 
 ## 影响命令选择的语义陷阱
 
@@ -55,6 +57,7 @@ linear usage --json       # 机器可读的命令树（含 writes/interactive/co
 - `document update` 会保护含内联评论锚点的内容。用户明确接受「锚点可能丢失」这一风险之前，不要用 `--force` 绕过警告。
 - Project 的 `description` 字段被 Linear API 限制在 255 字符；长 Markdown 用 project overview 的 `content` / `content-file`。
 - workflow state 和用户名不要猜：`linear team states --json` 列出状态，`linear user list --json` 解析成员。
+- `issue query --state` 按 Linear 的状态类型过滤（如 `started`）；只匹配团队工作流中的精确状态名用可重复的 `--state-name`（如 `Merged`）。
 
 ## 认证与访问失败
 

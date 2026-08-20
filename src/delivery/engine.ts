@@ -278,13 +278,12 @@ export function planFields(
       ? resolveDescription(set)
       : set[field as keyof DeliverySet]
     if (desired === undefined) continue
+    const hasBase = Object.hasOwn(base ?? {}, field)
     const baseValue = base?.[field]
     let verdict: FieldVerdict
     if (fieldEquals(field, desired, remote)) {
       verdict = "idempotent"
-    } else if (
-      baseValue === undefined || fieldEquals(field, baseValue, remote)
-    ) {
+    } else if (hasBase && fieldEquals(field, baseValue, remote)) {
       verdict = "write"
     } else {
       verdict = "conflict"
@@ -292,7 +291,7 @@ export function planFields(
     plans.push({
       field,
       desired,
-      ...(baseValue === undefined ? {} : { base: baseValue }),
+      ...(hasBase ? { base: baseValue } : {}),
       remote: remote[field] ?? null,
       verdict,
     })
@@ -1333,8 +1332,9 @@ function summarizeIssue(
 /**
  * The zero-write preview: read-only resolution of every update target plus
  * the full local file inventory. Optional by design — apply performs the same
- * validation and reads before its first mutation, so plan is for humans and
- * agents who want to see the complete delivery before consenting to it.
+ * local validation, then reads each update target immediately before that
+ * Issue's first mutation. Plan is for callers that want the complete remote
+ * preview before consenting to sequential execution.
  */
 export async function planManifest(
   context: ApplyContext,

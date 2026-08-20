@@ -113,6 +113,51 @@ await snapshotTest({
   },
 })
 
+Deno.test("Issue Query Command - filters by exact workflow state name", async () => {
+  const { cleanup } = await setupMockLinearServer([
+    {
+      queryName: "GetIssuesForQuery",
+      variables: {
+        filter: {
+          team: { key: { eq: "ENG" } },
+          state: { name: { eqIgnoreCase: "Merged" } },
+        },
+        sort: [
+          { workflowState: { order: "Descending" } },
+          { priority: { nulls: "last", order: "Descending" } },
+          { manual: { nulls: "last", order: "Ascending" } },
+        ],
+        first: 50,
+      },
+      response: {
+        data: {
+          issues: {
+            nodes: [{
+              ...mockIssueNode,
+              state: { ...mockIssueNode.state, name: "Merged" },
+            }],
+            pageInfo: { hasNextPage: false, endCursor: null },
+          },
+        },
+      },
+    },
+  ], { NO_COLOR: "true" })
+  const logStub = stub(console, "log", () => {})
+
+  try {
+    await queryCommand.parse([
+      "--team",
+      "ENG",
+      "--state-name",
+      "Merged",
+      "--json",
+    ])
+  } finally {
+    logStub.restore()
+    await cleanup()
+  }
+})
+
 // Test --search mode (searchIssues() backend) with JSON
 await snapshotTest({
   name: "Issue Query Command - Search JSON Output",
@@ -123,6 +168,10 @@ await snapshotTest({
     "oauth timeout",
     "--team",
     "ENG",
+    "--state-name",
+    "Merged",
+    "--state-name",
+    "In Review",
     "--search-comments",
     "--json",
   ],
@@ -135,6 +184,12 @@ await snapshotTest({
           term: "oauth timeout",
           filter: {
             team: { key: { eq: "ENG" } },
+            state: {
+              or: [
+                { name: { eqIgnoreCase: "Merged" } },
+                { name: { eqIgnoreCase: "In Review" } },
+              ],
+            },
           },
           includeComments: true,
         },
@@ -343,6 +398,47 @@ Deno.test("Issue Query Command - rejects --team with --all-teams", async () => {
     true,
   )
 })
+
+for (
+  const { name, args, expected } of [
+    {
+      name: "--state with --state-name",
+      args: ["--team", "ENG", "--state", "started", "--state-name", "Merged"],
+      expected: "Cannot use both --state and --state-name flags",
+    },
+    {
+      name: "--all-states with --state-name",
+      args: ["--team", "ENG", "--all-states", "--state-name", "Merged"],
+      expected: "Cannot use --all-states with --state-name flag",
+    },
+    {
+      name: "a blank --state-name",
+      args: ["--team", "ENG", "--state-name", "   "],
+      expected: "--state-name cannot be empty",
+    },
+  ]
+) {
+  Deno.test(`Issue Query Command - rejects ${name}`, async () => {
+    const errorLogs: string[] = []
+    const errorStub = stub(console, "error", (...values: unknown[]) => {
+      errorLogs.push(values.map(String).join(" "))
+    })
+    const exitStub = stub(Deno, "exit", (_code?: number) => {
+      throw new Error("EXIT")
+    })
+
+    try {
+      await queryCommand.parse(args)
+    } catch {
+      // expected
+    } finally {
+      errorStub.restore()
+      exitStub.restore()
+    }
+
+    assertEquals(errorLogs.some((line) => line.includes(expected)), true)
+  })
+}
 
 // Test validation: --sort with --search conflict
 Deno.test("Issue Query Command - rejects --sort with --search", async () => {
