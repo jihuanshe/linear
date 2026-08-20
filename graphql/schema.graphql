@@ -1412,7 +1412,7 @@ type AiConversationElicitationOption {
   """The short label shown for the option."""
   label: String!
 
-  """The prompt sent as a normal user reply when selected."""
+  """The user prompt rendered to the agent when this option is selected."""
   prompt: String!
 }
 
@@ -1435,6 +1435,32 @@ type AiConversationElicitationPart implements AiConversationBasePart {
 
   """The type of the part."""
   type: AiConversationPartType!
+}
+
+"""
+The kind-specific data recorded when a user answers an AI conversation elicitation.
+"""
+union AiConversationElicitationResponseData = AiConversationMultipleChoiceElicitationResponseData
+
+"""A structured user response to an elicitation in an AI conversation."""
+type AiConversationElicitationResponsePart implements AiConversationBasePart {
+  """The kind-specific response data."""
+  data: AiConversationElicitationResponseData!
+
+  """The identifier of the elicitation that was answered."""
+  elicitationId: String!
+
+  """The ID of the part."""
+  id: String!
+
+  """The metadata of the part."""
+  metadata: AiConversationPartMetadata!
+
+  """The type of the part."""
+  type: AiConversationPartType!
+
+  """The user who answered the elicitation."""
+  user: User
 }
 
 type AiConversationEntityCardWidget implements AiConversationBaseWidget {
@@ -1827,6 +1853,15 @@ type AiConversationListCodingSessionsToolCallResultAgentSessions {
   type: String!
 }
 
+"""The selected option in a multiple-choice AI conversation elicitation."""
+type AiConversationMultipleChoiceElicitationResponseData {
+  """The kind of elicitation that was answered."""
+  kind: AiConversationElicitationKind!
+
+  """The zero-based index of the selected option."""
+  selectedOptionIndex: Int!
+}
+
 type AiConversationNavigateToPageToolCall implements AiConversationBaseToolCall {
   """The arguments to the tool call."""
   args: AiConversationNavigateToPageToolCallArgs
@@ -1879,7 +1914,7 @@ type AiConversationNotifyUsersToolCallArgs {
 }
 
 """A part in an AI conversation."""
-union AiConversationPart = AiConversationAckPart | AiConversationElicitationPart | AiConversationErrorPart | AiConversationEventPart | AiConversationPromptPart | AiConversationReasoningPart | AiConversationTextPart | AiConversationToolCallPart | AiConversationWidgetPart
+union AiConversationPart = AiConversationAckPart | AiConversationElicitationPart | AiConversationElicitationResponsePart | AiConversationErrorPart | AiConversationEventPart | AiConversationPromptPart | AiConversationReasoningPart | AiConversationTextPart | AiConversationToolCallPart | AiConversationWidgetPart
 
 """Metadata about a part in an AI conversation."""
 type AiConversationPartMetadata {
@@ -1912,6 +1947,7 @@ enum AiConversationPartPhase {
 enum AiConversationPartType {
   ack
   elicitation
+  elicitationResponse
   error
   event
   prompt
@@ -2115,6 +2151,25 @@ type AiConversationReasoningPart implements AiConversationBasePart {
   type: AiConversationPartType!
 }
 
+type AiConversationRemoveSpendLimitToolCall implements AiConversationBaseToolCall {
+  """The arguments to the tool call."""
+  args: AiConversationRemoveSpendLimitToolCallArgs
+  displayInfo: AiConversationToolDisplayInfo!
+
+  """The name of the tool that was called."""
+  name: AiConversationTool!
+
+  """The arguments of the tool call."""
+  rawArgs: JSON
+
+  """The result of the tool call."""
+  rawResult: JSON
+}
+
+type AiConversationRemoveSpendLimitToolCallArgs {
+  summary: String
+}
+
 type AiConversationResearchToolCall implements AiConversationBaseToolCall {
   """The arguments to the tool call."""
   args: AiConversationResearchToolCallArgs
@@ -2245,6 +2300,25 @@ type AiConversationSearchEntitiesToolCallResult {
 type AiConversationSearchEntitiesToolCallResultEntities {
   id: String!
   type: String!
+}
+
+type AiConversationSetSpendLimitToolCall implements AiConversationBaseToolCall {
+  """The arguments to the tool call."""
+  args: AiConversationSetSpendLimitToolCallArgs
+  displayInfo: AiConversationToolDisplayInfo!
+
+  """The name of the tool that was called."""
+  name: AiConversationTool!
+
+  """The arguments of the tool call."""
+  rawArgs: JSON
+
+  """The result of the tool call."""
+  rawResult: JSON
+}
+
+type AiConversationSetSpendLimitToolCallArgs {
+  summary: String
 }
 
 type AiConversationSpawnSubagentToolCall implements AiConversationBaseToolCall {
@@ -2418,12 +2492,14 @@ enum AiConversationTool {
   QueryView
   ReadFile
   ReadSandboxFile
+  RemoveSpendLimit
   Research
   RestoreEntity
   RetrieveEntities
   RetryPullRequestCheck
   SearchDocumentation
   SearchEntities
+  SetSpendLimit
   SpawnSubagent
   StartCodingSession
   SubscribeToEvent
@@ -2437,7 +2513,7 @@ enum AiConversationTool {
 }
 
 """The tool call."""
-union AiConversationToolCall = AiConversationBashToolCall | AiConversationCodeIntelligenceToolCall | AiConversationCreateEntityToolCall | AiConversationCreateSandboxToolCall | AiConversationDeleteEntityToolCall | AiConversationGetMicrosoftTeamsConversationHistoryToolCall | AiConversationGetPullRequestCheckLogsToolCall | AiConversationGetPullRequestDiffToolCall | AiConversationGetPullRequestFileToolCall | AiConversationGetSlackConversationHistoryToolCall | AiConversationHandoffToCodingSessionToolCall | AiConversationInvokeMcpToolToolCall | AiConversationListCodingSessionsToolCall | AiConversationNavigateToPageToolCall | AiConversationNotifyUsersToolCall | AiConversationPromptCodingSessionToolCall | AiConversationQueryActivityToolCall | AiConversationQueryUpdatesToolCall | AiConversationQueryViewToolCall | AiConversationReadFileToolCall | AiConversationReadSandboxFileToolCall | AiConversationResearchToolCall | AiConversationRestoreEntityToolCall | AiConversationRetrieveEntitiesToolCall | AiConversationRetryPullRequestCheckToolCall | AiConversationSearchDocumentationToolCall | AiConversationSearchEntitiesToolCall | AiConversationSpawnSubagentToolCall | AiConversationStartCodingSessionToolCall | AiConversationSubscribeToEventToolCall | AiConversationSuggestRepositoryToolCall | AiConversationSuggestValuesToolCall | AiConversationTranscribeMediaToolCall | AiConversationTranscribeVideoToolCall | AiConversationUnsubscribeFromEventToolCall | AiConversationUpdateEntityToolCall | AiConversationWebSearchToolCall
+union AiConversationToolCall = AiConversationBashToolCall | AiConversationCodeIntelligenceToolCall | AiConversationCreateEntityToolCall | AiConversationCreateSandboxToolCall | AiConversationDeleteEntityToolCall | AiConversationGetMicrosoftTeamsConversationHistoryToolCall | AiConversationGetPullRequestCheckLogsToolCall | AiConversationGetPullRequestDiffToolCall | AiConversationGetPullRequestFileToolCall | AiConversationGetSlackConversationHistoryToolCall | AiConversationHandoffToCodingSessionToolCall | AiConversationInvokeMcpToolToolCall | AiConversationListCodingSessionsToolCall | AiConversationNavigateToPageToolCall | AiConversationNotifyUsersToolCall | AiConversationPromptCodingSessionToolCall | AiConversationQueryActivityToolCall | AiConversationQueryUpdatesToolCall | AiConversationQueryViewToolCall | AiConversationReadFileToolCall | AiConversationReadSandboxFileToolCall | AiConversationRemoveSpendLimitToolCall | AiConversationResearchToolCall | AiConversationRestoreEntityToolCall | AiConversationRetrieveEntitiesToolCall | AiConversationRetryPullRequestCheckToolCall | AiConversationSearchDocumentationToolCall | AiConversationSearchEntitiesToolCall | AiConversationSetSpendLimitToolCall | AiConversationSpawnSubagentToolCall | AiConversationStartCodingSessionToolCall | AiConversationSubscribeToEventToolCall | AiConversationSuggestRepositoryToolCall | AiConversationSuggestValuesToolCall | AiConversationTranscribeMediaToolCall | AiConversationTranscribeVideoToolCall | AiConversationUnsubscribeFromEventToolCall | AiConversationUpdateEntityToolCall | AiConversationWebSearchToolCall
 
 """A tool call part in an AI conversation."""
 type AiConversationToolCallPart implements AiConversationBasePart {
@@ -7308,6 +7384,39 @@ type Document implements Node {
   """
   sortOrder: Float!
 
+  """Users who are subscribed to the document."""
+  subscribers(
+    """A cursor to be used with first for forward pagination"""
+    after: String
+
+    """A cursor to be used with last for backward pagination."""
+    before: String
+
+    """Filter returned subscribers."""
+    filter: UserFilter
+
+    """
+    The number of items to forward paginate (used with after). Defaults to 50.
+    """
+    first: Int
+
+    """Should archived resources be included (default: false)"""
+    includeArchived: Boolean
+
+    """Should query return disabled/suspended users (default: false)."""
+    includeDisabled: Boolean
+
+    """
+    The number of items to backward paginate (used with before). Defaults to 50.
+    """
+    last: Int
+
+    """
+    By which field should the pagination order by. Available options are createdAt (default) and updatedAt.
+    """
+    orderBy: PaginationOrderBy
+  ): UserConnection!
+
   """
   [Internal] A one-sentence AI-generated summary of the document content. Null if no summary has been generated.
   """
@@ -7746,6 +7855,9 @@ input DocumentFilter {
   """Filters that the document's release must satisfy."""
   release: ReleaseFilter
 
+  """[Internal] Comparator for the document's searchable content."""
+  searchableContent: ContentComparator
+
   """Comparator for the document slug ID."""
   slugId: StringComparator
 
@@ -8037,6 +8149,39 @@ type DocumentSearchResult implements Node {
   """
   sortOrder: Float!
 
+  """Users who are subscribed to the document."""
+  subscribers(
+    """A cursor to be used with first for forward pagination"""
+    after: String
+
+    """A cursor to be used with last for backward pagination."""
+    before: String
+
+    """Filter returned subscribers."""
+    filter: UserFilter
+
+    """
+    The number of items to forward paginate (used with after). Defaults to 50.
+    """
+    first: Int
+
+    """Should archived resources be included (default: false)"""
+    includeArchived: Boolean
+
+    """Should query return disabled/suspended users (default: false)."""
+    includeDisabled: Boolean
+
+    """
+    The number of items to backward paginate (used with before). Defaults to 50.
+    """
+    last: Int
+
+    """
+    By which field should the pagination order by. Available options are createdAt (default) and updatedAt.
+    """
+    orderBy: PaginationOrderBy
+  ): UserConnection!
+
   """
   [Internal] A one-sentence AI-generated summary of the document content. Null if no summary has been generated.
   """
@@ -8242,6 +8387,11 @@ type Draft implements Node {
   The project update for which this is a draft comment. Null if the draft belongs to a different parent entity type.
   """
   projectUpdate: ProjectUpdate
+
+  """
+  The pull request for which this is a draft comment. Null if the draft belongs to a different parent entity type.
+  """
+  pullRequest: PullRequest
 
   """
   The team for which this is a draft post. Null if the draft belongs to a different parent entity type.
@@ -9194,6 +9344,14 @@ type Favorite implements Node {
   label: IssueLabel
 
   """
+  The versioned lazy root and filter represented by this live favorite folder.
+  """
+  liveFolderDefinition: JSONObject
+
+  """The predefined live folder represented by this favorite."""
+  liveFolderPreset: String
+
+  """
   The user who owns this favorite. Favorites are personal and only visible to their owner.
   """
   owner: User!
@@ -9322,6 +9480,9 @@ input FavoriteCreateInput {
 
   """The identifier of the label to favorite."""
   labelId: String
+
+  """The predefined live folder to create."""
+  liveFolderPreset: String
 
   """The parent folder of the favorite."""
   parentId: String
@@ -9880,6 +10041,16 @@ input GitHubImportSettingsInput {
 
   """The names of the repositories connected for the GitHub integration."""
   repositories: [GitHubRepoInput!]!
+
+  """
+  The date the repository list was last loaded from GitHub. Unset while the first load is still in progress.
+  """
+  repositoriesSyncedAt: DateTime
+
+  """
+  The number of repositories the installation can access, as reported by GitHub. Known before the repository list itself has loaded.
+  """
+  repositoryCount: Float
 }
 
 """
@@ -10470,9 +10641,7 @@ type Initiative implements Node {
   """
   lastUpdate: InitiativeUpdate
 
-  """
-  [ALPHA] The team that leads the initiative. Null if no lead team is assigned.
-  """
+  """The team that leads the initiative. Null if no lead team is assigned."""
   leadTeam: Team
 
   """Links associated with the initiative."""
@@ -10690,7 +10859,7 @@ type Initiative implements Node {
   url: String!
 
   """
-  [ALPHA] The visibility of the initiative, derived from its lead team. Public when no lead team is assigned.
+  The visibility of the initiative, derived from its lead team. Public when no lead team is assigned.
   """
   visibility: InitiativeVisibility!
 }
@@ -10753,7 +10922,7 @@ input InitiativeCollectionFilter {
   """Filters that the initiative labels must satisfy."""
   labels: InitiativeLabelCollectionFilter
 
-  """[ALPHA] Filters that the initiative lead team must satisfy."""
+  """Filters that the initiative lead team must satisfy."""
   leadTeam: NullableTeamFilter
 
   """Comparator for the collection length."""
@@ -10825,7 +10994,7 @@ input InitiativeCreateInput {
   """
   labelIds: [String!]
 
-  """[ALPHA] The team that leads the initiative."""
+  """The team that leads the initiative."""
   leadTeamId: String
 
   """The name of the initiative."""
@@ -10915,7 +11084,7 @@ input InitiativeFilter {
   """Filters that the initiative labels must satisfy."""
   labels: InitiativeLabelCollectionFilter
 
-  """[ALPHA] Filters that the initiative lead team must satisfy."""
+  """Filters that the initiative lead team must satisfy."""
   leadTeam: NullableTeamFilter
 
   """Comparator for the initiative name."""
@@ -12056,7 +12225,7 @@ input InitiativeUpdateInput {
   """
   labelIds: [String!]
 
-  """[ALPHA] The team that leads the initiative. Set to null to clear."""
+  """The team that leads the initiative. Set to null to clear."""
   leadTeamId: String
 
   """The name of the initiative."""
@@ -19192,22 +19361,27 @@ type Mutation {
 
   """Integrates the workspace with Zendesk."""
   integrationZendesk(
+    """
+    [INTERNAL] Bearer token that authenticates API requests instead of a Zendesk OAuth token. Requires `customApiUrl`; no OAuth exchange is performed.
+    """
+    accessToken: String
+
     """The role to assign to the Linear bot user in Zendesk."""
     botUserRole: String
 
-    """The Zendesk OAuth code."""
-    code: String!
+    """The Zendesk OAuth code. Required unless connecting with `accessToken`."""
+    code: String
 
     """
     [INTERNAL] Custom base URL for Zendesk API requests, such as a proxy in front of Zendesk. OAuth requests always use the standard subdomain URL.
     """
     customApiUrl: String
 
-    """The Zendesk OAuth redirect URI."""
-    redirectUri: String!
+    """The Zendesk OAuth redirect URI. Required when connecting with `code`."""
+    redirectUri: String
 
-    """The Zendesk OAuth scopes."""
-    scope: String!
+    """The Zendesk OAuth scopes. Required when connecting with `code`."""
+    scope: String
 
     """The Zendesk installation subdomain."""
     subdomain: String!
@@ -22018,7 +22192,7 @@ input NullableInitiativeFilter {
   """Filters that the initiative labels must satisfy."""
   labels: InitiativeLabelCollectionFilter
 
-  """[ALPHA] Filters that the initiative lead team must satisfy."""
+  """Filters that the initiative lead team must satisfy."""
   leadTeam: NullableTeamFilter
 
   """Comparator for the initiative name."""
@@ -24219,6 +24393,9 @@ type OrganizationPayload {
 Input for updating workspace security settings such as role-based access controls.
 """
 input OrganizationSecuritySettingsInput {
+  """The minimum role required to grant or revoke the workspace admin role."""
+  adminManagementRole: UserRoleType
+
   """
   The minimum role required to manage agent guidance prompts and settings.
   """
@@ -24673,6 +24850,13 @@ enum PartnerDiscountType {
   percent_off
 }
 
+"""The kind of partner program an offer belongs to."""
+enum PartnerOfferCategory {
+  accelerator
+  investor
+  startup_community
+}
+
 """[Internal] Public details of an active partner-program offer."""
 type PartnerOfferDetailsPayload {
   """
@@ -24745,6 +24929,15 @@ type PartnerOfferWorkspacesPayload {
   The viewer's workspaces hosted in the cell that served this request. Workspaces hosted in other cells are not included; query each cell to assemble the full list.
   """
   workspaces: [PartnerOfferWorkspacePayload!]!
+}
+
+"""[Internal] A partner listed in the Linear Startup Program."""
+type PartnerProgramPartnerPayload {
+  """The kind of partner program the offer belongs to."""
+  category: PartnerOfferCategory!
+
+  """Display name of the partner."""
+  partnerName: String!
 }
 
 type PasskeyLoginStartResponse {
@@ -28288,6 +28481,11 @@ type ProjectStatus implements Node {
   """
   indefinite: Boolean!
 
+  """
+  [Internal] The original workspace or parent-team status that this status was inherited from. Null if the status is not inherited.
+  """
+  inheritedFrom: ProjectStatus
+
   """The name of the status."""
   name: String!
 
@@ -28295,6 +28493,11 @@ type ProjectStatus implements Node {
   The position of the status within its type group in the workspace's project flow. Used for ordering statuses of the same type.
   """
   position: Float!
+
+  """
+  [Internal] The team that the status is scoped to. If null, the status is a workspace-level status available to all teams in the workspace.
+  """
+  team: Team
 
   """
   The category type of the project status (e.g., backlog, planned, started, paused, completed, canceled). Determines the status's behavior and position in the project lifecycle.
@@ -28967,6 +29170,31 @@ type PullRequest implements Node {
   The time at which the pull request was merged. Null if the pull request has not been merged.
   """
   mergedAt: DateTime
+
+  """
+  [Internal] The host-qualified external ID of the native stack that contains this pull request. Null if the pull request is not in a native stack or stack data is unavailable.
+  """
+  nativeStackId: String
+
+  """
+  [Internal] The number the hosting provider assigns to the native stack within its repository. Null if the pull request is not in a native stack or stack data is unavailable.
+  """
+  nativeStackNumber: Float
+
+  """
+  [Internal] The pull request's one-based position in its native stack, where 1 is closest to the target branch. Null if the pull request is not in a native stack or stack data is unavailable.
+  """
+  nativeStackPosition: Float
+
+  """
+  [Internal] The total number of pull requests in the native stack. Null if the pull request is not in a native stack or stack data is unavailable.
+  """
+  nativeStackSize: Float
+
+  """
+  [Internal] The target branch shared by the native stack. Null if the pull request is not in a native stack or stack data is unavailable.
+  """
+  nativeStackTargetBranch: String
 
   """
   The pull request number as assigned by the hosting provider (e.g., #123 on GitHub). Unique within a repository.
@@ -29699,6 +29927,12 @@ type Query {
 
   """List of audit entry types."""
   auditEntryTypes: [AuditEntryType!]!
+
+  """[INTERNAL] Failure events for an audit log webhook (last 50)."""
+  auditLogWebhookFailureEvents(
+    """The identifier of the audit log webhook."""
+    webhookId: String!
+  ): [WebhookFailureEvent!]!
 
   """User's active sessions."""
   authenticationSessions: [AuthenticationSessionResponse!]!
@@ -30943,6 +31177,11 @@ type Query {
     """The signed partner-offer token to check eligibility for."""
     token: String!
   ): PartnerOfferWorkspacesPayload
+
+  """
+  [Internal] Lists every partner with an active partner-program offer, ordered by display name. Backs the partner directory on the marketing website.
+  """
+  partnerProgramPartners: [PartnerProgramPartnerPayload!]!
 
   """Returns a single project by its identifier or URL slug."""
   project(id: String!): Project!
@@ -34623,6 +34862,9 @@ input SourceMetadataComparator {
 
   """Comparator for the sub type."""
   subType: SubTypeComparator
+
+  """Comparator for the workflow definition that created the issue."""
+  workflowDefinitionId: WorkflowDefinitionIdComparator
 }
 
 """Comparator for `sourceType` field."""
@@ -35137,6 +35379,9 @@ type Subscription {
   """Triggered when an user is created"""
   userCreated: User!
 
+  """Triggered when an user settings is updated"""
+  userSettingsUpdated: UserSettings!
+
   """Triggered when an user is updated"""
   userUpdated: User!
 
@@ -35486,9 +35731,7 @@ type Team implements Node {
   """
   inheritWorkflowStatuses: Boolean!
 
-  """
-  [ALPHA] Whether team initiatives are enabled and shown in the team's sidebar.
-  """
+  """Whether team initiatives are enabled and shown in the team's sidebar."""
   initiativesEnabled: Boolean!
 
   """Settings for all integrations associated with that team."""
@@ -36105,7 +36348,7 @@ input TeamCreateInput {
   """
   inheritWorkflowStatuses: Boolean
 
-  """[ALPHA] Whether initiatives are shown in the team's sidebar."""
+  """Whether initiatives are shown in the team's sidebar."""
   initiativesEnabled: Boolean
 
   """Whether to allow zeros in issues estimates."""
@@ -36659,7 +36902,7 @@ input TeamUpdateInput {
   """
   inheritWorkflowStatuses: Boolean
 
-  """[ALPHA] Whether initiatives are shown in the team's sidebar."""
+  """Whether initiatives are shown in the team's sidebar."""
   initiativesEnabled: Boolean
 
   """Whether to allow zeros in issues estimates."""
@@ -36977,6 +37220,9 @@ type TimeSchedule implements Node {
   """
   archivedAt: DateTime
 
+  """[ALPHA] The schedule configuration."""
+  config: TimeScheduleConfig
+
   """The time at which the entity was created."""
   createdAt: DateTime!
 
@@ -37008,6 +37254,21 @@ type TimeSchedule implements Node {
   updatedAt: DateTime!
 }
 
+"""[ALPHA] The configuration of a time schedule."""
+type TimeScheduleConfig {
+  """
+  Record of the next two on-call shifts keyed by Linear user id, e.g. `{ "<linearUserId>": [{ "startsAt": "X", "endsAt": "Y" }] }`.
+  """
+  nextShiftsByUserId: JSONObject!
+}
+
+input TimeScheduleConfigInput {
+  """
+  Record of the next two on-call shifts keyed by Linear user id, e.g. `{ "<linearUserId>": [{ "startsAt": "X", "endsAt": "Y" }] }`.
+  """
+  nextShiftsByUserId: JSONObject!
+}
+
 type TimeScheduleConnection {
   edges: [TimeScheduleEdge!]!
   nodes: [TimeSchedule!]!
@@ -37016,6 +37277,9 @@ type TimeScheduleConnection {
 
 """Input for creating a new time schedule."""
 input TimeScheduleCreateInput {
+  """[ALPHA] The schedule configuration."""
+  config: TimeScheduleConfigInput
+
   """The schedule entries."""
   entries: [TimeScheduleEntryInput!]!
 
@@ -37093,6 +37357,9 @@ type TimeSchedulePayload {
 
 """Input for updating an existing time schedule."""
 input TimeScheduleUpdateInput {
+  """[ALPHA] The schedule configuration. Pass null to clear it."""
+  config: TimeScheduleConfigInput
+
   """The schedule entries."""
   entries: [TimeScheduleEntryInput!]
 
@@ -38037,6 +38304,7 @@ enum UserFlagType {
   issueMovePromptCompleted
   joinTeamIntroductionDismissed
   listSelectionTip
+  loopEditRestrictionSpeedbumpShown
   migrateThemePreference
   milestoneOnboardingIsSeenAndDismissed
   projectBacklogWelcomeDismissed
@@ -38618,6 +38886,12 @@ type ViewPreferencesValues {
   """The loop ordering."""
   automationOrdering: String
 
+  """Whether to show the run duration in Loop run history."""
+  automationRunHistoryShowDuration: Boolean
+
+  """Whether to show the issue identifier in Loop run history."""
+  automationRunHistoryShowIssueIdentifier: Boolean
+
   """Whether to show sub-team loops."""
   automationShowDescendants: Boolean
 
@@ -38729,6 +39003,21 @@ type ViewPreferencesValues {
 
   """The dashboards ordering."""
   dashboardsOrdering: String
+
+  """Whether to show the creator field for documents."""
+  documentFieldCreator: Boolean
+
+  """Whether to show the created date field for documents."""
+  documentFieldDateCreated: Boolean
+
+  """Whether to show the updated date field for documents."""
+  documentFieldDateUpdated: Boolean
+
+  """Whether to show the owner field for documents."""
+  documentFieldOwner: Boolean
+
+  """Whether to show the parent field for documents."""
+  documentFieldParent: Boolean
 
   """Whether to show important embedded customer needs first."""
   embeddedCustomerNeedsShowImportantFirst: Boolean
@@ -39263,7 +39552,7 @@ type ViewPreferencesValues {
   """Whether to show supervised issues."""
   showSupervisedIssues: Boolean
 
-  """[ALPHA] Whether to show team-level initiatives in the workspace."""
+  """Whether to show team-level initiatives in the workspace."""
   showTeamInitiatives: Boolean
 
   """Whether team reviews are shown in the reviews list."""
@@ -39338,6 +39627,7 @@ enum ViewType {
   agents
   allIssues
   archive
+  automationRunHistory
   automations
   backlog
   board
@@ -39905,6 +40195,11 @@ type WorkflowDefinition implements Node {
   project: Project
 
   """
+  Whether editing the workflow is restricted to its owner, team owners, and workspace administrators.
+  """
+  restrictEditing: Boolean!
+
+  """
   Whether the workflow should only execute once per entity. When true, the workflow is excluded from matching automations for an entity if it has already been executed for that entity.
   """
   runOnce: Boolean!
@@ -39954,6 +40249,26 @@ type WorkflowDefinition implements Node {
   The type of user view to which this workflow's context is associated with.
   """
   userContextViewType: UserContextViewType
+}
+
+"""Comparator for the workflow definition that created an issue."""
+input WorkflowDefinitionIdComparator {
+  """Equals constraint."""
+  eq: ID
+
+  """In-array constraint."""
+  in: [ID!]
+
+  """Not-equals constraint."""
+  neq: ID
+
+  """Not-in-array constraint."""
+  nin: [ID!]
+
+  """
+  Null constraint. Matches any non-null values if the given value is false, otherwise it matches null values.
+  """
+  null: Boolean
 }
 
 """
@@ -40352,6 +40667,11 @@ input ZendeskSettingsInput {
   Whether a ticket should be automatically reopened when its linked Linear project is completed.
   """
   automateTicketReopeningOnProjectCompletion: Boolean
+
+  """
+  [INTERNAL] Whether API requests authenticate with a user-provided bearer token instead of a Zendesk OAuth token. Only used together with `customApiUrl`.
+  """
+  bearerTokenAuth: Boolean
 
   """The ID of the Linear bot user."""
   botUserId: String
