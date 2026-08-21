@@ -20,7 +20,11 @@ import { apiCommand } from "./commands/api.ts"
 import { updateCommand } from "./commands/update.ts"
 import { uploadCommand } from "./commands/upload.ts"
 import { versionCommand } from "./commands/version.ts"
-import { createUsageAction, createUsageCommand } from "./commands/usage.ts"
+import {
+  createUsageAction,
+  createUsageCommand,
+  type UsageCommandSource,
+} from "./commands/usage.ts"
 import { guidesForCommandPath } from "./guides/guides.ts"
 import { setCliWorkspace } from "./config.ts"
 import { supportsStdoutStyling } from "./utils/terminal.ts"
@@ -84,12 +88,37 @@ Environment Variables:
   .command("update", updateCommand)
   .command("version", versionCommand)
 
-for (const command of cli.getCommands()) {
-  if (command.getName() !== "completions" && command.hasCommands()) {
-    command.command("usage", createUsageCommand(command, true))
+interface UsageInjectable extends UsageCommandSource {
+  hasCommands(): boolean
+  getCommands(): UsageInjectable[]
+  getCommand(name: string): UsageInjectable | undefined
+  command(
+    name: string,
+    command: ReturnType<typeof createUsageCommand>,
+  ): unknown
+}
+
+function injectUsageCommands(
+  command: UsageInjectable,
+  includeSubcommandOptions = true,
+): void {
+  for (const child of command.getCommands()) {
+    if (child.getName() !== "completions") {
+      injectUsageCommands(child)
+    }
+  }
+  if (
+    command.getName() !== "completions" && command.hasCommands() &&
+    command.getCommand("usage") == null
+  ) {
+    command.command(
+      "usage",
+      createUsageCommand(command, includeSubcommandOptions),
+    )
   }
 }
-cli.command("usage", createUsageCommand(cli, false))
+
+injectUsageCommands(cli, false)
 
 // Leaf help carries a "Related guides" breadcrumb derived from guide
 // frontmatter (src/guides/guides.ts owns the relationship); domains render

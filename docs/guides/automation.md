@@ -19,6 +19,7 @@ commands:
   - issue create
   - issue update
   - issue comment add
+  - issue comment list
   - document view
 seeAlso:
   - core
@@ -52,6 +53,14 @@ NO_COLOR=1 linear issue view ENG-123 --json >result.json 2>error.log &&
 ```bash
 jq -e '.nodes | arrays' project-issues.json >/dev/null &&
   jq '.nodes[] | {identifier, title, priority}' project-issues.json
+```
+
+`issue comment list --json` 同样返回 connection envelope `{nodes,pageInfo}`，而不是评论数组。例如：
+
+```bash
+linear issue comment list ENG-123 --json >comments.json &&
+  jq -e '.nodes | arrays' comments.json >/dev/null &&
+  jq '{comments: [.nodes[] | {id, body}], pageInfo}' comments.json
 ```
 
 ## Markdown 走文件 flag

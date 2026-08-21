@@ -204,6 +204,32 @@ Deno.test("domain usage includes direct command options", async () => {
   )
 })
 
+Deno.test("nested command groups expose usage recursively", async () => {
+  const result = await run(["issue", "comment", "usage"])
+
+  assertEquals(result.code, 0, result.stderr)
+  assertEquals(result.stderr, "")
+  assertStringIncludes(result.stdout, "linear issue comment")
+  for (const command of ["add", "list", "update", "delete"]) {
+    assertMatch(result.stdout, new RegExp(`\\n  ${command}(?: |\\[)`))
+  }
+
+  const jsonResult = await run(["issue", "comment", "usage", "--json"])
+  assertEquals(jsonResult.code, 0, jsonResult.stderr)
+  assertEquals(jsonResult.stderr, "")
+  const document = JSON.parse(jsonResult.stdout) as UsageDocument
+  assertEquals(document.schemaVersion, 1)
+  assertEquals(document.command.path, "linear issue comment")
+  assertEquals(
+    document.subcommands.map(({ name }) => name).sort(),
+    ["add", "delete", "list", "update"],
+  )
+  for (const command of document.subcommands) {
+    assertEquals(command.path, `linear issue comment ${command.name}`)
+    assertEquals(command.details, `${command.path} --help`)
+  }
+})
+
 Deno.test("Cliffy help keeps canonical human metadata labels", async () => {
   const deleteResult = await run(["issue", "delete", "--help"])
   assertEquals(deleteResult.code, 0, deleteResult.stderr)
