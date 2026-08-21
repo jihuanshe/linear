@@ -37,6 +37,7 @@ seeAlso:
 ```bash
 linear                    # 根导航：领域列表
 linear issue usage        # 单个领域的命令与选项
+linear issue comment usage  # 任意嵌套命令组的命令与选项
 linear issue create --help  # 单个命令的完整参考
 linear usage --json       # 机器可读的命令树（含 writes/interactive/confirmation 元数据）
 ```

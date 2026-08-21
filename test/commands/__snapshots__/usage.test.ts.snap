@@ -1962,7 +1962,7 @@ snapshot[`usage JSON v1 freezes its existing fields and types 1`] = `
       arguments: [],
       confirmation: null,
       description: "Manage issue comments",
-      details: "linear issue comment --help",
+      details: "linear issue comment usage",
       guides: [
         {
           description: "渐进发现、typed command 与 GraphQL 的分工、写入授权边界，以及影响命令选择的语义陷阱",
@@ -2142,7 +2142,7 @@ snapshot[`usage JSON v1 freezes its existing fields and types 1`] = `
       arguments: [],
       confirmation: null,
       description: "Manage issue relations",
-      details: "linear issue relation --help",
+      details: "linear issue relation usage",
       hasSubcommands: true,
       interactive: false,
       name: "relation",
@@ -2305,7 +2305,7 @@ snapshot[`usage JSON v1 freezes its existing fields and types 1`] = `
       arguments: [],
       confirmation: null,
       description: "Manage agent sessions for an issue",
-      details: "linear issue agent-session --help",
+      details: "linear issue agent-session usage",
       hasSubcommands: true,
       interactive: false,
       name: "agent-session",
