@@ -13,7 +13,6 @@
 | Release procedure                    | `.agents/skills/releasing/SKILL.md`         |
 | Pull request source verification     | `.github/workflows/verify-pull-request.yml` |
 | CI release implementation            | `.github/workflows/ship-main.yml`           |
-| Cumulative downstream changes        | `CHANGELOG.md`                              |
 
 `AGENTS.md` is the repository guidance source. `CLAUDE.md` is only a compatibility pointer to this file.
 

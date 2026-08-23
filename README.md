@@ -295,7 +295,7 @@ This repository is a downstream fork of [`schpet/linear-cli`](https://github.com
 
 The original project was created by Peter Schilling. Many features, command designs, tests, documentation sections, and integrations in this repository were created by the [upstream contributors](https://github.com/schpet/linear-cli/graphs/contributors).
 
-The downstream changelog summarizes this fork's changes without copying the upstream release history. Exact rolling published-build history remains available in this repository's Git history and GitHub Releases.
+Exact rolling published-build history remains available in this repository's Git history and GitHub Releases.
 
 When reporting an issue:
 

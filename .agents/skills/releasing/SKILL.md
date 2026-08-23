@@ -19,17 +19,16 @@ Use this procedure only after the user explicitly asks to ship, publish, or rele
 ## Prepare
 
 1. Confirm the checkout is `main`, `origin` is `https://github.com/jihuanshe/linear`, and all intended changes are understood.
-2. Update `CHANGELOG.md` only when the cumulative downstream summary changed. Do not add an entry for each rolling build.
-3. Check the effective commit identity before the first commit:
+2. Check the effective commit identity before the first commit:
 
    ```bash
    git config --show-origin --get user.name
    git config --show-origin --get user.email
    ```
 
-4. Commit every intended change. Keep unrelated concerns in separate commits.
-5. Fetch `origin/main`. Rebase when it is ahead; stop and ask the user before resolving substantive conflicts.
-6. Run the complete local release gate against the final commit:
+3. Commit every intended change. Keep unrelated concerns in separate commits.
+4. Fetch `origin/main`. Rebase when it is ahead; stop and ask the user before resolving substantive conflicts.
+5. Run the complete local release gate against the final commit:
 
    ```bash
    deno task verify-release
