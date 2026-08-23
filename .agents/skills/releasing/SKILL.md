@@ -5,8 +5,6 @@ description: 通过仓库的滚动 GitHub Release 工作流验证并发布当前
 
 # 主分支发布
 
-仅在用户明确要求 ship、publish 或 release 此 CLI 后使用本流程。
-
 ## 发布契约
 
 - 在版本控制中将 `deno.json` 保持为 `0.0.0-dev`。

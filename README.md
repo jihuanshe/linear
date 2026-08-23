@@ -291,11 +291,7 @@ deno task verify-release
 
 ## 上游与致谢
 
-本仓库是 [`schpet/linear-cli`](https://github.com/schpet/linear-cli) 的下游 fork。
-
 原项目由 Peter Schilling 创建。本仓库中的许多功能、命令设计、测试、文档章节和集成由[上游贡献者](https://github.com/schpet/linear-cli/graphs/contributors)创建。
-
-准确的滚动发布构建历史仍可在本仓库的 Git 历史和 GitHub Releases 中查看。
 
 报告问题时：
 

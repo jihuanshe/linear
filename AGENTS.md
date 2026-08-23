@@ -57,5 +57,3 @@
 - `deno task verify-source` 是源码验证任务：生成 GraphQL 类型、检查格式、运行 lint、类型检查以及所有非 Keyring 测试。
 - `deno task verify-release` 是完整的本地发布门禁和 Pull Request 源码门禁；它会运行源码验证，而源码验证已经包含内嵌指南契约的检查。
 - 未经用户明确授权，不得 push 或发布。用户要求 ship 时，加载并遵循 `.agents/skills/releasing/SKILL.md`；它是唯一的发布流程。
-- CI 发布工作流有意不重复本地发布门禁。它会运行 Linux Keyring 集成测试、构建五个平台、验证发布资源、进行证明并发布 GitHub Release。
-- 滚动发布任务会串行运行，不取消进行中的任务，最多保留 100 个待处理的 `main` 更新，并为每次成功运行发布独立 Release。
