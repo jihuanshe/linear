@@ -1,44 +1,44 @@
 ---
 name: releasing
-description: Verifies and publishes the current main branch through the repository's rolling GitHub Release workflow. Use when asked to release, publish, or ship this CLI.
+description: 通过仓库的滚动 GitHub Release 工作流验证并发布当前 main 分支。仅在用户要求发布、推送正式版本或 ship 此 CLI 时使用。
 ---
 
-# Main Release
+# 主分支发布
 
-Use this procedure only after the user explicitly asks to ship, publish, or release the CLI.
+仅在用户明确要求 ship、publish 或 release 此 CLI 后使用本流程。
 
-## Release contract
+## 发布契约
 
-- Keep `deno.json` at `0.0.0-dev` in source control.
-- `.github/workflows/ship-main.yml` derives `0.0.<commit timestamp>-g<short commit>` from the pushed commit.
-- Each `main` update enters a serialized release queue. A successful run creates the tag and GitHub Release automatically.
-- Release runs do not cancel one already in progress, and the queue retains up to 100 waiting runs.
-- Do not manually bump versions, create release tags, or push tags.
-- Do not create npm, JSR, Homebrew, or cargo-dist releases.
+- 在版本控制中将 `deno.json` 保持为 `0.0.0-dev`。
+- `.github/workflows/ship-main.yml` 根据推送的提交生成 `0.0.<commit timestamp>-g<short commit>`。
+- 每次 `main` 更新都会进入串行发布队列。运行成功后会自动创建 tag 和 GitHub Release。
+- 发布任务不会取消已经在运行的任务，队列最多保留 100 个等待中的任务。
+- 不要手动递增版本、创建发布 tag 或推送 tag。
+- 不要创建 npm、JSR、Homebrew 或 cargo-dist 发布。
 
-## Prepare
+## 准备
 
-1. Confirm the checkout is `main`, `origin` is `https://github.com/jihuanshe/linear`, and all intended changes are understood.
-2. Check the effective commit identity before the first commit:
+1. 确认 checkout 为 `main`，`origin` 为 `https://github.com/jihuanshe/linear`，并且已经理解所有计划中的变更。
+2. 在第一次提交前检查实际生效的提交身份：
 
    ```bash
    git config --show-origin --get user.name
    git config --show-origin --get user.email
    ```
 
-3. Commit every intended change. Keep unrelated concerns in separate commits.
-4. Fetch `origin/main`. Rebase when it is ahead; stop and ask the user before resolving substantive conflicts.
-5. Run the complete local release gate against the final commit:
+3. 提交所有计划中的变更。将无关事项放在不同提交中。
+4. 获取 `origin/main`。如果它领先于当前分支则进行 rebase；遇到实质性冲突时停止并先询问用户。
+5. 针对最终提交运行完整的本地发布门禁：
 
    ```bash
    deno task verify-release
    ```
 
-   Do not push until it passes with a clean worktree.
+   在工作区干净且门禁通过前不要 push。
 
-## Push
+## 推送
 
-Push `main`, then wait for the exact run created by that push:
+推送 `main`，然后等待该次推送创建的确切工作流运行：
 
 ```bash
 sha="$(git rev-parse HEAD)"
@@ -57,23 +57,23 @@ test -n "$run_id"
 gh run watch "$run_id" --exit-status
 ```
 
-If the push is rejected because `origin/main` advanced, fetch, rebase, rerun `deno task verify-release`, and push again. Ask before resolving substantive conflicts.
+如果因为 `origin/main` 已前进而导致推送被拒绝，则获取更新、rebase、重新运行 `deno task verify-release`，然后再次推送。遇到实质性冲突时先询问用户。
 
-## CI release workflow
+## CI 发布工作流
 
-`Publish Linear CLI rolling release` runs these stages:
+`Publish Linear CLI rolling release` 按以下阶段运行：
 
-1. In parallel, run the Linux Keyring integration test and build all five targets.
-2. For each target, produce one install archive, one standalone self-update binary, and their SHA-256 sidecars.
-3. Merge the artifacts; require 10 distributables and 10 checksum sidecars; generate `sha256.sum`.
-4. Create or resume a draft Release, attest the binary assets, then publish it. Mark it latest only while its commit is still the current `main` head, so an older queued run cannot move latest backward.
-5. After the GitHub Release succeeds, record one completed Linear Release from the exact `before..HEAD` push range, and require its ID and URL to be non-empty and its version to match the GitHub Release version.
+1. 并行运行 Linux Keyring 集成测试，并构建全部五个目标。
+2. 为每个目标生成一个安装归档、一个独立的自更新二进制及其 SHA-256 sidecar 文件。
+3. 合并构建资源；要求 10 个可分发文件和 10 个校验和 sidecar 文件；生成 `sha256.sum`。
+4. 创建或恢复 Draft Release，证明二进制资源的来源，然后发布。只有当其提交仍是当前 `main` head 时才将其标记为 latest，防止较早的排队任务把 latest 倒退到旧版本。
+5. GitHub Release 成功后，根据准确的 `before..HEAD` 推送范围记录一个已完成的 Linear Release，并要求其 ID 和 URL 非空，且版本与 GitHub Release 的版本一致。
 
-The GitHub Release job must not run unless Keyring integration and every target build succeed. The Linear Release job must not run unless the GitHub Release job succeeds.
+除非 Keyring 集成测试和每个目标的构建都成功，否则不得运行 GitHub Release 任务。除非 GitHub Release 任务成功，否则不得运行 Linear Release 任务。
 
-## Post-release validation
+## 发布后验证
 
-Derive the expected version from the pushed commit and inspect that exact Release:
+根据推送的提交推导预期版本，并检查该确切 Release：
 
 ```bash
 timestamp="$(git show -s --format=%ct HEAD)"
@@ -86,20 +86,20 @@ if [[ "$(git rev-parse origin/main)" == "$(git rev-parse HEAD)" ]]; then
 fi
 ```
 
-Require the Release to target the pushed commit, be published, and be non-prerelease. If the pushed commit is still current `main`, also require it to be latest. It must contain 21 files: 10 distributables, 10 checksum sidecars, and `sha256.sum`.
+必须确认该 Release 指向推送的提交、已经发布且不是 prerelease。如果推送的提交仍是当前 `main`，还必须确认它是 latest。它必须包含 21 个文件：10 个可分发文件、10 个校验和 sidecar 文件以及 `sha256.sum`。
 
-When mise is available, verify that the public installation resolves to the expected version:
+如果 mise 可用，验证公开安装解析出的版本是否符合预期：
 
 ```bash
 actual="$(mise x "github:jihuanshe/linear[minimum_release_age=0s]@$version" -- linear --version)"
 test "$actual" = "linear $version"
 ```
 
-`minimum_release_age=0s` bypasses mise's default 24-hour release age for this tool only.
+`minimum_release_age=0s` 仅对本工具绕过 mise 默认的 24 小时 Release 等待时间。
 
-## Failure handling
+## 失败处理
 
-- A failed local source check, CI keyring integration check, or build must not produce a published Release. Fix forward with a new `main` commit.
-- A canceled run is not a published release and may leave an invisible draft. Do not rerun it after `main` advances; clean it up later if needed.
-- The fixed concurrency group serializes release runs and retains up to 100 pending `main` updates. Completed historical Releases remain immutable and downloadable.
-- If GitHub rejects write permissions, attestations, or Release creation, report the repository setting that blocked it instead of switching to a personal token or private runner.
+- 本地源码检查、CI Keyring 集成检查或构建失败时，不得产生已发布的 Release。使用新的 `main` 提交修复问题。
+- 被取消的任务不算已发布 Release，可能会留下不可见的 Draft。`main` 前进后不要重新运行它；如有需要，之后再清理。
+- 固定的并发组会串行执行发布任务，并保留最多 100 个待处理的 `main` 更新。已完成的历史 Release 保持不可变且可下载。
+- 如果 GitHub 拒绝写入权限、证明或 Release 创建，报告阻塞它的仓库设置，不要改用个人 token 或私有 runner。
