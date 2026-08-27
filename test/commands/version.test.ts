@@ -7,6 +7,11 @@ import {
 } from "../../src/commands/version.ts"
 
 const main = fromFileUrl(new URL("../../src/main.ts", import.meta.url))
+const configReadPaths = [
+  fromFileUrl(new URL("../../linear.toml", import.meta.url)),
+  fromFileUrl(new URL("../../.linear.toml", import.meta.url)),
+  "/nonexistent",
+].join(",")
 
 async function run(args: string[]) {
   const result = await new Deno.Command(Deno.execPath(), {
@@ -19,7 +24,7 @@ async function run(args: string[]) {
       "--cached-only",
       "--allow-env",
       "--deny-net",
-      "--allow-read=/nonexistent",
+      `--allow-read=${configReadPaths}`,
       "--deny-write",
       "--deny-run",
       "--deny-ffi",

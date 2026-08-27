@@ -1,4 +1,4 @@
-import { assertEquals, assertThrows } from "@std/assert"
+import { assertEquals, assertStringIncludes, assertThrows } from "@std/assert"
 import { fromFileUrl } from "@std/path"
 import { getOption, resolveIssueSort } from "../src/config.ts"
 import { ValidationError } from "../src/utils/errors.ts"
@@ -191,6 +191,52 @@ Deno.test("getOption - config file is used when no env var is set", async () => 
     )
   } finally {
     // Clean up temp directory
+    await Deno.remove(tempDir, { recursive: true })
+  }
+})
+
+Deno.test("config loading fails on a malformed higher-priority file", async () => {
+  const tempDir = await Deno.makeTempDir()
+
+  try {
+    await Deno.writeTextFile(`${tempDir}/linear.toml`, "workspace = [\n")
+    await Deno.writeTextFile(
+      `${tempDir}/.linear.toml`,
+      'workspace = "fallback-workspace"\n',
+    )
+
+    const configUrl = new URL("../src/config.ts", import.meta.url)
+    const denoJsonPath = fromFileUrl(new URL("../deno.json", import.meta.url))
+    const command = new Deno.Command(Deno.execPath(), {
+      args: [
+        "eval",
+        `--config=${denoJsonPath}`,
+        `import { getOption } from "${configUrl}"; console.log(getOption("workspace"));`,
+      ],
+      cwd: tempDir,
+      clearEnv: true,
+      env: {
+        HOME: tempDir,
+        PATH: Deno.env.get("PATH") ?? "",
+        ...(Deno.build.os === "windows"
+          ? {
+            APPDATA: tempDir,
+            SystemRoot: Deno.env.get("SystemRoot") ?? "",
+          }
+          : { XDG_CONFIG_HOME: `${tempDir}/.config` }),
+      },
+      stdout: "piped",
+      stderr: "piped",
+    })
+
+    const result = await command.output()
+    assertEquals(result.success, false)
+    assertEquals(new TextDecoder().decode(result.stdout), "")
+    assertStringIncludes(
+      new TextDecoder().decode(result.stderr),
+      "Failed to parse config file at ./linear.toml",
+    )
+  } finally {
     await Deno.remove(tempDir, { recursive: true })
   }
 })

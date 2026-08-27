@@ -6,14 +6,29 @@ import { ValidationError } from "./utils/errors.ts"
 
 let config: Record<string, unknown> = {}
 
+function errorDetail(error: unknown): string {
+  return error instanceof Error ? error.message : String(error)
+}
+
 async function loadConfigFromPath(
   path: string,
 ): Promise<Record<string, unknown> | null> {
+  let file: string
   try {
-    const file = await Deno.readTextFile(path)
+    file = await Deno.readTextFile(path)
+  } catch (error) {
+    if (error instanceof Deno.errors.NotFound) return null
+    throw new Error(
+      `Failed to read config file at ${path}: ${errorDetail(error)}`,
+    )
+  }
+
+  try {
     return parse(file) as Record<string, unknown>
-  } catch {
-    return null
+  } catch (error) {
+    throw new Error(
+      `Failed to parse config file at ${path}: ${errorDetail(error)}`,
+    )
   }
 }
 

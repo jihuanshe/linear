@@ -59,6 +59,26 @@ Deno.test("getResolvedApiKey - errors when --workspace not found in credentials"
   }
 })
 
+Deno.test("getResolvedApiKey - errors when configured workspace is not found", () => {
+  const workspace = "nonexistent-config-workspace-xyz-123"
+  Deno.env.delete("LINEAR_API_KEY")
+  Deno.env.set("LINEAR_WORKSPACE", workspace)
+  setCliWorkspace(undefined)
+
+  try {
+    const error = assertThrows(
+      () => getResolvedApiKey(),
+      Error,
+    )
+    assertStringIncludes(
+      error.message,
+      `Workspace "${workspace}" not found in credentials`,
+    )
+  } finally {
+    Deno.env.delete("LINEAR_WORKSPACE")
+  }
+})
+
 Deno.test("getResolvedApiKey - errors when LINEAR_API_KEY and --workspace both set", () => {
   // Setup
   Deno.env.set("LINEAR_API_KEY", "test-api-key")

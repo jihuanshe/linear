@@ -19,13 +19,15 @@ linear config
 
 ## 优先级与文件位置
 
-普通设置按以下顺序解析，先出现的有效值获胜：
+普通设置按以下顺序选择，先出现的已设置值获胜：
 
 1. 目标命令明确映射到该设置的 flag；
 2. 当前进程中的 `LINEAR_<TOML_KEY_UPPERCASE>` 环境变量；
 3. 第一个找到的项目配置；
 4. 用户配置；
 5. 命令自身的默认值。
+
+高优先级值会在选中后校验；无效值不会回退到低优先级来源。`issue_sort` 会明确报错，其他设置按目标命令的默认行为处理。
 
 API key 和 `--workspace` 的身份选择有独立的安全优先级，不套用这份普通设置顺序；见[认证与 workspace 凭据](authentication.md)。
 
@@ -43,18 +45,18 @@ CLI 还会读取当前目录的 `.env`；不存在时再读取 Git 根目录的 
 
 ## 设置
 
-| TOML key                    | 环境变量                           | 取值与作用                                                                                     |
-| --------------------------- | ---------------------------------- | ---------------------------------------------------------------------------------------------- |
-| `workspace`                 | `LINEAR_WORKSPACE`                 | 默认 workspace slug；从已保存凭据中选择对应 key                                                |
-| `team_id`                   | `LINEAR_TEAM_ID`                   | 默认 team key，例如 `ENG`                                                                      |
-| `issue_sort`                | `LINEAR_ISSUE_SORT`                | `priority`（默认）或 `manual`                                                                  |
-| `issue_create_ask_project`  | `LINEAR_ISSUE_CREATE_ASK_PROJECT`  | 创建 Issue 时是否询问 project                                                                  |
-| `issue_create_assign_self`  | `LINEAR_ISSUE_CREATE_ASSIGN_SELF`  | `always`、`auto`（默认）或 `never`                                                             |
-| `vcs`                       | `LINEAR_VCS`                       | `git`（默认）或 `jj`                                                                           |
-| `download_images`           | `LINEAR_DOWNLOAD_IMAGES`           | 查看 Issue／Document 时是否下载 Markdown 内联图片；默认开启                                    |
-| `auto_download_attachments` | `LINEAR_AUTO_DOWNLOAD_ATTACHMENTS` | 查看 Issue 时是否下载 Linear file Attachment；默认开启，并受 `download_images` 控制            |
-| `attachment_dir`            | `LINEAR_ATTACHMENT_DIR`            | Attachment 下载目录；默认使用系统临时目录下的 `linear-cli-attachments`                         |
-| `hyperlink_format`          | `LINEAR_HYPERLINK_FORMAT`          | TTY 中本地文件 OSC-8 链接模板；支持 `{host}` 和 `{path}`，`default` 等于 `file://{host}{path}` |
+| TOML key                    | 环境变量                           | 取值与作用                                                                                        |
+| --------------------------- | ---------------------------------- | ------------------------------------------------------------------------------------------------- |
+| `workspace`                 | `LINEAR_WORKSPACE`                 | 默认 workspace slug；从已保存凭据中选择对应 key                                                   |
+| `team_id`                   | `LINEAR_TEAM_ID`                   | 默认 team key，例如 `ENG`                                                                         |
+| `issue_sort`                | `LINEAR_ISSUE_SORT`                | `priority`（默认）或 `manual`                                                                     |
+| `issue_create_ask_project`  | `LINEAR_ISSUE_CREATE_ASK_PROJECT`  | 创建 Issue 时是否询问 project                                                                     |
+| `issue_create_assign_self`  | `LINEAR_ISSUE_CREATE_ASSIGN_SELF`  | `always`、`auto`（默认）或 `never`                                                                |
+| `vcs`                       | `LINEAR_VCS`                       | `git`（默认）或 `jj`                                                                              |
+| `download_images`           | `LINEAR_DOWNLOAD_IMAGES`           | 以非 JSON 输出查看 Issue／Document 时是否下载 Markdown 内联图片；默认开启                         |
+| `auto_download_attachments` | `LINEAR_AUTO_DOWNLOAD_ATTACHMENTS` | 以非 JSON 输出查看 Issue 时是否下载 Linear file Attachment；默认开启，并受 `download_images` 控制 |
+| `attachment_dir`            | `LINEAR_ATTACHMENT_DIR`            | Attachment 下载目录；默认使用系统临时目录下的 `linear-cli-attachments`                            |
+| `hyperlink_format`          | `LINEAR_HYPERLINK_FORMAT`          | TTY 中本地文件 OSC-8 链接模板；支持 `{host}` 和 `{path}`，`default` 等于 `file://{host}{path}`    |
 
 布尔配置接受 `true`／`false`、`yes`／`no`、`y`／`n`、`on`／`off`、`1`／`0` 和 `t`／`f`，不区分大小写。
 

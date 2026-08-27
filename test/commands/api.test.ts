@@ -354,6 +354,7 @@ await cliffySnapshotTest({
     const tmpDir = await Deno.makeTempDir()
     try {
       Deno.env.delete("LINEAR_API_KEY")
+      Deno.env.set("LINEAR_WORKSPACE", "")
       // Write an empty credentials file so loadCredentials() resets the cached credentials
       await Deno.mkdir(`${tmpDir}/linear`, { recursive: true })
       await Deno.writeTextFile(`${tmpDir}/linear/credentials.toml`, "")
@@ -361,6 +362,7 @@ await cliffySnapshotTest({
       await loadCredentials()
       await apiCommand.parse()
     } finally {
+      Deno.env.delete("LINEAR_WORKSPACE")
       Deno.env.delete("XDG_CONFIG_HOME")
       await loadCredentials() // restore credentials from real path
       await Deno.remove(tmpDir, { recursive: true })
