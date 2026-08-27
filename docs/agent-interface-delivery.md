@@ -16,7 +16,7 @@
 
 本次发布范围（集成分支）：
 
-- [x] Commit 5——内嵌最小的证据驱动指南语料，并添加 `guides list/read`。
+- [x] Commit 5——内嵌最小的证据驱动指南语料，并添加 `guide` 接口。
 - [x] Commit 6——为领域 usage、叶子帮助和 usage JSON 派生指南面包屑。
 - [x] Commit 7a——把已安装二进制的访问诊断和 Issue authoring 迁入 CLI 拥有的工作流。
 - [x] Commit 7b——移除本地生成手册，并把生成流程转为契约验证。
@@ -161,7 +161,7 @@ Commit 8–10 与 Skill 迁移零耦合：delivery 与 batch 使用现有 `--jso
 - 让 `issue-authoring` 教授请求澄清、事实源与下游症状区分、证据质量、Issue 拆解、持久交接上下文、关闭原因和下一跳，而不强加僵硬的通用模板；
 - 定义并验证指南元数据；
 - 用静态文本导入和完整的导入清单嵌入 Markdown；
-- 添加 `guides list`、`guides list --json` 和 `guides read`；
+- 添加 `guide`、`guide --json` 和 `guide <name>`；
 - 为新的指南命令添加确定性的命令、导入和输出测试；
 - 验证编译后的二进制无需仓库文件即可读取指南。
 
@@ -325,8 +325,8 @@ Commit 8–10 与 Skill 迁移零耦合：delivery 与 batch 使用现有 `--jso
 两个仓库、一个发布窗口、一次完整状态切换：
 
 1. **集成完成**：`jihuanshe/linear` 集成分支完成本次发布范围的全部 commit，`deno task verify-release` 通过。
-2. **merge 与发布**：集成分支一次 merge 进 `main`；`Publish Linear CLI rolling release` 构建并发布携带新 capability 的 release。capability 词汇随本次 release 从 `usage-v1` 扩展为 `usage-v1`、`guides-v1`、`delivery-v1`。
-3. **安装验证**：通过 mise（非受管机器）或 Rotom（受管机器）收敛到新版本；`linear version --json` 报告新 capability，`linear guides list` 与 delivery `plan` 冒烟通过。
+2. **merge 与发布**：集成分支一次 merge 进 `main`；`Publish Linear CLI rolling release` 构建并发布携带新 capability 的 release。现行 capability 词汇为 `usage-v1`、`guide-v1`、`delivery-v1`。
+3. **安装验证**：通过 mise（非受管机器）或 Rotom（受管机器）收敛到新版本；`linear version --json` 报告新 capability，`linear guide` 与 delivery `plan` 冒烟通过。
 4. **Skill 替换**：merge `jihuanshe/skills#219`——`preserving-context-continuity`、新 `linear` 激活 Skill、四个旧 Skill 的删除与迁移台账是同一个原子评审单元。
 5. **Live**：skillshare sync 使替换在全部配置目标生效；按 lifecycle 规则验证投影内容并运行最小冒烟。
 6. **信号**：发布后观察真实使用。效果不好的部分就是下一轮优化的输入；恢复旧 Skill 只需要 revert 一个 PR，不需要专门的回滚仪式。
@@ -476,13 +476,13 @@ Commit 8–10 与 Skill 迁移零耦合：delivery 与 batch 使用现有 `--jso
 
 ### Fresh-agent 场景（本机，5 个无历史上下文的 sub-agent）
 
-| 场景                                             | 观察到的路径                                                                                                       | 判定 |
-| ------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------ | ---- |
-| 技能引导只读（查标题/状态/评论数）               | 根导航 → `issue usage` → `view --json`，并自验 `--show-resolved-threads`                                           | 通过 |
-| 技能引导多对象交付（建 issue + 日志证据 + 关系） | 经 `guides read issue-delivery/issue-authoring` 自行选择 manifest，plan → apply → 读回；自拟复现步骤诚实标注未实测 | 通过 |
-| 无技能纯 CLI 发现                                | `--help` 链两步定位 `issue view`，结果正确                                                                         | 通过 |
-| GraphQL 兜底（读 subscribers）                   | 专用命令查无 → 一次错误猜测（`linear graphql`）→ `guides read graphql` → schema 转储 → `linear api` heredoc        | 通过 |
-| 阴性对照（非 Linear 任务）                       | 全程未触碰 linear                                                                                                  | 通过 |
+| 场景                                             | 观察到的路径                                                                                                           | 判定 |
+| ------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------- | ---- |
+| 技能引导只读（查标题/状态/评论数）               | 根导航 → `issue usage` → `view --json`，并自验 `--show-resolved-threads`                                               | 通过 |
+| 技能引导多对象交付（建 issue + 日志证据 + 关系） | 经 `guide issue-delivery` / `guide issue-authoring` 自行选择 manifest，plan → apply → 读回；自拟复现步骤诚实标注未实测 | 通过 |
+| 无技能纯 CLI 发现                                | `--help` 链两步定位 `issue view`，结果正确                                                                             | 通过 |
+| GraphQL 兜底（读 subscribers）                   | 专用命令查无 → 一次错误猜测（`linear graphql`）→ `guide graphql` → schema 转储 → `linear api` heredoc                  | 通过 |
+| 阴性对照（非 Linear 任务）                       | 全程未触碰 linear                                                                                                      | 通过 |
 
 信号备注：交付探针当时发现 `issue view --json` 不含 relations，验证关系需绕道 `linear api`；该信号随后在 AI-1102 的真实交付审计中重复，现已补入结构化 view 读回。
 

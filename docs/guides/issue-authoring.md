@@ -1,18 +1,6 @@
 ---
 name: issue-authoring
-title: Authoring issues that survive handoff
 description: 事实源判断、证据持久化、写前确认与写后读回、关闭原因与下一跳，让无上下文的接手者能独立继续
-keywords:
-  - issue
-  - handoff
-  - evidence
-  - source-of-truth
-  - closure
-  - next-hop
-  - 交接
-  - 证据
-  - 事实源
-  - 验收
 commands:
   - issue create
   - issue update
@@ -24,10 +12,6 @@ commands:
   - issue plan
   - issue apply
   - upload
-seeAlso:
-  - core
-  - automation
-  - issue-delivery
 ---
 
 # 编写能在交接中存活的 Issue

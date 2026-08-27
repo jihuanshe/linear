@@ -16,7 +16,7 @@ commands:
   initiative-update, iu        Manage initiative status updates (timeline posts)
   label, l                     Manage Linear issue labels
   document, docs, doc          Manage Linear documents
-  guides                       Version-matched workflow guides
+  guide [name] [options]       Read version-matched workflow guides [json]
   completions                  Generate shell completions.
   config, configure            Interactively generate .linear.toml configuration [writes; interactive]
   schema [options]             Print the GraphQL schema to stdout [json]
@@ -31,7 +31,7 @@ global options:
 
 detail: linear <domain> usage; linear <command> --help
 machine-readable: linear usage --json
-workflows: linear guides list; linear guides read <name>
+workflows: linear guide; linear guide <name>
 "
 `;
 

@@ -1,26 +1,10 @@
 ---
 name: issue-delivery
-title: Delivering complete issues with plan and apply
 description: delivery manifest 的字段保护、checkpoint 续跑、unknown 对账与批量语义，单次和批量共用同一协议
-keywords:
-  - delivery
-  - manifest
-  - batch
-  - checkpoint
-  - conflict
-  - resume
-  - 批量
-  - 交付
-  - 续跑
-  - 冲突
 commands:
   - issue plan
   - issue apply
   - upload
-seeAlso:
-  - issue-authoring
-  - automation
-  - graphql
 ---
 
 # 用 manifest 交付完整 Issue

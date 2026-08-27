@@ -105,7 +105,7 @@ export LINEAR_API_KEY="lin_api_..."
 set -Ux LINEAR_API_KEY "lin_api_..."
 ```
 
-this takes precedence over stored credentials. `LINEAR_GRAPHQL_ENDPOINT` overrides the GraphQL endpoint for proxy setups (`linear guides read core` covers the recovery paths). if you have `LINEAR_API_KEY` set and try to use `linear auth login`, you'll see a warning:
+this takes precedence over stored credentials. `LINEAR_GRAPHQL_ENDPOINT` overrides the GraphQL endpoint for proxy setups (`linear guide core` covers the recovery paths). if you have `LINEAR_API_KEY` set and try to use `linear auth login`, you'll see a warning:
 
 ```
 Warning: LINEAR_API_KEY environment variable is set.

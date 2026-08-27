@@ -366,12 +366,12 @@ export function formatUsage(
       : "detail: linear <domain> usage; linear <command> --help",
     `machine-readable: ${document.command.path} usage --json`,
   )
-  if (document.subcommands.some((command) => command.name === "guides")) {
-    lines.push("workflows: linear guides list; linear guides read <name>")
+  if (document.subcommands.some((command) => command.name === "guide")) {
+    lines.push("workflows: linear guide; linear guide <name>")
   } else if (
     includeSubcommandOptions && (document.command.guides ?? []).length > 0
   ) {
-    lines.push("guides: linear guides read <name>")
+    lines.push("guides: linear guide <name>")
   }
   return lines.join("\n")
 }

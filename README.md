@@ -185,11 +185,11 @@ linear issue delete ENG-123 --confirm
 | `linear label`      | Workspace 和 team 标签                     |
 | `linear user`       | Workspace 成员发现                         |
 | `linear api`        | 执行显式的 Linear GraphQL 操作             |
-| `linear guides`     | 版本匹配的工作流指南                       |
+| `linear guide`      | 版本匹配的工作流指南                       |
 | `linear upload`     | 上传用于嵌入 Markdown 的文件               |
 | `linear version`    | 查看构建身份和协议能力                     |
 
-此表是精选概览；完整且始终最新的契约以 `linear usage` 为准。对于涵盖描述、带文件的评论、附件和关系的交付，请编写 delivery manifest 并使用 `linear issue plan` / `linear issue apply`；`linear guides read issue-delivery` 记录了该协议。
+此表是精选概览；完整且始终最新的契约以 `linear usage` 为准。对于涵盖描述、带文件的评论、附件和关系的交付，请编写 delivery manifest 并使用 `linear issue plan` / `linear issue apply`；`linear guide issue-delivery` 记录了该协议。
 
 从已安装的二进制中发现当前命令契约：
 
@@ -201,7 +201,7 @@ linear issue --help
 linear issue query --help
 ```
 
-跨命令工作流指南随二进制发布并保持版本匹配：`linear guides list`、`linear guides read <name>`。
+跨命令工作流指南随二进制发布并保持版本匹配：`linear guide`、`linear guide <name>`、`linear guide --json`。
 
 ## 配置
 
@@ -255,7 +255,7 @@ linear issue comment add ENG-123 \
 
 - [`.agents/skills/releasing`](.agents/skills/releasing/SKILL.md) 记录本仓库贡献者的发布工作流。
 
-命令事实存在于实时命令树（`linear usage`、`--help`）中，跨命令工作流则存在于内嵌指南（`linear guides`）中，因此这里不再提供生成的 Skill 手册。供 Agent 激活的外部 Skill 由 `jihuanshe/skills` 维护。
+命令事实存在于实时命令树（`linear usage`、`--help`）中，跨命令工作流则存在于内嵌指南（`linear guide`）中，因此这里不再提供生成的 Skill 手册。供 Agent 激活的外部 Skill 由 `jihuanshe/skills` 维护。
 
 Agent 必须使用已安装的 `jihuanshe/linear` 二进制。不要回退到上游 npm 包，因为它提供的命令和自动化契约可能与此 fork 不同。
 

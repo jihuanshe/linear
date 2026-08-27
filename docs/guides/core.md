@@ -1,18 +1,6 @@
 ---
 name: core
-title: Command discovery and operation routing
 description: 渐进发现、typed command 与 GraphQL 的分工、写入授权边界，以及影响命令选择的语义陷阱
-keywords:
-  - discovery
-  - usage
-  - help
-  - authorization
-  - label
-  - attachment
-  - 发现
-  - 授权
-  - 标签
-  - 附件
 commands:
   - usage
   - version
@@ -23,9 +11,6 @@ commands:
   - issue attach
   - issue comment add
   - document update
-seeAlso:
-  - automation
-  - graphql
 ---
 
 # 命令发现与选择
