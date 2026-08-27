@@ -5,17 +5,14 @@ import { guideSources } from "./content.ts"
  * command-to-guide relationships; command registration never maintains a
  * second registry (design: docs/agent-interface-architecture.md, "元数据").
  * The parser below accepts exactly the schema these first-party guides use —
- * scalar `name`/`title`/`description` plus list `keywords`/`commands`/
- * `seeAlso` — and fails loudly on anything else instead of pulling a YAML
+ * scalar `name`/`description` plus list `commands` — and fails loudly on
+ * anything else instead of pulling a YAML
  * dependency into the binary for a corpus this repository controls.
  */
 export interface GuideMetadata {
   name: string
-  title: string
   description: string
-  keywords: string[]
   commands: string[]
-  seeAlso: string[]
 }
 
 export interface Guide {
@@ -24,8 +21,8 @@ export interface Guide {
   body: string
 }
 
-const SCALAR_KEYS = ["name", "title", "description"] as const
-const LIST_KEYS = ["keywords", "commands", "seeAlso"] as const
+const SCALAR_KEYS = ["name", "description"] as const
+const LIST_KEYS = ["commands"] as const
 
 type ScalarKey = typeof SCALAR_KEYS[number]
 type ListKey = typeof LIST_KEYS[number]
@@ -104,11 +101,8 @@ export function parseGuide(source: string, origin: string): Guide {
   return {
     metadata: {
       name: scalars.name as string,
-      title: scalars.title as string,
       description: scalars.description as string,
-      keywords: lists.keywords as string[],
       commands: lists.commands as string[],
-      seeAlso: lists.seeAlso as string[],
     },
     body,
   }
@@ -145,7 +139,7 @@ export function getGuide(name: string): Guide | undefined {
  * path such as "linear issue update". A guide relates when it names that
  * command exactly or names a command underneath it, so a domain path
  * aggregates its subtree without a second registry. The root path returns
- * nothing: root navigation already points at `linear guides`.
+ * nothing: root navigation already points at `linear guide`.
  */
 export function guidesForCommandPath(path: string): GuideMetadata[] {
   const normalized = path.replace(/^linear ?/, "")

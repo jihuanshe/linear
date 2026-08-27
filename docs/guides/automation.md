@@ -1,18 +1,6 @@
 ---
 name: automation
-title: Unattended execution and write verification
 description: 无人值守执行的输出契约、JSON 校验、Markdown 文件 flag 与写后读回验证
-keywords:
-  - json
-  - automation
-  - no-pager
-  - exit-code
-  - pagination
-  - verification
-  - 自动化
-  - 校验
-  - 分页
-  - 验证
 commands:
   - issue view
   - issue query
@@ -21,9 +9,6 @@ commands:
   - issue comment add
   - issue comment list
   - document view
-seeAlso:
-  - core
-  - graphql
 ---
 
 # 无人值守执行与写入验证

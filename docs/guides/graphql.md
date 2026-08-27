@@ -1,23 +1,10 @@
 ---
 name: graphql
-title: Schema discovery and raw GraphQL queries
 description: schema 发现、精确批量读取、linear api 变量与分页，以及何时降级到直接 HTTP
-keywords:
-  - graphql
-  - api
-  - schema
-  - variables
-  - fallback
-  - pagination
-  - 查询
-  - 变量
 commands:
   - api
   - schema
   - auth token
-seeAlso:
-  - core
-  - automation
 ---
 
 # Schema 发现与 GraphQL 查询

@@ -1,8 +1,12 @@
 import { Command } from "@cliffy/command"
 import { getGuide, listGuides } from "../../guides/guides.ts"
-import { handleError, NotFoundError } from "../../utils/errors.ts"
+import {
+  handleError,
+  NotFoundError,
+  ValidationError,
+} from "../../utils/errors.ts"
 
-// `guides list` is the concise index, `guides read` prints one Markdown body
+// `guide` is the concise index, while `guide <name>` prints one Markdown body
 // to stdout and nothing else, so both compose with shell tools. No guide
 // command touches the network or credentials: the corpus is embedded in the
 // binary (see src/guides/content.ts). Discovery stays optional — an agent
@@ -18,8 +22,8 @@ function formatGuideList(): string {
     "Version-matched workflow guides:",
     ...lines,
     "",
-    "read: linear guides read <name>",
-    "machine-readable: linear guides list --json",
+    "read: linear guide <name>",
+    "machine-readable: linear guide --json",
   ].join("\n")
 }
 
@@ -27,20 +31,23 @@ function guideListDocument() {
   return listGuides().map((guide) => guide.metadata)
 }
 
-const listCommand = new Command()
-  .description("List version-matched workflow guides")
+export const guideCommand = new Command()
+  .description("Read version-matched workflow guides")
+  .arguments("[name:string]")
   .option("--json", "Output guide metadata as JSON")
-  .action(({ json }) => {
-    console.log(
-      json ? JSON.stringify(guideListDocument(), null, 2) : formatGuideList(),
-    )
-  })
-
-const readCommand = new Command()
-  .description("Print one guide's Markdown body to stdout")
-  .arguments("<name:string>")
-  .action((_options, name: string) => {
+  .action(({ json }, name?: string) => {
     try {
+      if (name == null) {
+        console.log(
+          json
+            ? JSON.stringify(guideListDocument(), null, 2)
+            : formatGuideList(),
+        )
+        return
+      }
+      if (json) {
+        throw new ValidationError("Guide name cannot be used with --json")
+      }
       const guide = getGuide(name)
       if (guide == null) {
         const names = listGuides().map((item) => item.metadata.name).join(", ")
@@ -53,11 +60,3 @@ const readCommand = new Command()
       handleError(error, "Failed to read guide")
     }
   })
-
-export const guidesCommand = new Command()
-  .description("Version-matched workflow guides")
-  .action(() => {
-    console.log(formatGuideList())
-  })
-  .command("list", listCommand)
-  .command("read", readCommand)

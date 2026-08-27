@@ -251,8 +251,8 @@ Start here:
   linear usage                  Discover available domains
   linear issue usage            Discover issue commands and options
   linear issue create --help    Read one command's full reference
-  linear guides                 List version-matched workflow guides
-  linear guides read core       Read the automation and safety contract
+  linear guide                  List version-matched workflow guides
+  linear guide core             Read the automation and safety contract
 
 Long-tail GraphQL:
   linear schema
@@ -266,7 +266,7 @@ Commands:
   ...
 ```
 
-根 action 应当复用现有的 usage 文档，而不是再建一套命令目录。零参数导航 commit 最初只能提及当时已存在的命令；`guides` 条目只在指南命令发布后加入。
+根 action 应当复用现有的 usage 文档，而不是再建一套命令目录。零参数导航 commit 最初只能提及当时已存在的命令；`guide` 条目只在指南命令发布后加入。
 
 ### 领域导航
 
@@ -280,7 +280,7 @@ Commands:
 Related guides:
   issue-authoring
     Labels replace the complete set; use file flags for Markdown.
-    Run: linear guides read issue-authoring
+    Run: linear guide issue-authoring
 ```
 
 帮助条目是面包屑，不是指南的内嵌副本。
@@ -320,32 +320,16 @@ docs/guides/
 ```yaml
 ---
 name: issue-authoring
-title: Authoring and updating complete issues
 description: Source-of-truth boundaries, durable evidence, complete delivery, closure, and next hops
-keywords:
-  - issue
-  - update
-  - handoff
-  - source-of-truth
-  - evidence
-  - closure
-  - next-hop
-  - markdown
-  - label
-  - attachment
-  - 标签
-  - 附件
 commands:
   - issue create
   - issue update
   - issue comment add
   - issue attach
-seeAlso:
-  - automation
 ---
 ```
 
-命令到指南的关系由指南元数据拥有，而不是命令注册。构建过程派生一个反向索引，并验证每个规范命令和 `seeAlso` 指南都存在。这避免了第二个手工维护的命令到指南注册表。
+命令到指南的关系由指南元数据拥有，而不是命令注册。构建过程派生一个反向索引，并验证每个规范命令都存在。这避免了第二个手工维护的命令到指南注册表。
 
 ### 构建期嵌入
 
@@ -368,24 +352,21 @@ Deno 2.9.4 会把可静态分析的文本导入嵌入 `deno compile` 使用的�
 ### 必需命令
 
 ```bash
-linear guides
-linear guides list
-linear guides list --json
-linear guides read <name>
+linear guide
+linear guide --json
+linear guide <name>
 ```
-
-`linear guides` 应当是简洁列表视图的别名。
 
 ### 输出契约
 
-- `guides list` 向 stdout 写入简洁的人类索引。
-- `guides list --json` 保留稳定的名称、描述、关键词和相关规范命令路径。
-- `guides read` 只向 stdout 写入所选 Markdown 正文。
+- `guide` 向 stdout 写入简洁的人类索引。
+- `guide --json` 保留稳定的名称、描述和相关规范命令路径。
+- `guide <name>` 只向 stdout 写入所选 Markdown 正文；与 `--json` 同时使用明确失败。
 - 任何指南命令都不要求认证或网络访问。
 
 ## 搜索与文件系统投影延后
 
-初始指南系统不实现 `guides search`、`guides path` 或 `guides export`。全新 agent 场景只需记录 `guides list`、命令面包屑和直接阅读是否足以找到相关知识。出现具名失败后，再根据实际消费者选择搜索或文件系统投影，并单独设计接口。
+初始指南系统不实现搜索、path 或 export。全新 agent 场景只需记录指南索引、命令面包屑和直接阅读是否足以找到相关知识。出现具名失败后，再根据实际消费者选择搜索或文件系统投影，并单独设计接口。
 
 ## 命令元数据中的指南可发现性
 
@@ -395,7 +376,7 @@ linear guides read <name>
 - 领域 usage 列出直接相关的指南；
 - 叶子帮助列出一到两个相关指南；
 - `usage --json` 包含简洁的指南元数据；
-- `guides list/read` 使用同一套内嵌语料和索引。
+- `guide` 使用同一套内嵌语料和索引。
 
 示意的 `usage --json` 扩展：
 
@@ -628,7 +609,7 @@ linear version --json
 }
 ```
 
-版本 JSON v1 是只增的。读取方要求 `schemaVersion: 1`、精确的 `jihuanshe/linear` 分发标识，以及其集成所需的每一个 capability；它们忽略未知字段和未知 capability 标识符。初始 capability 词汇是 `usage-v1`；本次发布扩展为 `usage-v1`、`guides-v1`、`delivery-v1`（现行词汇见 `src/commands/version.ts`）。CLI 诊断应当报告缺失或不兼容的 capability，而不是要求外部 Skill 去分类第二条 Linear 路由。
+版本 JSON v1 是只增的。读取方要求 `schemaVersion: 1`、精确的 `jihuanshe/linear` 分发标识，以及其集成所需的每一个 capability；它们忽略未知字段和未知 capability 标识符。现行 capability 词汇是 `usage-v1`、`guide-v1`、`delivery-v1`（见 `src/commands/version.ts`）。CLI 诊断应当报告缺失或不兼容的 capability，而不是要求外部 Skill 去分类第二条 Linear 路由。
 
 该探针识别的是构建，不是包管理器。安装归属仍需要来自 `mise which linear`、`type -a linear`、解析出的可执行文件路径或组织管理器的证据。
 
@@ -684,7 +665,6 @@ rotom setup
 
 - 指南 frontmatter 可解析且名称唯一；
 - 每个相关规范命令存在于 Cliffy 树中；
-- 每个 `seeAlso` 指南存在；
 - 每个命令领域暴露渐进式 usage；
 - 写入与确认元数据保持完整；
 - 内嵌 Markdown 与源文件逐字节一致；
@@ -802,7 +782,7 @@ CLI 测试拥有机器能够可靠裁定的契约：
 
 期望：
 
-- 已知命令直接执行，不强制 `version`、`usage`、`guides list/read` 前置链；
+- 已知命令直接执行，不强制 `version`、`usage`、`guide` 前置链；
 - 需要发现时从根导航、help、错误或相关指南恢复；
 - 可用的规范 binary 诊断 PATH shadowing，不让外来 binary 执行组织诊断；
 - 缺失或过旧时只使用宿主已授权的规范 bootstrap；
@@ -832,7 +812,7 @@ CLI 测试拥有机器能够可靠裁定的契约：
 
 ### 依赖宿主 Skill 目录 grep
 
-作为主要契约被否决，因为 Skill 位置因宿主而异，且静态 Skill 内容可能与已安装二进制不一致。`guides list/read` 直接从已安装二进制提供版本匹配的内容。
+作为主要契约被否决，因为 Skill 位置因宿主而异，且静态 Skill 内容可能与已安装二进制不一致。`guide` 直接从已安装二进制提供版本匹配的内容。
 
 ### 立即添加内部搜索
 
@@ -852,7 +832,7 @@ CLI 测试拥有机器能够可靠裁定的契约：
 
 已拍板：
 
-1. 指南命令使用复数 `guides`，与内容为集合一致；`linear guides` 是列表别名。
+1. 指南命令使用单数 `guide`；无 name 为索引，有 name 为正文，`--json` 仅用于机器索引。
 2. 零参数导航内容与字节预算已随 commit 3 定稿（根导航 1,325 字节；第一阶段基线表中的 1,683 字节为定稿前测量）。
 3. Issue delivery manifest v1：Comment 上传文件接受任意本地文件；Attachment 支持 `url` 与本地文件两种输入，复用现有 `issue attach` 的上传路径；IssueRelation 的类型词表与 `issue relation add` 一致（blocked-by 由 CLI 反转为上游的 blocks）。既有集合项的修改与删除留给发布后信号。
 4. delivery 命令定名 `linear issue plan` 与 `linear issue apply`，动词直接挂在 issue 域下，与 create/update 风格一致；不设 `delivery` 名词层级。

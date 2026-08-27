@@ -33,24 +33,16 @@ async function run(args: string[]) {
   }
 }
 
-Deno.test("guides list prints the concise index", async (t) => {
-  const result = await run(["guides", "list"])
+Deno.test("guide prints the concise index", async (t) => {
+  const result = await run(["guide"])
 
   assertEquals(result.code, 0, result.stderr)
   assertEquals(result.stderr, "")
   await assertSnapshot(t, result.stdout)
 })
 
-Deno.test("zero-argument guides shows the same index", async () => {
-  const list = await run(["guides", "list"])
-  const bare = await run(["guides"])
-
-  assertEquals(bare.code, 0, bare.stderr)
-  assertEquals(bare.stdout, list.stdout)
-})
-
-Deno.test("guides list --json preserves stable metadata", async () => {
-  const result = await run(["guides", "list", "--json"])
+Deno.test("guide --json preserves stable metadata", async () => {
+  const result = await run(["guide", "--json"])
 
   assertEquals(result.code, 0, result.stderr)
   const documents = JSON.parse(result.stdout)
@@ -59,16 +51,14 @@ Deno.test("guides list --json preserves stable metadata", async () => {
     ["core", "automation", "issue-authoring", "issue-delivery", "graphql"],
   )
   for (const entry of documents) {
-    assertEquals(typeof entry.title, "string")
+    assertEquals(Object.keys(entry).sort(), ["commands", "description", "name"])
     assertEquals(typeof entry.description, "string")
-    assertEquals(Array.isArray(entry.keywords), true)
     assertEquals(Array.isArray(entry.commands), true)
-    assertEquals(Array.isArray(entry.seeAlso), true)
   }
 })
 
-Deno.test("guides read prints only the Markdown body", async () => {
-  const result = await run(["guides", "read", "core"])
+Deno.test("guide name prints only the Markdown body", async () => {
+  const result = await run(["guide", "core"])
 
   assertEquals(result.code, 0, result.stderr)
   assertEquals(result.stderr, "")
@@ -76,8 +66,8 @@ Deno.test("guides read prints only the Markdown body", async () => {
   assertEquals(result.stdout.includes("\n---\n"), false)
 })
 
-Deno.test("guides read fails with guidance for an unknown name", async () => {
-  const result = await run(["guides", "read", "no-such-guide"])
+Deno.test("guide fails with guidance for an unknown name", async () => {
+  const result = await run(["guide", "no-such-guide"])
 
   assertEquals(result.code === 0, false)
   assertEquals(result.stdout, "")
@@ -87,6 +77,22 @@ Deno.test("guides read fails with guidance for an unknown name", async () => {
     result.stderr,
     "core, automation, issue-authoring, issue-delivery, graphql",
   )
+})
+
+Deno.test("guide rejects name with --json", async () => {
+  const result = await run(["guide", "core", "--json"])
+
+  assertEquals(result.code === 0, false)
+  assertEquals(result.stdout, "")
+  assertStringIncludes(result.stderr, "✗")
+  assertStringIncludes(result.stderr, "cannot be used with --json")
+})
+
+Deno.test("removed plural and nested guide commands are unavailable", async () => {
+  for (const args of [["guides"], ["guide", "list"], ["guide", "read"]]) {
+    const result = await run(args)
+    assertEquals(result.code === 0, false, args.join(" "))
+  }
 })
 
 Deno.test("the import manifest embeds every source guide exactly once", async () => {
@@ -111,7 +117,7 @@ function commandExists(path: string): boolean {
   return true
 }
 
-Deno.test("guide metadata references only canonical commands and real guides", () => {
+Deno.test("guide metadata references only canonical commands", () => {
   const names = new Set(listGuides().map((guide) => guide.metadata.name))
   assertEquals(names.size, listGuides().length)
   for (const guide of listGuides()) {
@@ -120,13 +126,6 @@ Deno.test("guide metadata references only canonical commands and real guides", (
         commandExists(command),
         true,
         `${guide.metadata.name} references unknown command: ${command}`,
-      )
-    }
-    for (const reference of guide.metadata.seeAlso) {
-      assertEquals(
-        names.has(reference),
-        true,
-        `${guide.metadata.name} seeAlso references unknown guide: ${reference}`,
       )
     }
   }
@@ -138,7 +137,7 @@ Deno.test("domain usage lists related guides without embedding bodies", async ()
   assertEquals(result.code, 0, result.stderr)
   assertStringIncludes(result.stdout, "related guides:")
   assertStringIncludes(result.stdout, "issue-authoring")
-  assertStringIncludes(result.stdout, "guides: linear guides read <name>")
+  assertStringIncludes(result.stdout, "guides: linear guide <name>")
   assertEquals(result.stdout.includes("# "), false)
 })
 
@@ -178,11 +177,9 @@ Deno.test("usage JSON exposes guide metadata additively", async () => {
 })
 
 Deno.test("guide commands never write and stay network-free", () => {
-  const guides = cli.getCommand("guides")
-  if (guides == null) throw new Error("guides command not registered")
-  const meta = guides.getMeta()
+  const guide = cli.getCommand("guide")
+  if (guide == null) throw new Error("guide command not registered")
+  const meta = guide.getMeta()
   assertEquals(meta["Writes"], undefined)
-  for (const child of guides.getCommands()) {
-    assertEquals(child.getMeta()["Writes"], undefined)
-  }
+  assertEquals(guide.getCommands(), [])
 })
