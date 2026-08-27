@@ -58,7 +58,7 @@ CLI 还会读取当前目录的 `.env`；不存在时再读取 Git 根目录的 
 | `attachment_dir`            | `LINEAR_ATTACHMENT_DIR`            | Attachment 下载目录；默认使用系统临时目录下的 `linear-cli-attachments`                            |
 | `hyperlink_format`          | `LINEAR_HYPERLINK_FORMAT`          | TTY 中本地文件 OSC-8 链接模板；支持 `{host}` 和 `{path}`，`default` 等于 `file://{host}{path}`    |
 
-布尔配置接受 `true`／`false`、`yes`／`no`、`y`／`n`、`on`／`off`、`1`／`0` 和 `t`／`f`，不区分大小写。
+TOML 中的布尔配置使用不带引号的 `true`／`false`；对应环境变量还接受 `yes`／`no`、`y`／`n`、`on`／`off`、`1`／`0` 和 `t`／`f`，不区分大小写。
 
 示例：
 

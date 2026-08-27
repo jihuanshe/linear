@@ -195,7 +195,7 @@ Deno.test("getOption - config file is used when no env var is set", async () => 
   }
 })
 
-Deno.test("config loading fails on a malformed higher-priority file", async () => {
+Deno.test("CLI reports a malformed higher-priority config without falling back", async () => {
   const tempDir = await Deno.makeTempDir()
 
   try {
@@ -205,13 +205,16 @@ Deno.test("config loading fails on a malformed higher-priority file", async () =
       'workspace = "fallback-workspace"\n',
     )
 
-    const configUrl = new URL("../src/config.ts", import.meta.url)
+    const mainUrl = new URL("../src/main.ts", import.meta.url)
     const denoJsonPath = fromFileUrl(new URL("../deno.json", import.meta.url))
     const command = new Deno.Command(Deno.execPath(), {
       args: [
-        "eval",
+        "run",
+        "--quiet",
+        "--allow-all",
         `--config=${denoJsonPath}`,
-        `import { getOption } from "${configUrl}"; console.log(getOption("workspace"));`,
+        mainUrl.toString(),
+        "version",
       ],
       cwd: tempDir,
       clearEnv: true,
@@ -232,10 +235,13 @@ Deno.test("config loading fails on a malformed higher-priority file", async () =
     const result = await command.output()
     assertEquals(result.success, false)
     assertEquals(new TextDecoder().decode(result.stdout), "")
+    const stderr = new TextDecoder().decode(result.stderr)
     assertStringIncludes(
-      new TextDecoder().decode(result.stderr),
+      stderr,
       "Failed to parse config file at ./linear.toml",
     )
+    assertEquals(stderr.includes("Uncaught"), false)
+    assertEquals(stderr.includes("at loadConfigFromPath"), false)
   } finally {
     await Deno.remove(tempDir, { recursive: true })
   }

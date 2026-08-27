@@ -1,4 +1,6 @@
+import { ValidationError } from "@cliffy/command"
 import { initializeStdoutColors } from "./utils/terminal.ts"
+import { handleError } from "./utils/errors.ts"
 
 function getLegacyLabelWorkspaceError(args: string[]): string | undefined {
   const labelIndex = args.findIndex((arg) => arg === "label" || arg === "l")
@@ -15,11 +17,8 @@ function getLegacyLabelWorkspaceError(args: string[]): string | undefined {
 
 if (import.meta.main) {
   initializeStdoutColors()
-  const [{ ValidationError }, { cli }] = await Promise.all([
-    import("@cliffy/command"),
-    import("./cli.ts"),
-  ])
   try {
+    const { cli } = await import("./cli.ts")
     const legacyWorkspaceError = getLegacyLabelWorkspaceError(Deno.args)
     if (legacyWorkspaceError) {
       throw new ValidationError(legacyWorkspaceError)
@@ -30,7 +29,7 @@ if (import.meta.main) {
       console.error(`error: ${error.message}`)
       Deno.exitCode = error.exitCode
     } else {
-      throw error
+      handleError(error)
     }
   }
 }
