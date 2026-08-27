@@ -115,17 +115,14 @@ Remove it from your shell config to use multi-workspace auth.
 
 ## project config
 
-you can also set the API key in a project's `.linear.toml`:
+you can also select a stored workspace or set an API key in a project's `.linear.toml`:
 
 ```toml
-api_key = "lin_api_..."
 workspace = "acme"
-team_id = "ENG"
-issue_create_assign_self = "always"
-issue_create_ask_project = true
+# api_key = "lin_api_..." # less secure than the system keyring
 ```
 
-this is useful for project-specific credentials but less secure than stored credentials since it may be committed to version control.
+an `api_key` in project config takes precedence over stored credentials but is less secure because it may be committed to version control. prefer `workspace` plus `linear auth login`. team, sorting, VCS, and attachment settings are documented in [configuration](configuration.md).
 
 ## workspace matching
 
