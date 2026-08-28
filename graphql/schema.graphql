@@ -716,15 +716,15 @@ type AgentSession implements Node {
   url: String
 
   """
-  [Internal] The coding agent's live working-tree diff metadata (changes not yet pushed to origin), reported by the sandbox. Per-file content is fetched on demand from the workspace-diff-blob route. Null when in sync.
+  [Internal] Legacy live working-tree diff metadata. Null when the sandbox is in sync.
   """
-  workspaceDiff: JSON
+  workspaceDiff: JSON @deprecated(reason: "Use the session's Diff model instead.")
 
   """
-  [Internal] Per-file list of the agent's live working-tree diff at the given content hash. Served behind a repository-read-access gate (the synced summary carries only aggregate counts); null when the requester lacks repository access or there is no current diff.
+  [Internal] Legacy per-file metadata for the agent session's live working-tree diff.
   """
   workspaceDiffFiles(
-    """The diff's content hash, from the session's `workspaceDiff`."""
+    """The diff content hash from workspaceDiff."""
     contentHash: String!
   ): [AgentSessionWorkspaceDiffFile!] @deprecated(reason: "Use Diff.files instead.")
 }
@@ -1250,6 +1250,11 @@ type AiConversationAckPart implements AiConversationBasePart {
   """The metadata of the part."""
   metadata: AiConversationPartMetadata!
 
+  """
+  [Internal] A one-line, third-person summary of the action the agent completed. Null when the agent acknowledged without describing an action.
+  """
+  summary: String
+
   """The type of the part."""
   type: AiConversationPartType!
 }
@@ -1404,6 +1409,7 @@ type AiConversationDeleteEntityToolCallArgs {
 
 """The kind of input an AI conversation elicitation asks for."""
 enum AiConversationElicitationKind {
+  mcpServerConnection
   multipleChoice
 }
 
@@ -1416,10 +1422,15 @@ type AiConversationElicitationOption {
   prompt: String!
 }
 
-"""A lightweight question or choice prompt shown with an AI conversation."""
+"""A structured request for user input shown with an AI conversation."""
 type AiConversationElicitationPart implements AiConversationBasePart {
   """The ID of the part."""
   id: String!
+
+  """
+  The existing MCP integration to reconnect. Null when creating a new connection.
+  """
+  integrationId: String
 
   """The kind of input this elicitation asks for."""
   kind: AiConversationElicitationKind!
@@ -1429,6 +1440,16 @@ type AiConversationElicitationPart implements AiConversationBasePart {
 
   """Selectable prompt options for multiple-choice elicitations."""
   options: [AiConversationElicitationOption!]!
+
+  """
+  The requested owner of the MCP server connection. Null for other elicitation kinds.
+  """
+  scope: AiConversationMcpServerConnectionScope
+
+  """
+  The MCP server URL for a new connection. Null for reconnects and other elicitation kinds.
+  """
+  serverUrl: String
 
   """The title shown above the elicitation choices."""
   title: String
@@ -1440,7 +1461,7 @@ type AiConversationElicitationPart implements AiConversationBasePart {
 """
 The kind-specific data recorded when a user answers an AI conversation elicitation.
 """
-union AiConversationElicitationResponseData = AiConversationMultipleChoiceElicitationResponseData
+union AiConversationElicitationResponseData = AiConversationMcpServerConnectionElicitationResponseData | AiConversationMultipleChoiceElicitationResponseData
 
 """A structured user response to an elicitation in an AI conversation."""
 type AiConversationElicitationResponsePart implements AiConversationBasePart {
@@ -1511,6 +1532,7 @@ enum AiConversationEntityCardWidgetArgsAction {
 enum AiConversationEntityCardWidgetArgsType {
   AgentSession
   AiPrompt
+  AiPromptRules
   CustomView
   Customer
   CustomerNeed
@@ -1582,6 +1604,7 @@ type AiConversationEntityListWidgetArgsEntities {
 """[Internal] The entity type"""
 enum AiConversationEntityListWidgetArgsEntitiesType {
   AiPrompt
+  AiPromptRules
   CustomView
   Customer
   CustomerNeed
@@ -1642,7 +1665,6 @@ type AiConversationErrorPart implements AiConversationBasePart {
 """The category of an error part in an AI conversation."""
 enum AiConversationErrorType {
   billing
-  featureDisabled
   unknown
   untrustedSources
   usageLimit
@@ -1851,6 +1873,42 @@ type AiConversationListCodingSessionsToolCallResultAgentSessions {
   id: String!
   pullRequests: [AiConversationSearchEntitiesToolCallResultEntities!]
   type: String!
+}
+
+"""The integration connected by an MCP server connection elicitation."""
+type AiConversationMcpServerConnectionElicitationResponseData {
+  """The identifier of the MCP server integration that was connected."""
+  integrationId: String!
+
+  """The kind of elicitation that was answered."""
+  kind: AiConversationElicitationKind!
+}
+
+"""
+The owner scope for an MCP server connection requested in an AI conversation.
+"""
+type AiConversationMcpServerConnectionScope {
+  """
+  The identifier of the team that will own the connection. Null for other scope types.
+  """
+  teamId: String
+
+  """The type of owner that will receive the MCP server connection."""
+  type: AiConversationMcpServerConnectionScopeType!
+
+  """
+  The identifier of the Loop that will own the connection. Null for other scope types.
+  """
+  workflowDefinitionId: String
+}
+
+"""
+The owner scope for an MCP server connection requested in an AI conversation.
+"""
+enum AiConversationMcpServerConnectionScopeType {
+  team
+  user
+  workflowDefinition
 }
 
 """The selected option in a multiple-choice AI conversation elicitation."""
@@ -7516,6 +7574,11 @@ type DocumentContent implements Node {
   issue: Issue
 
   """
+  [Internal] The meeting that the content is associated with. Null if the content belongs to a different parent entity type.
+  """
+  meeting: Meeting
+
+  """
   The project that the content is associated with. Null if the content belongs to a different parent entity type.
   """
   project: Project
@@ -9668,27 +9731,6 @@ enum FeedSummarySchedule {
   weekly
 }
 
-"""The result of a data fetch query using natural language."""
-type FetchDataPayload {
-  """
-  The fetched data as a JSON object. The shape depends on the natural language query and the resolved GraphQL query. Null if the query returned no results.
-  """
-  data: JSONObject
-
-  """
-  The filter variables that were generated and applied to the GraphQL query. Null if no filters were needed.
-  """
-  filters: JSONObject
-
-  """
-  The GraphQL query that was generated from the natural language input and executed to produce the data. Useful for debugging or reusing the query directly.
-  """
-  query: String
-
-  """Whether the fetch operation was successful."""
-  success: Boolean!
-}
-
 type FileUploadDeletePayload {
   """Whether the operation was successful."""
   success: Boolean!
@@ -10445,6 +10487,11 @@ input InheritanceEntityMapping {
 
   """Mapping of the ProjectLabel ID to the new ProjectLabel name."""
   projectLabels: JSONObject
+
+  """
+  [Internal] Mapping of the ProjectStatus ID to the workspace or parent team ProjectStatus ID its projects move to.
+  """
+  projectStatuses: JSONObject
 
   """Mapping of the WorkflowState ID to the new WorkflowState ID."""
   workflowStates: JSONObject!
@@ -17218,6 +17265,14 @@ input JiraProjectDataInput {
   name: String!
 }
 
+type JiraProjectStatusesPayload {
+  """The Jira project's issue statuses (non-Epic)."""
+  issueStatuses: [String!]!
+
+  """The Jira project's project statuses (Epic)."""
+  projectStatuses: [String!]!
+}
+
 input JiraSettingsInput {
   """The custom OAuth server token endpoint URL (enterprise SSO)."""
   customOAuthServerUrl: String
@@ -17253,11 +17308,6 @@ input JiraSettingsInput {
   Whether the user needs to provide setup information about the webhook to complete the integration setup. Only relevant for integrations that use a manual setup flow
   """
   setupPending: Boolean
-
-  """
-  Jira status names grouped by project, separated into issue statuses (non-Epic) and project statuses (Epic). Structure: projectId -> { issueStatuses: string[], projectStatuses: string[] }
-  """
-  statusNamesPerIssueType: JSONObject
 }
 
 input JiraUpdateInput {
@@ -17450,6 +17500,74 @@ input McpServerCustomHeaderInput {
 
   """The HTTP header value."""
   value: String!
+}
+
+"""
+[Internal] A meeting attached to one project or initiative. Its transcript is stored in related document content.
+"""
+type Meeting implements Node {
+  """
+  [Internal] The transcript analysis state: `pending` while analysis runs and `completed` after it finishes. Null before analysis starts.
+  """
+  analysisStatus: MeetingAnalysisStatus
+
+  """
+  The time at which the entity was archived. Null if the entity has not been archived.
+  """
+  archivedAt: DateTime
+
+  """
+  [Internal] The meeting attendees. Each entry has a name and may include an active workspace user identifier.
+  """
+  attendees: [JSONObject!]
+
+  """
+  [Internal] The source that owns the attendee list. Null when attendees have not been set.
+  """
+  attendeesSource: String
+
+  """The time at which the entity was created."""
+  createdAt: DateTime!
+
+  """
+  [Internal] The user who created the meeting. Null if the user was deleted.
+  """
+  creator: User
+
+  """
+  [Internal] The date when the meeting occurred. Null when clients should use the creation date.
+  """
+  date: TimelessDate
+
+  """The unique identifier of the entity."""
+  id: ID!
+
+  """
+  [Internal] The initiative that contains the meeting. Null when the meeting belongs to a project.
+  """
+  initiative: Initiative
+
+  """
+  [Internal] The project that contains the meeting. Null when the meeting belongs to an initiative.
+  """
+  project: Project
+
+  """
+  [Internal] The analysis-derived meeting summary. Null before analysis produces a summary.
+  """
+  summary: String
+
+  """
+  The last time at which the entity was meaningfully updated. This is the same as the creation time if the entity hasn't
+      been updated after creation.
+  """
+  updatedAt: DateTime!
+}
+
+"""[Internal] The analysis state of a meeting transcript."""
+enum MeetingAnalysisStatus {
+  completed
+  pending
 }
 
 type MicrosoftTeamsChannel {
@@ -18978,12 +19096,12 @@ type Mutation {
   ): IntegrationPayload! @deprecated(reason: "This mutation is deprecated, please use `integrationSettingsUpdate` instead")
 
   """
-  [INTERNAL] Fetches Jira project statuses and stores them in integration settings.
+  [INTERNAL] Fetches Jira project statuses for the status mapping settings UI.
   """
   integrationJiraFetchProjectStatuses(
     """Input for fetching Jira project statuses."""
     input: JiraFetchProjectStatusesInput!
-  ): JiraFetchProjectStatusesPayload!
+  ): JiraFetchProjectStatusesPayload! @deprecated(reason: "Use the `integrationJiraProjectStatuses` query instead.")
 
   """Connect your Jira account to Linear."""
   integrationJiraPersonal(
@@ -21805,6 +21923,7 @@ enum NotificationSubscriptionType {
   pullRequest
   team
   user
+  workflowDefinition
 }
 
 """Comparator for notification subscription type."""
@@ -25602,7 +25721,7 @@ type Project implements Node {
   id: ID!
 
   """
-  [Internal] The human-readable identifier of the project. Returns the custom identifier override when set, otherwise the workspace default `<prefix>-<number>`. Null for legacy projects that have not been backfilled.
+  [Internal] The human-readable identifier of the project. Returns the custom identifier override when set, otherwise the default `P-<leadTeamKey>-<number>`. Null for projects without a lead team and for legacy projects that have not been backfilled.
   """
   identifier: String
 
@@ -27911,7 +28030,7 @@ type ProjectSearchResult implements Node {
   id: ID!
 
   """
-  [Internal] The human-readable identifier of the project. Returns the custom identifier override when set, otherwise the workspace default `<prefix>-<number>`. Null for legacy projects that have not been backfilled.
+  [Internal] The human-readable identifier of the project. Returns the custom identifier override when set, otherwise the default `P-<leadTeamKey>-<number>`. Null for projects without a lead team and for legacy projects that have not been backfilled.
   """
   identifier: String
 
@@ -28495,7 +28614,7 @@ type ProjectStatus implements Node {
   position: Float!
 
   """
-  [Internal] The team that the status is scoped to. If null, the status is a workspace-level status available to all teams in the workspace.
+  [Internal] The team that the status is scoped to. If null, the status is a workspace-level status.
   """
   team: Team
 
@@ -28566,6 +28685,11 @@ input ProjectStatusCreateInput {
 
   """The position of the status in the workspace's project flow."""
   position: Float!
+
+  """
+  [Internal] The identifier of the team to scope the status to. If not given, the status is a workspace-level status.
+  """
+  teamId: String
 
   """The type of the project status."""
   type: ProjectStatusType!
@@ -29319,6 +29443,16 @@ type PullRequestCommit {
 
   """The timestamp when the commit was committed, as an ISO 8601 string."""
   committedAt: String!
+
+  """
+  The external user ID for the commit's committer. Null if no matching external user is available.
+  """
+  committerExternalUserId: String
+
+  """
+  The Linear user ID for the commit's committer. Null if no matching Linear user is available.
+  """
+  committerUserId: String
 
   """
   Number of deletions in this commit. 0 when the hosting provider did not report per-commit diff stats.
@@ -30415,20 +30549,6 @@ type Query {
     orderBy: PaginationOrderBy
   ): FavoriteConnection!
 
-  """
-  [Internal] Fetch an arbitrary set of data using natural language query. Be specific about what you want including properties for each entity, sort order, filters, limit and properties.
-  """
-  fetchData(
-    """
-    Natural language query describing what data to fetch.
-
-        Examples:
-        - "All issues for the project with id 12345678-1234-1234-1234-123456789abc including comments"
-        - "The latest project update for each project that's a part of the initiative with id 12345678-1234-1234-1234-123456789abc, including it's sub-initiatives"
-    """
-    query: String!
-  ): FetchDataPayload!
-
   """Returns a single initiative by its identifier or URL slug."""
   initiative(id: String!): Initiative!
 
@@ -30634,6 +30754,17 @@ type Query {
     """Required scopes."""
     scopes: [String!]!
   ): IntegrationHasScopesPayload!
+
+  """
+  [INTERNAL] Fetches a Jira project's status names, split into issue (non-Epic) and project (Epic) statuses.
+  """
+  integrationJiraProjectStatuses(
+    """The id of the Jira integration."""
+    integrationId: String!
+
+    """The Jira project ID to fetch statuses for."""
+    projectId: String!
+  ): JiraProjectStatusesPayload!
 
   """Retrieves a single integration template connection by its identifier."""
   integrationTemplate(
@@ -31975,6 +32106,44 @@ type Query {
     """The identifier of the triage responsibility to retrieve."""
     id: String!
   ): TriageResponsibility!
+
+  """One usage-based billing alert, by its identifier."""
+  usageAlert(
+    """The identifier of the usage alert to retrieve."""
+    id: String!
+  ): UsageAlert!
+
+  """
+  The workspace's usage-based billing alerts, such as a low or exhausted usage credit balance. Alerts for expired promotional credits are archived and excluded unless archived resources are requested. Use resolvedAt to tell an open alert from one whose condition has since cleared.
+  """
+  usageAlerts(
+    """A cursor to be used with first for forward pagination"""
+    after: String
+
+    """A cursor to be used with last for backward pagination."""
+    before: String
+
+    """Filter returned usage alerts."""
+    filter: UsageAlertFilter
+
+    """
+    The number of items to forward paginate (used with after). Defaults to 50.
+    """
+    first: Int
+
+    """Should archived resources be included (default: false)"""
+    includeArchived: Boolean
+
+    """
+    The number of items to backward paginate (used with before). Defaults to 50.
+    """
+    last: Int
+
+    """
+    By which field should the pagination order by. Available options are createdAt (default) and updatedAt.
+    """
+    orderBy: PaginationOrderBy
+  ): UsageAlertConnection!
 
   """Fetches a specific user by their ID."""
   user(
@@ -34697,6 +34866,11 @@ type SlackChannelNameMapping {
   postAcceptedFromTriageUpdates: Boolean
 
   """
+  Whether or not synced Slack threads should be updated with a message when their Ask has an updated assignee.
+  """
+  postAssignmentUpdates: Boolean
+
+  """
   Whether or not synced Slack threads should be updated with a message and emoji when their Ask is canceled.
   """
   postCancellationUpdates: Boolean
@@ -34705,6 +34879,11 @@ type SlackChannelNameMapping {
   Whether or not synced Slack threads should be updated with a message and emoji when their Ask is completed.
   """
   postCompletionUpdates: Boolean
+
+  """
+  Whether or not synced Slack threads should be updated with a message when their Ask's SLA is at risk or breached.
+  """
+  postSlaUpdates: Boolean
 
   """Which teams are connected to the channel and settings for those teams."""
   teams: [SlackAsksTeamSettings!]!
@@ -34759,6 +34938,11 @@ input SlackChannelNameMappingInput {
   postAcceptedFromTriageUpdates: Boolean
 
   """
+  Whether or not synced Slack threads should be updated with a message when their Ask has an updated assignee.
+  """
+  postAssignmentUpdates: Boolean
+
+  """
   Whether or not synced Slack threads should be updated with a message and emoji when their Ask is canceled.
   """
   postCancellationUpdates: Boolean
@@ -34767,6 +34951,11 @@ input SlackChannelNameMappingInput {
   Whether or not synced Slack threads should be updated with a message and emoji when their Ask is completed.
   """
   postCompletionUpdates: Boolean
+
+  """
+  Whether or not synced Slack threads should be updated with a message when their Ask's SLA is at risk or breached.
+  """
+  postSlaUpdates: Boolean
 
   """Which teams are connected to the channel and settings for those teams."""
   teams: [SlackAsksTeamSettingsInput!]!
@@ -34815,6 +35004,11 @@ input SlackSettingsInput {
   Whether Linear Agent should be given Org-wide access within Slack workflows.
   """
   enableLinearAgentWorkflowAccess: Boolean
+
+  """
+  Whether Loops may read and send messages through this Slack integration.
+  """
+  enableLoops: Boolean
 
   """Enterprise id of the connected Slack enterprise"""
   enterpriseId: String
@@ -35722,6 +35916,11 @@ type Team implements Node {
   inheritIssueEstimation: Boolean!
 
   """
+  [Internal] Whether the team should inherit its project statuses from its parent team, or from the workspace when it has no parent.
+  """
+  inheritProjectStatuses: Boolean!
+
+  """
   [Internal] Whether the team should inherit its Slack auto-create project channel setting from its parent. Only applies to sub-teams.
   """
   inheritSlackAutoCreateProjectChannel: Boolean!
@@ -36339,6 +36538,11 @@ input TeamCreateInput {
   inheritProductIntelligenceScope: Boolean
 
   """
+  [Internal] Whether the team should inherit project statuses from its parent team, or from the workspace when it has no parent.
+  """
+  inheritProjectStatuses: Boolean
+
+  """
   [Internal] Whether the team should inherit its Slack auto-create project channel setting from its parent. Only applies to sub-teams.
   """
   inheritSlackAutoCreateProjectChannel: Boolean
@@ -36893,6 +37097,11 @@ input TeamUpdateInput {
   inheritProductIntelligenceScope: Boolean
 
   """
+  [Internal] Whether the team should inherit project statuses from its parent team, or from the workspace when it has no parent.
+  """
+  inheritProjectStatuses: Boolean
+
+  """
   [Internal] Whether the team should inherit its Slack auto-create project channel setting from its parent. Only applies to sub-teams.
   """
   inheritSlackAutoCreateProjectChannel: Boolean
@@ -37257,16 +37466,16 @@ type TimeSchedule implements Node {
 """[ALPHA] The configuration of a time schedule."""
 type TimeScheduleConfig {
   """
-  Record of the next two on-call shifts keyed by Linear user id, e.g. `{ "<linearUserId>": [{ "startsAt": "X", "endsAt": "Y" }] }`.
+  Record of the next on-call shift keyed by Linear user id, e.g. `{ "<linearUserId>": { "startsAt": "X", "endsAt": "Y" } }`.
   """
-  nextShiftsByUserId: JSONObject!
+  nextShiftByUserId: JSONObject!
 }
 
 input TimeScheduleConfigInput {
   """
-  Record of the next two on-call shifts keyed by Linear user id, e.g. `{ "<linearUserId>": [{ "startsAt": "X", "endsAt": "Y" }] }`.
+  Record of the next on-call shift keyed by Linear user id, e.g. `{ "<linearUserId>": { "startsAt": "X", "endsAt": "Y" } }`.
   """
-  nextShiftsByUserId: JSONObject!
+  nextShiftByUserId: JSONObject!
 }
 
 type TimeScheduleConnection {
@@ -37626,8 +37835,15 @@ type UsageAlert implements Node {
   """The unique identifier of the entity."""
   id: ID!
 
-  """Type-specific metadata captured when the alert was triggered."""
+  """
+  Type-specific snapshot captured when the alert was triggered, keyed by the alert type — for example the credit balance and threshold for a lowBalance alert. A resolution entry is added once new usage credits have landed and cleared the alert's condition.
+  """
   metadata: JSONObject!
+
+  """
+  The time when the usage alert was resolved or archived. Null if the alert is still active.
+  """
+  resolvedAt: DateTime
 
   """The kind of usage alert that was triggered."""
   type: String!
@@ -37637,6 +37853,39 @@ type UsageAlert implements Node {
       been updated after creation.
   """
   updatedAt: DateTime!
+}
+
+type UsageAlertConnection {
+  edges: [UsageAlertEdge!]!
+  nodes: [UsageAlert!]!
+  pageInfo: PageInfo!
+}
+
+type UsageAlertEdge {
+  """Used in `before` and `after` args"""
+  cursor: String!
+  node: UsageAlert!
+}
+
+"""Usage alert filtering options."""
+input UsageAlertFilter {
+  """Compound filters, all of which need to be matched by the alert."""
+  and: [UsageAlertFilter!]
+
+  """Comparator for the created at date."""
+  createdAt: DateComparator
+
+  """Comparator for the identifier."""
+  id: IDComparator
+
+  """Compound filters, one of which need to be matched by the alert."""
+  or: [UsageAlertFilter!]
+
+  """Comparator for the condition the alert was triggered by."""
+  type: UsageAlertTypeComparator
+
+  """Comparator for the updated at date."""
+  updatedAt: DateComparator
 }
 
 """
@@ -37752,6 +38001,33 @@ type UsageAlertNotification implements Entity & Node & Notification {
 
   """The recipient user of this notification."""
   user: User!
+}
+
+"""The condition a usage alert was triggered by."""
+enum UsageAlertType {
+  """Usage credits ran out."""
+  exhausted
+
+  """A promotional usage credit grant is nearing its expiration."""
+  expiringPromoCredit
+
+  """Prepaid usage credits crossed below the low-balance threshold."""
+  lowBalance
+}
+
+"""Comparator for the condition a usage alert was triggered by."""
+input UsageAlertTypeComparator {
+  """Equals constraint."""
+  eq: UsageAlertType
+
+  """In-array constraint."""
+  in: [UsageAlertType!]
+
+  """Not-equals constraint."""
+  neq: UsageAlertType
+
+  """Not-in-array constraint."""
+  nin: [UsageAlertType!]
 }
 
 """
@@ -38664,6 +38940,9 @@ input UserSettingsUpdateInput {
   """The user's notification delivery preferences."""
   notificationDeliveryPreferences: NotificationDeliveryPreferencesInput
 
+  """[Internal] Whether the Priority Inbox is enabled for the user."""
+  priorityInboxEnabled: Boolean
+
   """
   The user's settings. Merged key by key into the existing settings: keys missing from the object are left unchanged, and a key set to null is removed.
   """
@@ -39095,13 +39374,13 @@ type ViewPreferencesValues {
   fieldTimeInCurrentStatus: Boolean
 
   """The focus view grouping."""
-  focusViewGrouping: String
+  focusViewGrouping: String @deprecated(reason: "No longer available")
 
   """The focus view ordering."""
-  focusViewOrdering: String
+  focusViewOrdering: String @deprecated(reason: "No longer available")
 
   """The focus view ordering direction."""
-  focusViewOrderingDirection: String
+  focusViewOrderingDirection: String @deprecated(reason: "No longer available")
 
   """The ordering mode for groups. Supersedes projectGroupOrdering."""
   groupOrderingMode: String
@@ -39645,7 +39924,7 @@ enum ViewType {
   feedCreated
   feedFollowing
   feedPopular
-  focus
+  focus @deprecated(reason: "No longer available")
   inbox
   inboxOther
   inboxPriority
