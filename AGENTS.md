@@ -1,59 +1,86 @@
-# 仓库工作流
+# Linear CLI 维护规则
 
-## 事实源
+本仓维护 `jihuanshe/linear`：一个面向人类、AI Agent 和无人值守自动化的 Linear CLI。用户入口、系统边界、安装和任务导航由 [README](README.md) 负责；本文件只记录代码、文档和发布资产的维护约束。
 
-| 关注事项                     | 来源                                        |
-| ---------------------------- | ------------------------------------------- |
-| 运行时版本与开发任务         | `mise.toml`、`deno.json`                    |
-| Orb 引导与源码包装器         | `.agents/setup`、`.agents/resume`           |
-| Linear GraphQL schema 与生成 | `graphql/schema.graphql`、`codegen.ts`      |
-| 生产代码与对应测试           | `src/`、`test/`                             |
-| Deno 权限变更                | `docs/deno-permissions.md`                  |
-| 内嵌工作流指南               | `docs/guides/`、`src/guides/`               |
-| 发布流程                     | `.agents/skills/releasing/SKILL.md`         |
-| Pull Request 源码验证        | `.github/workflows/verify-pull-request.yml` |
-| CI 发布实现                  | `.github/workflows/ship-main.yml`           |
+`CLAUDE.md` 是指向本文件的兼容性 symlink，不单独维护。
 
-`AGENTS.md` 是仓库指导源。`CLAUDE.md` 仅作为指向本文件的兼容性指针。
+## 事实所有者
 
-## 开发循环
+| 事实                                    | Canonical owner                                                                                                           |
+| --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| 命令、参数、别名和单命令语义            | `src/cli.ts`、`src/commands/`、对应 `test/commands/`                                                                      |
+| 渐进发现、能力元数据和机器契约          | `src/commands/usage.ts`、命令模块中的 `withUsageMetadata`、对应测试                                                       |
+| 跨命令且随版本变化的工作流              | `docs/guides/`、`src/guides/`                                                                                             |
+| Linear GraphQL schema 与 typed document | `graphql/schema.graphql`、`codegen.ts`、`src/**` 中的 `gql`                                                               |
+| 认证、配置与凭据解析                    | `src/config.ts`、`src/credentials.ts`、`src/utils/graphql.ts`、`docs/authentication.md`、`docs/configuration.md`          |
+| Issue delivery manifest、执行和恢复     | `src/delivery/`、`src/commands/issue/issue-plan.ts`、`src/commands/issue/issue-apply.ts`、`docs/guides/issue-delivery.md` |
+| Agent 接口设计与一次性交付记录          | `docs/agent-interface-architecture.md`、`docs/agent-interface-delivery.md`、`docs/skill-migration-ledger.md`              |
+| Deno 版本、任务与权限                   | `mise.toml`、`deno.json`、`docs/deno-permissions.md`                                                                      |
+| Orb 工具链                              | `.agents/setup`、`.agents/resume`                                                                                         |
+| PR 门禁与滚动发布                       | `.github/workflows/verify-pull-request.yml`、`.github/workflows/ship-main.yml`、`.agents/skills/releasing/SKILL.md`       |
 
-1. 使用 Deno `2.9.4`。在 Orb 中，生命周期脚本会在 `$HOME/workspace/repo` 配置专用的主 checkout，并通过 Orb 管理的 `~/.local/bin` 条目将其 `deno` 和基于源码的 `linear` 命令发布到稳定的命令 PATH；只有在工具链缺失或损坏时才运行 `.agents/setup`。在其他环境中使用 `mise install`。
-2. 编辑前阅读所属模块及其对应测试。命令测试遵循源码路径，例如 `src/commands/issue/issue-view.ts` 对应 `test/commands/issue/issue-view.test.ts`。
-3. 行为发生变化时新增或更新测试。使用 `deno task test`；只有在有意更新快照时才使用 `deno task update-snapshots`。快照测试设置 `NO_COLOR=1`。
-4. 修改 `graphql/schema.graphql` 或 `src/` 中的 `gql` 文档后，运行 `deno task generate-graphql-types`。生成的 GraphQL 文件会被忽略，不得提交。
-5. 修改命令树或 `docs/guides/` 后运行指南测试；指南 frontmatter 负责维护命令与指南的关系，并由实时命令树进行验证。
-6. 开发期间运行范围最小的相关测试或诊断。使用 `deno check`、`deno lint` 和 Deno 任务；不要使用 `tsc` 或依赖 LSP 诊断。
+命令事实只由实时 Cliffy 命令树拥有。能由一个命令完整表达的内容写进该命令的 description、option 或校验错误；跨多个命令、且需要随二进制版本匹配的 Linear 工作流写进内嵌 Guide；安装、配置和长期架构事实写进 `docs/`。`agent-interface-delivery.md` 是历史交付记录，不承载当前命令契约。
+
+```mermaid
+flowchart TD
+  fact["准备记录一项事实"] --> owner{"谁需要据此行动？"}
+  owner -->|单个命令调用者| command["命令树 / --help / 运行时校验"]
+  owner -->|跨命令工作流调用者| guide["docs/guides<br/>随二进制嵌入"]
+  owner -->|安装、配置或维护者| docs["README / docs / AGENTS"]
+  owner -->|一次性交付证据| history["architecture / delivery record"]
+  command --> test["从生产入口验证"]
+  guide --> test
+  docs --> test
+  history --> test
+```
+
+供 Agent 激活本 CLI 的外部 Skill 由 `jihuanshe/skills` 维护。本仓不生成命令手册，也不把外部 Skill 当作命令事实源。
+
+## 实现边界
+
+- 常见领域操作、名称解析和安全写入使用专用命令。`linear schema` 与 `linear api` 只补专用命令未覆盖的长尾 GraphQL；已有专用写命令时，不用 raw mutation 绕过它的校验、冲突保护或读回。
+- `usage` 与根／领域导航从实际 Cliffy tree 生成，不维护第二份命令目录。`withUsageMetadata` 与定义和执行该行为的命令模块放在一起；`writes`、`interactive`、confirmation 和 output mode 描述能力，不代表授权。
+- Guide 的 Markdown 是内容事实源。frontmatter 只使用 `name`、`description`、`commands`；它拥有 command-to-guide 关系。新增 Guide 时同步 `src/guides/content.ts` 的静态 import manifest，Guide 测试必须证明文件、名称、命令引用和二进制嵌入一致。
+- 保留 GraphQL 字段名称和嵌套结构。分页 JSON 保留 `{nodes,pageInfo}` connection，拼接 `nodes`，不扁平化或重命名。机器输出 stdout 不混入进度、诊断或提示；具体支持的 output mode 以目标命令为准。
+- 显式无效输入必须失败并给出指引，不能 fallback 或静默忽略。命令 action 使用 `src/utils/errors.ts` 的 `ValidationError`、`NotFoundError`、`AuthError` 或 `CliError`，并以 `handleError(error, "Failed to <action>")` 收口；错误写 stderr，stack trace 只在 `LINEAR_DEBUG=1` 时显示。
+- 优先静态 import；只有运行时成本或平台边界确实要求时才用 dynamic import。避免 `any`，GraphQL 结果沿 `gql` document 推断；空值判断优先使用 `== null`／`!= null`。
+- 终端样式使用 `@std/fmt/colors`。添加短 flag 前搜索全局和同路径选项；Cliffy 会优先解析全局别名。
+- 修改 Deno permission 前按 `docs/deno-permissions.md` 盘点所有生产、测试、Orb 和发布入口，不能只改 `deno.json`。
+
+## Issue delivery
+
+- `plan` 对远端零写入；`apply` 要求 `--confirm-workspace` 精确匹配 manifest，并在 mutation 前使用同一凭据核对实际 workspace。
+- 单次与 batch 共用 manifest v1。整批本地文件在第一笔 mutation 前校验；update 在每个 Issue 的第一笔 mutation 前重读目标，并按 base／desired／remote 做三方比较。
+- mutation 发射前先把 in-flight 执行项记为 `unknown`。结果未知时停止一切自动续跑，等待显式对账；不把网络失败解释为远端未写入。
+- checkpoint 记录在 manifest 旁，负责跳过已确认成功的执行项和拒绝结构漂移，不是锁或事务。两个执行者不得并发 apply 同一 manifest；部分成功不自动回滚。
+- 修改 manifest schema、执行顺序、状态词表、checkpoint key 或恢复语义时，同时更新 engine/checkpoint 测试和 `docs/guides/issue-delivery.md`。测试必须走生产 `plan`／`apply` 入口，不复写被测实现。
 
 ## Kadoraba 实时 API 实验
 
-`LINEAR_KADORABA_API_KEY` 可能作为专用凭据提供，用于在 Kadoraba 测试 workspace 中进行实验。当正确性依赖未文档化或不确定的 Linear API 行为，且确定性的本地测试无法解决问题时，优先进行范围受限的实时实验，而不是凭猜测判断。
+`LINEAR_KADORABA_API_KEY` 是 Kadoraba 测试 workspace 的专用实验凭据。只有正确性依赖未文档化或不确定的 Linear API 行为、且确定性本地测试无法裁定时，才使用范围受限的实时实验。
 
-- 凭据的存在只表示已认证，不表示获得修改 Linear 的授权。请求当前实验的明确授权，并说明为什么需要实时 API 证据，以及实验会影响哪些对象或行为。
-- 用户授权该范围后，无需在每条命令前再次询问即可运行必要的破坏性测试。若要扩展到其他 workspace、共享的既有数据、预期外的成本或停机，或扩展到无法清理的资源，必须再次询问。
-- 只检查专用凭据是否存在。绝不打印、推导、指纹化、比较或以其他方式检查凭据内容；在 Kadoraba 实验中也绝不读取、使用或回退到已有的 `LINEAR_API_KEY`。
-- CLI 要求使用 `LINEAR_API_KEY` 时，仅为单个进程映射测试凭据：`env LINEAR_API_KEY="$LINEAR_KADORABA_API_KEY" <linear-command>`。
-- 第一次 mutation 前，使用同一个可执行文件运行 `auth whoami --json`。只有当 `organization.name` 为 `Kadoraba` 或 `organization.urlKey` 为 `kadoraba` 时才能继续；任何其他身份都必须立即停止。
-- 为测试对象使用唯一名称，优先修改实验创建的对象而不是共享对象。通过生产 CLI 入口清理，等待传播延迟，并对最终状态进行结构化验证。报告所有无法删除的对象或资源。
-- 除非实验主题就是上传行为，否则避免单独上传，因为 CLI 没有对应的删除命令。
-- 对 Pull Request 的验收必须测试确切的目标提交。运行 `deno task install`，并使用绝对路径调用编译后的二进制；Orb 中 `PATH` 上的 `linear` 是源码包装器，不是已安装的产物。
-- 不要通过中断 mutation 请求或破坏认证、网络来人为制造实时 `unknown` 结果。除非用户明确授权范围受限的实时实验及其对账计划，否则使用确定性的故障注入测试覆盖这些路径。
+- 凭据只提供认证，不授权 mutation。先取得当前实验的明确授权，说明需要验证的行为和受影响对象；授权后可完成该范围内的必要测试。扩展到其他 workspace、共享既有对象、预期外成本／停机或无法清理的资源时重新确认。
+- 只检查专用凭据是否存在。不得打印、派生、指纹化、比较或检查其内容；不得读取、使用或 fallback 到已有 `LINEAR_API_KEY`。
+- CLI 需要 `LINEAR_API_KEY` 时，只对单个进程映射：`env LINEAR_API_KEY="$LINEAR_KADORABA_API_KEY" <linear-command>`。
+- 第一次 mutation 前，用同一个目标可执行文件运行 `auth whoami --json`。只有 `organization.name` 为 `Kadoraba` 或 `organization.urlKey` 为 `kadoraba` 才能继续；其他身份立即停止。
+- 使用唯一、可丢弃的测试对象，优先只修改本实验创建的对象。通过生产 CLI 入口清理，等待传播后结构化读回；报告所有无法删除的对象或资产。除非实验本身验证上传，否则不要创建缺少删除入口的独立 upload。
+- PR 验收必须测试确切目标 commit：运行 `deno task install`，再用绝对路径调用编译后的二进制。Orb `PATH` 上的 `linear` 是源码 wrapper，不是安装产物。
+- 不通过中断 mutation、破坏认证或断网人为制造 live `unknown`。这类路径使用确定性故障注入；只有用户另外授权实验及对账计划时才触碰真实远端。
 
-## 实现契约
+## 开发与验证
 
-- 优先使用静态导入。只有确有必要时才使用动态导入。
-- 避免使用 `any`。让 GraphQL 请求结果保持推断；`client.request(query, variables)` 不应需要显式结果类型。
-- 优先使用 `foo == null` 和 `foo != null`，不要分别检查 `undefined`。
-- 使用 `@std/fmt/colors` 设置终端样式。
-- 在 `--json` 输出中保留 GraphQL 字段名称和嵌套结构。分页 JSON 保留 connection 结构、拼接 `nodes`，不扁平化或重命名字段。
-- 添加短选项前搜索全局选项和命令选项；Cliffy 会优先解析全局别名。
-- 显式的无效输入必须失败并给出指引，绝不能回退或静默失败。
-- 使用 `src/utils/errors.ts` 中的 `ValidationError`、`NotFoundError`、`AuthError` 或 `CliError`。使用 `handleError(error, "Failed to <action>")` 包装命令 action。
-- 错误输出到 stderr，并带有 `✗` 前缀。堆栈跟踪需要 `LINEAR_DEBUG=1`。
-- 修改 Deno 权限时，遵循 `docs/deno-permissions.md` 中的清单与搜索流程。
+1. 使用 `mise.toml` 固定的 Deno `2.9.4`。非 Orb 环境运行 `mise install`；Orb 只在工具链缺失或损坏时运行 `.agents/setup`，平时由 `.agents/resume` 维护源码 wrapper。
+2. 修改前读取 owner 模块及其测试。命令测试通常镜像源码路径，例如 `src/commands/issue/issue-view.ts` 对应 `test/commands/issue/issue-view.test.ts`。
+3. 行为变化时修改对应层级测试。开发中运行最窄的相关 `deno task test --filter ...` 或测试文件；只在有意更新快照时运行 `deno task update-snapshots`。测试任务已固定 `TZ=UTC`。使用 Deno task、check 和 lint，不使用 `tsc` 或把 LSP 诊断当作验证结果。
+4. 修改 `graphql/schema.graphql` 或 `src/` 中的 `gql` document 后运行 `deno task generate-graphql-types`。生成文件被 ignore，不提交。
+5. 修改 Markdown 时检查相对链接；修改 Mermaid 时用目标 renderer 解析并实际渲染。修改 Guide 或命令树时运行 Guide 相关测试，确认 frontmatter 与实时 tree 一致。
+6. 提交前运行完整门禁：
 
-## 验证与发布
+   ```bash
+   deno task verify-release
+   git diff --check
+   ```
 
-- `deno task verify-source` 是源码验证任务：生成 GraphQL 类型、检查格式、运行 lint、类型检查以及所有非 Keyring 测试。
-- `deno task verify-release` 是完整的本地发布门禁和 Pull Request 源码门禁；它会运行源码验证，而源码验证已经包含内嵌指南契约的检查。
-- 未经用户明确授权，不得 push 或发布。用户要求 ship 时，加载并遵循 `.agents/skills/releasing/SKILL.md`；它是唯一的发布流程。
+`deno task verify-source` 负责 GraphQL codegen、format check、lint、type check 和所有非 Keyring 测试；`verify-release` 是完整本地门禁，也是 Pull Request Source gate。Linux Keyring integration 和五平台构建由滚动发布 workflow 执行。
+
+未经用户明确授权，不 push 或发布。用户要求发布 `main` 时，加载并遵循 `.agents/skills/releasing/SKILL.md`；不要手工修改版本、创建 tag 或另建发布流程。

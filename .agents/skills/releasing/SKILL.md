@@ -59,13 +59,22 @@ gh run watch "$run_id" --exit-status
 
 ## CI 发布工作流
 
-`Publish Linear CLI rolling release` 按以下阶段运行：
+```mermaid
+flowchart TD
+  push["main push"] --> keyring["Linux Keyring 集成测试"]
+  push --> builds["五个平台构建"]
+  keyring --> assets["10 个分发文件<br/>10 个 SHA-256 sidecar<br/>sha256.sum"]
+  builds --> assets
+  assets --> draft["创建或恢复 Draft Release"]
+  draft --> attest["验证来源并发布 GitHub Release"]
+  attest --> head{"提交仍是 main head？"}
+  head -->|是| latest["标记为 latest"]
+  head -->|否| history["保留历史 Release"]
+  latest --> linear["记录同版本 Linear Release"]
+  history --> linear
+```
 
-1. 并行运行 Linux Keyring 集成测试，并构建全部五个目标。
-2. 为每个目标生成一个安装归档、一个独立的自更新二进制及其 SHA-256 sidecar 文件。
-3. 合并构建资源；要求 10 个可分发文件和 10 个校验和 sidecar 文件；生成 `sha256.sum`。
-4. 创建或恢复 Draft Release，证明二进制资源的来源，然后发布。只有当其提交仍是当前 `main` head 时才将其标记为 latest，防止较早的排队任务把 latest 倒退到旧版本。
-5. GitHub Release 成功后，根据准确的 `before..HEAD` 推送范围记录一个已完成的 Linear Release，并要求其 ID 和 URL 非空，且版本与 GitHub Release 的版本一致。
+每个平台产出一个安装归档、一个独立自更新二进制和各自的 SHA-256 sidecar。GitHub Release 只有在对应提交仍是当前 `main` head 时才标记为 latest，防止较早的排队任务把安装目标倒退到旧版本。Linear Release 使用准确的 `before..HEAD` 推送范围；其 ID 和 URL 必须非空，版本必须与 GitHub Release 一致。
 
 除非 Keyring 集成测试和每个目标的构建都成功，否则不得运行 GitHub Release 任务。除非 GitHub Release 任务成功，否则不得运行 Linear Release 任务。
 

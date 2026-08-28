@@ -34,6 +34,13 @@ export function logClientError(error: ClientError): void {
   }
 }
 
+function workspaceCredentialNotFound(workspace: string): Error {
+  return new Error(
+    `Workspace "${workspace}" not found in credentials. ` +
+      `Run \`linear auth login\` to add it, or \`linear auth list\` to see configured workspaces.`,
+  )
+}
+
 /**
  * Get the resolved API key following the precedence chain:
  * 1. LINEAR_API_KEY env var (conflicts with --workspace)
@@ -70,10 +77,7 @@ export function getResolvedApiKey(): string | undefined {
     const key = getCredentialApiKey(cliWorkspace)
     if (key) return key
     // Explicit --workspace flag must match a configured workspace
-    throw new Error(
-      `Workspace "${cliWorkspace}" not found in credentials. ` +
-        `Run \`linear auth login\` to add it, or \`linear auth list\` to see configured workspaces.`,
-    )
+    throw workspaceCredentialNotFound(cliWorkspace)
   }
 
   // 4: Project's workspace config → credentials lookup
@@ -81,6 +85,7 @@ export function getResolvedApiKey(): string | undefined {
   if (projectWorkspace) {
     const key = getCredentialApiKey(projectWorkspace)
     if (key) return key
+    throw workspaceCredentialNotFound(projectWorkspace)
   }
 
   // 5: Default workspace from credentials file
