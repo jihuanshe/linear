@@ -1,12 +1,15 @@
 import { snapshotTest } from "@cliffy/testing"
 import { assertEquals } from "@std/assert"
 import { getColorEnabled, setColorEnabled } from "@std/fmt/colors"
+import { fromFileUrl } from "@std/path"
 import { stub } from "@std/testing/mock"
 import { queryCommand } from "../../../src/commands/issue/issue-query.ts"
 import {
   commonDenoArgs,
   setupMockLinearServer,
 } from "../../utils/test-helpers.ts"
+
+const main = fromFileUrl(new URL("../../../src/main.ts", import.meta.url))
 
 // Test help output
 await snapshotTest({
@@ -156,6 +159,155 @@ Deno.test("Issue Query Command - filters by exact workflow state name", async ()
     ])
   } finally {
     logStub.restore()
+    await cleanup()
+  }
+})
+
+Deno.test("Issue Query Command - Project scope does not require a default team", async () => {
+  const projectId = "00000000-0000-0000-0000-000000000001"
+  const { server, cleanup } = await setupMockLinearServer([
+    {
+      queryName: "GetIssuesForQuery",
+      variables: {
+        filter: { project: { id: { eq: projectId } } },
+        sort: [
+          { workflowState: { order: "Descending" } },
+          { priority: { nulls: "last", order: "Descending" } },
+          { manual: { nulls: "last", order: "Ascending" } },
+        ],
+        first: 50,
+        includeProjectTeamMetadata: false,
+        includeEstimationMetadata: false,
+      },
+      response: {
+        data: {
+          issues: {
+            nodes: [mockIssueNode],
+            pageInfo: { hasNextPage: false, endCursor: null },
+          },
+        },
+      },
+    },
+  ])
+  const root = await Deno.makeTempDir()
+
+  try {
+    const result = await new Deno.Command(Deno.execPath(), {
+      args: [
+        "run",
+        "--allow-all",
+        "--quiet",
+        main,
+        "issue",
+        "query",
+        "--project",
+        projectId,
+        "--json",
+      ],
+      cwd: root,
+      clearEnv: true,
+      env: {
+        HOME: root,
+        XDG_CONFIG_HOME: root,
+        NO_COLOR: "1",
+        LINEAR_GRAPHQL_ENDPOINT: server.getEndpoint(),
+        LINEAR_API_KEY: "Bearer test-token",
+      },
+      stdout: "piped",
+      stderr: "piped",
+    }).output()
+
+    const decoder = new TextDecoder()
+    const stdout = decoder.decode(result.stdout)
+    const stderr = decoder.decode(result.stderr)
+    assertEquals(result.code, 0, stderr)
+    assertEquals(stderr, "")
+    assertEquals(
+      JSON.parse(stdout).nodes.map((issue: { identifier: string }) =>
+        issue.identifier
+      ),
+      ["ENG-101"],
+    )
+  } finally {
+    await Deno.remove(root, { recursive: true })
+    await cleanup()
+  }
+})
+
+Deno.test("Issue Query Command - Explicit team narrows project scope", async () => {
+  const projectId = "00000000-0000-0000-0000-000000000001"
+  const { cleanup } = await setupMockLinearServer([
+    {
+      queryName: "GetIssuesForQuery",
+      variables: {
+        filter: {
+          team: { key: { eq: "ENG" } },
+          project: { id: { eq: projectId } },
+        },
+        sort: [
+          { workflowState: { order: "Descending" } },
+          { priority: { nulls: "last", order: "Descending" } },
+          { manual: { nulls: "last", order: "Ascending" } },
+        ],
+        first: 50,
+        includeProjectTeamMetadata: false,
+        includeEstimationMetadata: false,
+      },
+      response: {
+        data: {
+          issues: {
+            nodes: [],
+            pageInfo: { hasNextPage: false, endCursor: null },
+          },
+        },
+      },
+    },
+  ])
+
+  try {
+    await queryCommand.parse([
+      "--project",
+      projectId,
+      "--team",
+      "ENG",
+      "--json",
+    ])
+  } finally {
+    await cleanup()
+  }
+})
+
+Deno.test("Issue Query Command - Uses configured default team without project", async () => {
+  const { cleanup } = await setupMockLinearServer([
+    {
+      queryName: "GetIssuesForQuery",
+      variables: {
+        filter: { team: { key: { eq: "ENG" } } },
+        sort: [
+          { workflowState: { order: "Descending" } },
+          { priority: { nulls: "last", order: "Descending" } },
+          { manual: { nulls: "last", order: "Ascending" } },
+        ],
+        first: 50,
+        includeProjectTeamMetadata: false,
+        includeEstimationMetadata: false,
+      },
+      response: {
+        data: {
+          issues: {
+            nodes: [],
+            pageInfo: { hasNextPage: false, endCursor: null },
+          },
+        },
+      },
+    },
+  ], { LINEAR_TEAM_ID: "ENG", NO_COLOR: "true" })
+  const errorStub = stub(console, "error", () => {})
+
+  try {
+    await queryCommand.parse(["--json"])
+  } finally {
+    errorStub.restore()
     await cleanup()
   }
 })
@@ -361,7 +513,7 @@ Deno.test("Issue Query Command - Shows Blocked Indicator", async () => {
   })
 
   try {
-    await queryCommand.parse(["--team", "ENG", "--all-states"])
+    await queryCommand.parse(["--team", "ENG"])
 
     const lines = logs.join("\n").split("\n")
     const blocked = lines.find((l) => l.includes("ENG-300"))!
@@ -407,11 +559,6 @@ for (
       name: "--state with --state-name",
       args: ["--team", "ENG", "--state", "started", "--state-name", "Merged"],
       expected: "Cannot use both --state and --state-name flags",
-    },
-    {
-      name: "--all-states with --state-name",
-      args: ["--team", "ENG", "--all-states", "--state-name", "Merged"],
-      expected: "Cannot use --all-states with --state-name flag",
     },
     {
       name: "a blank --state-name",
@@ -541,11 +688,6 @@ Deno.test("Issue Query Command - rejects --milestone without --project", async (
     true,
   )
 })
-
-// Note: "no default team" error path is not tested here because
-// getOption("team_id") reads from config files which can't be easily
-// overridden in tests. The validation logic is covered by the code path
-// and the other validation tests confirm handleError integration works.
 
 // Cycle column: shown when a team has cycles enabled, with relative tokens.
 Deno.test("Issue Query Command - Shows Cycle Column", async () => {
