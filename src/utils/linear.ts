@@ -1134,7 +1134,10 @@ const queryIssuesQuery = gql(/* GraphQL */ `
         project {
           id
           name
-          teams(first: 100) @include(if: $includeDoctorMetadata) {
+          teams(
+            first: 100
+            includeArchived: $includeArchived
+          ) @include(if: $includeDoctorMetadata) {
             nodes {
               key
             }
@@ -1192,9 +1195,14 @@ const projectTeamsQuery = gql(/* GraphQL */ `
     $id: String!
     $first: Int
     $after: String
+    $includeArchived: Boolean
   ) {
     project(id: $id) {
-      teams(first: $first, after: $after) {
+      teams(
+        first: $first
+        after: $after
+        includeArchived: $includeArchived
+      ) {
         nodes {
           key
         }
@@ -1223,6 +1231,7 @@ export type FetchedQueryIssuePayload = {
 async function fetchCompleteProjectTeams(
   projectId: string,
   initial: ProjectTeamConnection,
+  includeArchived?: boolean,
 ): Promise<ProjectTeamConnection> {
   const nodes = [...initial.nodes]
   let pageInfo = initial.pageInfo
@@ -1234,6 +1243,7 @@ async function fetchCompleteProjectTeams(
         id: projectId,
         first: 100,
         after,
+        includeArchived,
       })
     if (result.project == null) {
       throw new NotFoundError("Project", projectId)
@@ -1250,6 +1260,7 @@ async function fetchCompleteProjectTeams(
 
 async function completeDoctorProjectTeams(
   issues: QueryIssuesPayload["nodes"],
+  includeArchived?: boolean,
 ): Promise<QueryIssuesPayload["nodes"]> {
   const completeTeams = new Map<string, ProjectTeamConnection>()
   for (const issue of issues) {
@@ -1262,7 +1273,11 @@ async function completeDoctorProjectTeams(
     }
     completeTeams.set(
       project.id,
-      await fetchCompleteProjectTeams(project.id, project.teams),
+      await fetchCompleteProjectTeams(
+        project.id,
+        project.teams,
+        includeArchived,
+      ),
     )
   }
 
@@ -1446,7 +1461,7 @@ export async function fetchIssuesForQuery(
   }
 
   const nodes = options.includeDoctorMetadata === true
-    ? await completeDoctorProjectTeams(allNodes)
+    ? await completeDoctorProjectTeams(allNodes, options.includeArchived)
     : allNodes
 
   return {

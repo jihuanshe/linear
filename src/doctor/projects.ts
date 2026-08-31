@@ -58,7 +58,9 @@ export interface FetchDoctorProjectsOptions {
 export async function fetchProjectsForDoctor(
   options: FetchDoctorProjectsOptions = {},
 ): Promise<DoctorProject[]> {
-  const filter: ProjectFilter = {}
+  const filter: ProjectFilter = {
+    status: { type: { in: ["started", "planned"] } },
+  }
   if (options.teamKey != null) {
     filter.accessibleTeams = { some: { key: { eq: options.teamKey } } }
   } else if (options.projectId != null) {

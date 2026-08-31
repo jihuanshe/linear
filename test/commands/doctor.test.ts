@@ -78,7 +78,7 @@ function issueResponse(issue: TestIssue = baseIssue) {
   }
 }
 
-function issueQueryVariables() {
+function issueQueryVariables(includeArchived?: boolean) {
   return {
     sort: [
       { workflowState: { order: "Descending" } },
@@ -91,6 +91,7 @@ function issueQueryVariables() {
     },
     first: 100,
     includeDoctorMetadata: true,
+    ...(includeArchived === undefined ? {} : { includeArchived }),
   }
 }
 
@@ -109,6 +110,7 @@ Deno.test("Doctor command outputs a complete JSON report", async () => {
       queryName: "GetProjectsForDoctor",
       variables: {
         filter: {
+          status: { type: { in: ["started", "planned"] } },
           issues: {
             some: {
               assignee: { id: { eq: "user-1" } },
@@ -270,8 +272,9 @@ Deno.test("Doctor validates an explicit project UUID before scanning", async () 
       queryName: "GetDoctorProjectTarget",
       variables: {
         id: "00000000-0000-4000-8000-000000000000",
+        includeArchived: false,
       },
-      response: { data: { project: null } },
+      response: { data: { projects: { nodes: [] } } },
     },
   ])
   const errorLogs: string[] = []
@@ -309,9 +312,16 @@ Deno.test("Doctor skips issue scanning when only a project rule is selected", as
   const { cleanup } = await setupMockLinearServer([
     {
       queryName: "GetDoctorProjectTarget",
-      variables: { id: "550e8400-e29b-41d4-a716-446655440010" },
+      variables: {
+        id: "550e8400-e29b-41d4-a716-446655440010",
+        includeArchived: true,
+      },
       response: {
-        data: { project: { id: "550e8400-e29b-41d4-a716-446655440010" } },
+        data: {
+          projects: {
+            nodes: [{ id: "550e8400-e29b-41d4-a716-446655440010" }],
+          },
+        },
       },
     },
     {
@@ -349,6 +359,7 @@ Deno.test("Doctor skips issue scanning when only a project rule is selected", as
     await doctorCommand.parse([
       "project",
       "550e8400-e29b-41d4-a716-446655440010",
+      "--include-archived",
       "--rule",
       "project-health-risk",
       "--json",
@@ -374,6 +385,7 @@ Deno.test("Doctor self project scans exclude terminal issues by default", async 
       queryName: "GetProjectsForDoctor",
       variables: {
         filter: {
+          status: { type: { in: ["started", "planned"] } },
           issues: {
             some: {
               assignee: { id: { eq: "user-1" } },
@@ -452,6 +464,70 @@ Deno.test("Doctor completes project team pagination before checking membership",
   try {
     await doctorCommand.parse([
       "self",
+      "--rule",
+      "project-team-mismatch",
+      "--json",
+    ])
+  } finally {
+    logStub.restore()
+    await cleanup()
+  }
+
+  const report = JSON.parse(logs.join(""))
+  assertEquals(report.findings, [])
+})
+
+Deno.test("Doctor includes archived teams in project membership checks", async () => {
+  const { cleanup } = await setupMockLinearServer([
+    {
+      queryName: "GetViewerId",
+      response: { data: { viewer: { id: "user-1" } } },
+    },
+    {
+      queryName: "GetIssuesForQuery",
+      variables: issueQueryVariables(true),
+      queryIncludes: "includeArchived: $includeArchived",
+      response: issueResponse({
+        ...baseIssue,
+        project: {
+          ...baseIssue.project,
+          teams: {
+            nodes: [{ key: "ARCH" }],
+            pageInfo: { hasNextPage: true, endCursor: "team-cursor-archived" },
+          },
+        },
+      }),
+    },
+    {
+      queryName: "GetProjectTeamsForDoctor",
+      variables: {
+        id: "project-1",
+        first: 100,
+        after: "team-cursor-archived",
+        includeArchived: true,
+      },
+      queryIncludes: "includeArchived: $includeArchived",
+      response: {
+        data: {
+          project: {
+            teams: {
+              nodes: [{ key: "JHS" }],
+              pageInfo: { hasNextPage: false, endCursor: null },
+            },
+          },
+        },
+      },
+    },
+  ])
+  const logs: string[] = []
+  const logStub = stub(console, "log", (...args: unknown[]) => {
+    logs.push(args.map(String).join(" "))
+  })
+
+  try {
+    await doctorCommand.parse([
+      "self",
+      "--include-archived",
       "--rule",
       "project-team-mismatch",
       "--json",
@@ -553,7 +629,10 @@ Deno.test("Doctor resolves archived project names when requested", async () => {
     {
       queryName: "GetProjectsForDoctor",
       variables: {
-        filter: { id: { eq: "project-archived" } },
+        filter: {
+          id: { eq: "project-archived" },
+          status: { type: { in: ["started", "planned"] } },
+        },
         first: 100,
         includeArchived: true,
       },

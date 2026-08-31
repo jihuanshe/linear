@@ -30,9 +30,18 @@ import type {
 const ScopeType = new EnumType(["self", "team", "project", "workspace"])
 
 const GetDoctorProjectTarget = gql(`
-  query GetDoctorProjectTarget($id: String!) {
-    project(id: $id) {
-      id
+  query GetDoctorProjectTarget(
+    $id: ID!
+    $includeArchived: Boolean = false
+  ) {
+    projects(
+      filter: { id: { eq: $id } }
+      first: 1
+      includeArchived: $includeArchived
+    ) {
+      nodes {
+        id
+      }
     }
   }
 `)
@@ -44,9 +53,11 @@ async function resolveUniqueProjectId(
   if (isLinearUuid(input)) {
     const result = await getGraphQLClient().request(GetDoctorProjectTarget, {
       id: input,
+      includeArchived,
     })
-    if (result.project == null) throw new NotFoundError("Project", input)
-    return result.project.id
+    const project = result.projects.nodes[0]
+    if (project == null) throw new NotFoundError("Project", input)
+    return project.id
   }
 
   const options = await getProjectOptionsByName(input, includeArchived)
