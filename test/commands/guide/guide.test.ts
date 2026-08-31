@@ -48,7 +48,14 @@ Deno.test("guide --json preserves stable metadata", async () => {
   const documents = JSON.parse(result.stdout)
   assertEquals(
     documents.map((entry: { name: string }) => entry.name),
-    ["core", "automation", "issue-authoring", "issue-delivery", "graphql"],
+    [
+      "core",
+      "automation",
+      "issue-authoring",
+      "issue-delivery",
+      "graphql",
+      "doctor",
+    ],
   )
   for (const entry of documents) {
     assertEquals(Object.keys(entry).sort(), ["commands", "description", "name"])
@@ -151,7 +158,7 @@ Deno.test("leaf help shows a Related guides breadcrumb", async () => {
 
   const api = await run(["api", "--help"])
   assertEquals(api.code, 0, api.stderr)
-  assertStringIncludes(api.stdout, "Related guides: graphql")
+  assertStringIncludes(api.stdout, "Related guides: automation, graphql")
 })
 
 Deno.test("usage JSON exposes guide metadata additively", async () => {

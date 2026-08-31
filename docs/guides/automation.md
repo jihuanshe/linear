@@ -1,7 +1,11 @@
 ---
 name: automation
-description: 无人值守执行的输出契约、JSON 校验、Markdown 文件 flag 与写后读回验证
+description: 无人值守执行、临时脚本编排、JSON 校验、Markdown 文件 flag 与写后读回验证
 commands:
+  - doctor
+  - api
+  - auth whoami
+  - auth token
   - issue view
   - issue query
   - issue create
@@ -72,3 +76,43 @@ linear issue create --title "My Issue" --description-file "$TMPDIR/description.m
 ## 时序现实
 
 AI 准备材料需要时间，期间上游对象可能已被他人修改。多步写入前重读目标当前值；发现与预期基线不符时停下报告差异，不盲目覆盖。
+
+## 临时脚本编排
+
+一次性审计或异构治理不需要新增一个永久命令。让 CLI 提供认证、结构化读取和 GraphQL 原语；先用 Bash 和 `jq` 组合简单查询，需要保存状态时再用临时 Python / TypeScript 编排。分类、取舍和授权不放进脚本默认值。
+
+## 选择编排语言
+
+| 任务形态                             | 选择                                          | 原因                                 |
+| ------------------------------------ | --------------------------------------------- | ------------------------------------ |
+| 读取、筛选、计数、格式化报告         | `linear ... --json` 加 `jq`，外面用 Bash 串联 | 无状态，数据只经过一次投影           |
+| 一两个已确认的单条修改               | 直接调用专用 CLI 命令                         | CLI 已负责名称解析和输入校验         |
+| 多次读取后生成审批表，或按目标值分组 | Python / TypeScript                           | 需要保留对象、基线和分组结果         |
+| 批量写入、写后核对、未知结果停止     | Python / TypeScript                           | 需要明确处理批次、业务成功和恢复分支 |
+
+不要为了「看起来像自动化」把简单的 `jq` 投影改写成 Python；也不要把 JSON 引号、循环状态和错误分支堆进长 Bash 脚本。脚本变长的原因是业务状态，而不是语言偏好。
+
+推荐固定为这条流水线：
+
+| 阶段 | 做什么                                                                       | 是否写远端 |
+| ---- | ---------------------------------------------------------------------------- | ---------- |
+| 读取 | 用 `doctor` 找问题，再用 `issue query --json` 读取要判断的完整字段           | 否         |
+| 计划 | 脚本按标题、现有字段和证据生成表格或 `patch.json`                            | 否         |
+| 审批 | 人确认每个补丁的目标值；未确认的条目留在计划中                               | 否         |
+| 复核 | 写入前用 `auth whoami --json` 核对 workspace，并重读目标，发现基线变化就停止 | 否         |
+| 写入 | 相同补丁分组后调用 schema 中的 `issueBatchUpdate`，每批最多 50 个 Issue      | 是         |
+| 验证 | 用同一批目标做一次结构化读回，按 identifier 比较本次字段                     | 否         |
+
+读取示例：
+
+```bash
+LINEAR_PROMPT_DISABLED=1 linear doctor self --history --limit 0 --json >doctor.json
+LINEAR_PROMPT_DISABLED=1 linear issue query \
+  --all-teams --assignee self --limit 0 --json >issues.json
+```
+
+脚本默认只生成计划，不把 finding 当作写入指令。相同 `input` 的条目可以合并成一批；不同目标值必须分组，不能为了减少请求而覆盖成同一个值。批量 mutation 的具体形状见 [graphql](graphql.md)。
+
+优先让脚本调用 `linear api`，这样凭据仍由 CLI 解析，脚本不需要接触 token。只有直接 HTTP 确有必要时，才在进程内通过 `linear auth token` 读取 token；不要把 token 写入文件、日志、`.env` 或命令行参数。
+
+批量写入遇到网络错误、超时或响应无法确认时，停止后续批次，先读回对账；不要把未知结果当成「未写入」再重试。

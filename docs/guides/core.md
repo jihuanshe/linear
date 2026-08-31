@@ -31,9 +31,23 @@ linear usage --json       # 机器可读的命令树（含 writes/interactive/co
 
 ## 按责任选择专用命令、GraphQL 与 HTTP
 
-常见领域操作、名称解析和安全写入优先使用专用命令；输入校验、冲突保护和结构化输出等具体保障以目标命令的 `--help` 与指南为准。精确字段选择、批量正文、少见 filter 和跨实体只读查询直接使用 `schema` + `linear api`（见 graphql 指南），不要为了临时读取形状扩建命令面。只有需要完整 HTTP 控制时才用 `curl` 加 `linear auth token`。
+常见领域操作、名称解析和安全写入优先使用专用命令；输入校验、冲突保护和结构化输出等具体保障以目标命令的 `--help` 与指南为准。精确字段选择、批量正文、少见 filter 和跨实体只读查询直接使用 `schema` + `linear api`（见 graphql 指南），不要为了临时读取形状扩建命令面。只有需要完整 HTTP 控制时才降级到直接 HTTP，凭据处理见 graphql 指南。
 
 `linear api` 也能发送 mutation，但不拥有专用写命令的名称解析、增量更新、冲突保护或写后核算。存在专用写命令时不要改用 raw mutation 绕过其边界。
+
+## 留下原语，组合交给临时脚本
+
+命令名相近不代表责任相同。稳定命令负责一个资源或一个明确的协议边界；一次性跨对象组合由 [automation](automation.md) 指南中的临时脚本编排，不为它增加永久命令。
+
+| 需求                 | 优先使用                                               | 不要混用                             |
+| -------------------- | ------------------------------------------------------ | ------------------------------------ |
+| 按多个条件读取任务   | `issue query`                                          | 不为每种筛选组合新增命令             |
+| 修改一个任务         | `issue update`                                         | 不用 raw mutation 绕过名称解析和校验 |
+| 修改项目本身         | `project update`                                       | 不要把项目状态更新当成 Project 字段  |
+| 发布项目状态更新     | `project-update create/list`                           | 不要用 `project update` 代替 Pulse   |
+| 一批任务使用相同补丁 | `linear api` 的 `issueBatchUpdate`，由临时脚本分批调用 | 不要并发堆叠多个单条 `issue update`  |
+
+`issue mine` 仍是带默认待办范围以及 `--web` / `--app` 的便利入口。需要明确筛选、跨团队读取或机器处理时，改用 `issue query --assignee self`，跨团队再加 `--all-teams`。`initiative update` 与 `initiative-update create/list` 也分别对应 Initiative 本身和状态更新，不能仅按名称合并。
 
 ## 影响命令选择的语义陷阱
 
@@ -70,5 +84,5 @@ https://linear.app/<workspace>/project/<project-name>-<project-slug-id>/issues
 
 - 项目可能关联多个 team，项目全量盘点用 `--all-teams`。
 - CLI 从 `linear config` 保存的配置或当前目录名推断默认 team。推断不出时，查询必须显式提供 team scope；不知道 team key 先 `linear team list`。
-- `issue mine` 限定当前认证用户，其他人的或全 team 的用 `issue query`。
+- `issue mine` 限定当前认证用户，其他人的、全 team 的或机器处理的用 `issue query`。
 - 默认排序是 priority；要保持看板手工顺序显式传 `--sort manual`。
