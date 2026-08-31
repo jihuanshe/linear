@@ -1802,7 +1802,7 @@ export async function getProjectOptionsByName(
     ) {
       projects(
         filter: { name: { containsIgnoreCase: $name } }
-        first: 100
+        first: $first
         after: $after
         includeArchived: $includeArchived
       ) {
