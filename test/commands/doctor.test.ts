@@ -346,6 +346,47 @@ Deno.test("Doctor skips issue scanning when only a project rule is selected", as
   assertEquals(report.findings[0].ruleId, "project-health-risk")
 })
 
+Deno.test("Doctor self project scans exclude terminal issues by default", async () => {
+  const { cleanup } = await setupMockLinearServer([
+    {
+      queryName: "GetViewerId",
+      response: { data: { viewer: { id: "user-1" } } },
+    },
+    {
+      queryName: "GetProjectsForDoctor",
+      variables: {
+        filter: {
+          issues: {
+            some: {
+              assignee: { id: { eq: "user-1" } },
+              state: { type: { in: ["started", "unstarted"] } },
+            },
+          },
+        },
+      },
+      response: {
+        data: {
+          projects: {
+            nodes: [],
+            pageInfo: { hasNextPage: false, endCursor: null },
+          },
+        },
+      },
+    },
+  ])
+
+  try {
+    await doctorCommand.parse([
+      "self",
+      "--rule",
+      "project-health-risk",
+      "--json",
+    ])
+  } finally {
+    await cleanup()
+  }
+})
+
 Deno.test("Doctor resolves archived project names when requested", async () => {
   const { cleanup } = await setupMockLinearServer([
     {

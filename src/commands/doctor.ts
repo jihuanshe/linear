@@ -235,6 +235,7 @@ export const doctorCommand = withUsageMetadata(new Command(), {
         } else if (scope === "self" && !shouldScanIssues) {
           projectOptions = {
             assignee: "self",
+            includeHistory: history === true,
             includeArchived,
           }
         }

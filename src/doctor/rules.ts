@@ -201,32 +201,17 @@ const staleStartedRule: DoctorRule = {
 }
 
 const ACTIVE_PROJECT_STATUS_TYPES = new Set(["started", "planned"])
-const TERMINAL_PROJECT_STATUS_TYPES = new Set(["completed", "canceled"])
 
 function isActiveProject(project: DoctorProject): boolean {
   return ACTIVE_PROJECT_STATUS_TYPES.has(project.status.type)
 }
 
-function isHistoricalProject(
-  project: DoctorProject,
-  context: DoctorContext,
-): boolean {
-  return context.policy.includeHistory &&
-    TERMINAL_PROJECT_STATUS_TYPES.has(project.status.type)
+function shouldCheckProject(project: DoctorProject): boolean {
+  return isActiveProject(project)
 }
 
-function shouldCheckProject(
-  project: DoctorProject,
-  context: DoctorContext,
-): boolean {
-  return isActiveProject(project) || isHistoricalProject(project, context)
-}
-
-function projectSeverity(
-  project: DoctorProject,
-  historical: boolean,
-): DoctorSeverity {
-  return historical || project.status.type === "planned" ? "P2" : "P1"
+function projectSeverity(project: DoctorProject): DoctorSeverity {
+  return project.status.type === "planned" ? "P2" : "P1"
 }
 
 function projectAgeInDays(project: DoctorProject, now: Date): number {
@@ -264,17 +249,16 @@ function projectFinding(
 const missingProjectUpdateRule: DoctorProjectRule = {
   id: "missing-project-update",
   check(project, context) {
-    if (!shouldCheckProject(project, context)) return null
+    if (!shouldCheckProject(project)) return null
     if (project.lastUpdate != null) return null
     if (projectAgeInDays(project, context.now) < context.policy.staleDays) {
       return null
     }
 
-    const historical = isHistoricalProject(project, context)
     return projectFinding(
       project,
       "missing-project-update",
-      projectSeverity(project, historical),
+      projectSeverity(project),
       "project-update",
       `项目已超过 ${context.policy.staleDays} 天没有项目更新`,
       "请发布项目更新，或更新项目状态。",
@@ -285,19 +269,18 @@ const missingProjectUpdateRule: DoctorProjectRule = {
 const staleProjectUpdateRule: DoctorProjectRule = {
   id: "stale-project-update",
   check(project, context) {
-    if (!shouldCheckProject(project, context)) return null
+    if (!shouldCheckProject(project)) return null
     if (project.lastUpdate == null) return null
     const ageInDays = projectUpdateAgeInDays(project, context.now)
     if (ageInDays < context.policy.staleDays) {
       return null
     }
 
-    const historical = isHistoricalProject(project, context)
     const age = Math.floor(ageInDays)
     return projectFinding(
       project,
       "stale-project-update",
-      projectSeverity(project, historical),
+      projectSeverity(project),
       "project-update",
       `最近一次项目更新已是 ${age} 天前${
         project.lastUpdate.isStale ? "，并被 Linear 标记为过期" : ""
@@ -309,18 +292,17 @@ const staleProjectUpdateRule: DoctorProjectRule = {
 
 const projectHealthRiskRule: DoctorProjectRule = {
   id: "project-health-risk",
-  check(project, context) {
-    if (!shouldCheckProject(project, context)) return null
+  check(project) {
+    if (!shouldCheckProject(project)) return null
     if (project.health !== "atRisk" && project.health !== "offTrack") {
       return null
     }
 
-    const historical = isHistoricalProject(project, context)
     const health = project.health === "atRisk" ? "有风险" : "偏离计划"
     return projectFinding(
       project,
       "project-health-risk",
-      projectSeverity(project, historical),
+      projectSeverity(project),
       "health",
       `项目健康状态为「${health}」`,
       "请确认风险原因和下一步，并发布项目更新。",

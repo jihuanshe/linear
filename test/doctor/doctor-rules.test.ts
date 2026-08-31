@@ -396,6 +396,34 @@ Deno.test("Doctor exempts young and inactive Projects from Pulse findings", () =
   assertEquals(report.findings, [])
 })
 
+Deno.test("Doctor keeps terminal Projects out of Pulse with history", () => {
+  const projects = [
+    makeProject({
+      name: "Completed",
+      statusType: "completed",
+      statusName: "Completed",
+      health: "atRisk",
+      lastUpdate: null,
+    }),
+    makeProject({
+      name: "Canceled",
+      statusType: "canceled",
+      statusName: "Canceled",
+      health: "offTrack",
+      lastUpdate: null,
+    }),
+  ]
+  const report = evaluateDoctorIssues(
+    [],
+    scope,
+    makePolicy(true),
+    now,
+    projects,
+  )
+
+  assertEquals(report.findings, [])
+})
+
 Deno.test("Doctor skips priority and team checks for Backlog and Triage", () => {
   const issues = [
     makeIssue({

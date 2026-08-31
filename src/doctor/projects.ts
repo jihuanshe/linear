@@ -51,6 +51,7 @@ export interface FetchDoctorProjectsOptions {
   teamKey?: string
   projectId?: string
   assignee?: "self"
+  includeHistory?: boolean
   includeArchived?: boolean
 }
 
@@ -66,7 +67,14 @@ export async function fetchProjectsForDoctor(
   if (options.assignee != null) {
     const assigneeId = await lookupUserId(options.assignee)
     if (assigneeId == null) throw new NotFoundError("User", options.assignee)
-    filter.issues = { some: { assignee: { id: { eq: assigneeId } } } }
+    filter.issues = {
+      some: {
+        assignee: { id: { eq: assigneeId } },
+        ...(options.includeHistory === true
+          ? {}
+          : { state: { type: { in: ["started", "unstarted"] } } }),
+      },
+    }
   }
 
   const projects: DoctorProject[] = []
