@@ -1090,7 +1090,8 @@ const queryIssuesQuery = gql(/* GraphQL */ `
     $first: Int
     $after: String
     $includeArchived: Boolean
-    $includeDoctorMetadata: Boolean!
+    $includeProjectTeamMetadata: Boolean!
+    $includeEstimationMetadata: Boolean!
   ) {
     issues(
       filter: $filter
@@ -1126,7 +1127,7 @@ const queryIssuesQuery = gql(/* GraphQL */ `
           key
           name
           cyclesEnabled
-          issueEstimationType @include(if: $includeDoctorMetadata)
+          issueEstimationType @include(if: $includeEstimationMetadata)
           activeCycle {
             number
           }
@@ -1137,7 +1138,7 @@ const queryIssuesQuery = gql(/* GraphQL */ `
           teams(
             first: 100
             includeArchived: $includeArchived
-          ) @include(if: $includeDoctorMetadata) {
+          ) @include(if: $includeProjectTeamMetadata) {
             nodes {
               key
             }
@@ -1323,7 +1324,8 @@ export interface FetchIssuesForQueryOptions {
   createdAfter?: string
   updatedAfter?: string
   includeArchived?: boolean
-  includeDoctorMetadata?: boolean
+  includeProjectTeamMetadata?: boolean
+  includeEstimationMetadata?: boolean
 }
 
 export async function fetchIssuesForQuery(
@@ -1446,7 +1448,8 @@ export async function fetchIssuesForQuery(
         first: pageSize,
         after,
         includeArchived: options.includeArchived,
-        includeDoctorMetadata: options.includeDoctorMetadata === true,
+        includeProjectTeamMetadata: options.includeProjectTeamMetadata === true,
+        includeEstimationMetadata: options.includeEstimationMetadata === true,
       },
     )
 
@@ -1460,7 +1463,7 @@ export async function fetchIssuesForQuery(
     }
   }
 
-  const nodes = options.includeDoctorMetadata === true
+  const nodes = options.includeProjectTeamMetadata === true
     ? await completeDoctorProjectTeams(allNodes, options.includeArchived)
     : allNodes
 

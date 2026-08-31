@@ -78,7 +78,11 @@ function issueResponse(issue: TestIssue = baseIssue) {
   }
 }
 
-function issueQueryVariables(includeArchived?: boolean) {
+function issueQueryVariables(
+  includeArchived?: boolean,
+  includeProjectTeamMetadata = true,
+  includeEstimationMetadata = true,
+) {
   return {
     sort: [
       { workflowState: { order: "Descending" } },
@@ -90,7 +94,8 @@ function issueQueryVariables(includeArchived?: boolean) {
       state: { type: { in: ["started", "unstarted"] } },
     },
     first: 100,
-    includeDoctorMetadata: true,
+    includeProjectTeamMetadata,
+    includeEstimationMetadata,
     ...(includeArchived === undefined ? {} : { includeArchived }),
   }
 }
@@ -167,7 +172,7 @@ Deno.test("Doctor command shows title and human recommendation", async () => {
     },
     {
       queryName: "GetIssuesForQuery",
-      variables: issueQueryVariables(),
+      variables: issueQueryVariables(undefined, false, false),
       response: issueResponse({
         ...baseIssue,
         project: null,
@@ -208,7 +213,7 @@ Deno.test("Doctor command reports stale Project Updates", async () => {
   const { cleanup } = await setupMockLinearServer([
     {
       queryName: "GetIssuesForQuery",
-      variables: issueQueryVariables(),
+      variables: issueQueryVariables(undefined, false, false),
       response: issueResponse(),
     },
     {
@@ -304,6 +309,10 @@ Deno.test("Doctor validates an explicit project UUID before scanning", async () 
         "Project not found: 00000000-0000-4000-8000-000000000000",
       )
     ),
+    true,
+  )
+  assertEquals(
+    errorLogs.some((line) => line.includes("Failed to check Linear data")),
     true,
   )
 })
@@ -425,7 +434,7 @@ Deno.test("Doctor completes project team pagination before checking membership",
     },
     {
       queryName: "GetIssuesForQuery",
-      variables: issueQueryVariables(),
+      variables: issueQueryVariables(undefined, true, false),
       response: issueResponse({
         ...baseIssue,
         project: {
@@ -485,7 +494,7 @@ Deno.test("Doctor includes archived teams in project membership checks", async (
     },
     {
       queryName: "GetIssuesForQuery",
-      variables: issueQueryVariables(true),
+      variables: issueQueryVariables(true, true, false),
       queryIncludes: "includeArchived: $includeArchived",
       response: issueResponse({
         ...baseIssue,

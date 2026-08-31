@@ -163,6 +163,12 @@ export const doctorCommand = withUsageMetadata(new Command(), {
       const shouldScanProjects = doctorProjectRules.some((projectRule) =>
         selectedRules.includes(projectRule.id)
       )
+      const includeProjectTeamMetadata = selectedRules.includes(
+        "project-team-mismatch",
+      )
+      const includeEstimationMetadata = selectedRules.includes(
+        "missing-estimate",
+      )
 
       let issueOptions: Parameters<typeof fetchIssuesForQuery>[0] | undefined
       let doctorScope: DoctorScope
@@ -176,7 +182,8 @@ export const doctorCommand = withUsageMetadata(new Command(), {
               state: history === true ? undefined : ["started", "unstarted"],
               limit: 0,
               includeArchived,
-              includeDoctorMetadata: true,
+              includeProjectTeamMetadata,
+              includeEstimationMetadata,
             }
           }
           doctorScope = { kind: "self", target: "self" }
@@ -191,7 +198,8 @@ export const doctorCommand = withUsageMetadata(new Command(), {
               state: history === true ? undefined : ["started", "unstarted"],
               limit: 0,
               includeArchived,
-              includeDoctorMetadata: true,
+              includeProjectTeamMetadata,
+              includeEstimationMetadata,
             }
           }
           doctorScope = { kind: "team", target: teamKey }
@@ -209,7 +217,8 @@ export const doctorCommand = withUsageMetadata(new Command(), {
               state: history === true ? undefined : ["started", "unstarted"],
               limit: 0,
               includeArchived,
-              includeDoctorMetadata: true,
+              includeProjectTeamMetadata,
+              includeEstimationMetadata,
             }
           }
           doctorScope = { kind: "project", target: target! }
@@ -222,7 +231,8 @@ export const doctorCommand = withUsageMetadata(new Command(), {
               state: history === true ? undefined : ["started", "unstarted"],
               limit: 0,
               includeArchived,
-              includeDoctorMetadata: true,
+              includeProjectTeamMetadata,
+              includeEstimationMetadata,
             }
           }
           doctorScope = { kind: "workspace" }
@@ -286,6 +296,6 @@ export const doctorCommand = withUsageMetadata(new Command(), {
         console.log(line)
       }
     } catch (error) {
-      handleError(error, "检查 Linear 数据失败")
+      handleError(error, "Failed to check Linear data")
     }
   })
