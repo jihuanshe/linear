@@ -56,8 +56,15 @@ const baseIssue = {
   inverseRelations: { nodes: [] },
 }
 
+type TestProject = Omit<typeof baseIssue.project, "teams"> & {
+  teams: {
+    nodes: Array<{ key: string }>
+    pageInfo: { hasNextPage: boolean; endCursor: string | null }
+  }
+}
+
 type TestIssue = Omit<typeof baseIssue, "project"> & {
-  project: typeof baseIssue.project | null
+  project: TestProject | null
 }
 
 function issueResponse(issue: TestIssue = baseIssue) {
@@ -83,6 +90,7 @@ function issueQueryVariables() {
       state: { type: { in: ["started", "unstarted"] } },
     },
     first: 100,
+    includeDoctorMetadata: true,
   }
 }
 
@@ -99,6 +107,16 @@ Deno.test("Doctor command outputs a complete JSON report", async () => {
     },
     {
       queryName: "GetProjectsForDoctor",
+      variables: {
+        filter: {
+          issues: {
+            some: {
+              assignee: { id: { eq: "user-1" } },
+              state: { type: { in: ["started", "unstarted"] } },
+            },
+          },
+        },
+      },
       response: {
         data: {
           projects: {
@@ -387,6 +405,134 @@ Deno.test("Doctor self project scans exclude terminal issues by default", async 
   }
 })
 
+Deno.test("Doctor completes project team pagination before checking membership", async () => {
+  const { cleanup } = await setupMockLinearServer([
+    {
+      queryName: "GetViewerId",
+      response: { data: { viewer: { id: "user-1" } } },
+    },
+    {
+      queryName: "GetIssuesForQuery",
+      variables: issueQueryVariables(),
+      response: issueResponse({
+        ...baseIssue,
+        project: {
+          ...baseIssue.project,
+          teams: {
+            nodes: [{ key: "ARCH" }],
+            pageInfo: { hasNextPage: true, endCursor: "team-cursor-1" },
+          },
+        },
+      }),
+    },
+    {
+      queryName: "GetProjectTeamsForDoctor",
+      variables: {
+        id: "project-1",
+        first: 100,
+        after: "team-cursor-1",
+      },
+      response: {
+        data: {
+          project: {
+            teams: {
+              nodes: [{ key: "JHS" }],
+              pageInfo: { hasNextPage: false, endCursor: null },
+            },
+          },
+        },
+      },
+    },
+  ])
+  const logs: string[] = []
+  const logStub = stub(console, "log", (...args: unknown[]) => {
+    logs.push(args.map(String).join(" "))
+  })
+
+  try {
+    await doctorCommand.parse([
+      "self",
+      "--rule",
+      "project-team-mismatch",
+      "--json",
+    ])
+  } finally {
+    logStub.restore()
+    await cleanup()
+  }
+
+  const report = JSON.parse(logs.join(""))
+  assertEquals(report.findings, [])
+})
+
+Deno.test("Doctor rejects duplicate project names across pages", async () => {
+  const { cleanup } = await setupMockLinearServer([
+    {
+      queryName: "GetProjectIdOptionsByName",
+      variables: {
+        name: "Duplicate Project",
+        includeArchived: false,
+        first: 100,
+        after: undefined,
+      },
+      response: {
+        data: {
+          projects: {
+            nodes: [{ id: "project-1", name: "Duplicate Project" }],
+            pageInfo: { hasNextPage: true, endCursor: "project-cursor-1" },
+          },
+        },
+      },
+    },
+    {
+      queryName: "GetProjectIdOptionsByName",
+      variables: {
+        name: "Duplicate Project",
+        includeArchived: false,
+        first: 100,
+        after: "project-cursor-1",
+      },
+      response: {
+        data: {
+          projects: {
+            nodes: [{ id: "project-2", name: "Duplicate Project" }],
+            pageInfo: { hasNextPage: false, endCursor: null },
+          },
+        },
+      },
+    },
+  ])
+  const errorLogs: string[] = []
+  const errorStub = stub(console, "error", (...args: unknown[]) => {
+    errorLogs.push(args.map(String).join(" "))
+  })
+  const exitStub = stub(Deno, "exit", (_code?: number): never => {
+    throw new Error("EXIT")
+  })
+
+  try {
+    await doctorCommand.parse([
+      "project",
+      "Duplicate Project",
+      "--rule",
+      "project-health-risk",
+    ])
+  } catch (error) {
+    if (!(error instanceof Error) || error.message !== "EXIT") throw error
+  } finally {
+    errorStub.restore()
+    exitStub.restore()
+    await cleanup()
+  }
+
+  assertEquals(
+    errorLogs.some((line) =>
+      line.includes("Project name is ambiguous: Duplicate Project")
+    ),
+    true,
+  )
+})
+
 Deno.test("Doctor resolves archived project names when requested", async () => {
   const { cleanup } = await setupMockLinearServer([
     {
@@ -399,6 +545,7 @@ Deno.test("Doctor resolves archived project names when requested", async () => {
               id: "project-archived",
               name: "Archived Project",
             }],
+            pageInfo: { hasNextPage: false, endCursor: null },
           },
         },
       },

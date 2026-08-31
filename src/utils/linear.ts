@@ -7,7 +7,9 @@ import type {
   GetIssuesForQueryQuery,
   GetIssuesForStateQuery,
   GetOrganizationMembersQuery,
+  GetProjectIdOptionsByNameQuery,
   GetProjectsForTeamQuery,
+  GetProjectTeamsForDoctorQuery,
   GetTeamMembersQuery,
   IssueFilter,
   IssueSortInput,
@@ -1088,6 +1090,7 @@ const queryIssuesQuery = gql(/* GraphQL */ `
     $first: Int
     $after: String
     $includeArchived: Boolean
+    $includeDoctorMetadata: Boolean!
   ) {
     issues(
       filter: $filter
@@ -1123,7 +1126,7 @@ const queryIssuesQuery = gql(/* GraphQL */ `
           key
           name
           cyclesEnabled
-          issueEstimationType
+          issueEstimationType @include(if: $includeDoctorMetadata)
           activeCycle {
             number
           }
@@ -1131,7 +1134,7 @@ const queryIssuesQuery = gql(/* GraphQL */ `
         project {
           id
           name
-          teams(first: 100) {
+          teams(first: 100) @include(if: $includeDoctorMetadata) {
             nodes {
               key
             }
@@ -1184,13 +1187,92 @@ const queryIssuesQuery = gql(/* GraphQL */ `
   }
 `)
 
+const projectTeamsQuery = gql(/* GraphQL */ `
+  query GetProjectTeamsForDoctor(
+    $id: String!
+    $first: Int
+    $after: String
+  ) {
+    project(id: $id) {
+      teams(first: $first, after: $after) {
+        nodes {
+          key
+        }
+        pageInfo {
+          hasNextPage
+          endCursor
+        }
+      }
+    }
+  }
+`)
+
 type QueryIssuesPayload = GetIssuesForQueryQuery["issues"]
+type QueryIssueNode = QueryIssuesPayload["nodes"][number]
+type ProjectTeamConnection = NonNullable<
+  NonNullable<QueryIssueNode["project"]>["teams"]
+>
 
 export type FetchedQueryIssueResult = QueryIssuesPayload["nodes"][number]
 
 export type FetchedQueryIssuePayload = {
   nodes: QueryIssuesPayload["nodes"]
   pageInfo: QueryIssuesPayload["pageInfo"]
+}
+
+async function fetchCompleteProjectTeams(
+  projectId: string,
+  initial: ProjectTeamConnection,
+): Promise<ProjectTeamConnection> {
+  const nodes = [...initial.nodes]
+  let pageInfo = initial.pageInfo
+  let after: string | null | undefined = initial.pageInfo.endCursor
+
+  while (pageInfo.hasNextPage) {
+    const result: GetProjectTeamsForDoctorQuery = await getGraphQLClient()
+      .request(projectTeamsQuery, {
+        id: projectId,
+        first: 100,
+        after,
+      })
+    if (result.project == null) {
+      throw new NotFoundError("Project", projectId)
+    }
+
+    const connection = result.project.teams
+    nodes.push(...connection.nodes)
+    pageInfo = connection.pageInfo
+    after = connection.pageInfo.endCursor
+  }
+
+  return { nodes, pageInfo }
+}
+
+async function completeDoctorProjectTeams(
+  issues: QueryIssuesPayload["nodes"],
+): Promise<QueryIssuesPayload["nodes"]> {
+  const completeTeams = new Map<string, ProjectTeamConnection>()
+  for (const issue of issues) {
+    const project = issue.project
+    if (
+      project == null || project.teams == null ||
+      !project.teams.pageInfo.hasNextPage || completeTeams.has(project.id)
+    ) {
+      continue
+    }
+    completeTeams.set(
+      project.id,
+      await fetchCompleteProjectTeams(project.id, project.teams),
+    )
+  }
+
+  if (completeTeams.size === 0) return issues
+  return issues.map((issue) => {
+    const project = issue.project
+    if (project == null) return issue
+    const teams = completeTeams.get(project.id)
+    return teams == null ? issue : { ...issue, project: { ...project, teams } }
+  })
 }
 
 function buildWorkflowStateFilter(
@@ -1226,6 +1308,7 @@ export interface FetchIssuesForQueryOptions {
   createdAfter?: string
   updatedAfter?: string
   includeArchived?: boolean
+  includeDoctorMetadata?: boolean
 }
 
 export async function fetchIssuesForQuery(
@@ -1348,6 +1431,7 @@ export async function fetchIssuesForQuery(
         first: pageSize,
         after,
         includeArchived: options.includeArchived,
+        includeDoctorMetadata: options.includeDoctorMetadata === true,
       },
     )
 
@@ -1361,8 +1445,12 @@ export async function fetchIssuesForQuery(
     }
   }
 
+  const nodes = options.includeDoctorMetadata === true
+    ? await completeDoctorProjectTeams(allNodes)
+    : allNodes
+
   return {
-    nodes: fetchAll ? allNodes : allNodes.slice(0, limit),
+    nodes: fetchAll ? nodes : nodes.slice(0, limit),
     pageInfo: lastPageInfo,
   }
 }
@@ -1708,24 +1796,41 @@ export async function getProjectOptionsByName(
   const query = gql(/* GraphQL */ `
     query GetProjectIdOptionsByName(
       $name: String!
+      $first: Int
+      $after: String
       $includeArchived: Boolean = false
     ) {
       projects(
         filter: { name: { containsIgnoreCase: $name } }
+        first: 100
+        after: $after
         includeArchived: $includeArchived
       ) {
         nodes {
           id
           name
         }
+        pageInfo {
+          hasNextPage
+          endCursor
+        }
       }
     }
   `)
-  const data = await client.request(query, {
-    name,
-    ...(includeArchived === undefined ? {} : { includeArchived }),
-  })
-  const qResults = data.projects?.nodes || []
+  const qResults: Array<{ id: string; name: string }> = []
+  let hasNextPage = true
+  let after: string | null | undefined = undefined
+  while (hasNextPage) {
+    const data: GetProjectIdOptionsByNameQuery = await client.request(query, {
+      name,
+      first: 100,
+      after,
+      ...(includeArchived === undefined ? {} : { includeArchived }),
+    })
+    qResults.push(...(data.projects?.nodes || []))
+    hasNextPage = data.projects?.pageInfo?.hasNextPage || false
+    after = data.projects?.pageInfo?.endCursor
+  }
   return Object.fromEntries(qResults.map((t) => [t.id, t.name]))
 }
 

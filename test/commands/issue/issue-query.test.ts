@@ -93,6 +93,7 @@ await snapshotTest({
             { manual: { nulls: "last", order: "Ascending" } },
           ],
           first: 50,
+          includeDoctorMetadata: false,
         },
         response: {
           data: {

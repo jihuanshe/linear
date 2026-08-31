@@ -84,9 +84,11 @@ const projectTeamMismatchRule: DoctorRule = {
     if (issue.project == null || issue.team == null) return null
     if (isBacklog(issue) || isTriage(issue)) return null
 
-    if (issue.project.teams.pageInfo.hasNextPage) return null
-    const projectTeams = issue.project.teams.nodes
-    const matchesTeam = projectTeams.some((team) => team.key === issue.team.key)
+    const projectTeams = issue.project.teams
+    if (projectTeams == null || projectTeams.pageInfo.hasNextPage) return null
+    const matchesTeam = projectTeams.nodes.some((team) =>
+      team.key === issue.team.key
+    )
     if (matchesTeam) return null
 
     return finding(

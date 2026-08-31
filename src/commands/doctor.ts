@@ -165,6 +165,7 @@ export const doctorCommand = withUsageMetadata(new Command(), {
               state: history === true ? undefined : ["started", "unstarted"],
               limit: 0,
               includeArchived,
+              includeDoctorMetadata: true,
             }
           }
           doctorScope = { kind: "self", target: "self" }
@@ -179,6 +180,7 @@ export const doctorCommand = withUsageMetadata(new Command(), {
               state: history === true ? undefined : ["started", "unstarted"],
               limit: 0,
               includeArchived,
+              includeDoctorMetadata: true,
             }
           }
           doctorScope = { kind: "team", target: teamKey }
@@ -196,6 +198,7 @@ export const doctorCommand = withUsageMetadata(new Command(), {
               state: history === true ? undefined : ["started", "unstarted"],
               limit: 0,
               includeArchived,
+              includeDoctorMetadata: true,
             }
           }
           doctorScope = { kind: "project", target: target! }
@@ -208,6 +211,7 @@ export const doctorCommand = withUsageMetadata(new Command(), {
               state: history === true ? undefined : ["started", "unstarted"],
               limit: 0,
               includeArchived,
+              includeDoctorMetadata: true,
             }
           }
           doctorScope = { kind: "workspace" }
@@ -232,7 +236,7 @@ export const doctorCommand = withUsageMetadata(new Command(), {
             projectId,
             includeArchived,
           }
-        } else if (scope === "self" && !shouldScanIssues) {
+        } else if (scope === "self") {
           projectOptions = {
             assignee: "self",
             includeHistory: history === true,
