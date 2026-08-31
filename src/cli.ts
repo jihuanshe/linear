@@ -20,6 +20,7 @@ import { apiCommand } from "./commands/api.ts"
 import { updateCommand } from "./commands/update.ts"
 import { uploadCommand } from "./commands/upload.ts"
 import { versionCommand } from "./commands/version.ts"
+import { doctorCommand } from "./commands/doctor.ts"
 import {
   createUsageAction,
   createUsageCommand,
@@ -87,6 +88,7 @@ Environment Variables:
   .command("upload", uploadCommand)
   .command("update", updateCommand)
   .command("version", versionCommand)
+  .command("doctor", doctorCommand)
 
 interface UsageInjectable extends UsageCommandSource {
   hasCommands(): boolean

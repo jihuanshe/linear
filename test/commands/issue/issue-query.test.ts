@@ -93,6 +93,8 @@ await snapshotTest({
             { manual: { nulls: "last", order: "Ascending" } },
           ],
           first: 50,
+          includeProjectTeamMetadata: false,
+          includeEstimationMetadata: false,
         },
         response: {
           data: {

@@ -4,26 +4,27 @@ snapshot[`zero-argument root reuses concise usage navigation 1`] = `
 "linear — Handy linear commands from the command line.
 
 commands:
-  auth                         Manage Linear authentication
-  issue, i                     Manage Linear issues
-  team, t                      Manage Linear teams
-  user, u                      Manage Linear users
-  project, p                   Manage Linear projects
-  project-update, pu           Manage project status updates
-  cycle, cy                    Manage Linear team cycles
-  milestone, m                 Manage Linear project milestones
-  initiative, init             Manage Linear initiatives
-  initiative-update, iu        Manage initiative status updates (timeline posts)
-  label, l                     Manage Linear issue labels
-  document, docs, doc          Manage Linear documents
-  guide [name] [options]       Read version-matched workflow guides [json]
-  completions                  Generate shell completions.
-  config, configure            Interactively generate .linear.toml configuration [writes; interactive]
-  schema [options]             Print the GraphQL schema to stdout [json]
-  api [query] [options]        Make a raw GraphQL API request [writes; json]
-  upload <files...> [options]  Upload files to Linear storage and print their asset URLs for embedding in Markdown [writes; json]
-  update [options]             Update the Linear CLI [writes]
-  version [options]            Show build identity and protocol capabilities [json]
+  auth                               Manage Linear authentication
+  issue, i                           Manage Linear issues
+  team, t                            Manage Linear teams
+  user, u                            Manage Linear users
+  project, p                         Manage Linear projects
+  project-update, pu                 Manage project status updates
+  cycle, cy                          Manage Linear team cycles
+  milestone, m                       Manage Linear project milestones
+  initiative, init                   Manage Linear initiatives
+  initiative-update, iu              Manage initiative status updates (timeline posts)
+  label, l                           Manage Linear issue labels
+  document, docs, doc                Manage Linear documents
+  guide [name] [options]             Read version-matched workflow guides [json]
+  completions                        Generate shell completions.
+  config, configure                  Interactively generate .linear.toml configuration [writes; interactive]
+  schema [options]                   Print the GraphQL schema to stdout [json]
+  api [query] [options]              Make a raw GraphQL API request [writes; json]
+  upload <files...> [options]        Upload files to Linear storage and print their asset URLs for embedding in Markdown [writes; json]
+  update [options]                   Update the Linear CLI [writes]
+  version [options]                  Show build identity and protocol capabilities [json]
+  doctor <scope> [target] [options]  检查 Linear 任务和项目中的常见问题（只读） [json]
 
 global options:
   -h, --help          Show this help.

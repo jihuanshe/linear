@@ -1,0 +1,695 @@
+import { assertEquals } from "@std/assert"
+import { stub } from "@std/testing/mock"
+import { doctorCommand } from "../../src/commands/doctor.ts"
+import { setupMockLinearServer } from "../utils/test-helpers.ts"
+
+const baseIssue = {
+  id: "issue-1",
+  identifier: "JHS-101",
+  title: "治理测试 Issue",
+  url: "https://linear.app/test/issue/JHS-101/governance-test",
+  priority: 2,
+  priorityLabel: "High",
+  estimate: 2,
+  createdAt: "2026-08-01T00:00:00.000Z",
+  updatedAt: "2026-08-29T00:00:00.000Z",
+  state: {
+    id: "state-1",
+    name: "In Progress",
+    color: "#f2c94c",
+    type: "started",
+  },
+  assignee: {
+    id: "user-1",
+    name: "alex",
+    displayName: "Alex",
+    initials: "AL",
+  },
+  team: {
+    id: "team-1",
+    key: "JHS",
+    name: "集换社",
+    cyclesEnabled: true,
+    issueEstimationType: "fibonacci",
+    activeCycle: { number: 16 },
+  },
+  project: {
+    id: "project-1",
+    name: "治理项目",
+    teams: {
+      nodes: [{ key: "JHS" }],
+      pageInfo: { hasNextPage: false, endCursor: null },
+    },
+  },
+  projectMilestone: null,
+  cycle: {
+    id: "cycle-1",
+    number: 16,
+    name: "Cycle 16",
+    isActive: true,
+    isNext: false,
+    isPrevious: false,
+    isFuture: false,
+    isPast: false,
+  },
+  labels: { nodes: [] },
+  inverseRelations: { nodes: [] },
+}
+
+type TestProject = Omit<typeof baseIssue.project, "teams"> & {
+  teams: {
+    nodes: Array<{ key: string }>
+    pageInfo: { hasNextPage: boolean; endCursor: string | null }
+  }
+}
+
+type TestIssue = Omit<typeof baseIssue, "project"> & {
+  project: TestProject | null
+}
+
+function issueResponse(issue: TestIssue = baseIssue) {
+  return {
+    data: {
+      issues: {
+        nodes: [issue],
+        pageInfo: { hasNextPage: false, endCursor: null },
+      },
+    },
+  }
+}
+
+function issueQueryVariables(
+  includeArchived?: boolean,
+  includeProjectTeamMetadata = true,
+  includeEstimationMetadata = true,
+) {
+  return {
+    sort: [
+      { workflowState: { order: "Descending" } },
+      { priority: { nulls: "last", order: "Descending" } },
+      { manual: { nulls: "last", order: "Ascending" } },
+    ],
+    filter: {
+      assignee: { id: { eq: "user-1" } },
+      state: { type: { in: ["started", "unstarted"] } },
+    },
+    first: 100,
+    includeProjectTeamMetadata,
+    includeEstimationMetadata,
+    ...(includeArchived === undefined ? {} : { includeArchived }),
+  }
+}
+
+Deno.test("Doctor command outputs a complete JSON report", async () => {
+  const { cleanup } = await setupMockLinearServer([
+    {
+      queryName: "GetViewerId",
+      response: { data: { viewer: { id: "user-1" } } },
+    },
+    {
+      queryName: "GetIssuesForQuery",
+      variables: issueQueryVariables(),
+      response: issueResponse(),
+    },
+    {
+      queryName: "GetProjectsForDoctor",
+      variables: {
+        filter: {
+          status: { type: { in: ["started", "planned"] } },
+          issues: {
+            some: {
+              assignee: { id: { eq: "user-1" } },
+              state: { type: { in: ["started", "unstarted"] } },
+            },
+          },
+        },
+      },
+      response: {
+        data: {
+          projects: {
+            nodes: [],
+            pageInfo: { hasNextPage: false, endCursor: null },
+          },
+        },
+      },
+    },
+  ])
+  const logs: string[] = []
+  const logStub = stub(console, "log", (...args: unknown[]) => {
+    logs.push(args.map(String).join(" "))
+  })
+
+  try {
+    await doctorCommand.parse(["self", "--json"])
+  } finally {
+    logStub.restore()
+    await cleanup()
+  }
+
+  const report = JSON.parse(logs.join(""))
+  assertEquals(report.schemaVersion, 1)
+  assertEquals(report.scope, { kind: "self", target: "self" })
+  assertEquals(report.scanned.issueCount, 1)
+  assertEquals(report.summary.findingCount, 0)
+  assertEquals(report.strategySummaries.length, 4)
+  assertEquals(
+    report.strategySummaries.map((strategy: { id: string }) => strategy.id),
+    [
+      "execution-readiness",
+      "project-pulse",
+      "ownership-and-classification",
+      "flow-progress",
+    ],
+  )
+  assertEquals(report.findings, [])
+})
+
+Deno.test("Doctor command shows title and human recommendation", async () => {
+  const { cleanup } = await setupMockLinearServer([
+    {
+      queryName: "GetViewerId",
+      response: { data: { viewer: { id: "user-1" } } },
+    },
+    {
+      queryName: "GetIssuesForQuery",
+      variables: issueQueryVariables(undefined, false, false),
+      response: issueResponse({
+        ...baseIssue,
+        project: null,
+      }),
+    },
+    {
+      queryName: "GetProjectsForDoctor",
+      response: {
+        data: {
+          projects: {
+            nodes: [],
+            pageInfo: { hasNextPage: false, endCursor: null },
+          },
+        },
+      },
+    },
+  ])
+  const logs: string[] = []
+  const logStub = stub(console, "log", (...args: unknown[]) => {
+    logs.push(args.map(String).join(" "))
+  })
+
+  try {
+    await doctorCommand.parse(["self", "--rule", "missing-project"])
+  } finally {
+    logStub.restore()
+    await cleanup()
+  }
+
+  const output = logs.join("\n")
+  assertEquals(output.includes("JHS-101"), true)
+  assertEquals(output.includes("治理测试 Issue"), true)
+  assertEquals(output.includes("项目=-"), true)
+  assertEquals(output.includes("请为该任务指定项目"), true)
+})
+
+Deno.test("Doctor command reports stale Project Updates", async () => {
+  const { cleanup } = await setupMockLinearServer([
+    {
+      queryName: "GetIssuesForQuery",
+      variables: issueQueryVariables(undefined, false, false),
+      response: issueResponse(),
+    },
+    {
+      queryName: "GetViewerId",
+      response: { data: { viewer: { id: "user-1" } } },
+    },
+    {
+      queryName: "GetProjectsForDoctor",
+      response: {
+        data: {
+          projects: {
+            nodes: [{
+              id: "project-1",
+              name: "治理项目",
+              createdAt: "2026-01-01T00:00:00.000Z",
+              startedAt: "2026-01-01T00:00:00.000Z",
+              status: { name: "Started", type: "started" },
+              health: "onTrack",
+              healthUpdatedAt: "2026-01-01T00:00:00.000Z",
+              lastUpdate: {
+                createdAt: "2026-01-01T00:00:00.000Z",
+                updatedAt: "2026-01-01T00:00:00.000Z",
+                health: "onTrack",
+                isStale: false,
+              },
+            }],
+            pageInfo: { hasNextPage: false, endCursor: null },
+          },
+        },
+      },
+    },
+  ])
+  const logs: string[] = []
+  const logStub = stub(console, "log", (...args: unknown[]) => {
+    logs.push(args.map(String).join(" "))
+  })
+
+  try {
+    await doctorCommand.parse([
+      "self",
+      "--rule",
+      "stale-project-update",
+      "--stale-days",
+      "1",
+    ])
+  } finally {
+    logStub.restore()
+    await cleanup()
+  }
+
+  const output = logs.join("\n")
+  assertEquals(output.includes("项目"), true)
+  assertEquals(output.includes("治理项目"), true)
+  assertEquals(output.includes("项目更新过期"), true)
+  assertEquals(output.includes("项目更新=2026-01-01"), true)
+})
+
+Deno.test("Doctor validates an explicit project UUID before scanning", async () => {
+  const { cleanup } = await setupMockLinearServer([
+    {
+      queryName: "GetDoctorProjectTarget",
+      variables: {
+        id: "00000000-0000-4000-8000-000000000000",
+        includeArchived: false,
+      },
+      response: { data: { projects: { nodes: [] } } },
+    },
+  ])
+  const errorLogs: string[] = []
+  const errorStub = stub(console, "error", (...args: unknown[]) => {
+    errorLogs.push(args.map(String).join(" "))
+  })
+  const exitStub = stub(Deno, "exit", (_code?: number): never => {
+    throw new Error("EXIT")
+  })
+
+  try {
+    await doctorCommand.parse([
+      "project",
+      "00000000-0000-4000-8000-000000000000",
+    ])
+  } catch (error) {
+    if (!(error instanceof Error) || error.message !== "EXIT") throw error
+  } finally {
+    errorStub.restore()
+    exitStub.restore()
+    await cleanup()
+  }
+
+  assertEquals(
+    errorLogs.some((line) =>
+      line.includes(
+        "Project not found: 00000000-0000-4000-8000-000000000000",
+      )
+    ),
+    true,
+  )
+  assertEquals(
+    errorLogs.some((line) => line.includes("Failed to check Linear data")),
+    true,
+  )
+})
+
+Deno.test("Doctor skips issue scanning when only a project rule is selected", async () => {
+  const { cleanup } = await setupMockLinearServer([
+    {
+      queryName: "GetDoctorProjectTarget",
+      variables: {
+        id: "550e8400-e29b-41d4-a716-446655440010",
+        includeArchived: true,
+      },
+      response: {
+        data: {
+          projects: {
+            nodes: [{ id: "550e8400-e29b-41d4-a716-446655440010" }],
+          },
+        },
+      },
+    },
+    {
+      queryName: "GetProjectsForDoctor",
+      response: {
+        data: {
+          projects: {
+            nodes: [{
+              id: "550e8400-e29b-41d4-a716-446655440010",
+              name: "治理项目",
+              createdAt: "2026-01-01T00:00:00.000Z",
+              startedAt: "2026-01-01T00:00:00.000Z",
+              status: { name: "Started", type: "started" },
+              health: "atRisk",
+              healthUpdatedAt: "2026-08-29T00:00:00.000Z",
+              lastUpdate: {
+                createdAt: "2026-08-29T00:00:00.000Z",
+                updatedAt: "2026-08-29T00:00:00.000Z",
+                health: "atRisk",
+                isStale: false,
+              },
+            }],
+            pageInfo: { hasNextPage: false, endCursor: null },
+          },
+        },
+      },
+    },
+  ])
+  const logs: string[] = []
+  const logStub = stub(console, "log", (...args: unknown[]) => {
+    logs.push(args.map(String).join(" "))
+  })
+
+  try {
+    await doctorCommand.parse([
+      "project",
+      "550e8400-e29b-41d4-a716-446655440010",
+      "--include-archived",
+      "--rule",
+      "project-health-risk",
+      "--json",
+    ])
+  } finally {
+    logStub.restore()
+    await cleanup()
+  }
+
+  const report = JSON.parse(logs.join(""))
+  assertEquals(report.scanned.issueCount, 0)
+  assertEquals(report.scanned.projectCount, 1)
+  assertEquals(report.findings[0].ruleId, "project-health-risk")
+})
+
+Deno.test("Doctor self project scans exclude terminal issues by default", async () => {
+  const { cleanup } = await setupMockLinearServer([
+    {
+      queryName: "GetViewerId",
+      response: { data: { viewer: { id: "user-1" } } },
+    },
+    {
+      queryName: "GetProjectsForDoctor",
+      variables: {
+        filter: {
+          status: { type: { in: ["started", "planned"] } },
+          issues: {
+            some: {
+              assignee: { id: { eq: "user-1" } },
+              state: { type: { in: ["started", "unstarted"] } },
+            },
+          },
+        },
+      },
+      response: {
+        data: {
+          projects: {
+            nodes: [],
+            pageInfo: { hasNextPage: false, endCursor: null },
+          },
+        },
+      },
+    },
+  ])
+
+  try {
+    await doctorCommand.parse([
+      "self",
+      "--rule",
+      "project-health-risk",
+      "--json",
+    ])
+  } finally {
+    await cleanup()
+  }
+})
+
+Deno.test("Doctor completes project team pagination before checking membership", async () => {
+  const { cleanup } = await setupMockLinearServer([
+    {
+      queryName: "GetViewerId",
+      response: { data: { viewer: { id: "user-1" } } },
+    },
+    {
+      queryName: "GetIssuesForQuery",
+      variables: issueQueryVariables(undefined, true, false),
+      response: issueResponse({
+        ...baseIssue,
+        project: {
+          ...baseIssue.project,
+          teams: {
+            nodes: [{ key: "ARCH" }],
+            pageInfo: { hasNextPage: true, endCursor: "team-cursor-1" },
+          },
+        },
+      }),
+    },
+    {
+      queryName: "GetProjectTeamsForDoctor",
+      variables: {
+        id: "project-1",
+        first: 100,
+        after: "team-cursor-1",
+      },
+      response: {
+        data: {
+          project: {
+            teams: {
+              nodes: [{ key: "JHS" }],
+              pageInfo: { hasNextPage: false, endCursor: null },
+            },
+          },
+        },
+      },
+    },
+  ])
+  const logs: string[] = []
+  const logStub = stub(console, "log", (...args: unknown[]) => {
+    logs.push(args.map(String).join(" "))
+  })
+
+  try {
+    await doctorCommand.parse([
+      "self",
+      "--rule",
+      "project-team-mismatch",
+      "--json",
+    ])
+  } finally {
+    logStub.restore()
+    await cleanup()
+  }
+
+  const report = JSON.parse(logs.join(""))
+  assertEquals(report.findings, [])
+})
+
+Deno.test("Doctor includes archived teams in project membership checks", async () => {
+  const { cleanup } = await setupMockLinearServer([
+    {
+      queryName: "GetViewerId",
+      response: { data: { viewer: { id: "user-1" } } },
+    },
+    {
+      queryName: "GetIssuesForQuery",
+      variables: issueQueryVariables(true, true, false),
+      queryIncludes: "includeArchived: $includeArchived",
+      response: issueResponse({
+        ...baseIssue,
+        project: {
+          ...baseIssue.project,
+          teams: {
+            nodes: [{ key: "ARCH" }],
+            pageInfo: { hasNextPage: true, endCursor: "team-cursor-archived" },
+          },
+        },
+      }),
+    },
+    {
+      queryName: "GetProjectTeamsForDoctor",
+      variables: {
+        id: "project-1",
+        first: 100,
+        after: "team-cursor-archived",
+        includeArchived: true,
+      },
+      queryIncludes: "includeArchived: $includeArchived",
+      response: {
+        data: {
+          project: {
+            teams: {
+              nodes: [{ key: "JHS" }],
+              pageInfo: { hasNextPage: false, endCursor: null },
+            },
+          },
+        },
+      },
+    },
+  ])
+  const logs: string[] = []
+  const logStub = stub(console, "log", (...args: unknown[]) => {
+    logs.push(args.map(String).join(" "))
+  })
+
+  try {
+    await doctorCommand.parse([
+      "self",
+      "--include-archived",
+      "--rule",
+      "project-team-mismatch",
+      "--json",
+    ])
+  } finally {
+    logStub.restore()
+    await cleanup()
+  }
+
+  const report = JSON.parse(logs.join(""))
+  assertEquals(report.findings, [])
+})
+
+Deno.test("Doctor rejects duplicate project names across pages", async () => {
+  const { cleanup } = await setupMockLinearServer([
+    {
+      queryName: "GetProjectIdOptionsByName",
+      variables: {
+        name: "Duplicate Project",
+        includeArchived: false,
+        first: 100,
+        after: undefined,
+      },
+      response: {
+        data: {
+          projects: {
+            nodes: [{ id: "project-1", name: "Duplicate Project" }],
+            pageInfo: { hasNextPage: true, endCursor: "project-cursor-1" },
+          },
+        },
+      },
+    },
+    {
+      queryName: "GetProjectIdOptionsByName",
+      variables: {
+        name: "Duplicate Project",
+        includeArchived: false,
+        first: 100,
+        after: "project-cursor-1",
+      },
+      response: {
+        data: {
+          projects: {
+            nodes: [{ id: "project-2", name: "Duplicate Project" }],
+            pageInfo: { hasNextPage: false, endCursor: null },
+          },
+        },
+      },
+    },
+  ])
+  const errorLogs: string[] = []
+  const errorStub = stub(console, "error", (...args: unknown[]) => {
+    errorLogs.push(args.map(String).join(" "))
+  })
+  const exitStub = stub(Deno, "exit", (_code?: number): never => {
+    throw new Error("EXIT")
+  })
+
+  try {
+    await doctorCommand.parse([
+      "project",
+      "Duplicate Project",
+      "--rule",
+      "project-health-risk",
+    ])
+  } catch (error) {
+    if (!(error instanceof Error) || error.message !== "EXIT") throw error
+  } finally {
+    errorStub.restore()
+    exitStub.restore()
+    await cleanup()
+  }
+
+  assertEquals(
+    errorLogs.some((line) =>
+      line.includes("Project name is ambiguous: Duplicate Project")
+    ),
+    true,
+  )
+})
+
+Deno.test("Doctor resolves archived project names when requested", async () => {
+  const { cleanup } = await setupMockLinearServer([
+    {
+      queryName: "GetProjectIdOptionsByName",
+      variables: { name: "Archived Project", includeArchived: true },
+      response: {
+        data: {
+          projects: {
+            nodes: [{
+              id: "project-archived",
+              name: "Archived Project",
+            }],
+            pageInfo: { hasNextPage: false, endCursor: null },
+          },
+        },
+      },
+    },
+    {
+      queryName: "GetProjectsForDoctor",
+      variables: {
+        filter: {
+          id: { eq: "project-archived" },
+          status: { type: { in: ["started", "planned"] } },
+        },
+        first: 100,
+        includeArchived: true,
+      },
+      response: {
+        data: {
+          projects: {
+            nodes: [{
+              id: "project-archived",
+              name: "Archived Project",
+              createdAt: "2026-01-01T00:00:00.000Z",
+              startedAt: "2026-01-01T00:00:00.000Z",
+              status: { name: "Started", type: "started" },
+              health: "atRisk",
+              healthUpdatedAt: "2026-08-29T00:00:00.000Z",
+              lastUpdate: {
+                createdAt: "2026-08-29T00:00:00.000Z",
+                updatedAt: "2026-08-29T00:00:00.000Z",
+                health: "atRisk",
+                isStale: false,
+              },
+            }],
+            pageInfo: { hasNextPage: false, endCursor: null },
+          },
+        },
+      },
+    },
+  ])
+  const logs: string[] = []
+  const logStub = stub(console, "log", (...args: unknown[]) => {
+    logs.push(args.map(String).join(" "))
+  })
+
+  try {
+    await doctorCommand.parse([
+      "project",
+      "Archived Project",
+      "--include-archived",
+      "--rule",
+      "project-health-risk",
+      "--json",
+    ])
+  } finally {
+    logStub.restore()
+    await cleanup()
+  }
+
+  const report = JSON.parse(logs.join(""))
+  assertEquals(report.scope, { kind: "project", target: "Archived Project" })
+  assertEquals(report.scanned.projectCount, 1)
+  assertEquals(report.findings[0].project.name, "Archived Project")
+})
