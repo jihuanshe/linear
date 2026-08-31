@@ -9,7 +9,7 @@ commands:
 
 # Schema 发现与 GraphQL 查询
 
-常见领域操作、名称解析和安全写入使用专用命令。精确字段选择、批量正文、少见 filter 和跨实体只读查询直接使用 `linear api`；这些临时读取形状不需要先扩建 typed command。raw mutation 不拥有专用写命令的输入保护与结果核算，仍是没有专用原语时的最后手段。当前 schema 虽然已有 `issueBatchUpdate`，CLI 没有把它做成永久批量命令；一次性脚本可在审批后调用它，规则和流程见 [automation](automation.md)。
+常见领域操作、名称解析和安全写入使用专用命令。精确字段选择、少见 filter 和跨实体只读查询直接使用 `linear api`；这些临时读取形状不需要先扩建 typed command。raw mutation 不拥有专用写命令的输入保护与结果核算，仍是没有专用原语时的最后手段。当前 schema 虽然已有 `issueBatchUpdate`，CLI 没有把它做成永久批量命令；它不能替代已有的专用写命令，规则和流程见 [automation](automation.md)。
 
 ## 发现 schema
 
@@ -71,33 +71,11 @@ GRAPHQL
 
 `--paginate` 会读取到 connection 结束，只在确实需要完整集合时使用；只需样本时省略该 flag，并把 `first` 设为明确上限。字段投影、分组和重排继续用 `jq`、Python 或调用宿主，不在 CLI 内重造查询语言。
 
-## 按相同补丁批量更新
+## 批量修改 Issue
 
-`issueBatchUpdate` 的 `ids` 必须是 Issue UUID，不是 `JHS-123` 这样的 identifier；一次最多 50 个 Issue。它把同一个 `IssueUpdateInput` 应用到整批对象，因此先在脚本中按完全相同的目标值分组。名称到 UUID 的解析、审批和写前重读不能省略。
+当前 CLI 没有专用的批量 Issue 更新原语。对于 `issue update` 已支持的字段（例如 Priority、Estimate），脚本必须逐条调用 `issue update`，保留它的名称解析和输入校验。没有批量命令不是改用 raw mutation 的理由。
 
-写入前先确认当前凭据对应的 workspace，再执行 mutation：
-
-```bash
-LINEAR_PROMPT_DISABLED=1 linear auth whoami --json >whoami.json
-jq -e '.organization.urlKey == "expected-workspace"' whoami.json >/dev/null
-
-linear api \
-  --variables-json '{"ids":["issue-uuid-1","issue-uuid-2"],"input":{"priority":4,"estimate":1}}' <<'GRAPHQL'
-mutation BatchUpdateIssues($ids: [UUID!]!, $input: IssueUpdateInput!) {
-  issueBatchUpdate(ids: $ids, input: $input) {
-    success
-    issues {
-      id
-      identifier
-      priority
-      estimate
-    }
-  }
-}
-GRAPHQL
-```
-
-脚本必须检查 `data.issueBatchUpdate.success` 和返回的 Issue 集合，不能只看 `linear api` 的退出码；GraphQL 的语义失败可能仍然是 HTTP 200。每批写完后，用 [automation](automation.md) 中的完整查询一次读回目标字段。超时、网络错误或结果不完整时停止后续批次并先对账，不自动重试。
+schema 虽然提供 `issueBatchUpdate`，但它不是 CLI 的批量原语；不要通过 `linear api` 用它替代 `issue update`。如果以后需要 CLI 尚未覆盖的批量写入，必须先提供保留同等名称解析、输入校验和读回保障的专用原语。
 
 ## 拆分查询
 

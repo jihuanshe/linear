@@ -39,13 +39,13 @@ linear usage --json       # 机器可读的命令树（含 writes/interactive/co
 
 命令名相近不代表责任相同。稳定命令负责一个资源或一个明确的协议边界；一次性跨对象组合由 [automation](automation.md) 指南中的临时脚本编排，不为它增加永久命令。
 
-| 需求                 | 优先使用                                               | 不要混用                             |
-| -------------------- | ------------------------------------------------------ | ------------------------------------ |
-| 按多个条件读取任务   | `issue query`                                          | 不为每种筛选组合新增命令             |
-| 修改一个任务         | `issue update`                                         | 不用 raw mutation 绕过名称解析和校验 |
-| 修改项目本身         | `project update`                                       | 不要把项目状态更新当成 Project 字段  |
-| 发布项目状态更新     | `project-update create/list`                           | 不要用 `project update` 代替 Pulse   |
-| 一批任务使用相同补丁 | `linear api` 的 `issueBatchUpdate`，由临时脚本分批调用 | 不要并发堆叠多个单条 `issue update`  |
+| 需求                 | 优先使用                                                | 不要混用                               |
+| -------------------- | ------------------------------------------------------- | -------------------------------------- |
+| 按多个条件读取任务   | `issue query`                                           | 不为每种筛选组合新增命令               |
+| 修改一个任务         | `issue update`                                          | 不用 raw mutation 绕过名称解析和校验   |
+| 修改项目本身         | `project update`                                        | 不要把项目状态更新当成 Project 字段    |
+| 发布项目状态更新     | `project-update create/list`                            | 不要用 `project update` 代替 Pulse     |
+| 一批任务使用相同补丁 | 由临时脚本逐条调用 `issue update`，保留命令的解析和校验 | 不用 `issueBatchUpdate` 绕过专用写命令 |
 
 `issue mine` 仍是带默认待办范围以及 `--web` / `--app` 的便利入口。需要明确筛选、跨团队读取或机器处理时，改用 `issue query --assignee self`，跨团队再加 `--all-teams`。`initiative update` 与 `initiative-update create/list` 也分别对应 Initiative 本身和状态更新，不能仅按名称合并。
 

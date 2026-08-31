@@ -100,7 +100,7 @@ AI 准备材料需要时间，期间上游对象可能已被他人修改。多�
 | 计划 | 脚本按标题、现有字段和证据生成表格或 `patch.json`                            | 否         |
 | 审批 | 人确认每个补丁的目标值；未确认的条目留在计划中                               | 否         |
 | 复核 | 写入前用 `auth whoami --json` 核对 workspace，并重读目标，发现基线变化就停止 | 否         |
-| 写入 | 相同补丁分组后调用 schema 中的 `issueBatchUpdate`，每批最多 50 个 Issue      | 是         |
+| 写入 | 已有专用命令的字段逐条调用该命令；只有专用命令未覆盖的长尾操作才用 GraphQL   | 是         |
 | 验证 | 用同一批目标做一次结构化读回，按 identifier 比较本次字段                     | 否         |
 
 读取示例：
@@ -111,8 +111,8 @@ LINEAR_PROMPT_DISABLED=1 linear issue query \
   --all-teams --assignee self --limit 0 --json >issues.json
 ```
 
-脚本默认只生成计划，不把 finding 当作写入指令。相同 `input` 的条目可以合并成一批；不同目标值必须分组，不能为了减少请求而覆盖成同一个值。批量 mutation 的具体形状见 [graphql](graphql.md)。
+脚本默认只生成计划，不把 finding 当作写入指令。已有专用写命令的字段逐条调用该命令；只有专用命令未覆盖、且确实需要 GraphQL mutation 时，目标值完全相同的条目才可以合并成一批。不同目标值必须分组，不能为了减少请求而覆盖成同一个值。批量修改 Issue 的边界见 [graphql](graphql.md)。
 
-优先让脚本调用 `linear api`，这样凭据仍由 CLI 解析，脚本不需要接触 token。只有直接 HTTP 确有必要时，才在进程内通过 `linear auth token` 读取 token；不要把 token 写入文件、日志、`.env` 或命令行参数。
+优先让脚本调用专用 CLI 命令，这样名称解析和输入校验仍由 CLI 负责。只有目标 mutation 没有专用命令覆盖时才调用 `linear api`，凭据仍由 CLI 解析，脚本不需要接触 token。只有直接 HTTP 确有必要时，才在进程内通过 `linear auth token` 读取 token；不要把 token 写入文件、日志、`.env` 或命令行参数。
 
 批量写入遇到网络错误、超时或响应无法确认时，停止后续批次，先读回对账；不要把未知结果当成「未写入」再重试。
