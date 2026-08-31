@@ -639,6 +639,11 @@ type AgentSession implements Node {
   issue: Issue
 
   """
+  [Internal] How Adaptive selected the model route used by this coding session.
+  """
+  modelSelection: JSON
+
+  """
   A dynamically updated plan describing the agent's execution strategy, including steps to be taken and their current status. Updated as the agent progresses through its work. Null if no plan has been set.
   """
   plan: JSON
@@ -1366,6 +1371,7 @@ type AiConversationCreateEntityToolCallArgs {
 }
 
 type AiConversationCreateEntityToolCallResult {
+  createdEntities: [AiConversationSearchEntitiesToolCallResultEntities!]
   startedAgentSessions: [AiConversationSearchEntitiesToolCallResultEntities!]
 }
 
@@ -1465,6 +1471,11 @@ union AiConversationElicitationResponseData = AiConversationMcpServerConnectionE
 
 """A structured user response to an elicitation in an AI conversation."""
 type AiConversationElicitationResponsePart implements AiConversationBasePart {
+  """
+  Additional user-authored commentary submitted with the response. For a response batch, only the first response contains it. Null when none was provided.
+  """
+  bodyData: JSONObject
+
   """The kind-specific response data."""
   data: AiConversationElicitationResponseData!
 
@@ -1603,6 +1614,7 @@ type AiConversationEntityListWidgetArgsEntities {
 
 """[Internal] The entity type"""
 enum AiConversationEntityListWidgetArgsEntitiesType {
+  AgentSession
   AiPrompt
   AiPromptRules
   CustomView
@@ -2016,6 +2028,30 @@ enum AiConversationPartType {
   widgetPlaceholder
 }
 
+type AiConversationPostChatMessageToolCall implements AiConversationBaseToolCall {
+  """The arguments to the tool call."""
+  args: AiConversationPostChatMessageToolCallArgs
+  displayInfo: AiConversationToolDisplayInfo!
+
+  """The name of the tool that was called."""
+  name: AiConversationTool!
+
+  """The arguments of the tool call."""
+  rawArgs: JSON
+
+  """The result of the tool call."""
+  rawResult: JSON
+}
+
+type AiConversationPostChatMessageToolCallArgs {
+  platform: AiConversationPostChatMessageToolCallArgsPlatform!
+}
+
+enum AiConversationPostChatMessageToolCallArgsPlatform {
+  microsoftTeams
+  slack
+}
+
 type AiConversationPromptCodingSessionToolCall implements AiConversationBaseToolCall {
   """The arguments to the tool call."""
   args: AiConversationPromptCodingSessionToolCallArgs
@@ -2186,6 +2222,25 @@ type AiConversationReadSandboxFileToolCall implements AiConversationBaseToolCall
 
 type AiConversationReadSandboxFileToolCallArgs {
   path: String!
+}
+
+type AiConversationReadSettingToolCall implements AiConversationBaseToolCall {
+  """The arguments to the tool call."""
+  args: AiConversationReadSettingToolCallArgs
+  displayInfo: AiConversationToolDisplayInfo!
+
+  """The name of the tool that was called."""
+  name: AiConversationTool!
+
+  """The arguments of the tool call."""
+  rawArgs: JSON
+
+  """The result of the tool call."""
+  rawResult: JSON
+}
+
+type AiConversationReadSettingToolCallArgs {
+  id: String!
 }
 
 """A reasoning part in an AI conversation."""
@@ -2360,6 +2415,26 @@ type AiConversationSearchEntitiesToolCallResultEntities {
   type: String!
 }
 
+type AiConversationSearchSettingsToolCall implements AiConversationBaseToolCall {
+  """The arguments to the tool call."""
+  args: AiConversationSearchSettingsToolCallArgs
+  displayInfo: AiConversationToolDisplayInfo!
+
+  """The name of the tool that was called."""
+  name: AiConversationTool!
+
+  """The arguments of the tool call."""
+  rawArgs: JSON
+
+  """The result of the tool call."""
+  rawResult: JSON
+}
+
+type AiConversationSearchSettingsToolCallArgs {
+  parentId: String
+  query: String
+}
+
 type AiConversationSetSpendLimitToolCall implements AiConversationBaseToolCall {
   """The arguments to the tool call."""
   args: AiConversationSetSpendLimitToolCallArgs
@@ -2377,6 +2452,38 @@ type AiConversationSetSpendLimitToolCall implements AiConversationBaseToolCall {
 
 type AiConversationSetSpendLimitToolCallArgs {
   summary: String
+}
+
+type AiConversationSettingWidget implements AiConversationBaseWidget {
+  """The arguments to the widget."""
+  args: AiConversationSettingWidgetArgs
+
+  """
+  Display information for the widget, including ProseMirror and Markdown representations.
+  """
+  displayInfo: AiConversationWidgetDisplayInfo
+
+  """The name of the widget."""
+  name: AiConversationWidgetName!
+
+  """The arguments of the widget."""
+  rawArgs: JSON
+}
+
+type AiConversationSettingWidgetArgs {
+  """The stable semantic setting ID returned by SearchSettings"""
+  id: String!
+
+  """The resolved settings target returned by ReadSetting"""
+  target: AiConversationSettingWidgetArgsTarget
+}
+
+type AiConversationSettingWidgetArgsTarget {
+  """The settings target UUID, when the scope does not imply it"""
+  id: String
+
+  """The settings target entity type"""
+  type: String!
 }
 
 type AiConversationSpawnSubagentToolCall implements AiConversationBaseToolCall {
@@ -2544,12 +2651,14 @@ enum AiConversationTool {
   ListCodingSessions
   NavigateToPage
   NotifyUsers
+  PostChatMessage
   PromptCodingSession
   QueryActivity
   QueryUpdates
   QueryView
   ReadFile
   ReadSandboxFile
+  ReadSetting
   RemoveSpendLimit
   Research
   RestoreEntity
@@ -2557,6 +2666,7 @@ enum AiConversationTool {
   RetryPullRequestCheck
   SearchDocumentation
   SearchEntities
+  SearchSettings
   SetSpendLimit
   SpawnSubagent
   StartCodingSession
@@ -2571,7 +2681,7 @@ enum AiConversationTool {
 }
 
 """The tool call."""
-union AiConversationToolCall = AiConversationBashToolCall | AiConversationCodeIntelligenceToolCall | AiConversationCreateEntityToolCall | AiConversationCreateSandboxToolCall | AiConversationDeleteEntityToolCall | AiConversationGetMicrosoftTeamsConversationHistoryToolCall | AiConversationGetPullRequestCheckLogsToolCall | AiConversationGetPullRequestDiffToolCall | AiConversationGetPullRequestFileToolCall | AiConversationGetSlackConversationHistoryToolCall | AiConversationHandoffToCodingSessionToolCall | AiConversationInvokeMcpToolToolCall | AiConversationListCodingSessionsToolCall | AiConversationNavigateToPageToolCall | AiConversationNotifyUsersToolCall | AiConversationPromptCodingSessionToolCall | AiConversationQueryActivityToolCall | AiConversationQueryUpdatesToolCall | AiConversationQueryViewToolCall | AiConversationReadFileToolCall | AiConversationReadSandboxFileToolCall | AiConversationRemoveSpendLimitToolCall | AiConversationResearchToolCall | AiConversationRestoreEntityToolCall | AiConversationRetrieveEntitiesToolCall | AiConversationRetryPullRequestCheckToolCall | AiConversationSearchDocumentationToolCall | AiConversationSearchEntitiesToolCall | AiConversationSetSpendLimitToolCall | AiConversationSpawnSubagentToolCall | AiConversationStartCodingSessionToolCall | AiConversationSubscribeToEventToolCall | AiConversationSuggestRepositoryToolCall | AiConversationSuggestValuesToolCall | AiConversationTranscribeMediaToolCall | AiConversationTranscribeVideoToolCall | AiConversationUnsubscribeFromEventToolCall | AiConversationUpdateEntityToolCall | AiConversationWebSearchToolCall
+union AiConversationToolCall = AiConversationBashToolCall | AiConversationCodeIntelligenceToolCall | AiConversationCreateEntityToolCall | AiConversationCreateSandboxToolCall | AiConversationDeleteEntityToolCall | AiConversationGetMicrosoftTeamsConversationHistoryToolCall | AiConversationGetPullRequestCheckLogsToolCall | AiConversationGetPullRequestDiffToolCall | AiConversationGetPullRequestFileToolCall | AiConversationGetSlackConversationHistoryToolCall | AiConversationHandoffToCodingSessionToolCall | AiConversationInvokeMcpToolToolCall | AiConversationListCodingSessionsToolCall | AiConversationNavigateToPageToolCall | AiConversationNotifyUsersToolCall | AiConversationPostChatMessageToolCall | AiConversationPromptCodingSessionToolCall | AiConversationQueryActivityToolCall | AiConversationQueryUpdatesToolCall | AiConversationQueryViewToolCall | AiConversationReadFileToolCall | AiConversationReadSandboxFileToolCall | AiConversationReadSettingToolCall | AiConversationRemoveSpendLimitToolCall | AiConversationResearchToolCall | AiConversationRestoreEntityToolCall | AiConversationRetrieveEntitiesToolCall | AiConversationRetryPullRequestCheckToolCall | AiConversationSearchDocumentationToolCall | AiConversationSearchEntitiesToolCall | AiConversationSearchSettingsToolCall | AiConversationSetSpendLimitToolCall | AiConversationSpawnSubagentToolCall | AiConversationStartCodingSessionToolCall | AiConversationSubscribeToEventToolCall | AiConversationSuggestRepositoryToolCall | AiConversationSuggestValuesToolCall | AiConversationTranscribeMediaToolCall | AiConversationTranscribeVideoToolCall | AiConversationUnsubscribeFromEventToolCall | AiConversationUpdateEntityToolCall | AiConversationWebSearchToolCall
 
 """A tool call part in an AI conversation."""
 type AiConversationToolCallPart implements AiConversationBasePart {
@@ -2704,7 +2814,7 @@ type AiConversationWebSearchToolCallArgs {
 }
 
 """The widget."""
-union AiConversationWidget = AiConversationEntityCardWidget | AiConversationEntityListWidget
+union AiConversationWidget = AiConversationEntityCardWidget | AiConversationEntityListWidget | AiConversationSettingWidget
 
 type AiConversationWidgetDisplayInfo {
   """The Markdown representation of the widget content."""
@@ -2718,6 +2828,7 @@ type AiConversationWidgetDisplayInfo {
 enum AiConversationWidgetName {
   EntityCard
   EntityList
+  Setting
 }
 
 """A widget part in an AI conversation."""
@@ -5063,7 +5174,7 @@ A customer organization tracked in Linear's customer management system. Customer
 """
 type Customer implements Node {
   """
-  The approximate count of customer needs (requests) associated with this customer. This is a denormalized counter and may not reflect the exact count at all times.
+  The approximate number of distinct requests associated with this customer, deduplicated per issue or project. This is a denormalized counter and may not reflect the exact count at all times.
   """
   approximateNeedCount: Float!
 
@@ -5582,6 +5693,11 @@ type CustomerNeedNotification implements Entity & Node & Notification {
   """[Internal] Notification avatar URL."""
   actorAvatarUrl: String
 
+  """
+  [Internal] Whether the notification's user actor is deactivated in the workspace.
+  """
+  actorInactive: Boolean!
+
   """[Internal] Notification actor initials if avatar is not available."""
   actorInitials: String
 
@@ -5786,6 +5902,11 @@ type CustomerNotification implements Entity & Node & Notification {
 
   """[Internal] Notification avatar URL."""
   actorAvatarUrl: String
+
+  """
+  [Internal] Whether the notification's user actor is deactivated in the workspace.
+  """
+  actorInactive: Boolean!
 
   """[Internal] Notification actor initials if avatar is not available."""
   actorInitials: String
@@ -7696,7 +7817,7 @@ type DocumentContentHistoryCheckpointType {
   mode: DocumentContentAgentCheckpointMode!
 
   """[Internal] Source metadata associated with the AI document checkpoint."""
-  sourceMetadata: JSON
+  sourceMetadata: JSONObject
 }
 
 type DocumentContentHistoryPayload {
@@ -7728,7 +7849,7 @@ type DocumentContentHistoryType {
   """
   [Internal] The document content as a ProseMirror document at the time this history entry was captured.
   """
-  contentData: JSON
+  contentData: JSONObject
 
   """
   The timestamp of the document content state when this snapshot was captured. This can differ from createdAt because the content is captured from its state at the previously known updatedAt timestamp in the case of an update. On document creation, these timestamps can be identical.
@@ -7749,7 +7870,7 @@ type DocumentContentHistoryType {
   """
   Metadata associated with the history entry, including content diffs and AI-generated change summaries.
   """
-  metadata: JSON
+  metadata: JSONObject
 }
 
 """
@@ -7948,6 +8069,11 @@ type DocumentNotification implements Entity & Node & Notification {
 
   """[Internal] Notification avatar URL."""
   actorAvatarUrl: String
+
+  """
+  [Internal] Whether the notification's user actor is deactivated in the workspace.
+  """
+  actorInactive: Boolean!
 
   """[Internal] Notification actor initials if avatar is not available."""
   actorInitials: String
@@ -8410,6 +8536,11 @@ type Draft implements Node {
   """
   data: JSONObject
 
+  """
+  Metadata about the AI generation of the draft. Null when the draft was not auto-generated. This is a computed field derived from 'data', so clients can read the generation metadata without parsing that payload.
+  """
+  generationMetadata: DraftGenerationMetadata
+
   """The unique identifier of the entity."""
   id: ID!
 
@@ -8424,7 +8555,7 @@ type Draft implements Node {
   initiativeUpdate: InitiativeUpdate
 
   """Whether the draft was autogenerated for the user."""
-  isAutogenerated: Boolean! @deprecated(reason: "Use 'data.generationMetadata' instead")
+  isAutogenerated: Boolean! @deprecated(reason: "Use 'generationMetadata' instead")
 
   """
   The issue for which this is a draft comment. Null if the draft belongs to a different parent entity type.
@@ -8462,6 +8593,11 @@ type Draft implements Node {
   team: Team
 
   """
+  The health status carried by a project update or initiative update draft. Possible values are onTrack, atRisk, or offTrack. Null for other draft types. This is a computed field derived from 'data', so clients can read the health without parsing that payload.
+  """
+  updateHealth: DraftUpdateHealthType
+
+  """
   The last time at which the entity was meaningfully updated. This is the same as the creation time if the entity hasn't
       been updated after creation.
   """
@@ -8484,6 +8620,27 @@ type DraftEdge {
   """Used in `before` and `after` args"""
   cursor: String!
   node: Draft!
+}
+
+"""Metadata about AI-generated draft content."""
+type DraftGenerationMetadata {
+  """The time at which the draft content was generated."""
+  generatedAt: DateTime!
+
+  """The generated text content as a ProseMirror document."""
+  generatedContent: JSONObject!
+
+  """The number of times the draft content has been generated."""
+  generationCount: Int!
+}
+
+"""
+The health status carried by a project update or initiative update draft.
+"""
+enum DraftUpdateHealthType {
+  atRisk
+  offTrack
+  onTrack
 }
 
 """Issue due date sorting options."""
@@ -10481,6 +10638,13 @@ type ImageUploadFromUrlPayload {
   url: String
 }
 
+"""Which Inbox notifications contribute to Inbox badges."""
+enum InboxBadgeScope {
+  all
+  none
+  priority
+}
+
 input InheritanceEntityMapping {
   """Mapping of the IssueLabel ID to the new IssueLabel name."""
   issueLabels: JSONObject
@@ -11584,6 +11748,11 @@ type InitiativeNotification implements Entity & Node & Notification {
 
   """[Internal] Notification avatar URL."""
   actorAvatarUrl: String
+
+  """
+  [Internal] Whether the notification's user actor is deactivated in the workspace.
+  """
+  actorInactive: Boolean!
 
   """[Internal] Notification actor initials if avatar is not available."""
   actorInitials: String
@@ -14298,6 +14467,9 @@ type IssueDraft implements Node {
   """
   projectMilestoneId: String
 
+  """Serialized issue relations to recreate when the draft is published."""
+  relations: JSONObject!
+
   """
   Identifiers of the releases associated with the draft. These releases will be linked to the issue when the draft is published.
   """
@@ -15414,6 +15586,11 @@ type IssueNotification implements Entity & Node & Notification {
 
   """[Internal] Notification avatar URL."""
   actorAvatarUrl: String
+
+  """
+  [Internal] Whether the notification's user actor is deactivated in the workspace.
+  """
+  actorInactive: Boolean!
 
   """[Internal] Notification actor initials if avatar is not available."""
   actorInitials: String
@@ -17183,7 +17360,9 @@ The `JSONObject` scalar type represents arbitrary values as *embedded* JSON
 scalar JSONObject
 
 input JiraConfigurationInput {
-  """The Jira personal access token."""
+  """
+  The Jira personal access token, or the API key of a Jira Cloud service account.
+  """
   accessToken: String!
 
   """
@@ -17196,6 +17375,11 @@ input JiraConfigurationInput {
 
   """Whether this integration will be setup using the manual webhook flow."""
   manualSetup: Boolean
+
+  """
+  Whether the access token is the API key of a Jira Cloud service account. Defaults to detecting the service account key prefix. The site's cloudId is resolved from the hostname, and webhooks are always set up manually.
+  """
+  serviceAccount: Boolean
 }
 
 input JiraFetchProjectStatusesInput {
@@ -17278,6 +17462,11 @@ input JiraSettingsInput {
   customOAuthServerUrl: String
 
   """
+  Whether this integration authenticates with a Jira Cloud service account API key.
+  """
+  isCloudServiceAccount: Boolean
+
+  """
   Whether this integration uses custom OAuth authentication (enterprise SSO).
   """
   isCustomOAuth: Boolean
@@ -17311,13 +17500,15 @@ input JiraSettingsInput {
 }
 
 input JiraUpdateInput {
-  """The Jira personal access token."""
+  """
+  The Jira personal access token, or the API key of a Jira Cloud service account.
+  """
   accessToken: String
 
   """Whether to delete the current manual webhook configuration."""
   deleteWebhook: Boolean
 
-  """The Jira user email address associated with the personal access token."""
+  """The Jira user email address associated with the access token."""
   email: String
 
   """The id of the integration to update."""
@@ -17552,10 +17743,18 @@ type Meeting implements Node {
   """
   project: Project
 
+  """[Internal] The meeting's unique URL slug."""
+  slugId: String!
+
   """
-  [Internal] The analysis-derived meeting summary. Null before analysis produces a summary.
+  [Internal] The meeting summary in markdown format. Null before a summary exists.
   """
   summary: String
+
+  """
+  [Internal] The meeting summary as a Prosemirror document. Null before a summary exists.
+  """
+  summaryData: String
 
   """
   The last time at which the entity was meaningfully updated. This is the same as the creation time if the entity hasn't
@@ -18416,7 +18615,7 @@ type Mutation {
   cycleCreate(
     """The cycle object to create."""
     input: CycleCreateInput!
-  ): CyclePayload!
+  ): CyclePayload! @deprecated(reason: "Cycle creation is not supported.")
 
   """
   Shifts all cycles starts and ends by a certain number of days, starting from the provided cycle onwards.
@@ -19542,7 +19741,7 @@ type Mutation {
     trash: Boolean
   ): IssueArchivePayload!
 
-  """Creates a list of issues in one transaction."""
+  """Creates a list of issues atomically."""
   issueBatchCreate(
     """A list of issue objects to create."""
     input: IssueBatchCreateInput!
@@ -21282,6 +21481,11 @@ interface Notification implements Entity & Node {
 
   """[Internal] Notification avatar URL."""
   actorAvatarUrl: String
+
+  """
+  [Internal] Whether the notification's user actor is deactivated in the workspace.
+  """
+  actorInactive: Boolean!
 
   """[Internal] Notification actor initials if avatar is not available."""
   actorInitials: String
@@ -23043,6 +23247,9 @@ input NullableTemplateFilter {
   """Compound filters, one of which need to be matched by the template."""
   or: [NullableTemplateFilter!]
 
+  """Filters that the template's team must satisfy."""
+  team: NullableTeamFilter
+
   """Comparator for the template's type."""
   type: StringComparator
 
@@ -23458,6 +23665,11 @@ type OauthClientApprovalNotification implements Entity & Node & Notification {
 
   """[Internal] Notification avatar URL."""
   actorAvatarUrl: String
+
+  """
+  [Internal] Whether the notification's user actor is deactivated in the workspace.
+  """
+  actorInactive: Boolean!
 
   """[Internal] Notification actor initials if avatar is not available."""
   actorInitials: String
@@ -25175,6 +25387,11 @@ type PostNotification implements Entity & Node & Notification {
   """[Internal] Notification avatar URL."""
   actorAvatarUrl: String
 
+  """
+  [Internal] Whether the notification's user actor is deactivated in the workspace.
+  """
+  actorInactive: Boolean!
+
   """[Internal] Notification actor initials if avatar is not available."""
   actorInitials: String
 
@@ -25374,6 +25591,11 @@ type ProductAnnouncementNotification implements Entity & Node & Notification {
 
   """[Internal] Notification avatar URL."""
   actorAvatarUrl: String
+
+  """
+  [Internal] Whether the notification's user actor is deactivated in the workspace.
+  """
+  actorInactive: Boolean!
 
   """[Internal] Notification actor initials if avatar is not available."""
   actorInitials: String
@@ -27409,6 +27631,11 @@ type ProjectNotification implements Entity & Node & Notification {
   """[Internal] Notification avatar URL."""
   actorAvatarUrl: String
 
+  """
+  [Internal] Whether the notification's user actor is deactivated in the workspace.
+  """
+  actorInactive: Boolean!
+
   """[Internal] Notification actor initials if avatar is not available."""
   actorInitials: String
 
@@ -28731,6 +28958,11 @@ input ProjectStatusFilter {
   """Filters that the project status projects must satisfy."""
   projects: ProjectCollectionFilter
 
+  """
+  Filters that the project status's team must satisfy. Use `{ null: true }` to filter workspace-level statuses.
+  """
+  team: NullableTeamFilter
+
   """Comparator for the project status type."""
   type: StringComparator
 
@@ -29296,6 +29528,16 @@ type PullRequest implements Node {
   mergedAt: DateTime
 
   """
+  [Internal] The external user who merged the pull request, when the person who merged it is not mapped to a Linear account. Null if the pull request has not been merged or the merger is a Linear user.
+  """
+  mergedByExternalUser: ExternalUser
+
+  """
+  [Internal] The Linear user who merged the pull request. This is the person who merged it, which the hosting provider reports separately from the merge commit's author. Null if the pull request has not been merged, was merged by an external user not mapped to a Linear account, or if that account has been deleted.
+  """
+  mergedByUser: User
+
+  """
   [Internal] The host-qualified external ID of the native stack that contains this pull request. Null if the pull request is not in a native stack or stack data is unavailable.
   """
   nativeStackId: String
@@ -29561,6 +29803,11 @@ type PullRequestNotification implements Entity & Node & Notification {
 
   """[Internal] Notification avatar URL."""
   actorAvatarUrl: String
+
+  """
+  [Internal] Whether the notification's user actor is deactivated in the workspace.
+  """
+  actorInactive: Boolean!
 
   """[Internal] Notification actor initials if avatar is not available."""
   actorInitials: String
@@ -31135,7 +31382,7 @@ type Query {
   ): IssueConnection!
 
   """
-  Returns the latest release for the pipeline associated with the access key.
+  Returns the most recently completed or updated release for the pipeline associated with the access key.
   """
   latestReleaseByAccessKey: AccessKeyRelease
 
@@ -31556,7 +31803,7 @@ type Query {
   rateLimitStatus: RateLimitPayload!
 
   """
-  Returns recent releases for the pipeline associated with the access key, ordered with in-progress releases first, followed by the most recently completed releases.
+  Returns releases for the pipeline associated with the access key, ordered with the most recently completed or updated first.
   """
   recentReleasesByAccessKey(
     """
@@ -32029,6 +32276,20 @@ type Query {
     """The identifier of the template to retrieve."""
     id: String!
   ): Template!
+
+  """
+  Templates matching a filter, in the order they appear in the app. Filter on a null team to return only workspace-level templates.
+  """
+  templateSearch(
+    """Filter to apply to the template results."""
+    filter: TemplateFilter
+
+    """Maximum results. Capped at 250."""
+    first: Int = 50
+
+    """Should archived resources be included (default: false)."""
+    includeArchived: Boolean = false
+  ): [Template!]!
 
   """
   All templates in the workspace, including both team-scoped and workspace-level templates.
@@ -37232,6 +37493,11 @@ type Template implements Node {
   """
   color: String
 
+  """
+  The template's content in markdown format: the body it pre-fills on the entity it creates. Distinct from `description`, which says what the template is for. Form templates serialize their form fields as markdown placeholders instead. Null when the template has no content.
+  """
+  content: String
+
   """The time at which the entity was created."""
   createdAt: DateTime!
 
@@ -37358,6 +37624,36 @@ type TemplateEdge {
   """Used in `before` and `after` args"""
   cursor: String!
   node: Template!
+}
+
+"""Template filtering options."""
+input TemplateFilter {
+  """Compound filters, all of which need to be matched by the template."""
+  and: [TemplateFilter!]
+
+  """Comparator for the created at date."""
+  createdAt: DateComparator
+
+  """Comparator for the identifier."""
+  id: IDComparator
+
+  """Comparator for the inherited template's ID."""
+  inheritedFromId: IDComparator
+
+  """Comparator for the template's name."""
+  name: StringComparator
+
+  """Compound filters, one of which need to be matched by the template."""
+  or: [TemplateFilter!]
+
+  """Filters that the template's team must satisfy."""
+  team: NullableTeamFilter
+
+  """Comparator for the template's type."""
+  type: StringComparator
+
+  """Comparator for the updated at date."""
+  updatedAt: DateComparator
 }
 
 """The result of a template mutation."""
@@ -37902,6 +38198,11 @@ type UsageAlertNotification implements Entity & Node & Notification {
 
   """[Internal] Notification avatar URL."""
   actorAvatarUrl: String
+
+  """
+  [Internal] Whether the notification's user actor is deactivated in the workspace.
+  """
+  actorInactive: Boolean!
 
   """[Internal] Notification actor initials if avatar is not available."""
   actorInitials: String
@@ -38930,6 +39231,11 @@ input UserSettingsUpdateInput {
 
   """[Internal] How often to generate a feed summary."""
   feedSummarySchedule: FeedSummarySchedule
+
+  """
+  [Internal] Which Inbox notifications contribute to Inbox badges. 'all' includes all unread notifications; 'priority' includes only Priority Inbox notifications; 'none' hides the count.
+  """
+  inboxBadgeScope: InboxBadgeScope
 
   """The user's notification category preferences."""
   notificationCategoryPreferences: NotificationCategoryPreferencesInput
@@ -40240,6 +40546,11 @@ type WelcomeMessageNotification implements Entity & Node & Notification {
   """[Internal] Notification avatar URL."""
   actorAvatarUrl: String
 
+  """
+  [Internal] Whether the notification's user actor is deactivated in the workspace.
+  """
+  actorInactive: Boolean!
+
   """[Internal] Notification actor initials if avatar is not available."""
   actorInitials: String
 
@@ -40337,6 +40648,12 @@ type WelcomeMessageNotification implements Entity & Node & Notification {
   welcomeMessageId: String!
 }
 
+enum WorkflowActivationMode {
+  anyUpdate
+  conditionsStartedMatching
+  watchedPropertyChanged
+}
+
 """
 A time-triggered automation workflow definition that executes on a recurring schedule. Cron job definitions are scoped to a team and contain a set of activities (actions) that run automatically according to the configured cron schedule, such as periodically assigning issues or sending notifications.
 """
@@ -40394,6 +40711,11 @@ An automation workflow definition that executes a set of activities when trigger
 """
 type WorkflowDefinition implements Node {
   """
+  The explicit activation semantics for entity updates. When null, the mode is inferred from the legacy trigger fields.
+  """
+  activationMode: WorkflowActivationMode
+
+  """
   The ordered list of activities (actions) that are executed when the workflow triggers, such as updating issue properties, sending notifications, or calling webhooks.
   """
   activities: JSONObject!
@@ -40433,6 +40755,11 @@ type WorkflowDefinition implements Node {
 
   """The description of the workflow."""
   description: String
+
+  """
+  The edit access setting for this workflow definition. When unset, access is derived from restrictEditing.
+  """
+  editAccess: WorkflowDefinitionEditAccess
 
   """
   Whether the workflow is enabled and will execute when its trigger conditions are met.
@@ -40476,7 +40803,7 @@ type WorkflowDefinition implements Node {
   """
   Whether editing the workflow is restricted to its owner, team owners, and workspace administrators.
   """
-  restrictEditing: Boolean!
+  restrictEditing: Boolean! @deprecated(reason: "Use editAccess instead.")
 
   """
   Whether the workflow should only execute once per entity. When true, the workflow is excluded from matching automations for an entity if it has already been executed for that entity.
@@ -40530,6 +40857,13 @@ type WorkflowDefinition implements Node {
   userContextViewType: UserContextViewType
 }
 
+enum WorkflowDefinitionEditAccess {
+  everyone
+  owner
+  teamOwners
+  workspaceAdmins
+}
+
 """Comparator for the workflow definition that created an issue."""
 input WorkflowDefinitionIdComparator {
   """Equals constraint."""
@@ -40564,6 +40898,11 @@ type WorkflowDefinitionNotification implements Entity & Node & Notification {
 
   """[Internal] Notification avatar URL."""
   actorAvatarUrl: String
+
+  """
+  [Internal] Whether the notification's user actor is deactivated in the workspace.
+  """
+  actorInactive: Boolean!
 
   """[Internal] Notification actor initials if avatar is not available."""
   actorInitials: String
@@ -40895,6 +41234,8 @@ input WorkflowStateUpdateInput {
 }
 
 enum WorkflowTrigger {
+  cycleEnded
+  cycleStarted
   entityCreated
   entityCreatedOrUpdated
   entityRemoved
@@ -40903,6 +41244,7 @@ enum WorkflowTrigger {
 }
 
 enum WorkflowTriggerType {
+  cycle
   document
   initiative
   issue
