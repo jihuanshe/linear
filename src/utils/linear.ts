@@ -1633,34 +1633,53 @@ export function isLinearUuid(value: string): boolean {
  */
 export async function getProjectIdByName(
   input: string,
+  includeArchived?: boolean,
 ): Promise<string | undefined> {
   if (isLinearUuid(input)) return input
 
   const client = getGraphQLClient()
 
   const nameQuery = gql(/* GraphQL */ `
-    query GetProjectIdByName($name: String!) {
-      projects(filter: { name: { eq: $name } }) {
+    query GetProjectIdByName(
+      $name: String!
+      $includeArchived: Boolean = false
+    ) {
+      projects(
+        filter: { name: { eq: $name } }
+        includeArchived: $includeArchived
+      ) {
         nodes {
           id
         }
       }
     }
   `)
-  const nameData = await client.request(nameQuery, { name: input })
+  const nameData = await client.request(nameQuery, {
+    name: input,
+    ...(includeArchived === undefined ? {} : { includeArchived }),
+  })
   const nameMatch = nameData.projects?.nodes[0]?.id
   if (nameMatch) return nameMatch
 
   const slugQuery = gql(/* GraphQL */ `
-    query GetProjectIdBySlugId($slugId: String!) {
-      projects(filter: { slugId: { eq: $slugId } }) {
+    query GetProjectIdBySlugId(
+      $slugId: String!
+      $includeArchived: Boolean = false
+    ) {
+      projects(
+        filter: { slugId: { eq: $slugId } }
+        includeArchived: $includeArchived
+      ) {
         nodes {
           id
         }
       }
     }
   `)
-  const slugData = await client.request(slugQuery, { slugId: input })
+  const slugData = await client.request(slugQuery, {
+    slugId: input,
+    ...(includeArchived === undefined ? {} : { includeArchived }),
+  })
   return slugData.projects?.nodes[0]?.id
 }
 
@@ -1683,11 +1702,18 @@ export async function resolveProjectId(
 
 export async function getProjectOptionsByName(
   name: string,
+  includeArchived?: boolean,
 ): Promise<Record<string, string>> {
   const client = getGraphQLClient()
   const query = gql(/* GraphQL */ `
-    query GetProjectIdOptionsByName($name: String!) {
-      projects(filter: { name: { containsIgnoreCase: $name } }) {
+    query GetProjectIdOptionsByName(
+      $name: String!
+      $includeArchived: Boolean = false
+    ) {
+      projects(
+        filter: { name: { containsIgnoreCase: $name } }
+        includeArchived: $includeArchived
+      ) {
         nodes {
           id
           name
@@ -1695,7 +1721,10 @@ export async function getProjectOptionsByName(
       }
     }
   `)
-  const data = await client.request(query, { name })
+  const data = await client.request(query, {
+    name,
+    ...(includeArchived === undefined ? {} : { includeArchived }),
+  })
   const qResults = data.projects?.nodes || []
   return Object.fromEntries(qResults.map((t) => [t.id, t.name]))
 }

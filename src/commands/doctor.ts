@@ -37,7 +37,10 @@ const GetDoctorProjectTarget = gql(`
   }
 `)
 
-async function resolveUniqueProjectId(input: string): Promise<string> {
+async function resolveUniqueProjectId(
+  input: string,
+  includeArchived = false,
+): Promise<string> {
   if (isLinearUuid(input)) {
     const result = await getGraphQLClient().request(GetDoctorProjectTarget, {
       id: input,
@@ -46,7 +49,7 @@ async function resolveUniqueProjectId(input: string): Promise<string> {
     return result.project.id
   }
 
-  const options = await getProjectOptionsByName(input)
+  const options = await getProjectOptionsByName(input, includeArchived)
   const exactMatches = Object.entries(options).filter(([, name]) =>
     name.toLowerCase() === input.toLowerCase()
   )
@@ -58,7 +61,7 @@ async function resolveUniqueProjectId(input: string): Promise<string> {
   }
   if (exactMatches.length === 1) return exactMatches[0][0]
 
-  const projectId = await getProjectIdByName(input)
+  const projectId = await getProjectIdByName(input, includeArchived)
   if (projectId == null) throw new NotFoundError("Project", input)
   return projectId
 }
@@ -182,7 +185,10 @@ export const doctorCommand = withUsageMetadata(new Command(), {
           break
         }
         case "project": {
-          projectId = await resolveUniqueProjectId(target!)
+          projectId = await resolveUniqueProjectId(
+            target!,
+            includeArchived === true,
+          )
           if (shouldScanIssues) {
             issueOptions = {
               allTeams: true,

@@ -345,3 +345,75 @@ Deno.test("Doctor skips issue scanning when only a project rule is selected", as
   assertEquals(report.scanned.projectCount, 1)
   assertEquals(report.findings[0].ruleId, "project-health-risk")
 })
+
+Deno.test("Doctor resolves archived project names when requested", async () => {
+  const { cleanup } = await setupMockLinearServer([
+    {
+      queryName: "GetProjectIdOptionsByName",
+      variables: { name: "Archived Project", includeArchived: true },
+      response: {
+        data: {
+          projects: {
+            nodes: [{
+              id: "project-archived",
+              name: "Archived Project",
+            }],
+          },
+        },
+      },
+    },
+    {
+      queryName: "GetProjectsForDoctor",
+      variables: {
+        filter: { id: { eq: "project-archived" } },
+        first: 100,
+        includeArchived: true,
+      },
+      response: {
+        data: {
+          projects: {
+            nodes: [{
+              id: "project-archived",
+              name: "Archived Project",
+              createdAt: "2026-01-01T00:00:00.000Z",
+              startedAt: "2026-01-01T00:00:00.000Z",
+              status: { name: "Started", type: "started" },
+              health: "atRisk",
+              healthUpdatedAt: "2026-08-29T00:00:00.000Z",
+              lastUpdate: {
+                createdAt: "2026-08-29T00:00:00.000Z",
+                updatedAt: "2026-08-29T00:00:00.000Z",
+                health: "atRisk",
+                isStale: false,
+              },
+            }],
+            pageInfo: { hasNextPage: false, endCursor: null },
+          },
+        },
+      },
+    },
+  ])
+  const logs: string[] = []
+  const logStub = stub(console, "log", (...args: unknown[]) => {
+    logs.push(args.map(String).join(" "))
+  })
+
+  try {
+    await doctorCommand.parse([
+      "project",
+      "Archived Project",
+      "--include-archived",
+      "--rule",
+      "project-health-risk",
+      "--json",
+    ])
+  } finally {
+    logStub.restore()
+    await cleanup()
+  }
+
+  const report = JSON.parse(logs.join(""))
+  assertEquals(report.scope, { kind: "project", target: "Archived Project" })
+  assertEquals(report.scanned.projectCount, 1)
+  assertEquals(report.findings[0].project.name, "Archived Project")
+})
