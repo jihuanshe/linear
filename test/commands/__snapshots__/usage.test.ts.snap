@@ -52,7 +52,7 @@ snapshot[`usage JSON v1 freezes its existing fields and types 1`] = `
         name: "core",
       },
       {
-        description: "无人值守执行的输出契约、JSON 校验、Markdown 文件 flag 与写后读回验证",
+        description: "无人值守执行、临时脚本编排、JSON 校验、Markdown 文件 flag 与写后读回验证",
         name: "automation",
       },
       {
@@ -402,7 +402,7 @@ snapshot[`usage JSON v1 freezes its existing fields and types 1`] = `
       details: "linear issue query --help",
       guides: [
         {
-          description: "无人值守执行的输出契约、JSON 校验、Markdown 文件 flag 与写后读回验证",
+          description: "无人值守执行、临时脚本编排、JSON 校验、Markdown 文件 flag 与写后读回验证",
           name: "automation",
         },
       ],
@@ -886,7 +886,7 @@ snapshot[`usage JSON v1 freezes its existing fields and types 1`] = `
       details: "linear issue view --help",
       guides: [
         {
-          description: "无人值守执行的输出契约、JSON 校验、Markdown 文件 flag 与写后读回验证",
+          description: "无人值守执行、临时脚本编排、JSON 校验、Markdown 文件 flag 与写后读回验证",
           name: "automation",
         },
         {
@@ -1272,7 +1272,7 @@ snapshot[`usage JSON v1 freezes its existing fields and types 1`] = `
       details: "linear issue create --help",
       guides: [
         {
-          description: "无人值守执行的输出契约、JSON 校验、Markdown 文件 flag 与写后读回验证",
+          description: "无人值守执行、临时脚本编排、JSON 校验、Markdown 文件 flag 与写后读回验证",
           name: "automation",
         },
         {
@@ -1612,7 +1612,7 @@ snapshot[`usage JSON v1 freezes its existing fields and types 1`] = `
           name: "core",
         },
         {
-          description: "无人值守执行的输出契约、JSON 校验、Markdown 文件 flag 与写后读回验证",
+          description: "无人值守执行、临时脚本编排、JSON 校验、Markdown 文件 flag 与写后读回验证",
           name: "automation",
         },
         {
@@ -1970,7 +1970,7 @@ snapshot[`usage JSON v1 freezes its existing fields and types 1`] = `
           name: "core",
         },
         {
-          description: "无人值守执行的输出契约、JSON 校验、Markdown 文件 flag 与写后读回验证",
+          description: "无人值守执行、临时脚本编排、JSON 校验、Markdown 文件 flag 与写后读回验证",
           name: "automation",
         },
         {

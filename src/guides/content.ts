@@ -11,6 +11,7 @@
 // can state alone belongs in that command's description instead.
 import automation from "../../docs/guides/automation.md" with { type: "text" }
 import core from "../../docs/guides/core.md" with { type: "text" }
+import doctor from "../../docs/guides/doctor.md" with { type: "text" }
 import graphql from "../../docs/guides/graphql.md" with { type: "text" }
 import issueAuthoring from "../../docs/guides/issue-authoring.md" with {
   type: "text",
@@ -30,4 +31,5 @@ export const guideSources: Record<string, string> = {
   "issue-authoring": issueAuthoring,
   "issue-delivery": issueDelivery,
   "graphql": graphql,
+  "doctor": doctor,
 }

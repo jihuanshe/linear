@@ -9,7 +9,7 @@ commands:
 
 # Schema 发现与 GraphQL 查询
 
-常见领域操作、名称解析和安全写入使用专用命令。精确字段选择、批量正文、少见 filter 和跨实体只读查询直接使用 `linear api`；这些临时读取形状不需要先扩建 typed command。raw mutation 不拥有专用写命令的输入保护与结果核算，仍是没有专用原语时的最后手段。
+常见领域操作、名称解析和安全写入使用专用命令。精确字段选择、少见 filter 和跨实体只读查询直接使用 `linear api`；这些临时读取形状不需要先扩建 typed command。raw mutation 不拥有专用写命令的输入保护与结果核算，仍是没有专用原语时的最后手段。当前 schema 虽然已有 `issueBatchUpdate`，CLI 没有把它做成永久批量命令；它不能替代已有的专用写命令，规则和流程见 [automation](automation.md)。
 
 ## 发现 schema
 
@@ -71,21 +71,45 @@ GRAPHQL
 
 `--paginate` 会读取到 connection 结束，只在确实需要完整集合时使用；只需样本时省略该 flag，并把 `first` 设为明确上限。字段投影、分组和重排继续用 `jq`、Python 或调用宿主，不在 CLI 内重造查询语言。
 
+## 批量修改 Issue
+
+当前 CLI 没有专用的批量 Issue 更新原语。对于 `issue update` 已支持的字段（例如 Priority、Estimate），脚本必须逐条调用 `issue update`，保留它的名称解析和输入校验。没有批量命令不是改用 raw mutation 的理由。
+
+schema 虽然提供 `issueBatchUpdate`，但它不是 CLI 的批量原语；不要通过 `linear api` 用它替代 `issue update`。如果以后需要 CLI 尚未覆盖的批量写入，必须先提供保留同等名称解析、输入校验和读回保障的专用原语。
+
 ## 拆分查询
 
 `description` 这类标量可以随 Issue connection 批量读取；comments、children 和 relations 是嵌套集合，不要把多个大集合塞进同一查询。先读 Issue 标量；需要完整集合时，按 Issue 把每个嵌套 connection 拆成独立 GraphQL 查询，并用 `--paginate` 读完。只需固定边界的详情预览时才使用 `issue view --json` 或 `issue relation list`，这两个命令不保证把嵌套 connection 分页读完。收到 `Query too complex` 时减少字段或拆批，不要原样重试。
 
 ## 直接 HTTP
 
-只有需要完整 HTTP 控制时才降级到 curl：
+只有需要完整 HTTP 控制时才降级到直接 HTTP。优先在临时 Python / TypeScript 进程中从 `linear auth token` 读取 token 并放入内存中的请求 header；不要把 token 放入命令行参数、文件、日志或 shell 历史。GraphQL 请求必须检查 `data` 存在且 `errors` 为空：
 
 ```bash
-curl -fsS -X POST https://api.linear.app/graphql \
-  -H "Content-Type: application/json" \
-  -H "Authorization: $(linear auth token)" \
-  -d '{"query": "{ viewer { id } }"}' \
-  >api-result.json 2>api-error.log &&
-  jq -e '.data.viewer.id and ((.errors // []) | length == 0)' api-result.json >/dev/null
+python3 - <<'PY'
+import json
+import subprocess
+import urllib.request
+
+token = subprocess.run(
+    ["linear", "auth", "token"],
+    check=True,
+    capture_output=True,
+    text=True,
+).stdout.strip()
+request = urllib.request.Request(
+    "https://api.linear.app/graphql",
+    data=json.dumps({"query": "{ viewer { id } }"}).encode(),
+    headers={"Content-Type": "application/json", "Authorization": token},
+)
+with urllib.request.urlopen(request) as response:
+    payload = json.load(response)
+data = payload.get("data") or {}
+viewer = data.get("viewer") or {}
+if payload.get("errors") or viewer.get("id") is None:
+    raise SystemExit(payload)
+print(viewer["id"])
+PY
 ```
 
-GraphQL 的错误可能出现在 HTTP 200 的 `errors` 数组里；校验 `data` 存在且 `errors` 为空，不能只看 HTTP 状态码。
+这个示例只把查询结果打印到 stdout；mutation 脚本还必须检查业务 payload 的 `success` 和返回对象。GraphQL 的错误可能出现在 HTTP 200 的 `errors` 数组里，不能只看 HTTP 状态码。
