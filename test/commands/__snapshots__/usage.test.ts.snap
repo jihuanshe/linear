@@ -504,16 +504,6 @@ snapshot[`usage JSON v1 freezes its existing fields and types 1`] = `
           staticallyRequired: false,
         },
         {
-          arguments: [],
-          description: "Show issues from all states (this is the default)",
-          flags: [
-            "--all-states",
-          ],
-          name: "all-states",
-          repeatable: false,
-          staticallyRequired: false,
-        },
-        {
           arguments: [
             {
               list: false,
@@ -528,17 +518,6 @@ snapshot[`usage JSON v1 freezes its existing fields and types 1`] = `
             "--assignee",
           ],
           name: "assignee",
-          repeatable: false,
-          staticallyRequired: false,
-        },
-        {
-          arguments: [],
-          description: "Show issues for all assignees (this is the default)",
-          flags: [
-            "-A",
-            "--all-assignees",
-          ],
-          name: "all-assignees",
           repeatable: false,
           staticallyRequired: false,
         },

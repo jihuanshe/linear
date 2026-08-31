@@ -82,7 +82,7 @@ https://linear.app/<workspace>/project/<project-name>-<project-slug-id>/issues
 
 ## 查询范围
 
-- 项目可能关联多个 team，项目全量盘点用 `--all-teams`。
-- CLI 从 `linear config` 保存的配置或当前目录名推断默认 team。推断不出时，查询必须显式提供 team scope；不知道 team key 先 `linear team list`。
+- `--project` 已经提供查询作用域，默认覆盖该 project 关联的全部 team；显式传入 `--team` 会有意缩窄结果。没有 project 时，跨 workspace 查询使用 `--all-teams`。
+- CLI 从 `linear config` 保存的配置或当前目录名推断默认 team。没有 project 且推断不出时，查询必须显式提供 team scope；不知道 team key 先 `linear team list`。
 - `issue mine` 限定当前认证用户，其他人的、全 team 的或机器处理的用 `issue query`。
 - 默认排序是 priority；要保持看板手工顺序显式传 `--sort manual`。

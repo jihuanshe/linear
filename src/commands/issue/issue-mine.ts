@@ -117,7 +117,7 @@ export const mineCommand = withUsageMetadata(new Command(), {
   )
   .option(
     "-A, --all-assignees",
-    "Removed: use `issue query --all-assignees` instead",
+    "Removed: use `issue query` instead (all assignees are shown by default)",
     { hidden: true },
   )
   .option(
@@ -167,8 +167,9 @@ export const mineCommand = withUsageMetadata(new Command(), {
           throw new ValidationError(
             `${flag} has been removed from 'issue mine'`,
             {
-              suggestion:
-                `Use 'linear issue query ${flag}' for assignee filtering.`,
+              suggestion: flag === "--all-assignees"
+                ? "Use 'linear issue query'; all assignees are shown by default."
+                : `Use 'linear issue query ${flag}' for assignee filtering.`,
             },
           )
         }

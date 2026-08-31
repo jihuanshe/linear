@@ -75,12 +75,7 @@ export const queryCommand = withUsageMetadata(new Command(), {
     "Filter by exact workflow state name (case-insensitive; can be repeated)",
     { collect: true },
   )
-  .option("--all-states", "Show issues from all states (this is the default)")
   .option("--assignee <assignee:string>", "Filter by assignee (username)")
-  .option(
-    "-A, --all-assignees",
-    "Show issues for all assignees (this is the default)",
-  )
   .option("-U, --unassigned", "Show only unassigned issues")
   .option(
     "--sort <sort:sort>",
@@ -132,9 +127,7 @@ export const queryCommand = withUsageMetadata(new Command(), {
       allTeams,
       state,
       stateName,
-      allStates,
       assignee,
-      allAssignees,
       unassigned,
       sort: sortFlag,
       project,
@@ -169,11 +162,10 @@ export const queryCommand = withUsageMetadata(new Command(), {
         )
       }
 
-      const assigneeFilterCount =
-        [assignee, allAssignees, unassigned].filter(Boolean).length
+      const assigneeFilterCount = [assignee, unassigned].filter(Boolean).length
       if (assigneeFilterCount > 1) {
         throw new ValidationError(
-          "Cannot specify multiple assignee filters (--assignee, --all-assignees, --unassigned)",
+          "Cannot specify both --assignee and --unassigned",
         )
       }
 
@@ -200,20 +192,6 @@ export const queryCommand = withUsageMetadata(new Command(), {
           {
             suggestion:
               "Use --state for a broad Linear state type, or --state-name for an exact workflow state name.",
-          },
-        )
-      }
-
-      if (allStates && stateArray && stateArray.length > 0) {
-        throw new ValidationError("Cannot use --all-states with --state flag")
-      }
-
-      if (allStates && stateNames && stateNames.length > 0) {
-        throw new ValidationError(
-          "Cannot use --all-states with --state-name flag",
-          {
-            suggestion:
-              "Remove --all-states; showing all states is already the default.",
           },
         )
       }
@@ -283,6 +261,11 @@ export const queryCommand = withUsageMetadata(new Command(), {
       } else if (teamKeys && teamKeys.length > 0) {
         resolvedTeamKeys = teamKeys
         isMultiTeam = teamKeys.length > 1
+      } else if (project != null) {
+        // A project filter already scopes the query; do not narrow it to the
+        // configured default team unless the caller explicitly asks for one.
+        resolvedTeamKeys = undefined
+        isMultiTeam = true
       } else {
         const defaultTeam = getTeamKey()
         if (!defaultTeam) {
