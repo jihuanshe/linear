@@ -1130,6 +1130,11 @@ const queryIssuesQuery = gql(/* GraphQL */ `
         project {
           id
           name
+          teams {
+            nodes {
+              key
+            }
+          }
         }
         projectMilestone {
           id
