@@ -1123,6 +1123,7 @@ const queryIssuesQuery = gql(/* GraphQL */ `
           key
           name
           cyclesEnabled
+          issueEstimationType
           activeCycle {
             number
           }
@@ -1130,9 +1131,13 @@ const queryIssuesQuery = gql(/* GraphQL */ `
         project {
           id
           name
-          teams {
+          teams(first: 100) {
             nodes {
               key
+            }
+            pageInfo {
+              hasNextPage
+              endCursor
             }
           }
         }

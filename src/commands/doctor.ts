@@ -1,5 +1,6 @@
 import { Command, EnumType } from "@cliffy/command"
 import { withUsageMetadata } from "./usage.ts"
+import { gql } from "../__codegen__/gql.ts"
 import {
   fetchIssuesForQuery,
   getProjectIdByName,
@@ -8,11 +9,17 @@ import {
   isLinearUuid,
 } from "../utils/linear.ts"
 import { handleError, NotFoundError, ValidationError } from "../utils/errors.ts"
+import { getGraphQLClient } from "../utils/graphql.ts"
 import { evaluateDoctorIssues } from "../doctor/engine.ts"
 import { fetchProjectsForDoctor } from "../doctor/projects.ts"
-import { doctorProjectRules, doctorRuleIds } from "../doctor/rules.ts"
+import {
+  doctorProjectRules,
+  doctorRuleIds,
+  doctorRules,
+} from "../doctor/rules.ts"
 import { formatDoctorReport } from "../doctor/output.ts"
 import type {
+  DoctorIssue,
   DoctorPolicy,
   DoctorProject,
   DoctorRuleId,
@@ -22,8 +29,22 @@ import type {
 
 const ScopeType = new EnumType(["self", "team", "project", "workspace"])
 
+const GetDoctorProjectTarget = gql(`
+  query GetDoctorProjectTarget($id: String!) {
+    project(id: $id) {
+      id
+    }
+  }
+`)
+
 async function resolveUniqueProjectId(input: string): Promise<string> {
-  if (isLinearUuid(input)) return input
+  if (isLinearUuid(input)) {
+    const result = await getGraphQLClient().request(GetDoctorProjectTarget, {
+      id: input,
+    })
+    if (result.project == null) throw new NotFoundError("Project", input)
+    return result.project.id
+  }
 
   const options = await getProjectOptionsByName(input)
   const exactMatches = Object.entries(options).filter(([, name]) =>
@@ -122,16 +143,26 @@ export const doctorCommand = withUsageMetadata(new Command(), {
 
       validateTarget(scope, target)
       const selectedRules = normalizeRules(rule)
+      const shouldScanIssues = doctorRules.some((issueRule) =>
+        selectedRules.includes(issueRule.id)
+      )
+      const shouldScanProjects = doctorProjectRules.some((projectRule) =>
+        selectedRules.includes(projectRule.id)
+      )
 
-      let issueOptions: Parameters<typeof fetchIssuesForQuery>[0]
+      let issueOptions: Parameters<typeof fetchIssuesForQuery>[0] | undefined
       let doctorScope: DoctorScope
+      let projectId: string | undefined
       switch (scope) {
         case "self":
-          issueOptions = {
-            allTeams: true,
-            assignee: "self",
-            limit: 0,
-            includeArchived,
+          if (shouldScanIssues) {
+            issueOptions = {
+              allTeams: true,
+              assignee: "self",
+              state: history === true ? undefined : ["started", "unstarted"],
+              limit: 0,
+              includeArchived,
+            }
           }
           doctorScope = { kind: "self", target: "self" }
           break
@@ -139,39 +170,47 @@ export const doctorCommand = withUsageMetadata(new Command(), {
           const teamKey = target!.toUpperCase()
           const teamId = await getTeamIdByKey(teamKey)
           if (teamId == null) throw new NotFoundError("Team", teamKey)
-          issueOptions = {
-            teamKeys: [teamKey],
-            limit: 0,
-            includeArchived,
+          if (shouldScanIssues) {
+            issueOptions = {
+              teamKeys: [teamKey],
+              state: history === true ? undefined : ["started", "unstarted"],
+              limit: 0,
+              includeArchived,
+            }
           }
           doctorScope = { kind: "team", target: teamKey }
           break
         }
         case "project": {
-          const projectId = await resolveUniqueProjectId(target!)
-          issueOptions = {
-            allTeams: true,
-            projectId,
-            limit: 0,
-            includeArchived,
+          projectId = await resolveUniqueProjectId(target!)
+          if (shouldScanIssues) {
+            issueOptions = {
+              allTeams: true,
+              projectId,
+              state: history === true ? undefined : ["started", "unstarted"],
+              limit: 0,
+              includeArchived,
+            }
           }
           doctorScope = { kind: "project", target: target! }
           break
         }
         case "workspace":
-          issueOptions = {
-            allTeams: true,
-            limit: 0,
-            includeArchived,
+          if (shouldScanIssues) {
+            issueOptions = {
+              allTeams: true,
+              state: history === true ? undefined : ["started", "unstarted"],
+              limit: 0,
+              includeArchived,
+            }
           }
           doctorScope = { kind: "workspace" }
           break
       }
 
-      const result = await fetchIssuesForQuery(issueOptions)
-      const shouldScanProjects = doctorProjectRules.some((projectRule) =>
-        selectedRules.includes(projectRule.id)
-      )
+      const issues: DoctorIssue[] = issueOptions == null
+        ? []
+        : (await fetchIssuesForQuery(issueOptions)).nodes
       let projects: DoctorProject[] = []
       if (shouldScanProjects) {
         let projectOptions: Parameters<typeof fetchProjectsForDoctor>[0] = {
@@ -184,15 +223,20 @@ export const doctorCommand = withUsageMetadata(new Command(), {
           }
         } else if (scope === "project") {
           projectOptions = {
-            projectId: issueOptions.projectId,
+            projectId,
+            includeArchived,
+          }
+        } else if (scope === "self" && !shouldScanIssues) {
+          projectOptions = {
+            assignee: "self",
             includeArchived,
           }
         }
 
         const fetchedProjects = await fetchProjectsForDoctor(projectOptions)
-        projects = scope === "self"
+        projects = scope === "self" && shouldScanIssues
           ? fetchedProjects.filter((project) =>
-            result.nodes.some((issue) => issue.project?.id === project.id)
+            issues.some((issue) => issue.project?.id === project.id)
           )
           : fetchedProjects
       }
@@ -204,7 +248,7 @@ export const doctorCommand = withUsageMetadata(new Command(), {
         selectedRules,
       }
       const report = evaluateDoctorIssues(
-        result.nodes,
+        issues,
         doctorScope,
         policy,
         new Date(),

@@ -82,8 +82,10 @@ const projectTeamMismatchRule: DoctorRule = {
   id: "project-team-mismatch",
   check(issue) {
     if (issue.project == null || issue.team == null) return null
+    if (isBacklog(issue) || isTriage(issue)) return null
 
-    const projectTeams = issue.project.teams?.nodes ?? []
+    if (issue.project.teams.pageInfo.hasNextPage) return null
+    const projectTeams = issue.project.teams.nodes
     const matchesTeam = projectTeams.some((team) => team.key === issue.team.key)
     if (matchesTeam) return null
 
@@ -122,6 +124,7 @@ const missingPriorityRule: DoctorRule = {
   id: "missing-priority",
   check(issue, context) {
     if (issue.priority !== 0) return null
+    if (isBacklog(issue) || isTriage(issue)) return null
     if (!context.policy.includeHistory && isTerminal(issue)) return null
 
     return finding(
@@ -139,6 +142,7 @@ const missingEstimateRule: DoctorRule = {
   id: "missing-estimate",
   check(issue, context) {
     if (issue.estimate != null) return null
+    if (issue.team.issueEstimationType === "notUsed") return null
 
     const historical = isHistoricalCheck(issue, context)
     if (!historical && !isStarted(issue) && !isUnstarted(issue)) return null
@@ -284,7 +288,7 @@ const staleProjectUpdateRule: DoctorProjectRule = {
     if (!shouldCheckProject(project, context)) return null
     if (project.lastUpdate == null) return null
     const ageInDays = projectUpdateAgeInDays(project, context.now)
-    if (ageInDays < context.policy.staleDays && !project.lastUpdate.isStale) {
+    if (ageInDays < context.policy.staleDays) {
       return null
     }
 

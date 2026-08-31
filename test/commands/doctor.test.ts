@@ -30,12 +30,16 @@ const baseIssue = {
     key: "JHS",
     name: "集换社",
     cyclesEnabled: true,
+    issueEstimationType: "fibonacci",
     activeCycle: { number: 16 },
   },
   project: {
     id: "project-1",
     name: "治理项目",
-    teams: { nodes: [{ key: "JHS" }] },
+    teams: {
+      nodes: [{ key: "JHS" }],
+      pageInfo: { hasNextPage: false, endCursor: null },
+    },
   },
   projectMilestone: null,
   cycle: {
@@ -74,7 +78,10 @@ function issueQueryVariables() {
       { priority: { nulls: "last", order: "Descending" } },
       { manual: { nulls: "last", order: "Ascending" } },
     ],
-    filter: { assignee: { id: { eq: "user-1" } } },
+    filter: {
+      assignee: { id: { eq: "user-1" } },
+      state: { type: { in: ["started", "unstarted"] } },
+    },
     first: 100,
   }
 }
@@ -237,4 +244,104 @@ Deno.test("Doctor command reports stale Project Updates", async () => {
   assertEquals(output.includes("治理项目"), true)
   assertEquals(output.includes("项目更新过期"), true)
   assertEquals(output.includes("项目更新=2026-01-01"), true)
+})
+
+Deno.test("Doctor validates an explicit project UUID before scanning", async () => {
+  const { cleanup } = await setupMockLinearServer([
+    {
+      queryName: "GetDoctorProjectTarget",
+      variables: {
+        id: "00000000-0000-4000-8000-000000000000",
+      },
+      response: { data: { project: null } },
+    },
+  ])
+  const errorLogs: string[] = []
+  const errorStub = stub(console, "error", (...args: unknown[]) => {
+    errorLogs.push(args.map(String).join(" "))
+  })
+  const exitStub = stub(Deno, "exit", (_code?: number): never => {
+    throw new Error("EXIT")
+  })
+
+  try {
+    await doctorCommand.parse([
+      "project",
+      "00000000-0000-4000-8000-000000000000",
+    ])
+  } catch (error) {
+    if (!(error instanceof Error) || error.message !== "EXIT") throw error
+  } finally {
+    errorStub.restore()
+    exitStub.restore()
+    await cleanup()
+  }
+
+  assertEquals(
+    errorLogs.some((line) =>
+      line.includes(
+        "Project not found: 00000000-0000-4000-8000-000000000000",
+      )
+    ),
+    true,
+  )
+})
+
+Deno.test("Doctor skips issue scanning when only a project rule is selected", async () => {
+  const { cleanup } = await setupMockLinearServer([
+    {
+      queryName: "GetDoctorProjectTarget",
+      variables: { id: "550e8400-e29b-41d4-a716-446655440010" },
+      response: {
+        data: { project: { id: "550e8400-e29b-41d4-a716-446655440010" } },
+      },
+    },
+    {
+      queryName: "GetProjectsForDoctor",
+      response: {
+        data: {
+          projects: {
+            nodes: [{
+              id: "550e8400-e29b-41d4-a716-446655440010",
+              name: "治理项目",
+              createdAt: "2026-01-01T00:00:00.000Z",
+              startedAt: "2026-01-01T00:00:00.000Z",
+              status: { name: "Started", type: "started" },
+              health: "atRisk",
+              healthUpdatedAt: "2026-08-29T00:00:00.000Z",
+              lastUpdate: {
+                createdAt: "2026-08-29T00:00:00.000Z",
+                updatedAt: "2026-08-29T00:00:00.000Z",
+                health: "atRisk",
+                isStale: false,
+              },
+            }],
+            pageInfo: { hasNextPage: false, endCursor: null },
+          },
+        },
+      },
+    },
+  ])
+  const logs: string[] = []
+  const logStub = stub(console, "log", (...args: unknown[]) => {
+    logs.push(args.map(String).join(" "))
+  })
+
+  try {
+    await doctorCommand.parse([
+      "project",
+      "550e8400-e29b-41d4-a716-446655440010",
+      "--rule",
+      "project-health-risk",
+      "--json",
+    ])
+  } finally {
+    logStub.restore()
+    await cleanup()
+  }
+
+  const report = JSON.parse(logs.join(""))
+  assertEquals(report.scanned.issueCount, 0)
+  assertEquals(report.scanned.projectCount, 1)
+  assertEquals(report.findings[0].ruleId, "project-health-risk")
 })

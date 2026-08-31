@@ -14,11 +14,12 @@ const scope: DoctorScope = { kind: "self", target: "self" }
 function makePolicy(
   includeHistory = false,
   selectedRules = doctorRuleIds,
+  staleDays = 14,
 ): DoctorPolicy {
   return {
     includeHistory,
     includeArchived: false,
-    staleDays: 14,
+    staleDays,
     backlogCycleRequired: false,
     selectedRules,
   }
@@ -34,6 +35,8 @@ function makeIssue(options: {
   updatedAt?: string
   projectName?: string | null
   projectTeams?: string[]
+  projectTeamsHasNextPage?: boolean
+  issueEstimationType?: string
   cycle?: DoctorIssue["cycle"]
   cyclesEnabled?: boolean
   activeCycle?: number | null
@@ -68,6 +71,7 @@ function makeIssue(options: {
       key: "JHS",
       name: "集换社",
       cyclesEnabled: options.cyclesEnabled ?? true,
+      issueEstimationType: options.issueEstimationType ?? "fibonacci",
       activeCycle: options.activeCycle === null
         ? null
         : { number: options.activeCycle ?? 16 },
@@ -77,6 +81,10 @@ function makeIssue(options: {
       name: projectName,
       teams: {
         nodes: (options.projectTeams ?? ["JHS"]).map((key) => ({ key })),
+        pageInfo: {
+          hasNextPage: options.projectTeamsHasNextPage ?? false,
+          endCursor: null,
+        },
       },
     },
     projectMilestone: null,
@@ -261,7 +269,7 @@ Deno.test("Doctor can run a selected rule only", () => {
   assertEquals(report.strategySummaries[0].rules.map((rule) => rule.ruleId), [
     "missing-estimate",
   ])
-  assertEquals(report.strategySummaries[1].rules, [])
+  assertEquals(report.strategySummaries.length, 1)
 })
 
 Deno.test("Doctor human output expands findings in a four-item batch", () => {
@@ -385,5 +393,77 @@ Deno.test("Doctor exempts young and inactive Projects from Pulse findings", () =
   const report = evaluateDoctorIssues([], scope, makePolicy(), now, projects)
 
   assertEquals(report.scanned.projectCount, 3)
+  assertEquals(report.findings, [])
+})
+
+Deno.test("Doctor skips priority and team checks for Backlog and Triage", () => {
+  const issues = [
+    makeIssue({
+      identifier: "JHS-8",
+      stateType: "backlog",
+      stateName: "Backlog",
+      priority: 0,
+      projectTeams: ["ARCH"],
+    }),
+    makeIssue({
+      identifier: "JHS-9",
+      stateType: "triage",
+      stateName: "Triage",
+      priority: 0,
+      projectTeams: ["ARCH"],
+    }),
+  ]
+  const report = evaluateDoctorIssues(issues, scope, makePolicy(), now)
+
+  assertEquals(report.findings, [])
+})
+
+Deno.test("Doctor skips missing estimates when the team does not use estimates", () => {
+  const issue = makeIssue({
+    estimate: null,
+    issueEstimationType: "notUsed",
+  })
+  const report = evaluateDoctorIssues(
+    [issue],
+    scope,
+    makePolicy(false, ["missing-estimate"]),
+    now,
+  )
+
+  assertEquals(report.findings, [])
+})
+
+Deno.test("Doctor does not let Linear stale markers bypass the configured threshold", () => {
+  const project = makeProject({
+    lastUpdate: {
+      createdAt: "2026-08-20T00:00:00.000Z",
+      updatedAt: "2026-08-20T00:00:00.000Z",
+      health: "onTrack",
+      isStale: true,
+    },
+  })
+  const report = evaluateDoctorIssues(
+    [],
+    scope,
+    makePolicy(false, ["stale-project-update"], 30),
+    now,
+    [project],
+  )
+
+  assertEquals(report.findings, [])
+})
+
+Deno.test("Doctor does not report mismatches from an incomplete project team connection", () => {
+  const issue = makeIssue({
+    projectTeams: ["ARCH"],
+    projectTeamsHasNextPage: true,
+  })
+  const report = evaluateDoctorIssues(
+    [issue],
+    scope,
+    makePolicy(false, ["project-team-mismatch"]),
+    now,
+  )
+
   assertEquals(report.findings, [])
 })

@@ -1,6 +1,11 @@
 import { gql } from "../__codegen__/gql.ts"
-import type { GetProjectsForDoctorQuery } from "../__codegen__/graphql.ts"
+import type {
+  GetProjectsForDoctorQuery,
+  ProjectFilter,
+} from "../__codegen__/graphql.ts"
+import { NotFoundError } from "../utils/errors.ts"
 import { getGraphQLClient } from "../utils/graphql.ts"
+import { lookupUserId } from "../utils/linear.ts"
 import type { DoctorProject } from "./types.ts"
 
 const GetProjectsForDoctor = gql(`
@@ -45,17 +50,24 @@ const GetProjectsForDoctor = gql(`
 export interface FetchDoctorProjectsOptions {
   teamKey?: string
   projectId?: string
+  assignee?: "self"
   includeArchived?: boolean
 }
 
 export async function fetchProjectsForDoctor(
   options: FetchDoctorProjectsOptions = {},
 ): Promise<DoctorProject[]> {
-  const filter = options.teamKey != null
-    ? { accessibleTeams: { some: { key: { eq: options.teamKey } } } }
-    : options.projectId != null
-    ? { id: { eq: options.projectId } }
-    : undefined
+  const filter: ProjectFilter = {}
+  if (options.teamKey != null) {
+    filter.accessibleTeams = { some: { key: { eq: options.teamKey } } }
+  } else if (options.projectId != null) {
+    filter.id = { eq: options.projectId }
+  }
+  if (options.assignee != null) {
+    const assigneeId = await lookupUserId(options.assignee)
+    if (assigneeId == null) throw new NotFoundError("User", options.assignee)
+    filter.issues = { some: { assignee: { id: { eq: assigneeId } } } }
+  }
 
   const projects: DoctorProject[] = []
   let hasNextPage = true
@@ -65,7 +77,7 @@ export async function fetchProjectsForDoctor(
     const result: GetProjectsForDoctorQuery = await getGraphQLClient().request(
       GetProjectsForDoctor,
       {
-        filter,
+        filter: Object.keys(filter).length > 0 ? filter : undefined,
         first: 100,
         after,
         includeArchived: options.includeArchived,

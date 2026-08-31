@@ -116,28 +116,32 @@ function summarizeStrategies(
   findings: DoctorFinding[],
   selectedRules: Set<DoctorFinding["ruleId"]>,
 ): DoctorStrategySummary[] {
-  return doctorStrategies.map((strategy) => {
+  return doctorStrategies.flatMap((strategy) => {
+    const selectedStrategyRules = strategy.ruleIds.filter((ruleId) =>
+      selectedRules.has(ruleId)
+    )
+    if (selectedStrategyRules.length === 0) return []
+
     const strategyFindings = findings.filter((finding) =>
       strategy.ruleIds.includes(finding.ruleId)
     )
     const affectedResources = new Set(
       strategyFindings.map(findingResourceId),
     )
-    const rules = strategy.ruleIds.filter((ruleId) => selectedRules.has(ruleId))
-      .map((ruleId) => {
-        const ruleFindings = strategyFindings.filter((finding) =>
-          finding.ruleId === ruleId
-        )
-        return {
-          ruleId,
-          findingCount: ruleFindings.length,
-          affectedResourceCount: new Set(ruleFindings.map(findingResourceId))
-            .size,
-          bySeverity: countBySeverity(ruleFindings),
-        }
-      })
+    const rules = selectedStrategyRules.map((ruleId) => {
+      const ruleFindings = strategyFindings.filter((finding) =>
+        finding.ruleId === ruleId
+      )
+      return {
+        ruleId,
+        findingCount: ruleFindings.length,
+        affectedResourceCount: new Set(ruleFindings.map(findingResourceId))
+          .size,
+        bySeverity: countBySeverity(ruleFindings),
+      }
+    })
 
-    return {
+    return [{
       id: strategy.id,
       name: strategy.name,
       purpose: strategy.purpose,
@@ -148,7 +152,7 @@ function summarizeStrategies(
       bySeverity: countBySeverity(strategyFindings),
       rules,
       representativeFinding: summarizeRepresentative(strategyFindings[0]),
-    }
+    }]
   })
 }
 
