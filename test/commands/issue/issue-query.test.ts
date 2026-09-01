@@ -277,6 +277,117 @@ Deno.test("Issue Query Command - Explicit team narrows project scope", async () 
   }
 })
 
+Deno.test("Issue Query Command - filters issues without a project", async () => {
+  const { cleanup } = await setupMockLinearServer([
+    {
+      queryName: "GetIssuesForQuery",
+      variables: { filter: { project: { null: true } } },
+      response: {
+        data: {
+          issues: {
+            nodes: [],
+            pageInfo: { hasNextPage: false, endCursor: null },
+          },
+        },
+      },
+    },
+  ], { NO_COLOR: "true" })
+
+  try {
+    await queryCommand.parse(["--all-teams", "--unprojected", "--json"])
+  } finally {
+    await cleanup()
+  }
+})
+
+Deno.test("Issue Query Command - resolves self assignee without listing users", async () => {
+  const { cleanup } = await setupMockLinearServer([
+    {
+      queryName: "GetViewerId",
+      response: { data: { viewer: { id: "user-self-123" } } },
+    },
+    {
+      queryName: "GetIssuesForQuery",
+      variables: {
+        filter: { assignee: { id: { eq: "user-self-123" } } },
+      },
+      response: {
+        data: {
+          issues: {
+            nodes: [],
+            pageInfo: { hasNextPage: false, endCursor: null },
+          },
+        },
+      },
+    },
+  ], { NO_COLOR: "true" })
+
+  try {
+    await queryCommand.parse(["--all-teams", "--assignee", "@me", "--json"])
+  } finally {
+    await cleanup()
+  }
+})
+
+Deno.test("Issue Query Command - rejects conflicting project filters", async () => {
+  const errorLogs: string[] = []
+  const errorStub = stub(console, "error", (...args: unknown[]) => {
+    errorLogs.push(args.map(String).join(" "))
+  })
+  const exitStub = stub(Deno, "exit", (_code?: number) => {
+    throw new Error("EXIT")
+  })
+
+  try {
+    await queryCommand.parse(["--project", "project-1", "--unprojected"])
+  } catch {
+    // expected
+  } finally {
+    errorStub.restore()
+    exitStub.restore()
+  }
+
+  assertEquals(
+    errorLogs.some((line) =>
+      line.includes(
+        "Cannot combine --project, --project-label, and --unprojected",
+      )
+    ),
+    true,
+  )
+})
+
+Deno.test("Issue Query Command - rejects unprojected milestone filters", async () => {
+  const errorLogs: string[] = []
+  const errorStub = stub(console, "error", (...args: unknown[]) => {
+    errorLogs.push(args.map(String).join(" "))
+  })
+  const exitStub = stub(Deno, "exit", (_code?: number) => {
+    throw new Error("EXIT")
+  })
+
+  try {
+    await queryCommand.parse([
+      "--all-teams",
+      "--unprojected",
+      "--milestone",
+      "00000000-0000-0000-0000-000000000001",
+    ])
+  } catch {
+    // expected
+  } finally {
+    errorStub.restore()
+    exitStub.restore()
+  }
+
+  assertEquals(
+    errorLogs.some((line) =>
+      line.includes("--milestone cannot be used with --unprojected")
+    ),
+    true,
+  )
+})
+
 Deno.test("Issue Query Command - Uses configured default team without project", async () => {
   const { cleanup } = await setupMockLinearServer([
     {

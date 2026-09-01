@@ -22,11 +22,13 @@ Options:
                                                                                                      "started", "completed", "canceled")             
   --state-name        <name>          - Filter by exact workflow state name (case-insensitive; can                                                   
                                         be repeated)                                                                                                 
-  --assignee          <assignee>      - Filter by assignee (username)                                                                                
+  --assignee          <assignee>      - Filter by assignee (username, name, email, 'self', or                                                        
+                                        '@me')                                                                                                       
   -U, --unassigned                    - Show only unassigned issues                                                                                  
   --sort              <sort>          - Sort order: manual or priority (default: priority, not       (Values: "manual", "priority")                  
                                         available with --search)                                                                                     
   --project           <project>       - Filter by project (UUID, slug ID, or name)                                                                   
+  --unprojected                       - Show only issues that are not assigned to a project                                                          
   --project-label     <projectLabel>  - Filter by project label name (shows issues from all                                                          
                                         projects with this label)                                                                                    
   --cycle             <cycle>         - Filter by cycle name, number, 'active'/'now', 'next',                                                        

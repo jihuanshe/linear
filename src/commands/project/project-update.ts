@@ -81,7 +81,7 @@ export const updateCommand = withUsageMetadata(new Command(), { writes: true })
   .option("--target-date <targetDate:string>", "Target date (YYYY-MM-DD)")
   .option(
     "-t, --team <team:string>",
-    "Team key (can be repeated for multiple teams)",
+    "Replace project teams with these keys (can be repeated)",
     { collect: true },
   )
   .option(
@@ -112,7 +112,8 @@ export const updateCommand = withUsageMetadata(new Command(), { writes: true })
         if (
           !name && description == null && descriptionFile == null && !status &&
           !lead && !startDate && !targetDate &&
-          (!teams || teams.length === 0) && (!labels || labels.length === 0)
+          (!teams || teams.length === 0) &&
+          (!labels || labels.length === 0)
         ) {
           throw new ValidationError(
             "At least one update option must be provided",
