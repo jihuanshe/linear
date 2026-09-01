@@ -513,7 +513,7 @@ snapshot[`usage JSON v1 freezes its existing fields and types 1`] = `
               variadic: false,
             },
           ],
-          description: "Filter by assignee (username)",
+          description: "Filter by assignee (username, name, email, 'self', or '@me')",
           flags: [
             "--assignee",
           ],
@@ -565,6 +565,16 @@ snapshot[`usage JSON v1 freezes its existing fields and types 1`] = `
             "--project",
           ],
           name: "project",
+          repeatable: false,
+          staticallyRequired: false,
+        },
+        {
+          arguments: [],
+          description: "Show only issues that are not assigned to a project",
+          flags: [
+            "--unprojected",
+          ],
+          name: "unprojected",
           repeatable: false,
           staticallyRequired: false,
         },

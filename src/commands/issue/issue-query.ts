@@ -75,7 +75,10 @@ export const queryCommand = withUsageMetadata(new Command(), {
     "Filter by exact workflow state name (case-insensitive; can be repeated)",
     { collect: true },
   )
-  .option("--assignee <assignee:string>", "Filter by assignee (username)")
+  .option(
+    "--assignee <assignee:string>",
+    "Filter by assignee (username, name, email, 'self', or '@me')",
+  )
   .option("-U, --unassigned", "Show only unassigned issues")
   .option(
     "--sort <sort:sort>",
@@ -85,6 +88,10 @@ export const queryCommand = withUsageMetadata(new Command(), {
   .option(
     "--project <project:string>",
     "Filter by project (UUID, slug ID, or name)",
+  )
+  .option(
+    "--unprojected",
+    "Show only issues that are not assigned to a project",
   )
   .option(
     "--project-label <projectLabel:string>",
@@ -131,6 +138,7 @@ export const queryCommand = withUsageMetadata(new Command(), {
       unassigned,
       sort: sortFlag,
       project,
+      unprojected,
       projectLabel,
       cycle,
       milestone,
@@ -196,12 +204,17 @@ export const queryCommand = withUsageMetadata(new Command(), {
         )
       }
 
-      if (project != null && projectLabel != null) {
+      const projectFilterCount = [
+        project != null,
+        projectLabel != null,
+        unprojected === true,
+      ].filter(Boolean).length
+      if (projectFilterCount > 1) {
         throw new ValidationError(
-          "Cannot use --project and --project-label together",
+          "Cannot combine --project, --project-label, and --unprojected",
           {
             suggestion:
-              "Use --project to filter by a single project, or --project-label to filter by all projects with a given label.",
+              "Use exactly one project filter: --project, --project-label, or --unprojected.",
           },
         )
       }
@@ -359,6 +372,7 @@ export const queryCommand = withUsageMetadata(new Command(), {
           unassigned,
           limit: limit === 0 ? 0 : limit,
           projectId,
+          noProject: unprojected === true,
           projectLabel,
           cycleId,
           labelNames,
@@ -399,6 +413,7 @@ export const queryCommand = withUsageMetadata(new Command(), {
           sort,
           limit: limit === 0 ? 0 : limit,
           projectId,
+          noProject: unprojected === true,
           projectLabel,
           cycleId,
           milestoneId,

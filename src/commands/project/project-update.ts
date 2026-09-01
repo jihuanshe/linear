@@ -49,6 +49,18 @@ const GetProjectStatuses = gql(`
   }
 `)
 
+const GetProjectTeams = gql(`
+  query GetProjectTeams($id: String!) {
+    project(id: $id) {
+      teams {
+        nodes {
+          id
+        }
+      }
+    }
+  }
+`)
+
 const STATUS_TYPE_MAPPING: Record<string, string> = {
   "planned": "planned",
   "in progress": "started",
@@ -81,7 +93,12 @@ export const updateCommand = withUsageMetadata(new Command(), { writes: true })
   .option("--target-date <targetDate:string>", "Target date (YYYY-MM-DD)")
   .option(
     "-t, --team <team:string>",
-    "Team key (can be repeated for multiple teams)",
+    "Replace project teams with these keys (can be repeated)",
+    { collect: true },
+  )
+  .option(
+    "--add-team <team:string>",
+    "Add these team keys without removing existing project teams (can be repeated)",
     { collect: true },
   )
   .option(
@@ -100,6 +117,7 @@ export const updateCommand = withUsageMetadata(new Command(), { writes: true })
         startDate,
         targetDate,
         team: teams,
+        addTeam: teamsToAdd,
         label: labels,
       },
       projectId,
@@ -112,13 +130,25 @@ export const updateCommand = withUsageMetadata(new Command(), { writes: true })
         if (
           !name && description == null && descriptionFile == null && !status &&
           !lead && !startDate && !targetDate &&
-          (!teams || teams.length === 0) && (!labels || labels.length === 0)
+          (!teams || teams.length === 0) &&
+          (!teamsToAdd || teamsToAdd.length === 0) &&
+          (!labels || labels.length === 0)
         ) {
           throw new ValidationError(
             "At least one update option must be provided",
             {
               suggestion:
-                "Use --name, --description, --description-file, --status, --lead, --start-date, --target-date, --team, or --label",
+                "Use --name, --description, --description-file, --status, --lead, --start-date, --target-date, --team, --add-team, or --label",
+            },
+          )
+        }
+
+        if (teams && teamsToAdd) {
+          throw new ValidationError(
+            "Cannot use --team and --add-team together",
+            {
+              suggestion:
+                "Use --team to replace all project teams, or --add-team to add teams without removing existing ones.",
             },
           )
         }
@@ -199,6 +229,31 @@ export const updateCommand = withUsageMetadata(new Command(), { writes: true })
             teamIds.push(teamId)
           }
           input.teamIds = teamIds
+        }
+
+        if (teamsToAdd && teamsToAdd.length > 0) {
+          const teamIds: string[] = []
+          for (const teamKey of teamsToAdd) {
+            const teamId = await getTeamIdByKey(teamKey.toUpperCase())
+            if (!teamId) {
+              spinner?.stop()
+              throw new NotFoundError("Team", teamKey)
+            }
+            teamIds.push(teamId)
+          }
+
+          const projectResult = await client.request(GetProjectTeams, {
+            id: resolvedId,
+          })
+          if (projectResult.project == null) {
+            spinner?.stop()
+            throw new NotFoundError("Project", projectId)
+          }
+
+          const existingTeamIds = projectResult.project.teams.nodes.map((
+            team,
+          ) => team.id)
+          input.teamIds = [...new Set([...existingTeamIds, ...teamIds])]
         }
 
         if (labels && labels.length > 0) {

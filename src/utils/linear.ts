@@ -1317,6 +1317,7 @@ export interface FetchIssuesForQueryOptions {
   sort?: "manual" | "priority"
   limit?: number
   projectId?: string
+  noProject?: boolean
   projectLabel?: string
   cycleId?: string
   milestoneId?: string
@@ -1364,6 +1365,8 @@ export async function fetchIssuesForQuery(
 
   if (options.projectId) {
     filter.project = { id: { eq: options.projectId } }
+  } else if (options.noProject) {
+    filter.project = { null: true }
   } else if (options.projectLabel) {
     filter.project = {
       labels: { name: { eqIgnoreCase: options.projectLabel } },
@@ -1591,6 +1594,7 @@ export interface SearchIssuesByTermOptions {
   unassigned?: boolean
   limit?: number
   projectId?: string
+  noProject?: boolean
   projectLabel?: string
   cycleId?: string
   labelNames?: string[]
@@ -1637,6 +1641,8 @@ export async function searchIssuesByTerm(
 
   if (options.projectId) {
     filter.project = { id: { eq: options.projectId } }
+  } else if (options.noProject) {
+    filter.project = { null: true }
   } else if (options.projectLabel) {
     filter.project = {
       labels: { name: { eqIgnoreCase: options.projectLabel } },
