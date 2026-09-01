@@ -357,6 +357,37 @@ Deno.test("Issue Query Command - rejects conflicting project filters", async () 
   )
 })
 
+Deno.test("Issue Query Command - rejects unprojected milestone filters", async () => {
+  const errorLogs: string[] = []
+  const errorStub = stub(console, "error", (...args: unknown[]) => {
+    errorLogs.push(args.map(String).join(" "))
+  })
+  const exitStub = stub(Deno, "exit", (_code?: number) => {
+    throw new Error("EXIT")
+  })
+
+  try {
+    await queryCommand.parse([
+      "--all-teams",
+      "--unprojected",
+      "--milestone",
+      "00000000-0000-0000-0000-000000000001",
+    ])
+  } catch {
+    // expected
+  } finally {
+    errorStub.restore()
+    exitStub.restore()
+  }
+
+  assertEquals(
+    errorLogs.some((line) =>
+      line.includes("--milestone cannot be used with --unprojected")
+    ),
+    true,
+  )
+})
+
 Deno.test("Issue Query Command - Uses configured default team without project", async () => {
   const { cleanup } = await setupMockLinearServer([
     {

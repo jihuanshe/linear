@@ -1,7 +1,10 @@
 import { Command } from "@cliffy/command"
 import { withUsageMetadata } from "../usage.ts"
 import { gql } from "../../__codegen__/gql.ts"
-import type { ProjectUpdateInput } from "../../__codegen__/graphql.ts"
+import type {
+  GetProjectTeamsQuery,
+  ProjectUpdateInput,
+} from "../../__codegen__/graphql.ts"
 import { getGraphQLClient } from "../../utils/graphql.ts"
 import {
   getProjectLabelIdByName,
@@ -50,11 +53,15 @@ const GetProjectStatuses = gql(`
 `)
 
 const GetProjectTeams = gql(`
-  query GetProjectTeams($id: String!) {
+  query GetProjectTeams($id: String!, $after: String) {
     project(id: $id) {
-      teams {
+      teams(first: 100, after: $after) {
         nodes {
           id
+        }
+        pageInfo {
+          hasNextPage
+          endCursor
         }
       }
     }
@@ -242,17 +249,36 @@ export const updateCommand = withUsageMetadata(new Command(), { writes: true })
             teamIds.push(teamId)
           }
 
-          const projectResult = await client.request(GetProjectTeams, {
-            id: resolvedId,
-          })
-          if (projectResult.project == null) {
-            spinner?.stop()
-            throw new NotFoundError("Project", projectId)
+          const existingTeamIds: string[] = []
+          let after: string | null = null
+          let hasNextPage = true
+          while (hasNextPage) {
+            const projectResult: GetProjectTeamsQuery = await client.request(
+              GetProjectTeams,
+              {
+                id: resolvedId,
+                after,
+              },
+            )
+            if (projectResult.project == null) {
+              spinner?.stop()
+              throw new NotFoundError("Project", projectId)
+            }
+
+            existingTeamIds.push(
+              ...projectResult.project.teams.nodes.map((team) => team.id),
+            )
+            const pageInfo = projectResult.project.teams.pageInfo
+            hasNextPage = pageInfo.hasNextPage
+            after = pageInfo.endCursor
+            if (hasNextPage && after == null) {
+              spinner?.stop()
+              throw new CliError(
+                "Project team pagination returned no continuation cursor",
+              )
+            }
           }
 
-          const existingTeamIds = projectResult.project.teams.nodes.map((
-            team,
-          ) => team.id)
           input.teamIds = [...new Set([...existingTeamIds, ...teamIds])]
         }
 

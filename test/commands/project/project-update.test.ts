@@ -267,7 +267,10 @@ Deno.test("Project Update Command - adds teams without replacing existing teams"
       response: {
         data: {
           project: {
-            teams: { nodes: [{ id: "team-existing" }] },
+            teams: {
+              nodes: [{ id: "team-existing" }],
+              pageInfo: { hasNextPage: false, endCursor: null },
+            },
           },
         },
       },
@@ -309,6 +312,92 @@ Deno.test("Project Update Command - adds teams without replacing existing teams"
       "--add-team",
       "ARCH",
     ])
+  } finally {
+    logStub.restore()
+    await server.stop()
+    Deno.env.delete("LINEAR_GRAPHQL_ENDPOINT")
+    Deno.env.delete("LINEAR_API_KEY")
+  }
+
+  assertEquals(logs.some((line) => line.includes("✓ Updated project")), true)
+})
+
+Deno.test("Project Update Command - preserves all paginated project teams", async () => {
+  const projectId = "550e8400-e29b-41d4-a716-446655440012"
+  const server = new MockLinearServer([
+    {
+      queryName: "GetTeamIdByKey",
+      variables: { team: "ARCH" },
+      response: { data: { teams: { nodes: [{ id: "team-arch" }] } } },
+    },
+    {
+      queryName: "GetProjectTeams",
+      variables: { id: projectId, after: null },
+      response: {
+        data: {
+          project: {
+            teams: {
+              nodes: [{ id: "team-existing-1" }, { id: "team-existing-2" }],
+              pageInfo: { hasNextPage: true, endCursor: "team-cursor-1" },
+            },
+          },
+        },
+      },
+    },
+    {
+      queryName: "GetProjectTeams",
+      variables: { id: projectId, after: "team-cursor-1" },
+      response: {
+        data: {
+          project: {
+            teams: {
+              nodes: [{ id: "team-existing-3" }],
+              pageInfo: { hasNextPage: false, endCursor: null },
+            },
+          },
+        },
+      },
+    },
+    {
+      queryName: "UpdateProject",
+      variables: {
+        id: projectId,
+        input: {
+          teamIds: [
+            "team-existing-1",
+            "team-existing-2",
+            "team-existing-3",
+            "team-arch",
+          ],
+        },
+      },
+      response: {
+        data: {
+          projectUpdate: {
+            success: true,
+            project: {
+              id: projectId,
+              slugId: "proj-paginated-teams",
+              name: "Test Project",
+              description: null,
+              url: "https://linear.app/test/project/proj-paginated-teams",
+              updatedAt: "2024-01-20T15:30:00Z",
+            },
+          },
+        },
+      },
+    },
+  ])
+  const logs: string[] = []
+  const logStub = stub(console, "log", (...args: unknown[]) => {
+    logs.push(args.map(String).join(" "))
+  })
+
+  try {
+    await server.start()
+    Deno.env.set("LINEAR_GRAPHQL_ENDPOINT", server.getEndpoint())
+    Deno.env.set("LINEAR_API_KEY", "Bearer test-token")
+    await updateCommand.parse([projectId, "--add-team", "ARCH"])
   } finally {
     logStub.restore()
     await server.stop()

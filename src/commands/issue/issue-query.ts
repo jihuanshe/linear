@@ -219,6 +219,16 @@ export const queryCommand = withUsageMetadata(new Command(), {
         )
       }
 
+      if (unprojected === true && milestone != null) {
+        throw new ValidationError(
+          "--milestone cannot be used with --unprojected",
+          {
+            suggestion:
+              "Use --project to specify a project when filtering by milestone.",
+          },
+        )
+      }
+
       if (milestone != null && project == null && !isLinearUuid(milestone)) {
         throw new ValidationError(
           "--milestone requires --project to be set",
