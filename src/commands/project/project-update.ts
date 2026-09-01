@@ -55,7 +55,7 @@ const GetProjectStatuses = gql(`
 const GetProjectTeams = gql(`
   query GetProjectTeams($id: String!, $after: String) {
     project(id: $id) {
-      teams(first: 100, after: $after) {
+      teams(first: 100, after: $after, includeArchived: true) {
         nodes {
           id
         }

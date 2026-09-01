@@ -263,6 +263,7 @@ Deno.test("Project Update Command - adds teams without replacing existing teams"
     },
     {
       queryName: "GetProjectTeams",
+      queryIncludes: "includeArchived: true",
       variables: { id: "550e8400-e29b-41d4-a716-446655440010" },
       response: {
         data: {
@@ -332,12 +333,17 @@ Deno.test("Project Update Command - preserves all paginated project teams", asyn
     },
     {
       queryName: "GetProjectTeams",
+      queryIncludes: "includeArchived: true",
       variables: { id: projectId, after: null },
       response: {
         data: {
           project: {
             teams: {
-              nodes: [{ id: "team-existing-1" }, { id: "team-existing-2" }],
+              nodes: [
+                { id: "team-existing-1" },
+                { id: "team-existing-2" },
+                { id: "team-archived" },
+              ],
               pageInfo: { hasNextPage: true, endCursor: "team-cursor-1" },
             },
           },
@@ -346,6 +352,7 @@ Deno.test("Project Update Command - preserves all paginated project teams", asyn
     },
     {
       queryName: "GetProjectTeams",
+      queryIncludes: "includeArchived: true",
       variables: { id: projectId, after: "team-cursor-1" },
       response: {
         data: {
@@ -366,6 +373,7 @@ Deno.test("Project Update Command - preserves all paginated project teams", asyn
           teamIds: [
             "team-existing-1",
             "team-existing-2",
+            "team-archived",
             "team-existing-3",
             "team-arch",
           ],
