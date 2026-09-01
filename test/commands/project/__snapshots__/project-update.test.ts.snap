@@ -22,7 +22,6 @@ Options:
   --start-date            <startDate>    - Start date (YYYY-MM-DD)                                                            
   --target-date           <targetDate>   - Target date (YYYY-MM-DD)                                                           
   -t, --team              <team>         - Replace project teams with these keys (can be repeated)                            
-  --add-team              <team>         - Add these team keys without removing existing project teams (can be repeated)      
   --label                 <label>        - Replace the project's labels. May be repeated to set multiple labels.              
 
 "
