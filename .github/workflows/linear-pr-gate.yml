@@ -1,0 +1,58 @@
+name: Linear PR Gate
+
+on:
+  workflow_call:
+    inputs:
+      linear_source_ref:
+        description: Branch or immutable commit containing this workflow and its validator
+        required: true
+        type: string
+      allowed_team_keys:
+        description: Comma- or space-separated Linear team keys allowed for this repository
+        required: true
+        type: string
+      enforce:
+        description: Fail the check on missing metadata, API errors, or invalid Issues
+        required: false
+        default: false
+        type: boolean
+    secrets:
+      linear_api_key:
+        description: Linear API key used only for read-only Issue validation
+        required: false
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  validate:
+    name: Validate Linear Issues (${{ inputs.enforce && 'enforced' || 'shadow' }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Checkout the workflow source
+        uses: actions/checkout@v7
+        with:
+          repository: jihuanshe/linear
+          ref: ${{ inputs.linear_source_ref }}
+          path: linear-pr-gate
+          persist-credentials: false
+
+      - name: Set up Deno
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: "2.9.4"
+
+      - name: Validate PR Linear metadata
+        env:
+          LINEAR_API_KEY: ${{ secrets.linear_api_key }}
+          LINEAR_GATE_ALLOWED_TEAM_KEYS: ${{ inputs.allowed_team_keys }}
+          LINEAR_GATE_ENFORCE: ${{ inputs.enforce }}
+        run: >-
+          deno run
+          --allow-env
+          --allow-net
+          --allow-read
+          --allow-write
+          "$GITHUB_WORKSPACE/linear-pr-gate/scripts/ci/linear-pr-gate.ts"
