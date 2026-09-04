@@ -123,7 +123,7 @@ export const queryCommand = withUsageMetadata(new Command(), {
   )
   .option(
     "--url-file <path:string>",
-    "Find issues for one URL per line (blank lines and lines starting with # are ignored); JSON returns lookups in input order",
+    "Find issues for one URL per line (blank lines and comment lines are ignored); JSON returns lookups in input order",
   )
   .option(
     "--search-comments",
