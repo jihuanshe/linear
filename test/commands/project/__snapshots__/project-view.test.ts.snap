@@ -11,10 +11,11 @@ Description:
 
 Options:
 
-  -h, --help  - Show this help.      
-  -w, --web   - Open in web browser  
-  -a, --app   - Open in Linear.app   
-  -j, --json  - Output as JSON       
+  -h, --help         - Show this help.                        
+  -w, --web          - Open in web browser                    
+  -a, --app          - Open in Linear.app                     
+  -j, --json         - Output as JSON                         
+  --include-content  - Include the project's routing content  
 
 "
 stderr:
@@ -59,7 +60,7 @@ Complete overhaul of the authentication system to improve security and user expe
 ## Latest Update
 
 **By:** Jane Lead
-**When:** 1/22/2024
+**When:** 1/23/2024
 **Health:** onTrack
 
 Great progress this week! The OAuth implementation is nearly complete and we're on track for our Q1 delivery. The team has been collaborating well across backend and security concerns.

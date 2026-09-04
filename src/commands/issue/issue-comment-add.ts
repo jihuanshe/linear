@@ -17,6 +17,7 @@ import { CliError, handleError, ValidationError } from "../../utils/errors.ts"
 export const commentAddCommand = withUsageMetadata(new Command(), {
   writes: true,
   interactive: true,
+  outputModes: ["human", "json"],
 })
   .name("add")
   .description(
@@ -38,8 +39,16 @@ export const commentAddCommand = withUsageMetadata(new Command(), {
     "--public",
     "Upload attached images to a public, unauthenticated URL (default: private, workspace-members only)",
   )
+  .option("-j, --json", "Output the created comment as JSON")
   .action(async (options, issueId) => {
-    const { body, bodyFile, parent, attach, public: makePublic } = options
+    const {
+      body,
+      bodyFile,
+      parent,
+      attach,
+      public: makePublic,
+      json,
+    } = options
 
     try {
       // Validate that body and bodyFile are not both provided
@@ -100,7 +109,7 @@ export const commentAddCommand = withUsageMetadata(new Command(), {
         // Upload files
         for (const filepath of attachments) {
           const result = await uploadFile(filepath, {
-            showProgress: shouldShowSpinner(),
+            showProgress: shouldShowSpinner() && !json,
             makePublic,
           })
           uploadedFiles.push({
@@ -108,7 +117,9 @@ export const commentAddCommand = withUsageMetadata(new Command(), {
             assetUrl: result.assetUrl,
             isImage: result.contentType.startsWith("image/"),
           })
-          console.log(`✓ Uploaded ${result.filename}`)
+          const uploadMessage = `✓ Uploaded ${result.filename}`
+          if (json) console.error(uploadMessage)
+          else console.log(uploadMessage)
           if (result.public) {
             console.warn(
               `⚠ Uploaded to a public URL readable by anyone: ${result.assetUrl}`,
@@ -119,6 +130,15 @@ export const commentAddCommand = withUsageMetadata(new Command(), {
 
       // If no body provided and no attachments, prompt for it
       if (!commentBody && uploadedFiles.length === 0) {
+        if (json) {
+          throw new ValidationError(
+            "--json requires --body, --body-file, or --attach",
+            {
+              suggestion:
+                "Provide the comment content explicitly when producing machine-readable output.",
+            },
+          )
+        }
         commentBody = await Input.prompt({
           message: "Comment body",
           default: "",
@@ -187,6 +207,13 @@ export const commentAddCommand = withUsageMetadata(new Command(), {
       const comment = data.commentCreate.comment
       if (!comment) {
         throw new CliError("Comment creation failed - no comment returned")
+      }
+
+      if (json) {
+        console.log(
+          JSON.stringify({ issue: resolvedIdentifier, comment }, null, 2),
+        )
+        return
       }
 
       console.log(`✓ Comment added to ${resolvedIdentifier}`)

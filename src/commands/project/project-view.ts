@@ -8,11 +8,12 @@ import { shouldShowSpinner } from "../../utils/hyperlink.ts"
 import { handleError, NotFoundError } from "../../utils/errors.ts"
 
 const GetProjectDetails = gql(`
-  query GetProjectDetails($id: String!) {
+  query GetProjectDetails($id: String!, $includeContent: Boolean!) {
     project(id: $id) {
       id
       name
       description
+      content @include(if: $includeContent)
       slugId
       icon
       color
@@ -79,8 +80,9 @@ export const viewCommand = new Command()
   .option("-w, --web", "Open in web browser")
   .option("-a, --app", "Open in Linear.app")
   .option("-j, --json", "Output as JSON")
+  .option("--include-content", "Include the project's routing content")
   .action(async (options, projectId) => {
-    const { web, app, json } = options
+    const { web, app, json, includeContent } = options
 
     if (web || app) {
       await openProjectPage(projectId, { app, web: !app })
@@ -94,7 +96,10 @@ export const viewCommand = new Command()
 
     try {
       const client = getGraphQLClient()
-      const result = await client.request(GetProjectDetails, { id: projectId })
+      const result = await client.request(GetProjectDetails, {
+        id: projectId,
+        includeContent: includeContent === true,
+      })
       spinner?.stop()
 
       const project = result.project
@@ -195,6 +200,13 @@ export const viewCommand = new Command()
         lines.push("## Description")
         lines.push("")
         lines.push(project.description)
+      }
+
+      if (includeContent && project.content) {
+        lines.push("")
+        lines.push("## Content")
+        lines.push("")
+        lines.push(project.content)
       }
 
       // Latest update

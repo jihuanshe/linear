@@ -429,6 +429,42 @@ snapshot[`usage JSON v1 freezes its existing fields and types 1`] = `
           staticallyRequired: false,
         },
         {
+          arguments: [
+            {
+              list: false,
+              name: "url",
+              required: true,
+              type: "string",
+              variadic: false,
+            },
+          ],
+          description: "Find an issue by Linear URL, or by an exact URL occurrence in its description",
+          flags: [
+            "--url",
+          ],
+          name: "url",
+          repeatable: false,
+          staticallyRequired: false,
+        },
+        {
+          arguments: [
+            {
+              list: false,
+              name: "path",
+              required: true,
+              type: "string",
+              variadic: false,
+            },
+          ],
+          description: "Find issues for one URL per line (blank lines and lines starting with # are ignored); JSON returns lookups in input order",
+          flags: [
+            "--url-file",
+          ],
+          name: "url-file",
+          repeatable: false,
+          staticallyRequired: false,
+        },
+        {
           arguments: [],
           description: "Also search inside issue comments (requires --search)",
           flags: [

@@ -1092,6 +1092,7 @@ const queryIssuesQuery = gql(/* GraphQL */ `
     $includeArchived: Boolean
     $includeProjectTeamMetadata: Boolean!
     $includeEstimationMetadata: Boolean!
+    $includeDescription: Boolean!
   ) {
     issues(
       filter: $filter
@@ -1105,6 +1106,7 @@ const queryIssuesQuery = gql(/* GraphQL */ `
         identifier
         title
         url
+        description @include(if: $includeDescription)
         priority
         priorityLabel
         estimate
@@ -1327,12 +1329,78 @@ export interface FetchIssuesForQueryOptions {
   includeArchived?: boolean
   includeProjectTeamMetadata?: boolean
   includeEstimationMetadata?: boolean
+  /** Exact URL to locate in an issue's canonical URL or description. */
+  exactUrl?: string
+}
+
+interface LinearIssueUrlReference {
+  identifier: string
+  workspace?: string
+}
+
+function parseLinearIssueUrl(
+  url: string,
+): LinearIssueUrlReference | undefined {
+  let parsed: URL
+  try {
+    parsed = new URL(url)
+  } catch {
+    return undefined
+  }
+
+  if (parsed.hostname !== "linear.app") return undefined
+  const match = parsed.pathname.match(
+    /^\/(?:([^/]+)\/)?issue\/([A-Za-z0-9]+-[1-9][0-9]*)(?:\/|$)/i,
+  )
+  if (match?.[2] == null) return undefined
+  const identifier = normalizeIssueIdentifier(match[2])
+  if (identifier == null) return undefined
+  if (match[1] == null) return { identifier }
+  try {
+    return { identifier, workspace: decodeURIComponent(match[1]) }
+  } catch {
+    return undefined
+  }
+}
+
+function containsExactUrl(
+  text: string | null | undefined,
+  target: string,
+): boolean {
+  if (text == null || target.length === 0) return false
+
+  // The GraphQL contains filter is intentionally broad (it tokenizes URLs),
+  // so a local boundary check is required to distinguish /42 from /420.
+  const isUrlContinuation = (value: string | undefined): boolean =>
+    value != null && /[A-Za-z0-9_/?&#=%-]/.test(value)
+
+  let offset = 0
+  while (offset < text.length) {
+    const index = text.indexOf(target, offset)
+    if (index < 0) return false
+    const before = index === 0 ? undefined : text[index - 1]
+    const after = text[index + target.length]
+    if (!isUrlContinuation(before) && !isUrlContinuation(after)) return true
+    offset = index + 1
+  }
+  return false
 }
 
 export async function fetchIssuesForQuery(
   options: FetchIssuesForQueryOptions,
 ): Promise<FetchedQueryIssuePayload> {
   const filter: IssueFilter = {}
+  const exactIssueReference = options.exactUrl == null
+    ? undefined
+    : parseLinearIssueUrl(options.exactUrl)
+
+  if (options.exactUrl != null) {
+    if (exactIssueReference != null) {
+      filter.id = { eq: exactIssueReference.identifier }
+    } else {
+      filter.description = { contains: options.exactUrl }
+    }
+  }
 
   if (options.allTeams) {
     // No team filter — workspace-wide
@@ -1430,7 +1498,10 @@ export async function fetchIssuesForQuery(
   }
 
   const client = getGraphQLClient()
-  const fetchAll = options.limit === 0
+  // URL lookup must inspect every candidate before applying the exact local
+  // match. Otherwise a relevance-independent page boundary could hide the
+  // existing issue we are trying to deduplicate.
+  const fetchAll = options.limit === 0 || options.exactUrl != null
   const limit = options.limit ?? 50
   const pageSize = fetchAll ? 100 : Math.min(limit, 100)
 
@@ -1453,6 +1524,7 @@ export async function fetchIssuesForQuery(
         includeArchived: options.includeArchived,
         includeProjectTeamMetadata: options.includeProjectTeamMetadata === true,
         includeEstimationMetadata: options.includeEstimationMetadata === true,
+        includeDescription: options.exactUrl != null,
       },
     )
 
@@ -1466,13 +1538,36 @@ export async function fetchIssuesForQuery(
     }
   }
 
-  const nodes = options.includeProjectTeamMetadata === true
+  const completedNodes = options.includeProjectTeamMetadata === true
     ? await completeDoctorProjectTeams(allNodes, options.includeArchived)
     : allNodes
 
+  const matchedNodes = options.exactUrl == null
+    ? completedNodes
+    : completedNodes.filter((issue) => {
+      if (exactIssueReference != null) {
+        if (issue.identifier !== exactIssueReference.identifier) return false
+        if (exactIssueReference.workspace == null) return true
+        const issueReference = parseLinearIssueUrl(issue.url)
+        return issueReference?.workspace?.toLowerCase() ===
+          exactIssueReference.workspace.toLowerCase()
+      }
+      return issue.url === options.exactUrl ||
+        containsExactUrl(issue.description, options.exactUrl!)
+    })
+
+  const nodes = options.exactUrl == null
+    ? (fetchAll ? matchedNodes : matchedNodes.slice(0, limit))
+    : (limit === 0 ? matchedNodes : matchedNodes.slice(0, limit))
+
   return {
-    nodes: fetchAll ? nodes : nodes.slice(0, limit),
-    pageInfo: lastPageInfo,
+    nodes,
+    // The URL mode has already scanned every upstream page; returning a
+    // cursor from the unfiltered candidate set would suggest that callers can
+    // continue the exact result set with that cursor, which is not true.
+    pageInfo: options.exactUrl == null
+      ? lastPageInfo
+      : { hasNextPage: false, endCursor: null },
   }
 }
 

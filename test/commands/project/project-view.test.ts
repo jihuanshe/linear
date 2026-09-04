@@ -1,4 +1,6 @@
 import { snapshotTest } from "@cliffy/testing"
+import { assertEquals } from "@std/assert"
+import { stub } from "@std/testing/mock"
 import { viewCommand } from "../../../src/commands/project/project-view.ts"
 import { MockLinearServer } from "../../utils/mock_linear_server.ts"
 
@@ -29,7 +31,7 @@ await snapshotTest({
     const server = new MockLinearServer([
       {
         queryName: "GetProjectDetails",
-        variables: { id: "project-123" },
+        variables: { id: "project-123", includeContent: false },
         response: {
           data: {
             project: {
@@ -159,7 +161,7 @@ await snapshotTest({
     const server = new MockLinearServer([
       {
         queryName: "GetProjectDetails",
-        variables: { id: "minimal-project" },
+        variables: { id: "minimal-project", includeContent: false },
         response: {
           data: {
             project: {
@@ -211,4 +213,63 @@ await snapshotTest({
       Deno.env.delete("LINEAR_API_KEY")
     }
   },
+})
+
+Deno.test("Project View can include routing content on request", async () => {
+  const server = new MockLinearServer([
+    {
+      queryName: "GetProjectDetails",
+      variables: { id: "routing-project", includeContent: true },
+      response: {
+        data: {
+          project: {
+            id: "routing-project",
+            name: "Selling",
+            description: "",
+            content:
+              "route: selling/product-list\nrepository: jihuanshe_rn_business_selling",
+            slugId: "selling",
+            icon: null,
+            color: "#64748b",
+            status: { id: "status-started", name: "Started", color: "#22c55e" },
+            creator: null,
+            lead: null,
+            priority: 0,
+            health: null,
+            startDate: null,
+            targetDate: null,
+            startedAt: null,
+            completedAt: null,
+            canceledAt: null,
+            updatedAt: "2024-01-20T12:00:00Z",
+            createdAt: "2024-01-20T12:00:00Z",
+            url: "https://linear.app/acme/project/selling",
+            teams: { nodes: [] },
+            issues: { nodes: [] },
+            lastUpdate: null,
+          },
+        },
+      },
+    },
+  ])
+  const logs: string[] = []
+  const logStub = stub(console, "log", (...args: unknown[]) => {
+    logs.push(args.map(String).join(" "))
+  })
+
+  try {
+    await server.start()
+    Deno.env.set("LINEAR_GRAPHQL_ENDPOINT", server.getEndpoint())
+    Deno.env.set("LINEAR_API_KEY", "Bearer test-token")
+    await viewCommand.parse(["routing-project", "--include-content", "--json"])
+    assertEquals(
+      JSON.parse(logs[0]).content,
+      "route: selling/product-list\nrepository: jihuanshe_rn_business_selling",
+    )
+  } finally {
+    logStub.restore()
+    await server.stop()
+    Deno.env.delete("LINEAR_GRAPHQL_ENDPOINT")
+    Deno.env.delete("LINEAR_API_KEY")
+  }
 })
