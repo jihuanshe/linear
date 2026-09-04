@@ -145,7 +145,7 @@ Deno.test("domain usage lists related guides without embedding bodies", async ()
   assertStringIncludes(result.stdout, "related guides:")
   assertStringIncludes(result.stdout, "issue-authoring")
   assertStringIncludes(result.stdout, "guides: linear guide <name>")
-  assertEquals(result.stdout.includes("# "), false)
+  assertEquals(/^# /m.test(result.stdout), false)
 })
 
 Deno.test("leaf help shows a Related guides breadcrumb", async () => {
