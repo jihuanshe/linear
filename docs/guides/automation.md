@@ -48,7 +48,7 @@ jq '.nodes[] | {identifier, title, priority}' project-issues.json
 
 按 Feedback canonical URL 查重时使用 `issue query --url <url> --all-teams --json`。
 
-它不会走 `--search` 的相关性排序：Linear Issue URL 按 identifier 和 workspace 定位，其他 URL 对候选 Issue description 做完整 URL 边界核对。
+它不会走 `--search` 的相关性排序：Linear Issue URL 按 identifier 和 workspace 定位，其他 URL 对候选 Issue description 或评论做完整 URL 边界核对。
 
 空 `.nodes` 才表示当前没有命中。该模式已经读完候选分页并返回全部精确命中，有限 `--limit` 不会截断结果；`pageInfo` 固定为 `{hasNextPage:false,endCursor:null}`。
 
@@ -61,7 +61,7 @@ jq '.lookups[] | {url, identifiers: [.nodes[].identifier]}' url-lookups.json
 
 空行和以 `#` 开头的行会忽略，重复 URL 只查一次；JSON 输出保持首次出现顺序，逐项返回 `{url,nodes,pageInfo}`。单个 `--url` 仍返回原来的 `{nodes,pageInfo}`。
 
-`issue comment list --json` 同样返回 connection envelope `{nodes,pageInfo}`，而不是评论数组。例如：
+`issue comment list --json` 同样返回 connection envelope `{nodes,pageInfo}`，而不是评论数组；当前只读取固定首 50 条，不能据此断言没有更早或更晚的评论。例如：
 
 ```bash
 linear issue comment list ENG-123 --json >comments.json &&

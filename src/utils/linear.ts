@@ -1093,6 +1093,7 @@ const queryIssuesQuery = gql(/* GraphQL */ `
     $includeProjectTeamMetadata: Boolean!
     $includeEstimationMetadata: Boolean!
     $includeDescription: Boolean!
+    $includeComments: Boolean!
   ) {
     issues(
       filter: $filter
@@ -1107,6 +1108,11 @@ const queryIssuesQuery = gql(/* GraphQL */ `
         title
         url
         description @include(if: $includeDescription)
+        comments(first: 100) @include(if: $includeComments) {
+          nodes {
+            body
+          }
+        }
         priority
         priorityLabel
         estimate
@@ -1394,7 +1400,10 @@ function containsExactUrl(
     while (end < text.length && isUrlContinuation(text[end])) end++
     const suffix = text.slice(index + target.length, end)
     if (suffix.length === 0) return true
-    if (trailingSentencePunctuation.test(suffix)) return true
+    // Markdown emphasis/strike delimiters are formatting, not URL text.
+    if (trailingSentencePunctuation.test(suffix) || /^[*_~]+$/u.test(suffix)) {
+      return true
+    }
     offset = index + 1
   }
   return false
@@ -1403,7 +1412,7 @@ function containsExactUrl(
 export async function fetchIssuesForQuery(
   options: FetchIssuesForQueryOptions,
 ): Promise<FetchedQueryIssuePayload> {
-  const filter: IssueFilter = {}
+  let filter: IssueFilter = {}
   const exactIssueReference = options.exactUrl == null
     ? undefined
     : parseLinearIssueUrl(options.exactUrl)
@@ -1412,7 +1421,15 @@ export async function fetchIssuesForQuery(
     if (exactIssueReference != null) {
       filter.id = { eq: exactIssueReference.identifier }
     } else {
-      filter.description = { contains: options.exactUrl }
+      // The URL may have been recorded in the description or a comment. Keep
+      // both paths in the upstream candidate filter so an empty description
+      // match cannot cause a duplicate Issue to be created.
+      filter = {
+        or: [
+          { description: { contains: options.exactUrl } },
+          { comments: { body: { contains: options.exactUrl } } },
+        ],
+      }
     }
   }
 
@@ -1539,6 +1556,8 @@ export async function fetchIssuesForQuery(
         includeProjectTeamMetadata: options.includeProjectTeamMetadata === true,
         includeEstimationMetadata: options.includeEstimationMetadata === true,
         includeDescription: options.exactUrl != null,
+        includeComments: options.exactUrl != null &&
+          exactIssueReference == null,
       },
     )
 
@@ -1567,7 +1586,10 @@ export async function fetchIssuesForQuery(
           exactIssueReference.workspace.toLowerCase()
       }
       return issue.url === options.exactUrl ||
-        containsExactUrl(issue.description, options.exactUrl!)
+        containsExactUrl(issue.description, options.exactUrl!) ||
+        issue.comments?.nodes.some((comment) =>
+            containsExactUrl(comment.body, options.exactUrl!)
+          ) === true
     })
 
   const nodes = options.exactUrl == null

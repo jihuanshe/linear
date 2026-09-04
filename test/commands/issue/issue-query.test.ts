@@ -283,9 +283,15 @@ Deno.test("Issue Query Command - exact URL matches description, not relevance ne
     {
       queryName: "GetIssuesForQuery",
       variables: {
-        filter: { description: { contains: targetUrl } },
+        filter: {
+          or: [
+            { description: { contains: targetUrl } },
+            { comments: { body: { contains: targetUrl } } },
+          ],
+        },
         first: 100,
         includeDescription: true,
+        includeComments: true,
       },
       response: {
         data: {
@@ -324,6 +330,19 @@ Deno.test("Issue Query Command - exact URL matches description, not relevance ne
                 id: "issue-wrapped",
                 identifier: "ENG-106",
                 description: `反馈链接：（${targetUrl}）`,
+              },
+              {
+                ...mockIssueNode,
+                id: "issue-markdown",
+                identifier: "ENG-107",
+                description: `**反馈链接：${targetUrl}**`,
+              },
+              {
+                ...mockIssueNode,
+                id: "issue-comment-only",
+                identifier: "ENG-108",
+                description: "没有链接的正文",
+                comments: { nodes: [{ body: `评论中引用 ${targetUrl}` }] },
               },
             ],
             pageInfo: { hasNextPage: false, endCursor: "candidate-end" },
@@ -371,7 +390,7 @@ Deno.test("Issue Query Command - exact URL matches description, not relevance ne
     const payload = JSON.parse(stdout)
     assertEquals(
       payload.nodes.map((issue: { identifier: string }) => issue.identifier),
-      ["ENG-101", "ENG-105", "ENG-106"],
+      ["ENG-101", "ENG-105", "ENG-106", "ENG-107", "ENG-108"],
     )
     assertEquals(payload.nodes[0].description, `反馈链接：${targetUrl}`)
     assertEquals(payload.pageInfo, { hasNextPage: false, endCursor: null })
@@ -387,9 +406,15 @@ Deno.test("Issue Query Command - exact URL keeps all matches with a finite limit
     {
       queryName: "GetIssuesForQuery",
       variables: {
-        filter: { description: { contains: targetUrl } },
+        filter: {
+          or: [
+            { description: { contains: targetUrl } },
+            { comments: { body: { contains: targetUrl } } },
+          ],
+        },
         first: 100,
         includeDescription: true,
+        includeComments: true,
       },
       response: {
         data: {
@@ -449,6 +474,7 @@ Deno.test("Issue Query Command - exact Linear issue URL resolves by identifier",
         filter: { id: { eq: "ENG-101" } },
         first: 100,
         includeDescription: true,
+        includeComments: false,
       },
       response: {
         data: {
