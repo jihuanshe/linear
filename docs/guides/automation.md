@@ -46,7 +46,7 @@ jq -e '.nodes | arrays' project-issues.json >/dev/null &&
 jq '.nodes[] | {identifier, title, priority}' project-issues.json
 ```
 
-按 Feedback canonical URL 查重时使用 `issue query --url <url> --all-teams --limit 0 --json`。
+按 Feedback canonical URL 查重时使用 `issue query --url <url> --all-teams --json`。
 
 它不会走 `--search` 的相关性排序：Linear Issue URL 按 identifier 和 workspace 定位，其他 URL 对候选 Issue description 做完整 URL 边界核对。
 
@@ -55,7 +55,7 @@ jq '.nodes[] | {identifier, title, priority}' project-issues.json
 需要一次核对多条 Feedback 时，把每个 canonical URL 放在文件的一行，用 `--url-file`：
 
 ```bash
-NO_COLOR=1 LINEAR_PROMPT_DISABLED=1 linear issue query --all-teams --url-file feedback-urls.txt --limit 0 --json >url-lookups.json
+NO_COLOR=1 LINEAR_PROMPT_DISABLED=1 linear issue query --all-teams --url-file feedback-urls.txt --json >url-lookups.json
 jq '.lookups[] | {url, identifiers: [.nodes[].identifier]}' url-lookups.json
 ```
 

@@ -56,7 +56,7 @@ commands:
 - `relations` 的 `issue` 必须使用 `DATA-580` 形态的完整 identifier，类型词表与 `issue relation add` 一致：related、blocks、blocked-by（由 CLI 反转为上游的 blocks）、duplicate。duplicate 的方向：本条目所在 Issue 成为 `issue` 字段所指 Issue 的 duplicate。Linear 的同一对 Issue 只能保留一种关系：同类型和方向按幂等处理，不同类型或方向在 plan/apply 中报告 conflict；需要替换时先用 `issue relation delete` 显式删除旧关系。
 - 已有评论、Attachment 和关系不会被本协议隐式修改或删除；单项修改用对应的专用命令。
 
-Feedback 分诊按「一组一条 Issue」放进同一份 manifest。先用原始 Feedback URL 建立可读正文；Case 建立或复用后，把 Case URL 作为同一条 Issue 的后续 update 或 Comment 补上。不要为新增成员复制 Issue，也不要把组内数量写进永久正文。
+Feedback 分诊按「一组一条 Issue」放进同一份 manifest；正文、Case URL 和人话 Comment 的写法见 [issue-authoring](issue-authoring.md)。不要为新增成员复制 Issue，也不要把组内数量写进永久正文。
 
 ## base：并发安全
 
