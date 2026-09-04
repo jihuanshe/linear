@@ -1331,6 +1331,8 @@ export interface FetchIssuesForQueryOptions {
   includeEstimationMetadata?: boolean
   /** Exact URL to locate in an issue's canonical URL or description. */
   exactUrl?: string
+  /** Resolved once by batch callers to avoid repeating user lookup requests. */
+  assigneeId?: string
 }
 
 interface LinearIssueUrlReference {
@@ -1370,17 +1372,29 @@ function containsExactUrl(
   if (text == null || target.length === 0) return false
 
   // The GraphQL contains filter is intentionally broad (it tokenizes URLs),
-  // so a local boundary check is required to distinguish /42 from /420.
+  // so scan the complete URL token locally. The prefix class leaves common
+  // opening Markdown delimiters alone; the suffix class accepts punctuation
+  // that belongs to surrounding prose but rejects a real URL extension.
   const isUrlContinuation = (value: string | undefined): boolean =>
-    value != null && /[A-Za-z0-9_/?&#=%-]/.test(value)
+    value != null && /[A-Za-z0-9._~:/?#\[\]@!$&'()*+,;=%-]/u.test(value)
+  const isUrlPrefixContinuation = (value: string | undefined): boolean =>
+    value != null && /[A-Za-z0-9._~:/?#\]@!$&'*,;=%-]/u.test(value)
+  const trailingSentencePunctuation = /^[.,;:!?)}\]]+$/u
 
   let offset = 0
   while (offset < text.length) {
     const index = text.indexOf(target, offset)
     if (index < 0) return false
     const before = index === 0 ? undefined : text[index - 1]
-    const after = text[index + target.length]
-    if (!isUrlContinuation(before) && !isUrlContinuation(after)) return true
+    if (isUrlPrefixContinuation(before)) {
+      offset = index + 1
+      continue
+    }
+    let end = index + target.length
+    while (end < text.length && isUrlContinuation(text[end])) end++
+    const suffix = text.slice(index + target.length, end)
+    if (suffix.length === 0) return true
+    if (trailingSentencePunctuation.test(suffix)) return true
     offset = index + 1
   }
   return false
@@ -1422,10 +1436,10 @@ export async function fetchIssuesForQuery(
 
   if (options.unassigned) {
     filter.assignee = { null: true }
-  } else if (options.assignee) {
-    const userId = await lookupUserId(options.assignee)
+  } else if (options.assignee != null || options.assigneeId != null) {
+    const userId = options.assigneeId ?? await lookupUserId(options.assignee!)
     if (!userId) {
-      throw new NotFoundError("User", options.assignee)
+      throw new NotFoundError("User", options.assignee ?? options.assigneeId!)
     }
     filter.assignee = { id: { eq: userId } }
   }
@@ -1558,7 +1572,7 @@ export async function fetchIssuesForQuery(
 
   const nodes = options.exactUrl == null
     ? (fetchAll ? matchedNodes : matchedNodes.slice(0, limit))
-    : (limit === 0 ? matchedNodes : matchedNodes.slice(0, limit))
+    : matchedNodes
 
   return {
     nodes,

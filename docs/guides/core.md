@@ -96,7 +96,7 @@ LINEAR_PROMPT_DISABLED=1 linear issue query \
 
 `--url` 对 Linear Issue URL 按 identifier 定位并核对 URL 中的 workspace；其他 URL 先由 Linear 的 description filter 找候选，再在 CLI 内按完整 URL 边界核对 Issue description，输出仍保持 `{nodes,pageInfo}`。
 
-查到多个节点时全部返回，未查到才是空结果；这不是评论全文搜索。
+查到多个节点时全部返回，未查到才是空结果；exact URL 模式会先扫描候选分页，不用有限 `--limit` 截断匹配结果。这不是评论全文搜索。
 
 批量查重时把 URL 一行一个写入文件：
 

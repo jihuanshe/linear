@@ -21,6 +21,7 @@ import {
   getTeamKey,
   isIssueBlocked,
   isLinearUuid,
+  lookupUserId,
   resolveMilestoneId,
   searchIssuesByTerm,
   selectOption,
@@ -366,6 +367,14 @@ export const queryCommand = withUsageMetadata(new Command(), {
         ? undefined
         : await readExactUrlFile(urlFile)
 
+      let resolvedBatchAssigneeId: string | undefined
+      if (exactUrls != null && assignee != null) {
+        resolvedBatchAssigneeId = await lookupUserId(assignee)
+        if (!resolvedBatchAssigneeId) {
+          throw new NotFoundError("User", assignee)
+        }
+      }
+
       if (sortFlag && search) {
         throw new ValidationError(
           "--sort cannot be used with --search",
@@ -487,6 +496,7 @@ export const queryCommand = withUsageMetadata(new Command(), {
               state: stateArray,
               stateNames,
               assignee,
+              assigneeId: resolvedBatchAssigneeId,
               unassigned,
               sort,
               limit: limit === 0 ? 0 : limit,

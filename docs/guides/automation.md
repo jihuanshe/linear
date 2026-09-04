@@ -50,7 +50,7 @@ jq '.nodes[] | {identifier, title, priority}' project-issues.json
 
 它不会走 `--search` 的相关性排序：Linear Issue URL 按 identifier 和 workspace 定位，其他 URL 对候选 Issue description 做完整 URL 边界核对。
 
-空 `.nodes` 才表示当前没有命中。该模式已经读完候选分页，返回的 `pageInfo` 固定为 `{hasNextPage:false,endCursor:null}`。
+空 `.nodes` 才表示当前没有命中。该模式已经读完候选分页并返回全部精确命中，有限 `--limit` 不会截断结果；`pageInfo` 固定为 `{hasNextPage:false,endCursor:null}`。
 
 需要一次核对多条 Feedback 时，把每个 canonical URL 放在文件的一行，用 `--url-file`：
 
