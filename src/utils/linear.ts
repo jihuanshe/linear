@@ -1471,12 +1471,14 @@ function containsExactUrl(
     if (trailingSentencePunctuation.test(suffix)) return true
     if (/^[*_~]+$/u.test(suffix)) {
       const marker = suffix[0]
-      const opening = text.slice(0, index).match(/[*_~]+$/u)?.[0]
-      const beforeOpening = opening == null || opening.length === 0
-        ? undefined
-        : text[index - opening.length - 1]
+      let runEnd = index
+      while (runEnd > 0 && text[runEnd - 1] !== marker) runEnd--
+      let runStart = runEnd
+      while (runStart > 0 && text[runStart - 1] === marker) runStart--
+      const opening = text.slice(runStart, runEnd)
+      const beforeOpening = runStart === 0 ? undefined : text[runStart - 1]
       if (
-        opening != null && opening[0] === marker &&
+        opening.length > 0 && opening[0] === marker &&
         opening.length >= suffix.length &&
         !isUrlPrefixContinuation(beforeOpening)
       ) return true
