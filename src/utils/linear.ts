@@ -1463,9 +1463,25 @@ function containsExactUrl(
     ) end++
     const suffix = text.slice(index + target.length, end)
     if (suffix.length === 0) return true
-    // Markdown emphasis/strike delimiters are formatting, not URL text.
-    if (trailingSentencePunctuation.test(suffix) || /^[*_~]+$/u.test(suffix)) {
-      return true
+    // Markdown emphasis/strike delimiters are formatting only when a
+    // matching opener exists before the URL. Otherwise they are URL text.
+    if (trailingSentencePunctuation.test(suffix)) return true
+    if (/^[*_~]+$/u.test(suffix)) {
+      const marker = suffix[0]
+      let cursor = index - 1
+      while (cursor >= 0) {
+        if (text[cursor] !== marker) {
+          cursor--
+          continue
+        }
+        const runEnd = cursor + 1
+        while (cursor >= 0 && text[cursor] === marker) cursor--
+        const beforeRun = cursor < 0 ? undefined : text[cursor]
+        if (
+          runEnd - (cursor + 1) >= suffix.length &&
+          !isUrlPrefixContinuation(beforeRun)
+        ) return true
+      }
     }
     offset = index + 1
   }

@@ -374,6 +374,12 @@ Deno.test("Issue Query Command - exact URL matches description, not relevance ne
                 identifier: "ENG-113",
                 description: `${targetUrl}。后续说明`,
               },
+              {
+                ...mockIssueNode,
+                id: "issue-underscore-suffix",
+                identifier: "ENG-114",
+                description: `${targetUrl}_`,
+              },
             ],
             pageInfo: { hasNextPage: false, endCursor: "candidate-end" },
           },
