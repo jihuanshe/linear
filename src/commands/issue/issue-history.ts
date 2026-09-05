@@ -5,10 +5,10 @@ import { getIssueIdentifier } from "../../utils/linear.ts"
 import { handleError, ValidationError } from "../../utils/errors.ts"
 
 const issueHistoryQuery = gql(`
-  query GetIssueHistory($id: String!) {
+  query GetIssueHistory($id: String!, $after: String) {
     issue(id: $id) {
       identifier
-      history(first: 100, orderBy: createdAt) {
+      history(first: 100, after: $after, orderBy: createdAt) {
         nodes {
           createdAt
           actor { name displayName }
@@ -42,14 +42,34 @@ export const historyCommand = new Command()
         )
       }
 
-      const data = await getGraphQLClient().request(issueHistoryQuery, {
-        id: resolvedIdentifier,
-      })
-      const history = data.issue?.history
-      if (!history) {
-        throw new ValidationError(
-          `Could not read history for ${resolvedIdentifier}`,
-        )
+      const client = getGraphQLClient()
+      const nodes = []
+      let after: string | null | undefined
+      let pageInfo = { hasNextPage: false, endCursor: null as string | null }
+      while (true) {
+        const data = await client.request(issueHistoryQuery, {
+          id: resolvedIdentifier,
+          after,
+        })
+        const page = data.issue?.history
+        if (!page) {
+          throw new ValidationError(
+            `Could not read history for ${resolvedIdentifier}`,
+          )
+        }
+        nodes.push(...page.nodes)
+        pageInfo = page.pageInfo
+        if (!pageInfo.hasNextPage) break
+        if (pageInfo.endCursor == null || pageInfo.endCursor === after) {
+          throw new ValidationError(
+            `Incomplete history pagination for ${resolvedIdentifier}`,
+          )
+        }
+        after = pageInfo.endCursor
+      }
+      const history = {
+        nodes,
+        pageInfo: { hasNextPage: false, endCursor: null },
       }
 
       if (json) {

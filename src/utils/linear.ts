@@ -1457,6 +1457,9 @@ function containsExactUrl(
       continue
     }
     let end = index + target.length
+    const wrappedMarkdownLink = text.slice(0, index).endsWith("](") &&
+      text[end] === ")"
+    if (wrappedMarkdownLink) return true
     while (
       end < text.length && isUrlContinuation(text[end]) &&
       !sentenceBoundary.test(text[end])
@@ -1468,20 +1471,15 @@ function containsExactUrl(
     if (trailingSentencePunctuation.test(suffix)) return true
     if (/^[*_~]+$/u.test(suffix)) {
       const marker = suffix[0]
-      let cursor = index - 1
-      while (cursor >= 0) {
-        if (text[cursor] !== marker) {
-          cursor--
-          continue
-        }
-        const runEnd = cursor + 1
-        while (cursor >= 0 && text[cursor] === marker) cursor--
-        const beforeRun = cursor < 0 ? undefined : text[cursor]
-        if (
-          runEnd - (cursor + 1) >= suffix.length &&
-          !isUrlPrefixContinuation(beforeRun)
-        ) return true
-      }
+      const opening = text.slice(0, index).match(/[*_~]+$/u)?.[0]
+      const beforeOpening = opening == null || opening.length === 0
+        ? undefined
+        : text[index - opening.length - 1]
+      if (
+        opening != null && opening[0] === marker &&
+        opening.length >= suffix.length &&
+        !isUrlPrefixContinuation(beforeOpening)
+      ) return true
     }
     offset = index + 1
   }
