@@ -344,6 +344,12 @@ Deno.test("Issue Query Command - exact URL matches description, not relevance ne
                 description: "没有链接的正文",
                 comments: { nodes: [{ body: `评论中引用 ${targetUrl}` }] },
               },
+              {
+                ...mockIssueNode,
+                id: "issue-unicode-suffix",
+                identifier: "ENG-109",
+                description: `[详情](${targetUrl}详情)`,
+              },
             ],
             pageInfo: { hasNextPage: false, endCursor: "candidate-end" },
           },

@@ -620,6 +620,41 @@ const issueDetailsWithCommentsQuery = gql(/* GraphQL */ `
   }
 `)
 
+const issueCommentsForUrlLookupQuery = gql(/* GraphQL */ `
+  query GetIssueCommentsForUrlLookup($id: String!, $after: String) {
+    issue(id: $id) {
+      comments(first: 100, after: $after) {
+        nodes { body }
+        pageInfo { hasNextPage endCursor }
+      }
+    }
+  }
+`)
+
+async function fetchAllIssueCommentBodies(issueId: string): Promise<string[]> {
+  const client = getGraphQLClient()
+  const bodies: string[] = []
+  let after: string | null | undefined
+  while (true) {
+    const result = await client.request(issueCommentsForUrlLookupQuery, {
+      id: issueId,
+      after,
+    })
+    const comments = result.issue?.comments
+    if (comments == null) {
+      throw new CliError(`Unable to read comments for ${issueId}`)
+    }
+    bodies.push(...comments.nodes.map((comment) => comment.body))
+    if (!comments.pageInfo.hasNextPage) break
+    const next = comments.pageInfo.endCursor
+    if (next == null || next === after) {
+      throw new CliError(`Incomplete comment pagination for ${issueId}`)
+    }
+    after = next
+  }
+  return bodies
+}
+
 const issueDetailsQuery = gql(/* GraphQL */ `
   query GetIssueDetails($id: String!) {
     issue(id: $id) {
@@ -1112,6 +1147,10 @@ const queryIssuesQuery = gql(/* GraphQL */ `
           nodes {
             body
           }
+          pageInfo {
+            hasNextPage
+            endCursor
+          }
         }
         priority
         priorityLabel
@@ -1382,10 +1421,11 @@ function containsExactUrl(
   // opening Markdown delimiters alone; the suffix class accepts punctuation
   // that belongs to surrounding prose but rejects a real URL extension.
   const isUrlContinuation = (value: string | undefined): boolean =>
-    value != null && /[A-Za-z0-9._~:/?#\[\]@!$&'()*+,;=%-]/u.test(value)
+    value != null && !/[\s<>"`]/u.test(value)
   const isUrlPrefixContinuation = (value: string | undefined): boolean =>
     value != null && /[A-Za-z0-9._~:/?#\]@!$&'*,;=%-]/u.test(value)
-  const trailingSentencePunctuation = /^[.,;:!?)}\]]+$/u
+  const trailingSentencePunctuation =
+    /^[.,;:!?)}\]\u3001\u3002\uff01\uff1f\uff1a\uff1b\uff09\uff3d]+$/u
 
   let offset = 0
   while (offset < text.length) {
@@ -1407,6 +1447,49 @@ function containsExactUrl(
     offset = index + 1
   }
   return false
+}
+
+async function filterIssuesByExactUrl(
+  issues: QueryIssuesPayload["nodes"],
+  target: string,
+  exactIssueReference: LinearIssueUrlReference | undefined,
+): Promise<QueryIssuesPayload["nodes"]> {
+  const matched: QueryIssuesPayload["nodes"] = []
+  for (const issue of issues) {
+    if (exactIssueReference != null) {
+      if (issue.identifier !== exactIssueReference.identifier) continue
+      if (exactIssueReference.workspace == null) {
+        matched.push(issue)
+        continue
+      }
+      const issueReference = parseLinearIssueUrl(issue.url)
+      if (
+        issueReference?.workspace?.toLowerCase() ===
+          exactIssueReference.workspace.toLowerCase()
+      ) matched.push(issue)
+      continue
+    }
+
+    if (issue.url === target || containsExactUrl(issue.description, target)) {
+      matched.push(issue)
+      continue
+    }
+    if (
+      issue.comments?.nodes.some((comment) =>
+        containsExactUrl(comment.body, target)
+      )
+    ) {
+      matched.push(issue)
+      continue
+    }
+    if (issue.comments?.pageInfo?.hasNextPage) {
+      const bodies = await fetchAllIssueCommentBodies(issue.id)
+      if (bodies.some((body) => containsExactUrl(body, target))) {
+        matched.push(issue)
+      }
+    }
+  }
+  return matched
 }
 
 export async function fetchIssuesForQuery(
@@ -1577,20 +1660,11 @@ export async function fetchIssuesForQuery(
 
   const matchedNodes = options.exactUrl == null
     ? completedNodes
-    : completedNodes.filter((issue) => {
-      if (exactIssueReference != null) {
-        if (issue.identifier !== exactIssueReference.identifier) return false
-        if (exactIssueReference.workspace == null) return true
-        const issueReference = parseLinearIssueUrl(issue.url)
-        return issueReference?.workspace?.toLowerCase() ===
-          exactIssueReference.workspace.toLowerCase()
-      }
-      return issue.url === options.exactUrl ||
-        containsExactUrl(issue.description, options.exactUrl!) ||
-        issue.comments?.nodes.some((comment) =>
-            containsExactUrl(comment.body, options.exactUrl!)
-          ) === true
-    })
+    : await filterIssuesByExactUrl(
+      completedNodes,
+      options.exactUrl,
+      exactIssueReference,
+    )
 
   const nodes = options.exactUrl == null
     ? (fetchAll ? matchedNodes : matchedNodes.slice(0, limit))

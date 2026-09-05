@@ -16,7 +16,7 @@ Options:
   -h, --help                          - Show this help.                                                                                              
   --search            <term>          - Full-text search term                                                                                        
   --url               <url>           - Find an issue by Linear URL, or by an exact URL occurrence in its                                            
-                                        description                                                                                                  
+                                        description or comments                                                                                      
   --url-file          <path>          - Find issues for one URL per line (blank lines and lines starting                                             
                                         with # are ignored); JSON returns lookups in input order                                                     
   --search-comments                   - Also search inside issue comments (requires --search)                                                        
