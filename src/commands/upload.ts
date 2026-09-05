@@ -11,18 +11,8 @@ import {
 } from "../utils/upload.ts"
 import { withUsageMetadata } from "./usage.ts"
 
-// `upload` is the rich-text primitive: it turns local files into Linear asset
-// URLs that Markdown can embed anywhere — descriptions, comments, table
-// cells. The three-step upload dance (fileUpload mutation → signed PUT →
-// assetUrl) plus public/private semantics is exactly the plumbing an agent
-// would otherwise rebuild against raw GraphQL, which is why this command
-// exists; composing the returned URL into Markdown stays with the caller
-// (design: docs/agent-interface-architecture.md, "上传原语与富文本").
-//
-// Every file is validated — existence, type, public eligibility — before the
-// first network request, mirroring the delivery protocol's
-// validate-before-first-mutation rule, so a bad third file cannot leave a
-// half-finished batch behind by surprise.
+// Upload local files, validate the complete batch before the first request,
+// and print asset URLs for callers to embed in Markdown.
 
 function formatResult(result: UploadResult): string {
   const visibility = result.public ? "public" : "private"

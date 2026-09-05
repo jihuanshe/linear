@@ -1,5 +1,5 @@
 import { snapshotTest } from "@cliffy/testing"
-import { assertEquals } from "@std/assert"
+import { assertEquals, assertStringIncludes } from "@std/assert"
 import { getColorEnabled, setColorEnabled } from "@std/fmt/colors"
 import { fromFileUrl } from "@std/path"
 import { stub } from "@std/testing/mock"
@@ -278,7 +278,7 @@ Deno.test("Issue Query Command - Explicit team narrows project scope", async () 
 })
 
 Deno.test("Issue Query Command - exact URL matches description, not relevance neighbors", async () => {
-  const targetUrl = "https://example.com/feedback/42"
+  const targetUrl = "https://example.com/objects/42"
   const { server, cleanup } = await setupMockLinearServer([
     {
       queryName: "GetIssuesForQuery",
@@ -299,43 +299,43 @@ Deno.test("Issue Query Command - exact URL matches description, not relevance ne
             nodes: [
               {
                 ...mockIssueNode,
-                description: `反馈链接：${targetUrl}`,
+                description: `来源链接：${targetUrl}`,
               },
               {
                 ...mockIssueNode,
                 id: "issue-neighbor",
                 identifier: "ENG-102",
-                description: "反馈链接：https://example.com/feedback/420",
+                description: "来源链接：https://example.com/objects/420",
               },
               {
                 ...mockIssueNode,
                 id: "issue-extension",
                 identifier: "ENG-103",
-                description: `反馈链接：${targetUrl}.json`,
+                description: `来源链接：${targetUrl}.json`,
               },
               {
                 ...mockIssueNode,
                 id: "issue-suffix",
                 identifier: "ENG-104",
-                description: `反馈链接：${targetUrl}:detail`,
+                description: `来源链接：${targetUrl}:detail`,
               },
               {
                 ...mockIssueNode,
                 id: "issue-punctuation",
                 identifier: "ENG-105",
-                description: `反馈链接：${targetUrl}。`,
+                description: `来源链接：${targetUrl}。`,
               },
               {
                 ...mockIssueNode,
                 id: "issue-wrapped",
                 identifier: "ENG-106",
-                description: `反馈链接：（${targetUrl}）`,
+                description: `来源链接：（${targetUrl}）`,
               },
               {
                 ...mockIssueNode,
                 id: "issue-markdown",
                 identifier: "ENG-107",
-                description: `**反馈链接：${targetUrl}**`,
+                description: `**来源链接：${targetUrl}**`,
               },
               {
                 ...mockIssueNode,
@@ -379,6 +379,50 @@ Deno.test("Issue Query Command - exact URL matches description, not relevance ne
                 id: "issue-underscore-suffix",
                 identifier: "ENG-114",
                 description: `${targetUrl}_`,
+              },
+              {
+                ...mockIssueNode,
+                id: "issue-quoted-description",
+                identifier: "ENG-115",
+                description: `'${targetUrl}'`,
+              },
+              {
+                ...mockIssueNode,
+                id: "issue-quoted-comment",
+                identifier: "ENG-116",
+                description: null,
+                comments: { nodes: [{ body: `'${targetUrl}'` }] },
+              },
+              {
+                ...mockIssueNode,
+                id: "issue-quoted-extension",
+                identifier: "ENG-117",
+                description: `'${targetUrl}/detail'`,
+              },
+              {
+                ...mockIssueNode,
+                id: "issue-embedded-quote",
+                identifier: "ENG-118",
+                description: `https://other.example/'${targetUrl}'`,
+              },
+              {
+                ...mockIssueNode,
+                id: "issue-apostrophe-description",
+                identifier: "ENG-119",
+                description: `'${targetUrl}'detail'`,
+              },
+              {
+                ...mockIssueNode,
+                id: "issue-apostrophe-comment",
+                identifier: "ENG-120",
+                description: null,
+                comments: { nodes: [{ body: `'${targetUrl}'detail'` }] },
+              },
+              {
+                ...mockIssueNode,
+                id: "issue-quoted-sentence",
+                identifier: "ENG-121",
+                description: `See '${targetUrl}'.`,
               },
             ],
             pageInfo: { hasNextPage: false, endCursor: "candidate-end" },
@@ -434,9 +478,12 @@ Deno.test("Issue Query Command - exact URL matches description, not relevance ne
         "ENG-108",
         "ENG-112",
         "ENG-113",
+        "ENG-115",
+        "ENG-116",
+        "ENG-121",
       ],
     )
-    assertEquals(payload.nodes[0].description, `反馈链接：${targetUrl}`)
+    assertEquals(payload.nodes[0].description, `来源链接：${targetUrl}`)
     assertEquals(payload.pageInfo, { hasNextPage: false, endCursor: null })
   } finally {
     await Deno.remove(root, { recursive: true })
@@ -445,7 +492,7 @@ Deno.test("Issue Query Command - exact URL matches description, not relevance ne
 })
 
 Deno.test("Issue Query Command - exact URL keeps all matches with a finite limit", async () => {
-  const targetUrl = "https://example.com/feedback/multi"
+  const targetUrl = "https://example.com/objects/multi"
   const { cleanup } = await setupMockLinearServer([
     {
       queryName: "GetIssuesForQuery",
@@ -509,8 +556,113 @@ Deno.test("Issue Query Command - exact URL keeps all matches with a finite limit
   assertEquals(payload.pageInfo, { hasNextPage: false, endCursor: null })
 })
 
+Deno.test("Issue Query Command - exact URL checks later candidate pages", async () => {
+  const targetUrl = "https://example.com/objects/42"
+  const { server, cleanup } = await setupMockLinearServer([
+    {
+      queryName: "GetIssuesForQuery",
+      variables: { after: "cursor-1" },
+      response: {
+        data: {
+          issues: {
+            nodes: [{ ...mockIssueNode, description: targetUrl }],
+            pageInfo: { hasNextPage: false, endCursor: null },
+          },
+        },
+      },
+    },
+    {
+      queryName: "GetIssuesForQuery",
+      response: {
+        data: {
+          issues: {
+            nodes: [{ ...mockIssueNode, description: `${targetUrl}/other` }],
+            pageInfo: { hasNextPage: true, endCursor: "cursor-1" },
+          },
+        },
+      },
+    },
+  ], { NO_COLOR: "true" })
+  const logs: string[] = []
+  const logStub = stub(console, "log", (...args: unknown[]) => {
+    logs.push(args.map(String).join(" "))
+  })
+
+  try {
+    await queryCommand.parse([
+      "--all-teams",
+      "--url",
+      targetUrl,
+      "--limit",
+      "1",
+      "--json",
+    ])
+    const payload = JSON.parse(logs[0])
+    assertEquals(
+      payload.nodes.map((issue: { description: string }) => issue.description),
+      [targetUrl],
+    )
+    assertEquals(payload.pageInfo, { hasNextPage: false, endCursor: null })
+    assertEquals(server.graphqlRequests.length, 2)
+  } finally {
+    logStub.restore()
+    await cleanup()
+  }
+})
+
+Deno.test("Issue Query Command - rejects stalled candidate pagination", async (t) => {
+  for (const endCursor of [null, "cursor-1"]) {
+    await t.step(`cursor ${endCursor}`, async () => {
+      const { server, cleanup } = await setupMockLinearServer([
+        {
+          queryName: "GetIssuesForQuery",
+          response: {
+            data: {
+              issues: {
+                nodes: [],
+                pageInfo: { hasNextPage: true, endCursor },
+              },
+            },
+          },
+        },
+      ])
+      const errorLogs: string[] = []
+      const logs: unknown[] = []
+      const logStub = stub(
+        console,
+        "log",
+        (...args: unknown[]) => logs.push(args),
+      )
+      const errorStub = stub(console, "error", (...args: unknown[]) => {
+        errorLogs.push(args.map(String).join(" "))
+      })
+      const exitStub = stub(Deno, "exit", (_code?: number) => {
+        throw new Error("EXIT")
+      })
+      try {
+        await queryCommand.parse([
+          "--all-teams",
+          "--url",
+          "https://example.com/objects/42",
+          "--json",
+        ])
+      } catch (error) {
+        if (!(error instanceof Error) || error.message !== "EXIT") throw error
+      } finally {
+        logStub.restore()
+        errorStub.restore()
+        exitStub.restore()
+        await cleanup()
+      }
+      assertEquals(logs, [])
+      assertStringIncludes(errorLogs.join("\n"), "Incomplete issue pagination")
+      assertEquals(server.graphqlRequests.length, endCursor == null ? 1 : 2)
+    })
+  }
+})
+
 Deno.test("Issue Query Command - exact URL returns complete paginated comments", async () => {
-  const targetUrl = "https://example.com/feedback/paginated"
+  const targetUrl = "https://example.com/objects/paginated"
   const { cleanup } = await setupMockLinearServer([
     {
       queryName: "GetIssuesForQuery",
@@ -670,10 +822,8 @@ Deno.test("Issue Query Command - exact Linear URL does not cross workspace scope
 })
 
 Deno.test("Issue Query Command - URL file preserves lookup order", async () => {
-  const firstUrl =
-    "https://tcg-workdesk.apps.tongdiaotech.com/feedback/submissions/fb-1"
-  const secondUrl =
-    "https://tcg-workdesk.apps.tongdiaotech.com/feedback/submissions/fb-2"
+  const firstUrl = "https://example.com/objects/1"
+  const secondUrl = "https://example.com/objects/2"
   const urlFile = await Deno.makeTempFile({ suffix: ".txt" })
   await Deno.writeTextFile(
     urlFile,
@@ -736,8 +886,8 @@ Deno.test("Issue Query Command - URL file preserves lookup order", async () => {
 })
 
 Deno.test("Issue Query Command - URL file resolves assignee once", async () => {
-  const firstUrl = "https://example.com/feedback/assignee-1"
-  const secondUrl = "https://example.com/feedback/assignee-2"
+  const firstUrl = "https://example.com/objects/assignee-1"
+  const secondUrl = "https://example.com/objects/assignee-2"
   const urlFile = await Deno.makeTempFile({ suffix: ".txt" })
   await Deno.writeTextFile(urlFile, firstUrl + "\n" + secondUrl + "\n")
   const { server, cleanup } = await setupMockLinearServer([
@@ -801,7 +951,7 @@ Deno.test("Issue Query Command - rejects relevance search combined with exact UR
       "--search",
       "seller order",
       "--url",
-      "https://example.com/feedback/42",
+      "https://example.com/objects/42",
     ])
   } catch {
     // expected

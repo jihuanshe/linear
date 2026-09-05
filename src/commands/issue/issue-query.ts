@@ -56,7 +56,7 @@ function validateExactUrl(value: string, source: string): string {
   } catch {
     throw new ValidationError(`Invalid URL: "${value}"`, {
       suggestion:
-        "Pass an absolute URL including its scheme, for example https://example.com/feedback/123.",
+        "Pass an absolute URL including its scheme, for example https://example.com/objects/123.",
     })
   }
   return exactUrl

@@ -18,7 +18,7 @@ export const commentUpdateCommand = withUsageMetadata(new Command(), {
     "--body-file <path:string>",
     "Read comment body from a file (preferred for markdown content)",
   )
-  .option("-j, --json", "Output the updated comment as JSON")
+  .option("-j, --json", "Output {comment} as JSON")
   .action(async (options, commentId) => {
     const { body, bodyFile, json } = options
 
@@ -122,7 +122,7 @@ export const commentUpdateCommand = withUsageMetadata(new Command(), {
       }
 
       if (json) {
-        console.log(JSON.stringify(comment, null, 2))
+        console.log(JSON.stringify({ comment }, null, 2))
       } else {
         console.log("✓ Comment updated")
         console.log(comment.url)

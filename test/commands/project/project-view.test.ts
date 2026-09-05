@@ -215,19 +215,18 @@ await snapshotTest({
   },
 })
 
-Deno.test("Project View can include routing content on request", async () => {
+Deno.test("Project View includes project content on request", async () => {
   const server = new MockLinearServer([
     {
       queryName: "GetProjectDetails",
-      variables: { id: "routing-project", includeContent: true },
+      variables: { id: "project-with-content", includeContent: true },
       response: {
         data: {
           project: {
-            id: "routing-project",
+            id: "project-with-content",
             name: "Selling",
             description: "",
-            content:
-              "route: selling/product-list\nrepository: jihuanshe_rn_business_selling",
+            content: "# Project plan\n\nLaunch the new product page.",
             slugId: "selling",
             icon: null,
             color: "#64748b",
@@ -261,10 +260,14 @@ Deno.test("Project View can include routing content on request", async () => {
     await server.start()
     Deno.env.set("LINEAR_GRAPHQL_ENDPOINT", server.getEndpoint())
     Deno.env.set("LINEAR_API_KEY", "Bearer test-token")
-    await viewCommand.parse(["routing-project", "--include-content", "--json"])
+    await viewCommand.parse([
+      "project-with-content",
+      "--include-content",
+      "--json",
+    ])
     assertEquals(
       JSON.parse(logs[0]).content,
-      "route: selling/product-list\nrepository: jihuanshe_rn_business_selling",
+      "# Project plan\n\nLaunch the new product page.",
     )
   } finally {
     logStub.restore()

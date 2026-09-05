@@ -56,8 +56,6 @@ commands:
 - `relations` 的 `issue` 必须使用 `DATA-580` 形态的完整 identifier，类型词表与 `issue relation add` 一致：related、blocks、blocked-by（由 CLI 反转为上游的 blocks）、duplicate。duplicate 的方向：本条目所在 Issue 成为 `issue` 字段所指 Issue 的 duplicate。Linear 的同一对 Issue 只能保留一种关系：同类型和方向按幂等处理，不同类型或方向在 plan/apply 中报告 conflict；需要替换时先用 `issue relation delete` 显式删除旧关系。
 - 已有评论、Attachment 和关系不会被本协议隐式修改或删除；单项修改用对应的专用命令。
 
-Feedback 分诊按「一组一条 Issue」放进同一份 manifest；正文、Case URL 和人话 Comment 的写法见 [issue-authoring](issue-authoring.md)。不要为新增成员复制 Issue，也不要把组内数量写进永久正文。
-
 ## base：并发安全
 
 你准备材料需要时间，期间同事可能改了同一个 Issue。update 的每个替换字段都必须写 `base`（你上次读到的值）；缺失会在本地校验阶段失败，不会降级成无条件覆盖。当前值为空时显式写 `null`，空标签集合写 `[]`。apply 对每个字段做三方比较，比较 base、目标值和远端当前值，verdict 用同一词表出现在 plan 输出里：
@@ -87,7 +85,7 @@ apply 在第一笔写入前重复整批 manifest 与文件校验，然后按顺�
 
 apply 逐执行项返回 applied / failed / unknown / unattempted / skipped，结束后读回每个本次已应用或从 checkpoint 跳过的目标 Issue。mutation 已成功但当前视图读回失败时，执行项仍保持 applied 以免误重试，整体状态返回 applied-unverified 并以非零退出；修复访问后重跑会跳过 mutation，只重试读回。
 
-`issue apply` 是同步命令：它会等待整批执行和写后读回，最后才在 stdout 输出一份完整结果；执行进度只写 stderr。外层 shell 或 Agent 如果因为超时拿到的是「进程仍在运行」，不要重新启动同一份 manifest，也不要把它当成失败。继续等待原进程，或先检查 manifest 旁的 checkpoint，再用同一份 manifest 续跑。未知结果会被 checkpoint 拦住，必须先对账。
+`issue apply` 是同步命令：它会等待整批执行和写后读回，最后才在 stdout 输出一份完整结果；执行进度只写 stderr。外层 shell 或 Agent 超时但原进程仍在运行时，继续等待它；checkpoint 不是并发锁，不能据此启动第二个执行者。只有确认原进程已经退出后，才能检查 manifest 旁的 checkpoint 并用同一份 manifest 续跑。原进程状态无法确认时停止续跑；checkpoint 中的未知结果必须先对账。
 
 机器编排应保留两个流和退出码，并验证每个目标的读回，而不是只看 `created` 或命令是否启动：
 

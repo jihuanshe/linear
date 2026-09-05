@@ -45,7 +45,6 @@ export const historyCommand = new Command()
       const client = getGraphQLClient()
       const nodes = []
       let after: string | null | undefined
-      let pageInfo = { hasNextPage: false, endCursor: null as string | null }
       while (true) {
         const data = await client.request(issueHistoryQuery, {
           id: resolvedIdentifier,
@@ -58,7 +57,7 @@ export const historyCommand = new Command()
           )
         }
         nodes.push(...page.nodes)
-        pageInfo = page.pageInfo
+        const pageInfo = page.pageInfo
         if (!pageInfo.hasNextPage) break
         if (pageInfo.endCursor == null || pageInfo.endCursor === after) {
           throw new ValidationError(
@@ -115,11 +114,6 @@ export const historyCommand = new Command()
           `${entry.createdAt} ${actor}: ${
             changes.join("; ") || "metadata changed"
           }`,
-        )
-      }
-      if (history.pageInfo.hasNextPage) {
-        console.error(
-          "Warning: history is truncated at 100 entries; use GraphQL pagination for a complete audit.",
         )
       }
     } catch (error) {

@@ -37,7 +37,7 @@ NO_COLOR=1 linear issue view ENG-123 --json >result.json 2>error.log &&
 - 交互提示在无人值守环境用 `LINEAR_PROMPT_DISABLED=1` 禁用；提示被禁用后缺输入的命令会失败而不是挂起。禁用提示不代表获得写入授权。
 - 后续命令显式传 Issue 标识。`issue view` 等命令省略参数时会从当前 Git branch 推断目标，无人值守脚本在仓库 checkout 里可能因此打到错误的 Issue。
 
-批量 Feedback 分诊先由人明确一次 `env`、池子和写入范围；得到授权后，脚本或 AI 在该快照内连续执行，不为每条记录重新请求确认。正常的归并分歧放进结果报告，认证、workspace／环境不一致和写入结果不明则停止相关批次并先回读对账。
+批量操作先明确目标 workspace、输入范围和写入范围；得到授权后，脚本或 AI 在该范围内连续执行。输入分歧放进结果报告，认证、workspace 不一致和写入结果不明则停止相关批次并先回读对账。
 
 ## 分页形状
 
@@ -48,16 +48,16 @@ jq -e '.nodes | arrays' project-issues.json >/dev/null &&
 jq '.nodes[] | {identifier, title, priority}' project-issues.json
 ```
 
-按 Feedback canonical URL 查重时使用 `issue query --url <url> --all-teams --json`。
+按外部对象的 canonical URL 查重时使用 `issue query --url <url> --all-teams --json`。
 
 它不会走 `--search` 的相关性排序：Linear Issue URL 按 identifier 和 workspace 定位，其他 URL 对候选 Issue description 或评论做完整 URL 边界核对。
 
 空 `.nodes` 才表示当前没有命中。该模式已经读完候选分页并返回全部精确命中，有限 `--limit` 不会截断结果；`pageInfo` 固定为 `{hasNextPage:false,endCursor:null}`。
 
-需要一次核对多条 Feedback 时，把每个 canonical URL 放在文件的一行，用 `--url-file`：
+需要一次核对多个外部对象时，把每个 canonical URL 放在文件的一行，用 `--url-file`：
 
 ```bash
-NO_COLOR=1 LINEAR_PROMPT_DISABLED=1 linear issue query --all-teams --url-file feedback-urls.txt --json >url-lookups.json
+NO_COLOR=1 LINEAR_PROMPT_DISABLED=1 linear issue query --all-teams --url-file object-urls.txt --json >url-lookups.json
 jq '.lookups[] | {url, identifiers: [.nodes[].identifier]}' url-lookups.json
 ```
 

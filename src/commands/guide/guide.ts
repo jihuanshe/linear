@@ -2,11 +2,8 @@ import { Command } from "@cliffy/command"
 import { getGuide, listGuides } from "../../guides/guides.ts"
 import { handleError, NotFoundError } from "../../utils/errors.ts"
 
-// `guide` is the concise index, while `guide <name>` prints one Markdown body
-// to stdout and nothing else, so both compose with shell tools. No guide
-// command touches the network or credentials: the corpus is embedded in the
-// binary (see src/guides/content.ts). Discovery stays optional — an agent
-// that already knows its command never needs to read a guide first.
+// `guide` prints the embedded, version-matched workflow guides without network
+// or credential access.
 
 function formatGuideList(): string {
   const guides = listGuides()
@@ -52,10 +49,6 @@ export const guideCommand = new Command()
         })
       }
       if (json) {
-        // Keep the list form metadata-compatible while making a named guide
-        // composable for agents: the body is returned in the same JSON
-        // envelope instead of requiring a second command or rejecting the
-        // otherwise useful --json flag.
         console.log(
           JSON.stringify(
             { ...guide.metadata, body: guide.body.trimEnd() },

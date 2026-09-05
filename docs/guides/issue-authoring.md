@@ -29,8 +29,6 @@ Issue 的第一消费者是没有本对话上下文的人或 AI。create/update 
 
 发现问题的系统不自动拥有修复。下游分析发现主数据异常时，Issue 要写清三件事：主数据里的权威事实是什么、该数据由谁维护、用哪个正式查询验收。下游现象只是影响和证据，「重跑下游」不是负责团队的完成条件。反过来：某个标识未被证明对应正式业务实体时，不要在 Issue 里要求权威数据源补建记录来迁就下游解析。事实源或负责团队无法从证据确定时，写入前向用户确认。
 
-Feedback 路由时，先用 `pageContextJson.route/source` 与项目的 `content` 做精确匹配，再用页面名和 `game_key` 作旁证；读取项目内容用 `linear project view <id> --include-content --json`，读取变更顺序用 `linear issue history <id> --json`。项目负责人（`lead`）只是第一轮查询负责人，不等于 Issue 负责人（`assignee`）。
-
 ## 只保留事实，标注推测
 
 - 保留用户与现场给出的事实，不虚构复现步骤、影响或验收标准；凡属假设显式标注。
@@ -52,28 +50,11 @@ Feedback 路由时，先用 `pageContextJson.route/source` 与项目的 `content
 
 ## 正文形态
 
-正文默认用中文、按最简模板写，用不上的节直接省略：类型、背景、当前情况、期望结果、复现步骤、验收标准、影响范围与优先级、相关材料。普通 Issue 标题用「[Bug]/[需求]/[协助] + 对象 + 现象」；Feedback 分诊按下面的短标题，不强制前缀。多行 Markdown 一律走 `--description-file` / `--body-file`（见 automation 指南）。
-
-Feedback 初步分诊使用更短的读者模板。标题直接说问题，不把 `FB-XXXXXX` 放进标题；Feedback Case canonical URL 是正文的主坐标。不要把归并组名、固定 Feedback 数量、状态数字、仓库猜测或防御性套话写成正文主句：
-
-```text
-卖家商品列表中，数字显示到第三位时会换行，数量看不完整。
-
-Feedback Case：
-https://tcg-workdesk.apps.tongdiaotech.com/feedback/cases/<case-code>
-
-开工前，用 `jh` 命令行读取这张 Feedback Case 及其全部关联的 Feedback；再用 `linear` 命令行读取本 Issue 的最新状态、Project、负责人、评论和关联 PR；需要核对代码时使用 GitHub CLI（`gh`）。三方事实如有不一致，按当前证据修正对应记录，并在本 Issue 留下简短说明；需要人工判断的改挂或状态决定先停下确认。
-```
-
-Comment 只记录实际发生的判断或同步：「已回读 Feedback、Feedback Case 和 Linear；发现 X 与 Y 不一致，已按 Z 修正。」不要把三方快照复制进评论。Case 成员是可变的，不能把创建时的数量当作永久事实。
-
-如果创建 Issue 时还没有 Case，暂时放原始 Feedback URL 并明确「尚未建立 Feedback Case」；Case 建立或复用后，把 Case URL 设为正文主坐标。不要为了补链接复制一张 Issue。
+正文默认用中文、按最简模板写，用不上的节直接省略：类型、背景、当前情况、期望结果、复现步骤、验收标准、影响范围与优先级、相关材料。普通 Issue 标题用「[Bug]/[需求]/[协助] + 对象 + 现象」。多行 Markdown 一律走 `--description-file` / `--body-file`（见 automation 指南）。
 
 ## 写前确认，写后读回
 
 写入前先用 `auth whoami` 确认认证与目标 workspace，不要等创建失败才发现。用户明确要求按已给内容创建或修改时，该请求已经构成授权，不要为了确认而重复确认；普通可逆 create 可以直接写入后返回 Linear 页面供检查。只有 Agent 新拟了用户尚未审核的重要结论，或操作涉及批量覆盖、公开上传、敏感材料及其他高风险影响时，才在对话中展示与风险相称的草稿或变更摘要；CLI plan 输出本身不证明用户已经看到。用户只要求调查、查看或起草时不得据此写入，沉默也不算授权。创建因权限或 workspace 错误失败时，保留已确认的草稿，恢复访问后再提交，不重写内容。
-
-批量 Feedback 分诊另按「批次授权」处理：人已明确 `env`、池子和写入范围后，正常的归并组标题、问题摘要和链接属于这次授权，不逐条停等；无法判断的归并、路由冲突或改挂请求进入结果报告。
 
 写入后用 `issue view <id> --json` 读回正文、评论和侧栏 Attachment；需要解释 Project、负责人或状态变化时再读 `issue history <id> --json`。逐项核对：没有依赖本机或当前聊天的指代；关键证据实际出现；接手者能重建当前行为、期望结果和验收依据。读回只证明附件已记录，不证明他人拥有外部系统权限；无法验证访问时明确标注。上传失败保留已创建的 Issue，报告缺失项和精确补充动作，不删除重建。
 

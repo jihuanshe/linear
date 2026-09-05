@@ -17,12 +17,8 @@ import type {
 } from "./manifest.ts"
 import { prepareCheckpoint, saveCheckpoint } from "./checkpoint.ts"
 
-// The delivery engine reuses the CLI's own commands as its execution layer by
-// re-invoking this program per step. That inherits every existing resolution,
-// validation, and output semantic instead of maintaining a second GraphQL
-// client path — the same shape the retired Python batch Skill proved, now
-// owned and versioned inside the CLI. Tests inject a fake runner, so every
-// contract below is deterministic without a network.
+// Each delivery step invokes this CLI's commands so name resolution,
+// validation, and output semantics stay with their command owners.
 
 export interface CommandResult {
   code: number

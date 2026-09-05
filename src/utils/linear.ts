@@ -1374,7 +1374,7 @@ export interface FetchIssuesForQueryOptions {
   includeArchived?: boolean
   includeProjectTeamMetadata?: boolean
   includeEstimationMetadata?: boolean
-  /** Exact URL to locate in an issue's canonical URL or description. */
+  /** Exact URL to locate in an issue's URL, description, or comments. */
   exactUrl?: string
   /** Resolved once by batch callers to avoid repeating user lookup requests. */
   assigneeId?: string
@@ -1439,10 +1439,8 @@ function containsExactUrl(
     if (index < 0) return false
     const before = index === 0 ? undefined : text[index - 1]
     const singleQuoted = before === "'" &&
-      text[index - 2] != null &&
       !isUrlPrefixContinuation(text[index - 2]) &&
       text[index + target.length] === "'"
-    if (singleQuoted) return true
     // Markdown emphasis and strike markers can wrap a URL, but the same
     // characters are valid URL characters when they follow another token
     // character. Treat them as delimiters only at a real token boundary.
@@ -1455,7 +1453,7 @@ function containsExactUrl(
       ? undefined
       : text[delimiterStart]
     if (
-      isUrlPrefixContinuation(before) &&
+      isUrlPrefixContinuation(before) && !singleQuoted &&
       !(delimiterWrapped && !isUrlPrefixContinuation(beforeDelimiter))
     ) {
       offset = index + 1
@@ -1471,6 +1469,12 @@ function containsExactUrl(
     ) end++
     const suffix = text.slice(index + target.length, end)
     if (suffix.length === 0) return true
+    // Apostrophes can extend a URL. A closing quote must end the token or
+    // leave only surrounding sentence punctuation.
+    if (
+      singleQuoted &&
+      (suffix.length === 1 || trailingSentencePunctuation.test(suffix.slice(1)))
+    ) return true
     // Markdown emphasis/strike delimiters are formatting only when a
     // matching opener exists before the URL. Otherwise they are URL text.
     if (trailingSentencePunctuation.test(suffix)) return true
@@ -1689,11 +1693,15 @@ export async function fetchIssuesForQuery(
     allNodes.push(...result.issues.nodes)
     lastPageInfo = result.issues.pageInfo
     hasNextPage = result.issues.pageInfo.hasNextPage
-    after = result.issues.pageInfo.endCursor
 
     if (!fetchAll && allNodes.length >= limit) {
       break
     }
+    const next = result.issues.pageInfo.endCursor
+    if (hasNextPage && (next == null || next === after)) {
+      throw new CliError("Incomplete issue pagination")
+    }
+    after = next
   }
 
   const completedNodes = options.includeProjectTeamMetadata === true
