@@ -456,7 +456,7 @@ snapshot[`usage JSON v1 freezes its existing fields and types 1`] = `
               variadic: false,
             },
           ],
-          description: "Find issues for one URL per line (blank lines and lines starting with # are ignored); JSON returns lookups in input order",
+          description: "Find issues for one URL per line (blank lines and lines starting with # are ignored); JSON returns lookups in input order; --limit is ignored",
           flags: [
             "--url-file",
           ],

@@ -350,6 +350,24 @@ Deno.test("Issue Query Command - exact URL matches description, not relevance ne
                 identifier: "ENG-109",
                 description: `[详情](${targetUrl}详情)`,
               },
+              {
+                ...mockIssueNode,
+                id: "issue-underscore-prefix",
+                identifier: "ENG-110",
+                description: `已有_token_${targetUrl}`,
+              },
+              {
+                ...mockIssueNode,
+                id: "issue-tilde-prefix",
+                identifier: "ENG-111",
+                description: `已有~token~${targetUrl}`,
+              },
+              {
+                ...mockIssueNode,
+                id: "issue-underscore-markdown",
+                identifier: "ENG-112",
+                description: `_来源：${targetUrl}_`,
+              },
             ],
             pageInfo: { hasNextPage: false, endCursor: "candidate-end" },
           },
@@ -396,7 +414,7 @@ Deno.test("Issue Query Command - exact URL matches description, not relevance ne
     const payload = JSON.parse(stdout)
     assertEquals(
       payload.nodes.map((issue: { identifier: string }) => issue.identifier),
-      ["ENG-101", "ENG-105", "ENG-106", "ENG-107", "ENG-108"],
+      ["ENG-101", "ENG-105", "ENG-106", "ENG-107", "ENG-108", "ENG-112"],
     )
     assertEquals(payload.nodes[0].description, `反馈链接：${targetUrl}`)
     assertEquals(payload.pageInfo, { hasNextPage: false, endCursor: null })
@@ -469,6 +487,81 @@ Deno.test("Issue Query Command - exact URL keeps all matches with a finite limit
     ["ENG-201", "ENG-202"],
   )
   assertEquals(payload.pageInfo, { hasNextPage: false, endCursor: null })
+})
+
+Deno.test("Issue Query Command - exact URL returns complete paginated comments", async () => {
+  const targetUrl = "https://example.com/feedback/paginated"
+  const { cleanup } = await setupMockLinearServer([
+    {
+      queryName: "GetIssuesForQuery",
+      response: {
+        data: {
+          issues: {
+            nodes: [{
+              ...mockIssueNode,
+              comments: {
+                nodes: [{ body: "first comment" }],
+                pageInfo: { hasNextPage: true, endCursor: "cursor-1" },
+              },
+            }],
+            pageInfo: { hasNextPage: false, endCursor: null },
+          },
+        },
+      },
+    },
+    {
+      queryName: "GetIssueCommentsForUrlLookup",
+      variables: { id: "issue-1", after: "cursor-1" },
+      response: {
+        data: {
+          issue: {
+            comments: {
+              nodes: [{ body: `later comment ${targetUrl}` }],
+              pageInfo: { hasNextPage: false, endCursor: null },
+            },
+          },
+        },
+      },
+    },
+    {
+      queryName: "GetIssueCommentsForUrlLookup",
+      response: {
+        data: {
+          issue: {
+            comments: {
+              nodes: [{ body: "first comment" }],
+              pageInfo: { hasNextPage: true, endCursor: "cursor-1" },
+            },
+          },
+        },
+      },
+    },
+  ], { NO_COLOR: "true" })
+  const logs: string[] = []
+  const logStub = stub(console, "log", (...args: unknown[]) => {
+    logs.push(args.map(String).join(" "))
+  })
+
+  try {
+    await queryCommand.parse([
+      "--all-teams",
+      "--url",
+      targetUrl,
+      "--json",
+    ])
+  } finally {
+    logStub.restore()
+    await cleanup()
+  }
+
+  const payload = JSON.parse(logs[0])
+  assertEquals(payload.nodes[0].comments, {
+    nodes: [
+      { body: "first comment" },
+      { body: `later comment ${targetUrl}` },
+    ],
+    pageInfo: { hasNextPage: false, endCursor: null },
+  })
 })
 
 Deno.test("Issue Query Command - exact Linear issue URL resolves by identifier", async () => {

@@ -1427,7 +1427,6 @@ function containsExactUrl(
     value != null && !/[\s<>"`]/u.test(value)
   const isUrlPrefixContinuation = (value: string | undefined): boolean =>
     value != null &&
-    !/[*_~]/u.test(value) &&
     /[A-Za-z0-9\p{L}\p{N}._~:/?#\]@!$&'*,;=%-]/u.test(value)
   const trailingSentencePunctuation =
     /^[.,;:!?)}\]\u3001\u3002\uff01\uff1f\uff1a\uff1b\uff09\uff3d]+$/u
@@ -1437,7 +1436,21 @@ function containsExactUrl(
     const index = text.indexOf(target, offset)
     if (index < 0) return false
     const before = index === 0 ? undefined : text[index - 1]
-    if (isUrlPrefixContinuation(before)) {
+    // Markdown emphasis and strike markers can wrap a URL, but the same
+    // characters are valid URL characters when they follow another token
+    // character. Treat them as delimiters only at a real token boundary.
+    let delimiterStart = index - 1
+    while (
+      delimiterStart >= 0 && /[*_~]/u.test(text[delimiterStart])
+    ) delimiterStart--
+    const delimiterWrapped = delimiterStart < index - 1
+    const beforeDelimiter = delimiterStart < 0
+      ? undefined
+      : text[delimiterStart]
+    if (
+      isUrlPrefixContinuation(before) &&
+      !(delimiterWrapped && !isUrlPrefixContinuation(beforeDelimiter))
+    ) {
       offset = index + 1
       continue
     }
@@ -1475,23 +1488,21 @@ async function filterIssuesByExactUrl(
       continue
     }
 
-    if (issue.url === target || containsExactUrl(issue.description, target)) {
-      matched.push(issue)
-      continue
-    }
-    if (
-      issue.comments?.nodes.some((comment) =>
-        containsExactUrl(comment.body, target)
-      )
-    ) {
-      matched.push(issue)
-      continue
-    }
-    if (issue.comments?.pageInfo?.hasNextPage) {
+    const descriptionMatch = issue.url === target ||
+      containsExactUrl(issue.description, target)
+    let comments = issue.comments
+    if (comments?.pageInfo?.hasNextPage) {
       const bodies = await fetchAllIssueCommentBodies(issue.id)
-      if (bodies.some((body) => containsExactUrl(body, target))) {
-        matched.push(issue)
+      comments = {
+        nodes: bodies.map((body) => ({ body })),
+        pageInfo: { hasNextPage: false, endCursor: null },
       }
+    }
+    const commentMatch = comments?.nodes.some((comment) =>
+      containsExactUrl(comment.body, target)
+    )
+    if (descriptionMatch || commentMatch) {
+      matched.push(comments === issue.comments ? issue : { ...issue, comments })
     }
   }
   return matched

@@ -19,7 +19,8 @@ Options:
                                         description or comments (URL mode returns all exact matches; --limit                                         
                                         is ignored)                                                                                                  
   --url-file          <path>          - Find issues for one URL per line (blank lines and lines starting with                                        
-                                        # are ignored); JSON returns lookups in input order                                                          
+                                        # are ignored); JSON returns lookups in input order; --limit is                                              
+                                        ignored                                                                                                      
   --search-comments                   - Also search inside issue comments (requires --search)                                                        
   --team              <team>          - Filter by team key (can be repeated for multiple teams)                                                      
   --all-teams                         - Query across all teams                                                                                       
