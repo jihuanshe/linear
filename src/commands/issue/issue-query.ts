@@ -120,7 +120,7 @@ export const queryCommand = withUsageMetadata(new Command(), {
   )
   .option(
     "--url <url:string>",
-    "Find an issue by Linear URL, or by an exact URL occurrence in its description or comments",
+    "Find an issue by Linear URL, or by an exact URL occurrence in its description or comments (URL mode returns all exact matches; --limit is ignored)",
   )
   .option(
     "--url-file <path:string>",

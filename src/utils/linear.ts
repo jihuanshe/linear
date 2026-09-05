@@ -1395,7 +1395,10 @@ function parseLinearIssueUrl(
     return undefined
   }
 
-  if (parsed.hostname !== "linear.app") return undefined
+  if (
+    parsed.protocol !== "https:" || parsed.hostname !== "linear.app" ||
+    parsed.port !== ""
+  ) return undefined
   const match = parsed.pathname.match(
     /^\/(?:([^/]+)\/)?issue\/([A-Za-z0-9]+-[1-9][0-9]*)(?:\/|$)/i,
   )
@@ -1423,7 +1426,8 @@ function containsExactUrl(
   const isUrlContinuation = (value: string | undefined): boolean =>
     value != null && !/[\s<>"`]/u.test(value)
   const isUrlPrefixContinuation = (value: string | undefined): boolean =>
-    value != null && /[A-Za-z0-9._~:/?#\]@!$&'*,;=%-]/u.test(value)
+    value != null &&
+    /[A-Za-z0-9\p{L}\p{N}._~:/?#\]@!$&'*,;=%-]/u.test(value)
   const trailingSentencePunctuation =
     /^[.,;:!?)}\]\u3001\u3002\uff01\uff1f\uff1a\uff1b\uff09\uff3d]+$/u
 

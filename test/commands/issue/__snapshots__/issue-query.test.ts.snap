@@ -16,30 +16,31 @@ Options:
   -h, --help                          - Show this help.                                                                                              
   --search            <term>          - Full-text search term                                                                                        
   --url               <url>           - Find an issue by Linear URL, or by an exact URL occurrence in its                                            
-                                        description or comments                                                                                      
-  --url-file          <path>          - Find issues for one URL per line (blank lines and lines starting                                             
-                                        with # are ignored); JSON returns lookups in input order                                                     
+                                        description or comments (URL mode returns all exact matches; --limit                                         
+                                        is ignored)                                                                                                  
+  --url-file          <path>          - Find issues for one URL per line (blank lines and lines starting with                                        
+                                        # are ignored); JSON returns lookups in input order                                                          
   --search-comments                   - Also search inside issue comments (requires --search)                                                        
   --team              <team>          - Filter by team key (can be repeated for multiple teams)                                                      
   --all-teams                         - Query across all teams                                                                                       
-  -s, --state         <state>         - Filter by issue state (can be repeated for multiple states)        (Values: "triage", "backlog", "unstarted",
-                                                                                                           "started", "completed", "canceled")       
+  -s, --state         <state>         - Filter by issue state (can be repeated for multiple states)             (Values: "triage", "backlog",        
+                                                                                                                "unstarted", "started", "completed", 
+                                                                                                                "canceled")                          
   --state-name        <name>          - Filter by exact workflow state name (case-insensitive; can be                                                
                                         repeated)                                                                                                    
   --assignee          <assignee>      - Filter by assignee (username, name, email, 'self', or '@me')                                                 
   -U, --unassigned                    - Show only unassigned issues                                                                                  
-  --sort              <sort>          - Sort order: manual or priority (default: priority, not available   (Values: "manual", "priority")            
-                                        with --search)                                                                                               
+  --sort              <sort>          - Sort order: manual or priority (default: priority, not available with   (Values: "manual", "priority")       
+                                        --search)                                                                                                    
   --project           <project>       - Filter by project (UUID, slug ID, or name)                                                                   
   --unprojected                       - Show only issues that are not assigned to a project                                                          
-  --project-label     <projectLabel>  - Filter by project label name (shows issues from all projects with                                            
-                                        this label)                                                                                                  
-  --cycle             <cycle>         - Filter by cycle name, number, 'active'/'now', 'next', 'previous',                                            
-                                        or a relative offset like +1                                                                                 
+  --project-label     <projectLabel>  - Filter by project label name (shows issues from all projects with this                                       
+                                        label)                                                                                                       
+  --cycle             <cycle>         - Filter by cycle name, number, 'active'/'now', 'next', 'previous', or a                                       
+                                        relative offset like +1                                                                                      
   --milestone         <milestone>     - Filter by project milestone (UUID, or name when --project is set)                                            
   -l, --label         <label>         - Filter by label name (can be repeated for multiple labels)                                                   
-  --limit             <limit>         - Maximum number of issues to fetch (default: 50, use 0 for          (Default: 50)                             
-                                        unlimited)                                                                                                   
+  --limit             <limit>         - Maximum number of issues to fetch (default: 50, use 0 for unlimited)    (Default: 50)                        
   --created-after     <date>          - Filter issues created after this date (ISO 8601 or YYYY-MM-DD)                                               
   --updated-after     <date>          - Filter issues updated after this date (ISO 8601 or YYYY-MM-DD)                                               
   --include-archived                  - Include archived issues                                                                                      
