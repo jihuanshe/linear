@@ -66,7 +66,7 @@ commands:
 
 `set.labels` 表示完整集合替换，因此同样必须带完整 `base.labels`。只需增删标签时使用 `issue update --add-label/--remove-label`；它们映射 Linear 的增量标签原语，不需要先读取并替换整个集合。Comment、Attachment 和 Relation 的追加也不需要字段 base；Relation 保留自己的冲突检查。
 
-报 conflict 后，把远端当前值与你的意图一起交给用户裁决；执行裁决时把 base 刷新为远端当前值、把 set 改成裁决后的目标，重新 plan/apply。这条路保留 base 保护：裁决与执行之间同事再次修改会再次报 conflict，而不是被静默覆盖。不要为绕过 conflict 改用无 base 的直接更新。
+报 conflict 后，读取远端新值并保留同事的更新。在已授权范围内能够合并时，将 base 刷新为远端当前值、set 改为合并后的目标，再次 apply；内容或决定互相冲突时请用户裁决。保留 base 保护，后续再次漂移仍会报 conflict。
 
 Markdown 正文的比较做等价规范化（换行、行尾空格、列表符号），Linear 的等价改写不会被误判为漂移。
 
@@ -84,6 +84,24 @@ plan 是可选的安全与执行摘要，不是人类审批界面，也不是每
 apply 在第一笔写入前重复整批 manifest 与文件校验，然后按顺序在每个 Issue 自己的第一笔 mutation 前读取远端并比较。默认策略遇到读取失败或 conflict 就停止，保留已经成功的结果；显式 `--continue-on-failure` 跳过失败或冲突条目并继续后续干净条目。需要在执行前查看全部远端 verdict 时显式运行 plan；apply 不重复整批远端预读，也不把客户端检查描述成锁或事务。checkpoint 续跑沿用同一套逐 Issue 检查。`--confirm-workspace` 必须重复 manifest 里的 workspace，防止把准备好的 manifest 打到错误目标——它不是授权，写入授权始终来自宿主和用户。
 
 apply 逐执行项返回 applied / failed / unknown / unattempted / skipped，结束后读回每个本次已应用或从 checkpoint 跳过的目标 Issue。mutation 已成功但当前视图读回失败时，执行项仍保持 applied 以免误重试，整体状态返回 applied-unverified 并以非零退出；修复访问后重跑会跳过 mutation，只重试读回。
+
+`issue apply` 是同步命令：它会等待整批执行和写后读回，最后才在 stdout 输出一份完整结果。人类模式的执行进度写 stderr；JSON 模式不输出执行进度。外层 shell 或 Agent 超时但原进程仍在运行时，继续等待它；checkpoint 不是并发锁，不能据此启动第二个执行者。只有确认原进程已经退出后，才能检查 manifest 旁的 checkpoint 并用同一份 manifest 续跑。原进程状态无法确认时停止续跑；checkpoint 中的未知结果必须先对账。
+
+机器编排应保留两个流和退出码，并验证每个目标的读回，而不是只看 `created` 或命令是否启动：
+
+```bash
+set +e
+LINEAR_PROMPT_DISABLED=1 linear issue apply \
+  --file "$manifest" --confirm-workspace jihuanshe --json \
+  >apply.json 2>apply.log
+code=$?
+set -e
+jq -e '.status == "completed" and ([.verification[].status] | all(. == "verified"))' apply.json >/dev/null
+test "$code" -eq 0
+jq '{status, summary, createdIdentifiers, verification: [.verification[] | {target, status, url}]}' apply.json
+```
+
+`verification` 是批量写后读回的事实来源；`readBack` 保存完整的 `issue view --json` 响应，需要比较字段时按 identifier 读取它。`status` 不是装饰字段：`applied-unverified`、`stopped-on-unknown`、`conflict` 和带失败项的结果都必须停下交给对账或人工裁决。
 
 ## checkpoint 与续跑
 

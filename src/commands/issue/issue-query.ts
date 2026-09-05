@@ -21,6 +21,7 @@ import {
   getTeamKey,
   isIssueBlocked,
   isLinearUuid,
+  lookupUserId,
   resolveMilestoneId,
   searchIssuesByTerm,
   selectOption,
@@ -43,6 +44,68 @@ const StateType = new EnumType([
   "completed",
   "canceled",
 ])
+const URL_LOOKUP_CONCURRENCY = 4
+
+function validateExactUrl(value: string, source: string): string {
+  const exactUrl = value.trim()
+  if (exactUrl.length === 0) {
+    throw new ValidationError(`${source} cannot be empty`)
+  }
+  try {
+    new URL(exactUrl)
+  } catch {
+    throw new ValidationError(`Invalid URL: "${value}"`, {
+      suggestion:
+        "Pass an absolute URL including its scheme, for example https://example.com/objects/123.",
+    })
+  }
+  return exactUrl
+}
+
+async function readExactUrlFile(filePath: string): Promise<string[]> {
+  let content: string
+  try {
+    content = await Deno.readTextFile(filePath)
+  } catch (error) {
+    if (error instanceof Deno.errors.NotFound) {
+      throw new NotFoundError("URL file", filePath)
+    }
+    throw error
+  }
+
+  const urls = content
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line.length > 0 && !line.startsWith("#"))
+    .map((line) => validateExactUrl(line, `--url-file entry in ${filePath}`))
+
+  if (urls.length === 0) {
+    throw new ValidationError(`--url-file contains no URLs: ${filePath}`)
+  }
+  return [...new Set(urls)]
+}
+
+async function mapWithConcurrency<T, R>(
+  items: readonly T[],
+  concurrency: number,
+  mapper: (item: T, index: number) => Promise<R>,
+): Promise<R[]> {
+  const results = new Array<R>(items.length)
+  let nextIndex = 0
+  const worker = async () => {
+    while (true) {
+      const index = nextIndex++
+      if (index >= items.length) return
+      results[index] = await mapper(items[index], index)
+    }
+  }
+  const workers = Array.from(
+    { length: Math.min(Math.max(1, concurrency), items.length) },
+    () => worker(),
+  )
+  await Promise.all(workers)
+  return results
+}
 
 export const queryCommand = withUsageMetadata(new Command(), {
   interactive: true,
@@ -54,6 +117,14 @@ export const queryCommand = withUsageMetadata(new Command(), {
   .option(
     "--search <term:string>",
     "Full-text search term",
+  )
+  .option(
+    "--url <url:string>",
+    "Find an issue by Linear URL, or by an exact URL occurrence in its description or comments (URL mode returns all exact matches; --limit is ignored)",
+  )
+  .option(
+    "--url-file <path:string>",
+    "Find issues for one URL per line (blank lines and lines starting with # are ignored); JSON returns lookups in input order; --limit is ignored",
   )
   .option(
     "--search-comments",
@@ -129,6 +200,8 @@ export const queryCommand = withUsageMetadata(new Command(), {
   .action(async (options) => {
     const {
       search,
+      url,
+      urlFile,
       searchComments,
       team: teamFlags,
       allTeams,
@@ -259,6 +332,49 @@ export const queryCommand = withUsageMetadata(new Command(), {
         )
       }
 
+      if (search != null && url != null) {
+        throw new ValidationError(
+          "Cannot use both --search and --url",
+          {
+            suggestion:
+              "Use --url for exact URL deduplication, or --search for relevance-ranked full-text search.",
+          },
+        )
+      }
+
+      if (search != null && urlFile != null) {
+        throw new ValidationError(
+          "Cannot use both --search and --url-file",
+          {
+            suggestion:
+              "Use --url-file for exact URL deduplication, or --search for relevance-ranked full-text search.",
+          },
+        )
+      }
+
+      if (url != null && urlFile != null) {
+        throw new ValidationError(
+          "Cannot use both --url and --url-file",
+          {
+            suggestion:
+              "Pass one URL with --url, or put one URL per line in --url-file.",
+          },
+        )
+      }
+
+      const exactUrl = url == null ? undefined : validateExactUrl(url, "--url")
+      const exactUrls = urlFile == null
+        ? undefined
+        : await readExactUrlFile(urlFile)
+
+      let resolvedBatchAssigneeId: string | undefined
+      if (exactUrls != null && assignee != null) {
+        resolvedBatchAssigneeId = await lookupUserId(assignee)
+        if (!resolvedBatchAssigneeId) {
+          throw new NotFoundError("User", assignee)
+        }
+      }
+
       if (sortFlag && search) {
         throw new ValidationError(
           "--sort cannot be used with --search",
@@ -366,8 +482,72 @@ export const queryCommand = withUsageMetadata(new Command(), {
 
       // Resolve sort for non-search mode
       const sort = search ? undefined : resolveIssueSort(sortFlag)
+      const queryOptions = {
+        teamKeys: resolvedTeamKeys,
+        allTeams: allTeams === true,
+        state: stateArray,
+        stateNames,
+        assignee,
+        unassigned,
+        sort,
+        limit,
+        projectId,
+        noProject: unprojected === true,
+        projectLabel,
+        cycleId,
+        milestoneId,
+        labelNames,
+        createdAfter,
+        updatedAfter,
+        includeArchived,
+      }
 
-      if (search) {
+      if (exactUrls != null) {
+        // Keep URL order in the result so a caller can reconcile each lookup
+        // without matching on an issue title or identifier.
+        const results = await mapWithConcurrency(
+          exactUrls,
+          URL_LOOKUP_CONCURRENCY,
+          (target) =>
+            fetchIssuesForQuery({
+              ...queryOptions,
+              assigneeId: resolvedBatchAssigneeId,
+              exactUrl: target,
+            }),
+        )
+
+        spinner?.stop()
+
+        if (json) {
+          console.log(
+            JSON.stringify(
+              {
+                lookups: exactUrls.map((target, index) => ({
+                  url: target,
+                  ...results[index],
+                })),
+              },
+              null,
+              2,
+            ),
+          )
+          return
+        }
+
+        const showAssignee = assignee == null && !unassigned
+        const outputLines: string[] = []
+        for (const [index, result] of results.entries()) {
+          outputLines.push("", exactUrls[index])
+          if (result.nodes.length === 0) {
+            outputLines.push("No issues found.")
+            continue
+          }
+          outputLines.push(
+            ...formatIssueTable(result.nodes, isMultiTeam, showAssignee),
+          )
+        }
+        await outputPaged(outputLines, pager !== false)
+      } else if (search) {
         // --- Search mode: use searchIssues() backend ---
         const searchTerm = search.trim()
         if (searchTerm.length === 0) {
@@ -414,23 +594,8 @@ export const queryCommand = withUsageMetadata(new Command(), {
       } else {
         // --- Filter mode: use issues() backend ---
         const result = await fetchIssuesForQuery({
-          teamKeys: resolvedTeamKeys,
-          allTeams: allTeams === true,
-          state: stateArray,
-          stateNames,
-          assignee,
-          unassigned,
-          sort,
-          limit: limit === 0 ? 0 : limit,
-          projectId,
-          noProject: unprojected === true,
-          projectLabel,
-          cycleId,
-          milestoneId,
-          labelNames,
-          createdAfter,
-          updatedAfter,
-          includeArchived,
+          ...queryOptions,
+          exactUrl,
         })
 
         spinner?.stop()

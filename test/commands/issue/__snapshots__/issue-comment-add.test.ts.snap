@@ -23,8 +23,9 @@ stdout:
 "
 Usage: add [issueId]
 
-Writes: true     
-Interactive: true
+Writes: true            
+Interactive: true       
+Output modes: human,json
 
 Description:
 
@@ -38,6 +39,7 @@ Options:
   -p, --parent  <id>        - Parent comment ID for replies                                                                       
   -a, --attach  <filepath>  - Upload a file and add its Markdown link to the comment (images render inline; repeatable)           
   --public                  - Upload attached images to a public, unauthenticated URL (default: private, workspace-members only)  
+  -j, --json                - Output {comment} as JSON                                                                            
 
 "
 stderr:

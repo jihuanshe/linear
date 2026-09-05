@@ -6,22 +6,15 @@ import { normalizeIssueIdentifier } from "../utils/issue-identifier.ts"
 import { MAX_FILE_SIZE } from "../utils/upload.ts"
 import { getMimeType } from "../utils/upload.ts"
 
-// The Issue delivery manifest is the single unit that previews and executes a
-// complete Issue handoff: fields, comments with uploaded files, Linear
-// Attachments, and IssueRelations (design:
-// docs/agent-interface-architecture.md, "Issue delivery manifest").
-//
-// Deliberate v1 boundaries, chosen against the primitive worth bar:
+// The Issue delivery manifest previews and executes a complete Issue handoff:
+// fields, comments with uploaded files, Attachments, and Relations.
+// Current boundaries:
 // - Field vocabulary matches what the reused `issue create/update` commands
 //   accept; names resolve through those commands' existing semantics. Fields
 //   the commands cannot express (estimate, due date, cycle, milestone,
 //   clearing project/parent) stay out until the commands grow them.
-// - `base` carries the values the caller last read. It exists because an
-//   agent prepares material slowly while colleagues keep editing: a field
-//   is only written when the remote still matches its base (three-way compare
-//   inherited from the retired batch-write Skill). Every replacement field in
-//   an update requires a matching base; incremental operations remain owned by
-//   their dedicated commands instead of gaining an unguarded manifest path.
+// - `base` carries the values the caller last read. Replacement fields require
+//   a matching base; incremental operations remain owned by their commands.
 // - Existing comments, attachments, and relations are never edited or
 //   removed here; dedicated commands own explicit single-object changes.
 

@@ -429,6 +429,42 @@ snapshot[`usage JSON v1 freezes its existing fields and types 1`] = `
           staticallyRequired: false,
         },
         {
+          arguments: [
+            {
+              list: false,
+              name: "url",
+              required: true,
+              type: "string",
+              variadic: false,
+            },
+          ],
+          description: "Find an issue by Linear URL, or by an exact URL occurrence in its description or comments (URL mode returns all exact matches; --limit is ignored)",
+          flags: [
+            "--url",
+          ],
+          name: "url",
+          repeatable: false,
+          staticallyRequired: false,
+        },
+        {
+          arguments: [
+            {
+              list: false,
+              name: "path",
+              required: true,
+              type: "string",
+              variadic: false,
+            },
+          ],
+          description: "Find issues for one URL per line (blank lines and lines starting with # are ignored); JSON returns lookups in input order; --limit is ignored",
+          flags: [
+            "--url-file",
+          ],
+          name: "url-file",
+          repeatable: false,
+          staticallyRequired: false,
+        },
+        {
           arguments: [],
           description: "Also search inside issue comments (requires --search)",
           flags: [
@@ -967,6 +1003,54 @@ snapshot[`usage JSON v1 freezes its existing fields and types 1`] = `
       ],
       path: "linear issue view",
       usage: "linear issue view [issueId] [options]",
+      writes: false,
+    },
+    {
+      aliases: [],
+      arguments: [
+        {
+          list: false,
+          name: "issueId",
+          required: false,
+          type: "string",
+          variadic: false,
+        },
+      ],
+      confirmation: null,
+      description: "Show issue history (project, assignee and state changes)",
+      details: "linear issue history --help",
+      guides: [
+        {
+          description: "无人值守执行、临时脚本编排、JSON 校验、Markdown 文件 flag 与写后读回验证",
+          name: "automation",
+        },
+        {
+          description: "事实源判断、证据持久化、写前确认与写后读回、关闭原因与下一跳，让无上下文的接手者能独立继续",
+          name: "issue-authoring",
+        },
+      ],
+      hasSubcommands: false,
+      interactive: false,
+      name: "history",
+      options: [
+        {
+          arguments: [],
+          description: "Output history as JSON",
+          flags: [
+            "-j",
+            "--json",
+          ],
+          name: "json",
+          repeatable: false,
+          staticallyRequired: false,
+        },
+      ],
+      outputModes: [
+        "human",
+        "json",
+      ],
+      path: "linear issue history",
+      usage: "linear issue history [issueId] [options]",
       writes: false,
     },
     {
@@ -1563,7 +1647,7 @@ snapshot[`usage JSON v1 freezes its existing fields and types 1`] = `
         },
         {
           arguments: [],
-          description: "Output the created issue, including id, identifier, and url, as JSON (non-interactive only)",
+          description: "Output {success, issue: {id, identifier, url, team}} as JSON (non-interactive only)",
           flags: [
             "-j",
             "--json",

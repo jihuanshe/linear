@@ -22,6 +22,10 @@ import { CliError, NotFoundError, ValidationError } from "./errors.ts"
 import { getGraphQLClient } from "./graphql.ts"
 import { normalizeIssueIdentifier } from "./issue-identifier.ts"
 import { getCurrentIssueFromVcs } from "./vcs.ts"
+import { unified } from "unified"
+import remarkParse from "remark-parse"
+import remarkGfm from "remark-gfm"
+import { EXIT, SKIP, visit } from "unist-util-visit"
 
 /**
  * Validate and parse a date string in ISO 8601 format (YYYY-MM-DD or full ISO 8601).
@@ -620,6 +624,41 @@ const issueDetailsWithCommentsQuery = gql(/* GraphQL */ `
   }
 `)
 
+const issueCommentsForUrlLookupQuery = gql(/* GraphQL */ `
+  query GetIssueCommentsForUrlLookup($id: String!, $after: String) {
+    issue(id: $id) {
+      comments(first: 100, after: $after) {
+        nodes { body }
+        pageInfo { hasNextPage endCursor }
+      }
+    }
+  }
+`)
+
+async function fetchAllIssueCommentBodies(issueId: string): Promise<string[]> {
+  const client = getGraphQLClient()
+  const bodies: string[] = []
+  let after: string | null | undefined
+  while (true) {
+    const result = await client.request(issueCommentsForUrlLookupQuery, {
+      id: issueId,
+      after,
+    })
+    const comments = result.issue?.comments
+    if (comments == null) {
+      throw new CliError(`Unable to read comments for ${issueId}`)
+    }
+    bodies.push(...comments.nodes.map((comment) => comment.body))
+    if (!comments.pageInfo.hasNextPage) break
+    const next = comments.pageInfo.endCursor
+    if (next == null || next === after) {
+      throw new CliError(`Incomplete comment pagination for ${issueId}`)
+    }
+    after = next
+  }
+  return bodies
+}
+
 const issueDetailsQuery = gql(/* GraphQL */ `
   query GetIssueDetails($id: String!) {
     issue(id: $id) {
@@ -1092,6 +1131,8 @@ const queryIssuesQuery = gql(/* GraphQL */ `
     $includeArchived: Boolean
     $includeProjectTeamMetadata: Boolean!
     $includeEstimationMetadata: Boolean!
+    $includeDescription: Boolean!
+    $includeComments: Boolean!
   ) {
     issues(
       filter: $filter
@@ -1105,6 +1146,16 @@ const queryIssuesQuery = gql(/* GraphQL */ `
         identifier
         title
         url
+        description @include(if: $includeDescription)
+        comments(first: 100) @include(if: $includeComments) {
+          nodes {
+            body
+          }
+          pageInfo {
+            hasNextPage
+            endCursor
+          }
+        }
         priority
         priorityLabel
         estimate
@@ -1327,12 +1378,196 @@ export interface FetchIssuesForQueryOptions {
   includeArchived?: boolean
   includeProjectTeamMetadata?: boolean
   includeEstimationMetadata?: boolean
+  /** Exact URL to locate in an issue's URL, description, or comments. */
+  exactUrl?: string
+  /** Resolved once by batch callers to avoid repeating user lookup requests. */
+  assigneeId?: string
+}
+
+interface LinearIssueUrlReference {
+  identifier: string
+  workspace?: string
+}
+
+function parseLinearIssueUrl(
+  url: string,
+): LinearIssueUrlReference | undefined {
+  let parsed: URL
+  try {
+    parsed = new URL(url)
+  } catch {
+    return undefined
+  }
+
+  if (
+    parsed.protocol !== "https:" || parsed.hostname !== "linear.app" ||
+    parsed.port !== ""
+  ) return undefined
+  const match = parsed.pathname.match(
+    /^\/(?:([^/]+)\/)?issue\/([A-Za-z0-9]+-[1-9][0-9]*)(?:\/|$)/i,
+  )
+  if (match?.[2] == null) return undefined
+  const identifier = normalizeIssueIdentifier(match[2])
+  if (identifier == null) return undefined
+  if (match[1] == null) return { identifier }
+  try {
+    return { identifier, workspace: decodeURIComponent(match[1]) }
+  } catch {
+    return undefined
+  }
+}
+
+function containsExactUrl(
+  markdown: string | null | undefined,
+  target: string,
+): boolean {
+  if (markdown == null || target.length === 0) return false
+
+  // Let Markdown delimiters take precedence over bare URL tokenization:
+  // GFM otherwise consumes the closing ** in `**URL**。next` as URL text.
+  const tree = unified().use(remarkParse).use(remarkGfm).data(
+    "micromarkExtensions",
+    [{
+      disable: { null: ["protocolAutolink", "wwwAutolink", "emailAutolink"] },
+    }],
+  ).parse(markdown)
+  let matched = false
+  let text = ""
+  visit(tree, (node) => {
+    // Explicit Markdown destinations have exact boundaries. GFM autolinks
+    // also split URL characters such as a trailing underscore into text, so
+    // their displayed text must stay joined to adjacent text for the check.
+    if (
+      node.type === "definition" || node.type === "image" ||
+      (node.type === "link" &&
+        node.position?.start.offset != null &&
+        /^(?:<|\[)/.test(markdown.slice(node.position.start.offset)))
+    ) {
+      if (node.url === target) {
+        matched = true
+        return EXIT
+      }
+      text += "\n"
+      return SKIP
+    }
+    if (node.type === "linkReference" || node.type === "imageReference") {
+      text += "\n"
+      return SKIP
+    }
+    if (node.type === "text") text += node.value
+    else if (
+      node.type === "inlineCode" || node.type === "code" || node.type === "html"
+    ) text += `\n${node.value}\n`
+    else if (
+      node.type === "paragraph" || node.type === "heading" ||
+      node.type === "tableCell" || node.type === "break"
+    ) text += "\n"
+  })
+  return matched || containsProseUrl(text, target)
+}
+
+function containsProseUrl(text: string, target: string): boolean {
+  // Prose punctuation and quotes delimit bare URLs; other characters remain
+  // part of the URL. Markdown formatting has already been handled by remark.
+  const isUrlContinuation = (value: string | undefined): boolean =>
+    value != null && !/[\s<>"`「」『』“”‘’。、，！？：；（）［］]/u.test(value)
+  const isUrlPrefixContinuation = (value: string | undefined): boolean =>
+    value != null &&
+    /[A-Za-z0-9\p{L}\p{N}._~:/?#\]@!$&'*,;=%-]/u.test(value)
+  const trailingSentencePunctuation = /^[.,;:!?)}\]]+$/u
+
+  let offset = 0
+  while (offset < text.length) {
+    const index = text.indexOf(target, offset)
+    if (index < 0) return false
+    const before = index === 0 ? undefined : text[index - 1]
+    const singleQuoted = before === "'" &&
+      !isUrlPrefixContinuation(text[index - 2]) &&
+      text[index + target.length] === "'"
+    if (isUrlPrefixContinuation(before) && !singleQuoted) {
+      offset = index + 1
+      continue
+    }
+    let end = index + target.length
+    while (end < text.length && isUrlContinuation(text[end])) end++
+    const suffix = text.slice(index + target.length, end)
+    if (suffix.length === 0) return true
+    // Apostrophes can extend a URL. A closing quote must end the token or
+    // leave only surrounding sentence punctuation.
+    if (
+      singleQuoted &&
+      (suffix.length === 1 || trailingSentencePunctuation.test(suffix.slice(1)))
+    ) return true
+    if (trailingSentencePunctuation.test(suffix)) return true
+    offset = index + 1
+  }
+  return false
+}
+
+async function filterIssuesByExactUrl(
+  issues: QueryIssuesPayload["nodes"],
+  target: string,
+  exactIssueReference: LinearIssueUrlReference | undefined,
+): Promise<QueryIssuesPayload["nodes"]> {
+  const matched: QueryIssuesPayload["nodes"] = []
+  for (const issue of issues) {
+    if (exactIssueReference != null) {
+      if (issue.identifier !== exactIssueReference.identifier) continue
+      if (exactIssueReference.workspace == null) {
+        matched.push(issue)
+        continue
+      }
+      const issueReference = parseLinearIssueUrl(issue.url)
+      if (
+        issueReference?.workspace?.toLowerCase() ===
+          exactIssueReference.workspace.toLowerCase()
+      ) matched.push(issue)
+      continue
+    }
+
+    const descriptionMatch = issue.url === target ||
+      containsExactUrl(issue.description, target)
+    let comments = issue.comments
+    if (comments?.pageInfo?.hasNextPage) {
+      const bodies = await fetchAllIssueCommentBodies(issue.id)
+      comments = {
+        nodes: bodies.map((body) => ({ body })),
+        pageInfo: { hasNextPage: false, endCursor: null },
+      }
+    }
+    const commentMatch = comments?.nodes.some((comment) =>
+      containsExactUrl(comment.body, target)
+    )
+    if (descriptionMatch || commentMatch) {
+      matched.push(comments === issue.comments ? issue : { ...issue, comments })
+    }
+  }
+  return matched
 }
 
 export async function fetchIssuesForQuery(
   options: FetchIssuesForQueryOptions,
 ): Promise<FetchedQueryIssuePayload> {
-  const filter: IssueFilter = {}
+  let filter: IssueFilter = {}
+  const exactIssueReference = options.exactUrl == null
+    ? undefined
+    : parseLinearIssueUrl(options.exactUrl)
+
+  if (options.exactUrl != null) {
+    if (exactIssueReference != null) {
+      filter.id = { eq: exactIssueReference.identifier }
+    } else {
+      // The URL may have been recorded in the description or a comment. Keep
+      // both paths in the upstream candidate filter so an empty description
+      // match cannot cause a duplicate Issue to be created.
+      filter = {
+        or: [
+          { description: { contains: options.exactUrl } },
+          { comments: { body: { contains: options.exactUrl } } },
+        ],
+      }
+    }
+  }
 
   if (options.allTeams) {
     // No team filter — workspace-wide
@@ -1354,10 +1589,10 @@ export async function fetchIssuesForQuery(
 
   if (options.unassigned) {
     filter.assignee = { null: true }
-  } else if (options.assignee) {
-    const userId = await lookupUserId(options.assignee)
+  } else if (options.assignee != null || options.assigneeId != null) {
+    const userId = options.assigneeId ?? await lookupUserId(options.assignee!)
     if (!userId) {
-      throw new NotFoundError("User", options.assignee)
+      throw new NotFoundError("User", options.assignee ?? options.assigneeId!)
     }
     filter.assignee = { id: { eq: userId } }
   }
@@ -1430,7 +1665,10 @@ export async function fetchIssuesForQuery(
   }
 
   const client = getGraphQLClient()
-  const fetchAll = options.limit === 0
+  // URL lookup must inspect every candidate before applying the exact local
+  // match. Otherwise a relevance-independent page boundary could hide the
+  // existing issue we are trying to deduplicate.
+  const fetchAll = options.limit === 0 || options.exactUrl != null
   const limit = options.limit ?? 50
   const pageSize = fetchAll ? 100 : Math.min(limit, 100)
 
@@ -1453,26 +1691,50 @@ export async function fetchIssuesForQuery(
         includeArchived: options.includeArchived,
         includeProjectTeamMetadata: options.includeProjectTeamMetadata === true,
         includeEstimationMetadata: options.includeEstimationMetadata === true,
+        includeDescription: options.exactUrl != null,
+        includeComments: options.exactUrl != null &&
+          exactIssueReference == null,
       },
     )
 
     allNodes.push(...result.issues.nodes)
     lastPageInfo = result.issues.pageInfo
     hasNextPage = result.issues.pageInfo.hasNextPage
-    after = result.issues.pageInfo.endCursor
 
     if (!fetchAll && allNodes.length >= limit) {
       break
     }
+    const next = result.issues.pageInfo.endCursor
+    if (hasNextPage && (next == null || next === after)) {
+      throw new CliError("Incomplete issue pagination")
+    }
+    after = next
   }
 
-  const nodes = options.includeProjectTeamMetadata === true
+  const completedNodes = options.includeProjectTeamMetadata === true
     ? await completeDoctorProjectTeams(allNodes, options.includeArchived)
     : allNodes
 
+  const matchedNodes = options.exactUrl == null
+    ? completedNodes
+    : await filterIssuesByExactUrl(
+      completedNodes,
+      options.exactUrl,
+      exactIssueReference,
+    )
+
+  const nodes = options.exactUrl == null
+    ? (fetchAll ? matchedNodes : matchedNodes.slice(0, limit))
+    : matchedNodes
+
   return {
-    nodes: fetchAll ? nodes : nodes.slice(0, limit),
-    pageInfo: lastPageInfo,
+    nodes,
+    // The URL mode has already scanned every upstream page; returning a
+    // cursor from the unfiltered candidate set would suggest that callers can
+    // continue the exact result set with that cursor, which is not true.
+    pageInfo: options.exactUrl == null
+      ? lastPageInfo
+      : { hasNextPage: false, endCursor: null },
   }
 }
 

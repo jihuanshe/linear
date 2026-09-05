@@ -57,6 +57,88 @@ await snapshotTest({
   },
 })
 
+Deno.test("Issue Comment Add Command - JSON output is machine-readable", async () => {
+  const { cleanup } = await setupMockLinearServer([
+    {
+      queryName: "GetIssueId",
+      variables: { id: "TEST-123" },
+      response: {
+        data: {
+          issue: {
+            id: "issue-uuid-123",
+          },
+        },
+      },
+    },
+    {
+      queryName: "AddComment",
+      response: {
+        data: {
+          commentCreate: {
+            success: true,
+            comment: {
+              id: "comment-uuid-json",
+              body: "机器可读评论",
+              createdAt: "2024-01-15T10:30:00Z",
+              url: "https://linear.app/issue/TEST-123#comment-uuid-json",
+              user: {
+                name: "testuser",
+                displayName: "Test User",
+              },
+            },
+          },
+        },
+      },
+    },
+  ], { NO_COLOR: "true" })
+  const logs: string[] = []
+  const logStub = stub(console, "log", (...args: unknown[]) => {
+    logs.push(args.map(String).join(" "))
+  })
+
+  try {
+    await commentAddCommand.parse([
+      "TEST-123",
+      "--body",
+      "机器可读评论",
+      "--json",
+    ])
+  } finally {
+    logStub.restore()
+    await cleanup()
+  }
+
+  assertEquals(logs.length, 1)
+  const payload = JSON.parse(logs[0])
+  assertEquals(payload.comment.id, "comment-uuid-json")
+  assertEquals(
+    payload.comment.url,
+    "https://linear.app/issue/TEST-123#comment-uuid-json",
+  )
+})
+
+Deno.test("Issue Comment Add Command - JSON rejects whitespace-only body", async () => {
+  const errorLogs: string[] = []
+  const errorStub = stub(console, "error", (...args: unknown[]) => {
+    errorLogs.push(args.map(String).join(" "))
+  })
+  const exitStub = stub(Deno, "exit", (_code?: number) => {
+    throw new Error("EXIT")
+  })
+  try {
+    await commentAddCommand.parse(["TEST-123", "--body", "   ", "--json"])
+  } catch (error) {
+    if (!(error instanceof Error) || error.message !== "EXIT") throw error
+  } finally {
+    errorStub.restore()
+    exitStub.restore()
+  }
+  assertEquals(
+    errorLogs.some((line) => line.includes("Comment body cannot be empty")),
+    true,
+  )
+})
+
 // Test replying to a comment with parent flag
 await snapshotTest({
   name: "Issue Comment Add Command - With Parent Flag",

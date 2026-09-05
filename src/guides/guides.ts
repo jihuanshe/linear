@@ -1,14 +1,6 @@
 import { guideSources } from "./content.ts"
 
-/**
- * Guide frontmatter is the single owner of guide identity and of
- * command-to-guide relationships; command registration never maintains a
- * second registry (design: docs/agent-interface-architecture.md, "元数据").
- * The parser below accepts exactly the schema these first-party guides use —
- * scalar `name`/`description` plus list `commands` — and fails loudly on
- * anything else instead of pulling a YAML
- * dependency into the binary for a corpus this repository controls.
- */
+/** Guide frontmatter owns guide identity and command relationships. */
 export interface GuideMetadata {
   name: string
   description: string

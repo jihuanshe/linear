@@ -7,10 +7,12 @@ commands:
   - auth whoami
   - auth token
   - issue view
+  - issue history
   - issue query
   - issue create
   - issue update
   - issue comment add
+  - issue comment update
   - issue comment list
   - document view
 ---
@@ -35,16 +37,33 @@ NO_COLOR=1 linear issue view ENG-123 --json >result.json 2>error.log &&
 - 交互提示在无人值守环境用 `LINEAR_PROMPT_DISABLED=1` 禁用；提示被禁用后缺输入的命令会失败而不是挂起。禁用提示不代表获得写入授权。
 - 后续命令显式传 Issue 标识。`issue view` 等命令省略参数时会从当前 Git branch 推断目标，无人值守脚本在仓库 checkout 里可能因此打到错误的 Issue。
 
+批量操作先明确目标 workspace、输入范围和写入范围；得到授权后，脚本或 AI 在该范围内连续执行。输入分歧放进结果报告，认证、workspace 不一致和写入结果不明则停止相关批次并先回读对账。
+
 ## 分页形状
 
 `issue query --json` 返回连接对象，不是裸数组。节点在 `.nodes`，分页信息在 `.pageInfo`。`--limit` 超过单页大小或传 `0`（不设上限）时，CLI 自动翻页并拼接各页的 `nodes`，保留连接形状，不扁平化、不重命名字段：
 
 ```bash
 jq -e '.nodes | arrays' project-issues.json >/dev/null &&
-  jq '.nodes[] | {identifier, title, priority}' project-issues.json
+jq '.nodes[] | {identifier, title, priority}' project-issues.json
 ```
 
-`issue comment list --json` 同样返回 connection envelope `{nodes,pageInfo}`，而不是评论数组。例如：
+按外部对象的 canonical URL 查重时使用 `issue query --url <url> --all-teams --json`。
+
+它不会走 `--search` 的相关性排序：Linear Issue URL 按 identifier 和 workspace 定位，其他 URL 对候选 Issue description 或评论做完整 URL 边界核对。
+
+空 `.nodes` 才表示当前没有命中。该模式已经读完候选分页并返回全部精确命中，有限 `--limit` 不会截断结果；`pageInfo` 固定为 `{hasNextPage:false,endCursor:null}`。
+
+需要一次核对多个外部对象时，把每个 canonical URL 放在文件的一行，用 `--url-file`：
+
+```bash
+NO_COLOR=1 LINEAR_PROMPT_DISABLED=1 linear issue query --all-teams --url-file object-urls.txt --json >url-lookups.json
+jq '.lookups[] | {url, identifiers: [.nodes[].identifier]}' url-lookups.json
+```
+
+空行和以 `#` 开头的行会忽略，重复 URL 只查一次；JSON 输出保持首次出现顺序，逐项返回 `{url,nodes,pageInfo}`。单个 `--url` 返回 `{nodes,pageInfo}`。
+
+`issue comment list --json` 同样返回 connection envelope `{nodes,pageInfo}`，而不是评论数组；当前只读取固定首 50 条，不能据此断言没有更早或更晚的评论。例如：
 
 ```bash
 linear issue comment list ENG-123 --json >comments.json &&
@@ -64,6 +83,10 @@ cat > "$TMPDIR/description.md" <<'EOF'
 EOF
 linear issue create --title "My Issue" --description-file "$TMPDIR/description.md"
 ```
+
+需要把新评论交给后续编排时，`linear issue comment add/update` 都加 `--json`；两者的 stdout 都是 `{comment}`，上传进度会写到 stderr。需要核对项目、负责人和状态变更时使用 `linear issue history <id> --json`。
+
+没有正文或附件时，JSON 模式直接报错，不进入交互提示。
 
 ## 写后读回
 
