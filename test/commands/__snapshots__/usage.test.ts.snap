@@ -438,7 +438,7 @@ snapshot[`usage JSON v1 freezes its existing fields and types 1`] = `
               variadic: false,
             },
           ],
-          description: "Find an issue by Linear URL, or by an exact URL occurrence in its description or comments",
+          description: "Find an issue by Linear URL, or by an exact URL occurrence in its description or comments (URL mode returns all exact matches; --limit is ignored)",
           flags: [
             "--url",
           ],
