@@ -47,6 +47,16 @@ export const commentUpdateCommand = withUsageMetadata(new Command(), {
         }
       }
 
+      if (json && !newBody?.trim()) {
+        throw new ValidationError(
+          "JSON mode requires --body or --body-file",
+          {
+            suggestion:
+              "Provide the replacement body explicitly; JSON mode never prompts for input.",
+          },
+        )
+      }
+
       let existingBody = ""
 
       // If no body provided, fetch existing comment to show as default
