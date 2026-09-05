@@ -368,6 +368,12 @@ Deno.test("Issue Query Command - exact URL matches description, not relevance ne
                 identifier: "ENG-112",
                 description: `_来源：${targetUrl}_`,
               },
+              {
+                ...mockIssueNode,
+                id: "issue-chinese-sentence",
+                identifier: "ENG-113",
+                description: `${targetUrl}。后续说明`,
+              },
             ],
             pageInfo: { hasNextPage: false, endCursor: "candidate-end" },
           },
@@ -414,7 +420,15 @@ Deno.test("Issue Query Command - exact URL matches description, not relevance ne
     const payload = JSON.parse(stdout)
     assertEquals(
       payload.nodes.map((issue: { identifier: string }) => issue.identifier),
-      ["ENG-101", "ENG-105", "ENG-106", "ENG-107", "ENG-108", "ENG-112"],
+      [
+        "ENG-101",
+        "ENG-105",
+        "ENG-106",
+        "ENG-107",
+        "ENG-108",
+        "ENG-112",
+        "ENG-113",
+      ],
     )
     assertEquals(payload.nodes[0].description, `反馈链接：${targetUrl}`)
     assertEquals(payload.pageInfo, { hasNextPage: false, endCursor: null })

@@ -1430,6 +1430,8 @@ function containsExactUrl(
     /[A-Za-z0-9\p{L}\p{N}._~:/?#\]@!$&'*,;=%-]/u.test(value)
   const trailingSentencePunctuation =
     /^[.,;:!?)}\]\u3001\u3002\uff01\uff1f\uff1a\uff1b\uff09\uff3d]+$/u
+  const sentenceBoundary =
+    /^[\u3001\u3002\uff0c\uff01\uff1a\uff1b\uff1f\uff09\uff3d]$/u
 
   let offset = 0
   while (offset < text.length) {
@@ -1455,7 +1457,10 @@ function containsExactUrl(
       continue
     }
     let end = index + target.length
-    while (end < text.length && isUrlContinuation(text[end])) end++
+    while (
+      end < text.length && isUrlContinuation(text[end]) &&
+      !sentenceBoundary.test(text[end])
+    ) end++
     const suffix = text.slice(index + target.length, end)
     if (suffix.length === 0) return true
     // Markdown emphasis/strike delimiters are formatting, not URL text.

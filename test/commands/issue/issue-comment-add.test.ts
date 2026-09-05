@@ -118,6 +118,28 @@ Deno.test("Issue Comment Add Command - JSON output is machine-readable", async (
   )
 })
 
+Deno.test("Issue Comment Add Command - JSON rejects whitespace-only body", async () => {
+  const errorLogs: string[] = []
+  const errorStub = stub(console, "error", (...args: unknown[]) => {
+    errorLogs.push(args.map(String).join(" "))
+  })
+  const exitStub = stub(Deno, "exit", (_code?: number) => {
+    throw new Error("EXIT")
+  })
+  try {
+    await commentAddCommand.parse(["TEST-123", "--body", "   ", "--json"])
+  } catch (error) {
+    if (!(error instanceof Error) || error.message !== "EXIT") throw error
+  } finally {
+    errorStub.restore()
+    exitStub.restore()
+  }
+  assertEquals(
+    errorLogs.some((line) => line.includes("Comment body cannot be empty")),
+    true,
+  )
+})
+
 // Test replying to a comment with parent flag
 await snapshotTest({
   name: "Issue Comment Add Command - With Parent Flag",

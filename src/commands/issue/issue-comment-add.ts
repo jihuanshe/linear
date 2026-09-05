@@ -85,6 +85,15 @@ export const commentAddCommand = withUsageMetadata(new Command(), {
 
       // Validate and upload attachments first
       const attachments = attach || []
+      if (
+        json && attachments.length === 0 && commentBody != null &&
+        !commentBody.trim()
+      ) {
+        throw new ValidationError("Comment body cannot be empty", {
+          suggestion:
+            "Provide non-whitespace content when producing machine-readable output.",
+        })
+      }
       if (makePublic && attachments.length === 0) {
         throw new ValidationError(
           "--public requires at least one --attach",
