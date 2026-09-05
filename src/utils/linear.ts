@@ -1438,6 +1438,11 @@ function containsExactUrl(
     const index = text.indexOf(target, offset)
     if (index < 0) return false
     const before = index === 0 ? undefined : text[index - 1]
+    const singleQuoted = before === "'" &&
+      text[index - 2] != null &&
+      !isUrlPrefixContinuation(text[index - 2]) &&
+      text[index + target.length] === "'"
+    if (singleQuoted) return true
     // Markdown emphasis and strike markers can wrap a URL, but the same
     // characters are valid URL characters when they follow another token
     // character. Treat them as delimiters only at a real token boundary.
