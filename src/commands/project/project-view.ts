@@ -80,7 +80,7 @@ export const viewCommand = new Command()
   .option("-w, --web", "Open in web browser")
   .option("-a, --app", "Open in Linear.app")
   .option("-j, --json", "Output as JSON")
-  .option("--include-content", "Include the project's routing content")
+  .option("--include-content", "Include the project's content")
   .action(async (options, projectId) => {
     const { web, app, json, includeContent } = options
 

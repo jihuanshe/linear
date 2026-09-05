@@ -110,7 +110,6 @@ Deno.test("Issue Comment Add Command - JSON output is machine-readable", async (
 
   assertEquals(logs.length, 1)
   const payload = JSON.parse(logs[0])
-  assertEquals(payload.issue, "TEST-123")
   assertEquals(payload.comment.id, "comment-uuid-json")
   assertEquals(
     payload.comment.url,

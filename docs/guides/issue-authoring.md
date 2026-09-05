@@ -29,7 +29,7 @@ Issue 的第一消费者是没有本对话上下文的人或 AI。create/update 
 
 发现问题的系统不自动拥有修复。下游分析发现主数据异常时，Issue 要写清三件事：主数据里的权威事实是什么、该数据由谁维护、用哪个正式查询验收。下游现象只是影响和证据，「重跑下游」不是负责团队的完成条件。反过来：某个标识未被证明对应正式业务实体时，不要在 Issue 里要求权威数据源补建记录来迁就下游解析。事实源或负责团队无法从证据确定时，写入前向用户确认。
 
-Feedback 路由时，先用 `pageContextJson.route/source` 与 Project 的 `content` 做精确匹配，再用页面名和 `game_key` 作旁证；读取 Project 内容用 `linear project view <id> --include-content --json`，读取变更顺序用 `linear issue history <id> --json`。Project lead 只是第一轮查询负责人，不等于根因 owner。
+Feedback 路由时，先用 `pageContextJson.route/source` 与项目的 `content` 做精确匹配，再用页面名和 `game_key` 作旁证；读取项目内容用 `linear project view <id> --include-content --json`，读取变更顺序用 `linear issue history <id> --json`。项目负责人（`lead`）只是第一轮查询负责人，不等于 Issue 负责人（`assignee`）。
 
 ## 只保留事实，标注推测
 

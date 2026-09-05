@@ -39,7 +39,7 @@ export const commentAddCommand = withUsageMetadata(new Command(), {
     "--public",
     "Upload attached images to a public, unauthenticated URL (default: private, workspace-members only)",
   )
-  .option("-j, --json", "Output the created comment as JSON")
+  .option("-j, --json", "Output {comment} as JSON")
   .action(async (options, issueId) => {
     const {
       body,
@@ -219,9 +219,7 @@ export const commentAddCommand = withUsageMetadata(new Command(), {
       }
 
       if (json) {
-        console.log(
-          JSON.stringify({ issue: resolvedIdentifier, comment }, null, 2),
-        )
+        console.log(JSON.stringify({ comment }, null, 2))
         return
       }
 

@@ -1017,7 +1017,7 @@ snapshot[`usage JSON v1 freezes its existing fields and types 1`] = `
         },
       ],
       confirmation: null,
-      description: "Show Project, assignee, state and other Issue history",
+      description: "Show issue history (project, assignee and state changes)",
       details: "linear issue history --help",
       guides: [
         {

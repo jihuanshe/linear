@@ -29,7 +29,7 @@ const issueHistoryQuery = gql(`
 
 export const historyCommand = new Command()
   .name("history")
-  .description("Show Project, assignee, state and other Issue history")
+  .description("Show issue history (project, assignee and state changes)")
   .arguments("[issueId:string]")
   .option("-j, --json", "Output history as JSON")
   .action(async ({ json }, issueId) => {

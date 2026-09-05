@@ -84,7 +84,7 @@ EOF
 linear issue create --title "My Issue" --description-file "$TMPDIR/description.md"
 ```
 
-需要把新评论交给后续编排时，`issue comment add/update` 都加 `--json`；`comment add` 的 stdout 是 `{issue,comment}`，`comment update` 的 stdout 是评论对象，上传进度会写到 stderr。需要核对 Project、负责人和状态变更时使用 `linear issue history <id> --json`。
+需要把新评论交给后续编排时，`linear issue comment add/update` 都加 `--json`；两者的 stdout 都是 `{comment}`，上传进度会写到 stderr。需要核对项目、负责人和状态变更时使用 `linear issue history <id> --json`。
 
 没有正文或附件时，JSON 模式直接报错，不进入交互提示。
 

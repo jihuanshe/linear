@@ -11,11 +11,11 @@ Description:
 
 Options:
 
-  -h, --help         - Show this help.                        
-  -w, --web          - Open in web browser                    
-  -a, --app          - Open in Linear.app                     
-  -j, --json         - Output as JSON                         
-  --include-content  - Include the project's routing content  
+  -h, --help         - Show this help.                
+  -w, --web          - Open in web browser            
+  -a, --app          - Open in Linear.app             
+  -j, --json         - Output as JSON                 
+  --include-content  - Include the project's content  
 
 "
 stderr:

@@ -7,7 +7,7 @@ Usage: history [issueId]
 
 Description:
 
-  Show Project, assignee, state and other Issue history
+  Show issue history (project, assignee and state changes)
 
 Options:
 
