@@ -53,23 +53,20 @@ Feedback 路由时，先用 `pageContextJson.route/source` 与 Project 的 `cont
 
 正文默认用中文、按最简模板写，用不上的节直接省略：类型、背景、当前情况、期望结果、复现步骤、验收标准、影响范围与优先级、相关材料。普通 Issue 标题用「[Bug]/[需求]/[协助] + 对象 + 现象」；Feedback 分诊按下面的短标题，不强制前缀。多行 Markdown 一律走 `--description-file` / `--body-file`（见 automation 指南）。
 
-Feedback 初步分诊使用更短的读者模板。标题和第一段直接说问题；Case 与 Issue 共用同一句问题标题。至少放一条原始 Feedback canonical URL，已有 Case 时再放 Case URL。不要把归并组名、固定 Feedback 数量、状态数字、仓库猜测或「路由假设／根因尚未证明」写成正文主句：
+Feedback 初步分诊使用更短的读者模板。标题直接说问题，不把 `FB-XXXXXX` 放进标题；Feedback Case canonical URL 是正文的主坐标。不要把归并组名、固定 Feedback 数量、状态数字、仓库猜测或防御性套话写成正文主句：
 
 ```text
-卖家商品列表：三位数显示时换行
-
 卖家商品列表中，数字显示到第三位时会换行，数量看不完整。
 
-来源：
-- 原始反馈：https://tcg-workdesk.apps.tongdiaotech.com/feedback/submissions/<uuid>
-- Feedback Case：https://tcg-workdesk.apps.tongdiaotech.com/feedback/cases/<case-code>
+Feedback Case：
+https://tcg-workdesk.apps.tongdiaotech.com/feedback/cases/<case-code>
 
-这是当前的初步分诊。后续新增反馈以 Case 当前关联为准；如果调查发现需要后端或其他热更包参与，请更新负责人、关联来源和处理范围。
+开工前，用 `jh` 命令行读取这张 Feedback Case 及其全部关联的 Feedback；再用 `linear` 命令行读取本 Issue 的最新状态、Project、负责人、评论和关联 PR；需要核对代码时使用 GitHub CLI（`gh`）。三方事实如有不一致，按当前证据修正对应记录，并在本 Issue 留下简短说明；需要人工判断的改挂或状态决定先停下确认。
 ```
 
-Comment 只补充下一步：「这条反馈已归入 Feedback Case：<URL>。后续请以 Case 和原始反馈为准；如果调查发现需要其他服务或热更包参与，请同步更新负责人和关联来源。」Case 成员是可变的，不能把创建时的数量当作永久事实。
+Comment 只记录实际发生的判断或同步：「已回读 Feedback、Feedback Case 和 Linear；发现 X 与 Y 不一致，已按 Z 修正。」不要把三方快照复制进评论。Case 成员是可变的，不能把创建时的数量当作永久事实。
 
-如果创建 Issue 时还没有 Case，先放原始 Feedback URL；Case 建立或复用后，再把 Case URL 补进正文或首条 Comment，并读回确认两条坐标都可点击。不要为了补链接复制一张 Issue。
+如果创建 Issue 时还没有 Case，暂时放原始 Feedback URL 并明确「尚未建立 Feedback Case」；Case 建立或复用后，把 Case URL 设为正文主坐标。不要为了补链接复制一张 Issue。
 
 ## 写前确认，写后读回
 
