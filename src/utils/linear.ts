@@ -1427,6 +1427,7 @@ function containsExactUrl(
     value != null && !/[\s<>"`]/u.test(value)
   const isUrlPrefixContinuation = (value: string | undefined): boolean =>
     value != null &&
+    !/[*_~]/u.test(value) &&
     /[A-Za-z0-9\p{L}\p{N}._~:/?#\]@!$&'*,;=%-]/u.test(value)
   const trailingSentencePunctuation =
     /^[.,;:!?)}\]\u3001\u3002\uff01\uff1f\uff1a\uff1b\uff09\uff3d]+$/u
