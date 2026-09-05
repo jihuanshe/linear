@@ -35,6 +35,19 @@ export function formatApply(outcome: ApplyOutcome): string {
         .join(", ")
     }`,
   )
+  if (outcome.verification.length > 0) {
+    const verified = outcome.verification.filter((item) =>
+      item.status === "verified"
+    ).length
+    const failed = outcome.verification.length - verified
+    lines.push(
+      `read-back: ${verified}/${outcome.verification.length} verified${
+        failed > 0 ? `, ${failed} failed` : ""
+      }`,
+    )
+  } else {
+    lines.push("read-back: no issue target to verify")
+  }
   const created = Object.values(outcome.createdIdentifiers)
   if (created.length > 0) {
     lines.push(`created: ${created.join(", ")}`)

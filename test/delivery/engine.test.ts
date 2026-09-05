@@ -699,6 +699,7 @@ Deno.test("apply creates, threads the identifier, and reads back", async () => {
       target: "DATA-700",
       status: "verified",
     }])
+    assertStringIncludes(formatApply(outcome), "read-back: 1/1 verified")
   } finally {
     await Deno.remove(dir, { recursive: true })
   }
@@ -756,6 +757,10 @@ Deno.test("apply reports successful mutations with failed read-back as unverifie
         testCase.detail,
       )
       assertStringIncludes(formatApply(outcome), "failed DATA-606")
+      assertStringIncludes(
+        formatApply(outcome),
+        "read-back: 0/1 verified, 1 failed",
+      )
     } finally {
       await Deno.remove(dir, { recursive: true })
     }

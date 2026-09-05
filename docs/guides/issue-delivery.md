@@ -87,6 +87,24 @@ apply 在第一笔写入前重复整批 manifest 与文件校验，然后按顺�
 
 apply 逐执行项返回 applied / failed / unknown / unattempted / skipped，结束后读回每个本次已应用或从 checkpoint 跳过的目标 Issue。mutation 已成功但当前视图读回失败时，执行项仍保持 applied 以免误重试，整体状态返回 applied-unverified 并以非零退出；修复访问后重跑会跳过 mutation，只重试读回。
 
+`issue apply` 是同步命令：它会等待整批执行和写后读回，最后才在 stdout 输出一份完整结果；执行进度只写 stderr。外层 shell 或 Agent 如果因为超时拿到的是「进程仍在运行」，不要重新启动同一份 manifest，也不要把它当成失败。继续等待原进程，或先检查 manifest 旁的 checkpoint，再用同一份 manifest 续跑。未知结果会被 checkpoint 拦住，必须先对账。
+
+机器编排应保留两个流和退出码，并验证每个目标的读回，而不是只看 `created` 或命令是否启动：
+
+```bash
+set +e
+LINEAR_PROMPT_DISABLED=1 linear issue apply \
+  --file "$manifest" --confirm-workspace jihuanshe --json \
+  >apply.json 2>apply.log
+code=$?
+set -e
+jq -e '.status == "completed" and ([.verification[].status] | all(. == "verified"))' apply.json >/dev/null
+test "$code" -eq 0
+jq '{status, summary, createdIdentifiers, verification: [.verification[] | {target, status, url}]}' apply.json
+```
+
+`verification` 是批量写后读回的事实来源；`readBack` 保存完整的 `issue view --json` 响应，需要比较字段时按 identifier 读取它。`status` 不是装饰字段：`applied-unverified`、`stopped-on-unknown`、`conflict` 和带失败项的结果都必须停下交给对账或人工裁决。
+
 ## checkpoint 与续跑
 
 checkpoint 写在 manifest 旁边（`<manifest>.checkpoint.json`），随 manifest 一起交接。每个已尝试的执行项以「位置 + 内容哈希」为键记录结果状态。续跑跳过已确认成功的执行项；修复失败处的内容会改变对应执行项的哈希键，按新内容重跑。
