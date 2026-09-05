@@ -36,6 +36,7 @@ await snapshotTest({
                   {
                     createdAt: "2026-09-05T00:00:00Z",
                     actor: { name: "alex", displayName: "Alex" },
+                    botActor: null,
                     fromProject: { name: "Old" },
                     toProject: { name: "New" },
                     fromAssignee: null,

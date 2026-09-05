@@ -12,6 +12,7 @@ commands:
   - issue create
   - issue update
   - issue comment add
+  - issue comment update
   - issue comment list
   - document view
 ---

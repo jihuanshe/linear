@@ -29,6 +29,7 @@ stdout:
         "name": "alex",
         "displayName": "Alex"
       },
+      "botActor": null,
       "fromProject": {
         "name": "Old"
       },

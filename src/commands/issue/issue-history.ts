@@ -12,6 +12,7 @@ const issueHistoryQuery = gql(`
         nodes {
           createdAt
           actor { name displayName }
+          botActor { name type subType userDisplayName }
           fromProject { name }
           toProject { name }
           fromAssignee { name displayName }
@@ -62,7 +63,9 @@ export const historyCommand = new Command()
       }
 
       for (const entry of history.nodes) {
-        const actor = entry.actor?.displayName || entry.actor?.name || "system"
+        const actor = entry.actor?.displayName || entry.actor?.name ||
+          entry.botActor?.name || entry.botActor?.userDisplayName ||
+          (entry.botActor?.type ? `bot:${entry.botActor.type}` : "system")
         const changes: string[] = []
         if (entry.fromProject || entry.toProject) {
           changes.push(
