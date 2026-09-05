@@ -1647,7 +1647,7 @@ snapshot[`usage JSON v1 freezes its existing fields and types 1`] = `
         },
         {
           arguments: [],
-          description: "Output the created issue, including id, identifier, and url, as JSON (non-interactive only)",
+          description: "Output {success, issue: {id, identifier, url, team}} as JSON (non-interactive only)",
           flags: [
             "-j",
             "--json",

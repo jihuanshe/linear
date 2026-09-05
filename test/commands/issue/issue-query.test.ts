@@ -491,6 +491,113 @@ Deno.test("Issue Query Command - exact URL matches description, not relevance ne
   }
 })
 
+Deno.test("Issue Query Command - URL boundaries follow Markdown and prose in descriptions and comments", async () => {
+  const targetUrl = "https://example.com/objects/42"
+  const matchingContent = [
+    `**${targetUrl}**.`,
+    `*${targetUrl}*,`,
+    `~~${targetUrl}~~!`,
+    `**_${targetUrl}_**;`,
+    `**来源：${targetUrl}**。后续说明`,
+    `「${targetUrl}」`,
+    `『${targetUrl}』`,
+    `“${targetUrl}”`,
+    `‘${targetUrl}’`,
+    `"${targetUrl}".`,
+    `'${targetUrl}'.`,
+    `[source](${targetUrl}).`,
+    `[source][reference]\n\n[reference]: ${targetUrl}`,
+    `<${targetUrl}>`,
+    `\`${targetUrl}\`.`,
+    `\`\`\`text\n${targetUrl}\n\`\`\``,
+  ]
+  const nonmatchingContent = [
+    `${targetUrl}_`,
+    `${targetUrl}~`,
+    `${targetUrl}*`,
+    `${targetUrl}.json`,
+    `${targetUrl}:detail`,
+    `${targetUrl}/detail`,
+    `${targetUrl}?page=2`,
+    `${targetUrl}#part`,
+    `${targetUrl}0`,
+    `${targetUrl}详情`,
+    `**${targetUrl}_**.`,
+    `**${targetUrl}.json**.`,
+    `「${targetUrl}/detail」`,
+    `'${targetUrl}'detail'`,
+    `已有_token_${targetUrl}`,
+    `已有~token~${targetUrl}`,
+    `https://other.example/'${targetUrl}'`,
+    `[${targetUrl}](${targetUrl}/detail)`,
+    `[${targetUrl}][reference]\n\n[reference]: ${targetUrl}/detail`,
+    `![${targetUrl}][reference]\n\n[reference]: ${targetUrl}/detail`,
+  ]
+  const cases = [
+    ...matchingContent.map((content) => ({ content, matches: true })),
+    ...nonmatchingContent.map((content) => ({ content, matches: false })),
+  ].flatMap((entry) => [
+    { ...entry, description: entry.content, comments: undefined },
+    {
+      ...entry,
+      description: null,
+      comments: { nodes: [{ body: entry.content }] },
+    },
+  ])
+  const nodes = cases.map(({ description, comments }, index) => ({
+    ...mockIssueNode,
+    description,
+    comments,
+    id: `issue-${index}`,
+    identifier: `ENG-${index + 1}`,
+  }))
+  const { server, cleanup } = await setupMockLinearServer([{
+    queryName: "GetIssuesForQuery",
+    response: {
+      data: {
+        issues: {
+          nodes,
+          pageInfo: { hasNextPage: false, endCursor: null },
+        },
+      },
+    },
+  }])
+  try {
+    const result = await new Deno.Command(Deno.execPath(), {
+      args: [
+        "run",
+        ...commonDenoArgs,
+        main,
+        "issue",
+        "query",
+        "--all-teams",
+        "--url",
+        targetUrl,
+        "--json",
+      ],
+      env: {
+        NO_COLOR: "1",
+        LINEAR_PROMPT_DISABLED: "1",
+        LINEAR_GRAPHQL_ENDPOINT: server.getEndpoint(),
+        LINEAR_API_KEY: "Bearer test-token",
+      },
+      stdout: "piped",
+      stderr: "piped",
+    }).output()
+    const decoder = new TextDecoder()
+    assertEquals(result.code, 0, decoder.decode(result.stderr))
+    const payload = JSON.parse(decoder.decode(result.stdout))
+    assertEquals(
+      payload.nodes.map((node: { identifier: string }) => node.identifier),
+      nodes.filter((_, index) => cases[index].matches).map((node) =>
+        node.identifier
+      ),
+    )
+  } finally {
+    await cleanup()
+  }
+})
+
 Deno.test("Issue Query Command - exact URL keeps all matches with a finite limit", async () => {
   const targetUrl = "https://example.com/objects/multi"
   const { cleanup } = await setupMockLinearServer([

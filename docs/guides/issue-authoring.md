@@ -50,7 +50,7 @@ Issue 的第一消费者是没有本对话上下文的人或 AI。create/update 
 
 ## 正文形态
 
-正文默认用中文、按最简模板写，用不上的节直接省略：类型、背景、当前情况、期望结果、复现步骤、验收标准、影响范围与优先级、相关材料。普通 Issue 标题用「[Bug]/[需求]/[协助] + 对象 + 现象」。多行 Markdown 一律走 `--description-file` / `--body-file`（见 automation 指南）。
+语言、标题格式和模板遵循用户或目标 workspace 的约定。正文写清当前情况、期望结果、复现方式、验收依据和相关材料，只保留与本任务有关的内容。多行 Markdown 一律走 `--description-file` / `--body-file`（见 automation 指南）。
 
 ## 写前确认，写后读回
 

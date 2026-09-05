@@ -61,7 +61,7 @@ NO_COLOR=1 LINEAR_PROMPT_DISABLED=1 linear issue query --all-teams --url-file ob
 jq '.lookups[] | {url, identifiers: [.nodes[].identifier]}' url-lookups.json
 ```
 
-空行和以 `#` 开头的行会忽略，重复 URL 只查一次；JSON 输出保持首次出现顺序，逐项返回 `{url,nodes,pageInfo}`。单个 `--url` 仍返回原来的 `{nodes,pageInfo}`。
+空行和以 `#` 开头的行会忽略，重复 URL 只查一次；JSON 输出保持首次出现顺序，逐项返回 `{url,nodes,pageInfo}`。单个 `--url` 返回 `{nodes,pageInfo}`。
 
 `issue comment list --json` 同样返回 connection envelope `{nodes,pageInfo}`，而不是评论数组；当前只读取固定首 50 条，不能据此断言没有更早或更晚的评论。例如：
 

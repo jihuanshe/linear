@@ -22,6 +22,10 @@ import { CliError, NotFoundError, ValidationError } from "./errors.ts"
 import { getGraphQLClient } from "./graphql.ts"
 import { normalizeIssueIdentifier } from "./issue-identifier.ts"
 import { getCurrentIssueFromVcs } from "./vcs.ts"
+import { unified } from "unified"
+import remarkParse from "remark-parse"
+import remarkGfm from "remark-gfm"
+import { EXIT, SKIP, visit } from "unist-util-visit"
 
 /**
  * Validate and parse a date string in ISO 8601 format (YYYY-MM-DD or full ISO 8601).
@@ -1414,24 +1418,63 @@ function parseLinearIssueUrl(
 }
 
 function containsExactUrl(
-  text: string | null | undefined,
+  markdown: string | null | undefined,
   target: string,
 ): boolean {
-  if (text == null || target.length === 0) return false
+  if (markdown == null || target.length === 0) return false
 
-  // The GraphQL contains filter is intentionally broad (it tokenizes URLs),
-  // so scan the complete URL token locally. The prefix class leaves common
-  // opening Markdown delimiters alone; the suffix class accepts punctuation
-  // that belongs to surrounding prose but rejects a real URL extension.
+  // Let Markdown delimiters take precedence over bare URL tokenization:
+  // GFM otherwise consumes the closing ** in `**URL**。next` as URL text.
+  const tree = unified().use(remarkParse).use(remarkGfm).data(
+    "micromarkExtensions",
+    [{
+      disable: { null: ["protocolAutolink", "wwwAutolink", "emailAutolink"] },
+    }],
+  ).parse(markdown)
+  let matched = false
+  let text = ""
+  visit(tree, (node) => {
+    // Explicit Markdown destinations have exact boundaries. GFM autolinks
+    // also split URL characters such as a trailing underscore into text, so
+    // their displayed text must stay joined to adjacent text for the check.
+    if (
+      node.type === "definition" || node.type === "image" ||
+      (node.type === "link" &&
+        node.position?.start.offset != null &&
+        /^(?:<|\[)/.test(markdown.slice(node.position.start.offset)))
+    ) {
+      if (node.url === target) {
+        matched = true
+        return EXIT
+      }
+      text += "\n"
+      return SKIP
+    }
+    if (node.type === "linkReference" || node.type === "imageReference") {
+      text += "\n"
+      return SKIP
+    }
+    if (node.type === "text") text += node.value
+    else if (
+      node.type === "inlineCode" || node.type === "code" || node.type === "html"
+    ) text += `\n${node.value}\n`
+    else if (
+      node.type === "paragraph" || node.type === "heading" ||
+      node.type === "tableCell" || node.type === "break"
+    ) text += "\n"
+  })
+  return matched || containsProseUrl(text, target)
+}
+
+function containsProseUrl(text: string, target: string): boolean {
+  // Prose punctuation and quotes delimit bare URLs; other characters remain
+  // part of the URL. Markdown formatting has already been handled by remark.
   const isUrlContinuation = (value: string | undefined): boolean =>
-    value != null && !/[\s<>"`]/u.test(value)
+    value != null && !/[\s<>"`「」『』“”‘’。、，！？：；（）［］]/u.test(value)
   const isUrlPrefixContinuation = (value: string | undefined): boolean =>
     value != null &&
     /[A-Za-z0-9\p{L}\p{N}._~:/?#\]@!$&'*,;=%-]/u.test(value)
-  const trailingSentencePunctuation =
-    /^[.,;:!?)}\]\u3001\u3002\uff01\uff1f\uff1a\uff1b\uff09\uff3d]+$/u
-  const sentenceBoundary =
-    /^[\u3001\u3002\uff0c\uff01\uff1a\uff1b\uff1f\uff09\uff3d]$/u
+  const trailingSentencePunctuation = /^[.,;:!?)}\]]+$/u
 
   let offset = 0
   while (offset < text.length) {
@@ -1441,32 +1484,12 @@ function containsExactUrl(
     const singleQuoted = before === "'" &&
       !isUrlPrefixContinuation(text[index - 2]) &&
       text[index + target.length] === "'"
-    // Markdown emphasis and strike markers can wrap a URL, but the same
-    // characters are valid URL characters when they follow another token
-    // character. Treat them as delimiters only at a real token boundary.
-    let delimiterStart = index - 1
-    while (
-      delimiterStart >= 0 && /[*_~]/u.test(text[delimiterStart])
-    ) delimiterStart--
-    const delimiterWrapped = delimiterStart < index - 1
-    const beforeDelimiter = delimiterStart < 0
-      ? undefined
-      : text[delimiterStart]
-    if (
-      isUrlPrefixContinuation(before) && !singleQuoted &&
-      !(delimiterWrapped && !isUrlPrefixContinuation(beforeDelimiter))
-    ) {
+    if (isUrlPrefixContinuation(before) && !singleQuoted) {
       offset = index + 1
       continue
     }
     let end = index + target.length
-    const wrappedMarkdownLink = text.slice(0, index).endsWith("](") &&
-      text[end] === ")"
-    if (wrappedMarkdownLink) return true
-    while (
-      end < text.length && isUrlContinuation(text[end]) &&
-      !sentenceBoundary.test(text[end])
-    ) end++
+    while (end < text.length && isUrlContinuation(text[end])) end++
     const suffix = text.slice(index + target.length, end)
     if (suffix.length === 0) return true
     // Apostrophes can extend a URL. A closing quote must end the token or
@@ -1475,23 +1498,7 @@ function containsExactUrl(
       singleQuoted &&
       (suffix.length === 1 || trailingSentencePunctuation.test(suffix.slice(1)))
     ) return true
-    // Markdown emphasis/strike delimiters are formatting only when a
-    // matching opener exists before the URL. Otherwise they are URL text.
     if (trailingSentencePunctuation.test(suffix)) return true
-    if (/^[*_~]+$/u.test(suffix)) {
-      const marker = suffix[0]
-      let runEnd = index
-      while (runEnd > 0 && text[runEnd - 1] !== marker) runEnd--
-      let runStart = runEnd
-      while (runStart > 0 && text[runStart - 1] === marker) runStart--
-      const opening = text.slice(runStart, runEnd)
-      const beforeOpening = runStart === 0 ? undefined : text[runStart - 1]
-      if (
-        opening.length > 0 && opening[0] === marker &&
-        opening.length >= suffix.length &&
-        !isUrlPrefixContinuation(beforeOpening)
-      ) return true
-    }
     offset = index + 1
   }
   return false

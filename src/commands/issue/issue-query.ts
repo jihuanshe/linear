@@ -482,6 +482,25 @@ export const queryCommand = withUsageMetadata(new Command(), {
 
       // Resolve sort for non-search mode
       const sort = search ? undefined : resolveIssueSort(sortFlag)
+      const queryOptions = {
+        teamKeys: resolvedTeamKeys,
+        allTeams: allTeams === true,
+        state: stateArray,
+        stateNames,
+        assignee,
+        unassigned,
+        sort,
+        limit,
+        projectId,
+        noProject: unprojected === true,
+        projectLabel,
+        cycleId,
+        milestoneId,
+        labelNames,
+        createdAfter,
+        updatedAfter,
+        includeArchived,
+      }
 
       if (exactUrls != null) {
         // Keep URL order in the result so a caller can reconcile each lookup
@@ -491,24 +510,8 @@ export const queryCommand = withUsageMetadata(new Command(), {
           URL_LOOKUP_CONCURRENCY,
           (target) =>
             fetchIssuesForQuery({
-              teamKeys: resolvedTeamKeys,
-              allTeams: allTeams === true,
-              state: stateArray,
-              stateNames,
-              assignee,
+              ...queryOptions,
               assigneeId: resolvedBatchAssigneeId,
-              unassigned,
-              sort,
-              limit: limit === 0 ? 0 : limit,
-              projectId,
-              noProject: unprojected === true,
-              projectLabel,
-              cycleId,
-              milestoneId,
-              labelNames,
-              createdAfter,
-              updatedAfter,
-              includeArchived,
               exactUrl: target,
             }),
         )
@@ -591,23 +594,7 @@ export const queryCommand = withUsageMetadata(new Command(), {
       } else {
         // --- Filter mode: use issues() backend ---
         const result = await fetchIssuesForQuery({
-          teamKeys: resolvedTeamKeys,
-          allTeams: allTeams === true,
-          state: stateArray,
-          stateNames,
-          assignee,
-          unassigned,
-          sort,
-          limit: limit === 0 ? 0 : limit,
-          projectId,
-          noProject: unprojected === true,
-          projectLabel,
-          cycleId,
-          milestoneId,
-          labelNames,
-          createdAfter,
-          updatedAfter,
-          includeArchived,
+          ...queryOptions,
           exactUrl,
         })
 
