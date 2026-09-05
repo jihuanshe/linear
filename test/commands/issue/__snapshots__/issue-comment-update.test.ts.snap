@@ -8,3 +8,20 @@ https://linear.app/issue/TEST-123#comment-uuid-123
 stderr:
 ""
 `;
+
+snapshot[`Issue Comment Update Command - JSON 1`] = `
+stdout:
+'{
+  "id": "comment-uuid-123",
+  "body": "Updated as JSON",
+  "updatedAt": "2024-01-15T14:30:00Z",
+  "url": "https://linear.app/issue/TEST-123#comment-uuid-123",
+  "user": {
+    "name": "testuser",
+    "displayName": "Test User"
+  }
+}
+'
+stderr:
+""
+`;

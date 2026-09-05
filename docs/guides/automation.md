@@ -7,6 +7,7 @@ commands:
   - auth whoami
   - auth token
   - issue view
+  - issue history
   - issue query
   - issue create
   - issue update
@@ -82,7 +83,7 @@ EOF
 linear issue create --title "My Issue" --description-file "$TMPDIR/description.md"
 ```
 
-需要把新评论交给后续编排时，加 `--json`；stdout 只返回 `{issue,comment}`，上传进度会写到 stderr。
+需要把新评论交给后续编排时，`issue comment add/update` 都加 `--json`；stdout 只返回评论对象，上传进度会写到 stderr。需要核对 Project、负责人和状态变更时使用 `linear issue history <id> --json`。
 
 没有正文或附件时，JSON 模式直接报错，不进入交互提示。
 

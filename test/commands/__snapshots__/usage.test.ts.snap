@@ -1017,6 +1017,54 @@ snapshot[`usage JSON v1 freezes its existing fields and types 1`] = `
         },
       ],
       confirmation: null,
+      description: "Show Project, assignee, state and other Issue history",
+      details: "linear issue history --help",
+      guides: [
+        {
+          description: "无人值守执行、临时脚本编排、JSON 校验、Markdown 文件 flag 与写后读回验证",
+          name: "automation",
+        },
+        {
+          description: "事实源判断、证据持久化、写前确认与写后读回、关闭原因与下一跳，让无上下文的接手者能独立继续",
+          name: "issue-authoring",
+        },
+      ],
+      hasSubcommands: false,
+      interactive: false,
+      name: "history",
+      options: [
+        {
+          arguments: [],
+          description: "Output history as JSON",
+          flags: [
+            "-j",
+            "--json",
+          ],
+          name: "json",
+          repeatable: false,
+          staticallyRequired: false,
+        },
+      ],
+      outputModes: [
+        "human",
+        "json",
+      ],
+      path: "linear issue history",
+      usage: "linear issue history [issueId] [options]",
+      writes: false,
+    },
+    {
+      aliases: [],
+      arguments: [
+        {
+          list: false,
+          name: "issueId",
+          required: false,
+          type: "string",
+          variadic: false,
+        },
+      ],
+      confirmation: null,
       description: "Print the issue URL",
       details: "linear issue url --help",
       guides: [

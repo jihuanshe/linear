@@ -43,3 +43,38 @@ await snapshotTest({
     }
   },
 })
+
+await snapshotTest({
+  name: "Issue Comment Update Command - JSON",
+  meta: import.meta,
+  colors: false,
+  args: ["comment-uuid-123", "--body", "Updated as JSON", "--json"],
+  denoArgs: commonDenoArgs,
+  async fn() {
+    const { cleanup } = await setupMockLinearServer([
+      {
+        queryName: "UpdateComment",
+        response: {
+          data: {
+            commentUpdate: {
+              success: true,
+              comment: {
+                id: "comment-uuid-123",
+                body: "Updated as JSON",
+                updatedAt: "2024-01-15T14:30:00Z",
+                url: "https://linear.app/issue/TEST-123#comment-uuid-123",
+                user: { name: "testuser", displayName: "Test User" },
+              },
+            },
+          },
+        },
+      },
+    ])
+
+    try {
+      await commentUpdateCommand.parse()
+    } finally {
+      await cleanup()
+    }
+  },
+})
