@@ -15,9 +15,10 @@
     "sync-graphql-schema": "deno task dev schema -o graphql/schema.graphql && deno task generate-graphql-types",
     "check-types": "deno check src/main.ts",
     "lint:markdown": "mise exec -- markdownlint-cli2 \"**/*.md\" \".agents/**/*.md\"",
+    "lint:copy": "mise exec -- prek run autocorrect --all-files",
     "test": "TZ=UTC deno test --allow-all --quiet",
     "update-snapshots": "TZ=UTC deno test --allow-all -- --update",
-    "verify-source": "deno task generate-graphql-types && deno fmt --check && deno lint && mise exec -- prek validate-config prek.toml && deno task lint:markdown && deno task check-types && deno task test --ignore=test/keyring.integration.test.ts",
+    "verify-source": "deno task generate-graphql-types && deno fmt --check && deno lint && mise exec -- prek validate-config prek.toml && deno task lint:markdown && deno task lint:copy && deno task check-types && deno task test --ignore=test/keyring.integration.test.ts",
     "verify-release": "NO_COLOR=1 deno task verify-source"
   },
   "imports": {

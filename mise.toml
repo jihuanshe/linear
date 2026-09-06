@@ -4,6 +4,7 @@ min_version = "2026.9.1"
 deno = "2.9.6"
 node = "24.20.0"
 "npm:markdownlint-cli2" = "0.23.2"
+"github:huacnlee/autocorrect" = "2.16.3"
 prek = "0.5.2"
 
 [settings]

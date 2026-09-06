@@ -20,3 +20,11 @@ language = "system"
 entry = "mise exec -- markdownlint-cli2"
 types = ["markdown"]
 exclude = '^CLAUDE\.md$'
+
+[[repos.hooks]]
+id = "autocorrect"
+name = "CJK typography"
+language = "system"
+entry = "mise exec -- autocorrect --lint --strict"
+types = ["markdown"]
+exclude = '^CLAUDE\.md$'

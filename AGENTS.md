@@ -16,7 +16,7 @@
 | Issue delivery manifest、执行和恢复     | `src/delivery/`、`src/commands/issue/issue-plan.ts`、`src/commands/issue/issue-apply.ts`、`docs/guides/issue-delivery.md` |
 | Agent 接口设计与一次性交付记录          | `docs/agent-interface-architecture.md`、`docs/agent-interface-delivery.md`、`docs/skill-migration-ledger.md`              |
 | 开发工具版本、任务与权限                | `mise.toml`、`mise.lock`、`deno.json`、`docs/deno-permissions.md`                                                         |
-| 提交前检查与 Markdown 规则              | `prek.toml`、`.markdownlint-cli2.jsonc`                                                                                   |
+| 提交前检查与 Markdown 规则              | `prek.toml`、`.markdownlint-cli2.jsonc`、`.autocorrectrc`                                                                 |
 | Orb 工具链                              | `.agents/setup`、`.agents/resume`                                                                                         |
 | PR 门禁与滚动发布                       | `.github/workflows/verify-pull-request.yml`、`.github/workflows/ship-main.yml`、`.agents/skills/releasing/SKILL.md`       |
 
@@ -82,6 +82,6 @@ flowchart TD
    git diff --check
    ```
 
-pre-commit hook 只检查暂存文件的格式和 Markdown 结构；`deno task verify-source` 负责 GraphQL codegen、format check、代码与 Markdown lint、type check 和所有非 Keyring 测试。`verify-release` 是源码门禁，也是 Pull Request Source gate，不包含编译产物、Linux Keyring integration 或五平台构建。后两者由滚动发布 workflow 执行。
+pre-commit hook 只检查暂存文件的格式、Markdown 结构和中英文排版；`deno task verify-source` 负责 GraphQL codegen、format check、代码与 Markdown lint、AutoCorrect、type check 和所有非 Keyring 测试。`verify-release` 是源码门禁，也是 Pull Request Source gate，不包含编译产物、Linux Keyring integration 或五平台构建。后两者由滚动发布 workflow 执行。
 
 未经用户明确授权，不 push 或发布。用户要求发布 `main` 时，加载并遵循 `.agents/skills/releasing/SKILL.md`；不要手工修改版本、创建 tag 或另建发布流程。

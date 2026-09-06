@@ -25,7 +25,7 @@ if [[ -z "$mise_bin" ]]; then
 fi
 
 "$mise_bin" trust "$repo_root/mise.toml"
-"$mise_bin" -C "$repo_root" install --locked deno node npm:markdownlint-cli2 prek
+"$mise_bin" -C "$repo_root" install --locked deno node npm:markdownlint-cli2 github:huacnlee/autocorrect prek
 "$repo_root/.agents/resume"
 
 echo "Caching locked dependencies"

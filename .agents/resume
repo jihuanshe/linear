@@ -57,7 +57,7 @@ if [[ -z "$mise_bin" || ! -x "$mise_bin" ]]; then
   exit 1
 fi
 
-for tool in deno node markdownlint-cli2 prek; do
+for tool in deno node markdownlint-cli2 autocorrect prek; do
   if ! resolved_tool="$("$mise_bin" -C "$repo_root" which "$tool")" || [[ ! -x "$resolved_tool" ]]; then
     echo "$tool is missing; run .agents/setup to install the pinned toolchain" >&2
     exit 1
