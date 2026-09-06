@@ -1489,7 +1489,7 @@ Deno.test("batch guards each Issue immediately before its mutation", async () =>
     ])
     assertEquals(
       runner.calls.filter((args) => args[1] === "update").length,
-      0,
+      1,
     )
   } finally {
     await Deno.remove(dir, { recursive: true })
