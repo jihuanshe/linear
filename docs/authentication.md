@@ -108,7 +108,7 @@ set -Ux LINEAR_API_KEY "lin_api_..."
 
 this takes precedence over stored credentials. `LINEAR_GRAPHQL_ENDPOINT` overrides the GraphQL endpoint for proxy setups (`linear guide core` covers the recovery paths). if you have `LINEAR_API_KEY` set and try to use `linear auth login`, you'll see a warning:
 
-```
+```text
 Warning: LINEAR_API_KEY environment variable is set.
 It takes precedence over stored credentials.
 Remove it from your shell config to use multi-workspace auth.

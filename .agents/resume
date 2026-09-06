@@ -2,10 +2,8 @@
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
-deno_version="2.9.6"
 tool_root="$HOME/.local/share/amp/jihuanshe-linear"
 bin_dir="$tool_root/bin"
-deno_bin="$tool_root/deno/$deno_version/deno"
 path_bin_dir="$HOME/.local/bin"
 
 if [[ "${AMP_ORB-}" != "1" ]]; then
@@ -53,10 +51,19 @@ for profile_file in "$HOME/.bash_profile" "$HOME/.bash_login" "$HOME/.profile"; 
   rm -f "$tmp_profile"
 done
 
-if [[ ! -x "$deno_bin" ]]; then
-  echo "Deno $deno_version is missing; run .agents/setup to repair the Orb toolchain" >&2
+mise_bin="$(command -v mise || true)"
+if [[ -z "$mise_bin" || ! -x "$mise_bin" ]]; then
+  echo "mise is missing; run .agents/setup to repair the Orb toolchain" >&2
   exit 1
 fi
+
+for tool in deno node markdownlint-cli2 prek; do
+  if ! resolved_tool="$("$mise_bin" -C "$repo_root" which "$tool")" || [[ ! -x "$resolved_tool" ]]; then
+    echo "$tool is missing; run .agents/setup to install the pinned toolchain" >&2
+    exit 1
+  fi
+done
+deno_bin="$("$mise_bin" -C "$repo_root" which deno)"
 
 mkdir -p "$bin_dir" "$path_bin_dir"
 rm -f "$bin_dir/deno" "$bin_dir/linear"
@@ -114,9 +121,4 @@ assert_resolution() {
 assert_resolution deno
 assert_resolution linear
 
-deno_version_output="$("$path_bin_dir/deno" --version)"
-deno_version_line="${deno_version_output%%$'\n'*}"
-if [[ "$deno_version_line" != "deno $deno_version "* ]]; then
-  echo "Expected Deno $deno_version, got: $deno_version_line" >&2
-  exit 1
-fi
+"$path_bin_dir/deno" --version >/dev/null

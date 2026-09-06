@@ -1,0 +1,22 @@
+minimum_prek_version = "0.5.2"
+default_stages = ["pre-commit"]
+default_install_hook_types = ["pre-commit"]
+
+[[repos]]
+repo = "local"
+
+[[repos.hooks]]
+id = "deno-fmt"
+name = "Deno format"
+language = "system"
+entry = "mise exec -- deno fmt --check"
+files = '\.(?:[cm]?[jt]sx?|jsonc?|md)$'
+exclude = '^(?:src/__codegen__/|__generated__/|CLAUDE\.md$)'
+
+[[repos.hooks]]
+id = "markdownlint"
+name = "Markdown structure"
+language = "system"
+entry = "mise exec -- markdownlint-cli2"
+types = ["markdown"]
+exclude = '^CLAUDE\.md$'
