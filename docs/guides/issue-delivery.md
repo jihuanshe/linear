@@ -9,7 +9,7 @@ commands:
 
 # 用 manifest 交付完整 Issue
 
-一次交付涉及正文、评论、文件、Attachment 或关系时，手工串联多条命令正是附件被遗漏的方式。delivery manifest 把整个交付写成一个文件；`issues[]` 放一条是单次，放多条就是批量，协议完全相同。
+一次交付需要组合正文、评论、文件、Attachment 或关系等多个执行项时，用 delivery manifest 保存完整清单和执行进度，避免遗漏或重复写入。单个执行项直接使用对应专用命令。`issues[]` 放一条是单次，放多条就是批量，协议完全相同。
 
 ## Manifest 形态
 
@@ -50,15 +50,16 @@ commands:
 ```
 
 - 文件路径相对 manifest 所在目录解析；plan 和 apply 都会在第一笔写入前校验整批文件的存在、大小和 MIME。
-- `set` 的字段词表与 `issue create/update` 一致：title、description/descriptionFile、priority、state、assignee（null 表示清除）、labels（完整集合）、project、parent。update 的每个 `set` 字段必须在 `base` 中记录上次从 Linear 读到的值；create 不使用 `base`。create 另需把 `team` 放在 Issue 条目顶层，与 `operation` 和 `set` 同级；`team` 不是 `set` 字段。
-- 同一个现有 Issue 在一份 manifest 中只能有一个 update 条目；把它的字段、Comment、Attachment 和 Relation 合并在该条目中。重复 identifier（包括大小写等价形式）会在任何远端读取、checkpoint 或 mutation 前被拒绝，避免后一个条目的 conflict 发生在前一个条目已经写入之后。
+- `set` 只支持 `issue create/update` 的字段子集：title、description/descriptionFile、priority（1–4）、state、assignee、labels（完整集合）、project、parent。不支持 estimate、due date、cycle、milestone，也不能清除 project 或 parent；需要这些操作时按专用命令的 `--help` 选择入口。update 的每个 `set` 字段必须在 `base` 中记录上次从 Linear 读到的值；create 不使用 `base`。create 另需把 `team` 放在 Issue 条目顶层，与 `operation` 和 `set` 同级；`team` 不是 `set` 字段。
+- `assignee: null` 仅用于 update 清除负责人，create 不接受；create 省略 assignee 时仍可能受 `issue_create_assign_self` 配置影响。update 不接受 `labels: []`，清除标签使用 `issue update --remove-label`。
+- 同一现有 Issue 的字段、Comment、Attachment 和 Relation 合并为一个 update 条目。重复 identifier（不区分大小写）在本地校验时被拒绝。
 - `comments[].files` 上传文件并内联进评论。`attachments` 的 `url` 与 `file` 两种 kind 都创建侧栏 Attachment：`url` 直接链接外部地址，`file` 通过 `path` 指定要先上传的本地文件。
 - `relations` 的 `issue` 必须使用 `DATA-580` 形态的完整 identifier，类型词表与 `issue relation add` 一致：related、blocks、blocked-by（由 CLI 反转为上游的 blocks）、duplicate。duplicate 的方向：本条目所在 Issue 成为 `issue` 字段所指 Issue 的 duplicate。Linear 的同一对 Issue 只能保留一种关系：同类型和方向按幂等处理，不同类型或方向在 plan/apply 中报告 conflict；需要替换时先用 `issue relation delete` 显式删除旧关系。
 - 已有评论、Attachment 和关系不会被本协议隐式修改或删除；单项修改用对应的专用命令。
 
 ## base：并发安全
 
-你准备材料需要时间，期间同事可能改了同一个 Issue。update 的每个替换字段都必须写 `base`（你上次读到的值）；缺失会在本地校验阶段失败，不会降级成无条件覆盖。当前值为空时显式写 `null`，空标签集合写 `[]`。apply 对每个字段做三方比较，比较 base、目标值和远端当前值，verdict 用同一词表出现在 plan 输出里：
+update 的每个替换字段必须提供上次读到的 `base`，缺失则本地校验失败；空值写 `null`，空标签集合写 `[]`。未设置优先级时，远端返回的 priority `0` 必须在 `base.priority` 中写为 `null`，不能写 `0`。plan 和 apply 比较 base、目标值和远端当前值：
 
 - `write`：远端仍等于 base，写入。
 - `idempotent`：远端已等于目标值，跳过。
@@ -66,7 +67,7 @@ commands:
 
 `set.labels` 表示完整集合替换，因此同样必须带完整 `base.labels`。只需增删标签时使用 `issue update --add-label/--remove-label`；它们映射 Linear 的增量标签原语，不需要先读取并替换整个集合。Comment、Attachment 和 Relation 的追加也不需要字段 base；Relation 保留自己的冲突检查。
 
-报 conflict 后，读取远端新值并保留同事的更新。在已授权范围内能够合并时，将 base 刷新为远端当前值、set 改为合并后的目标，再次 apply；内容或决定互相冲突时请用户裁决。保留 base 保护，后续再次漂移仍会报 conflict。
+conflict 可在授权内合并时，将 base 更新为远端新值、set 改为保留同事更新的合并结果后续跑；内容或决定冲突时请用户裁决。
 
 Markdown 正文的比较做等价规范化（换行、行尾空格、列表符号），Linear 的等价改写不会被误判为漂移。
 
@@ -79,15 +80,15 @@ linear issue plan --file delivery.json            # 零写入预览：字段 ver
 linear issue apply --file delivery.json --confirm-workspace jihuanshe
 ```
 
-plan 是可选的安全与执行摘要，不是人类审批界面，也不是每次 create 前的强制仪式。create 展示目标 workspace/team、标题和归属、长正文的来源与大小、Comment 上传公开性、文件、Attachment 和关系，但不把完整长正文复制进终端；需要用户审核 Agent 新拟的正文时，Agent 必须在对话中展示草稿。update 继续展示本次字段的 base/desired/remote verdict；Relation 逐项显示 add/idempotent/conflict。用户已经明确要求按给定内容写入时，不需要为了确认而重复确认。
+plan 可选，提供字段 verdict、执行项和文件摘要。人类输出对 update 的非 idempotent 字段展示完整 desired、remote 和 base，可能包含长正文；create 正文和评论显示内容摘要，不能代替草稿审核。已有授权且内容明确时直接 apply；未决结论会改变目标、责任、访问范围或业务结果时，在对话中展示草稿并确认，见 [issue-authoring](issue-authoring.md)。
 
-apply 在第一笔写入前重复整批 manifest 与文件校验，然后按顺序在每个 Issue 自己的第一笔 mutation 前读取远端并比较。默认策略遇到读取失败或 conflict 就停止，保留已经成功的结果；显式 `--continue-on-failure` 跳过失败或冲突条目并继续后续干净条目。需要在执行前查看全部远端 verdict 时显式运行 plan；apply 不重复整批远端预读，也不把客户端检查描述成锁或事务。checkpoint 续跑沿用同一套逐 Issue 检查。`--confirm-workspace` 必须重复 manifest 里的 workspace，防止把准备好的 manifest 打到错误目标——它不是授权，写入授权始终来自宿主和用户。
+apply 在第一笔写入前校验整批 manifest 和文件，并核对认证身份；`--confirm-workspace` 必须与 manifest 一致，它不代替用户授权。每个 Issue 在自己的第一笔 mutation 前读取远端并比较，续跑也一样；执行前查看整批远端 verdict 用 plan。读取失败或 conflict 默认停止，`--continue-on-failure` 可跳过失败或冲突条目继续后续干净条目。
 
-apply 逐执行项返回 applied / failed / unknown / unattempted / skipped，结束后读回每个本次已应用或从 checkpoint 跳过的目标 Issue。mutation 已成功但当前视图读回失败时，执行项仍保持 applied 以免误重试，整体状态返回 applied-unverified 并以非零退出；修复访问后重跑会跳过 mutation，只重试读回。
+执行项状态为 applied / failed / unknown / unattempted / skipped。已应用或从 checkpoint 跳过的目标均会读回；读回失败不改变 applied，整体返回 applied-unverified 并非零退出。修复访问后重跑只补读回，不重复已成功的 mutation。
 
-`issue apply` 是同步命令：它会等待整批执行和写后读回，最后才在 stdout 输出一份完整结果。人类与 JSON 模式都把 Issue 序号、执行项种类和序号写入 stderr，JSON stdout 保持一份完整结果。外层 shell 或 Agent 超时但原进程仍在运行时，继续等待它；checkpoint 不是并发锁，不能据此启动第二个执行者。只有确认原进程已经退出后，才能检查 manifest 旁的 checkpoint 并用同一份 manifest 续跑。原进程状态无法确认时停止续跑；checkpoint 中的未知结果必须先对账。
+`issue apply` 同步等待整批执行和读回；进度写 stderr，stdout 最后输出一份完整结果。外层超时不表示进程退出：原进程仍运行时继续等待，状态不明时禁止启动第二个执行者。
 
-机器编排应保留两个流和退出码，并验证每个目标的读回，而不是只看 `created` 或命令是否启动：
+机器输出校验：
 
 ```bash
 set +e
@@ -101,17 +102,21 @@ test "$code" -eq 0
 jq '{status, summary, createdIdentifiers, verification: [.verification[] | {target, status, url}]}' apply.json
 ```
 
-`verification` 是批量写后读回的事实来源；`readBack` 保存完整的 `issue view --json` 响应，需要比较字段时按 identifier 读取它。`status` 不是装饰字段：`applied-unverified`、`stopped-on-unknown`、`conflict` 和带失败项的结果都必须停下交给对账或人工裁决。
+`verification[].status` 为 `verified` 只证明目标成功读回。`readBack` 按 identifier 保存完整的 `issue view --json` 响应，使用它核对本次内容；补读条件见 [automation](automation.md)。`stopped-on-unknown` 必须先对账，其他失败按对应恢复规则处理，不一律转人工审批。
 
 ## checkpoint 与续跑
 
-checkpoint 写在 manifest 旁边（`<manifest>.checkpoint.json`），随 manifest 一起交接。每个已尝试的执行项以「位置 + 内容哈希」为键记录结果状态。续跑跳过已确认成功的执行项；修复失败处的内容会改变对应执行项的哈希键，按新内容重跑。
+`<manifest>.checkpoint.json` 随 manifest 一起交接，以执行项位置和内容哈希记录状态；哈希输入包含 workspace、operation、identifier、team 和执行内容。续跑跳过已成功项，原位修复失败项后按新内容执行。
 
-续跑期间对 manifest 的安全编辑只有两种：原位修复失败的 Issue 条目，或在 `issues[]` 末尾追加新条目。在已应用条目之前插入、重排，以及删除或改写已应用条目，都会使执行项的位置键失配。这种情况下 apply 拒绝续跑，而不是重复已落地的写入。确实需要重组时，先在 Linear 核实远端状态，再重建或删除 checkpoint。
+checkpoint 顶层必须包含 `schemaVersion: 1`、`createdIdentifiers` 和 `items`。`items` 以执行项 key 为键，值包含 `status`（applied / failed / unknown）和可选的 `note`。`createdIdentifiers` 将 `issues[]` 从 0 开始的下标字符串映射到已创建的 Issue identifier，例如 `{"0": "DATA-700"}`；没有已创建的 Issue 时也必须保留空对象 `{}`。续跑依靠此映射定位新建 Issue 的待执行评论、Attachment、Relation 和写后读回目标。
 
-checkpoint 不是锁：两个执行者同时 apply 同一份 manifest 看不见彼此，每一项都会写两遍。交接是移交执行权，不是复制执行权；同一份 manifest 同一时刻只能有一个执行者。
+对账时必须保留已确认的 `createdIdentifiers` 映射。若核实 unknown 的 create 已在远端成功，除将对应执行项改为 applied 外，还必须按原 Issue 条目下标补齐 identifier，才能续跑。
 
-- `failed`（CLI 明确报错、无远端副作用）：修复后直接重跑，或用 `--continue-on-failure` 让整批先跑完再统一处理。
-- `unknown`（进程异常、结果无法判定）：一切续跑被阻塞。先在 Linear 核实该项的远端状态，再编辑或删除 checkpoint 里的对应执行项。不要盲目重试：Linear 的 create 没有幂等键，重试可能造成重复。
+已有 applied 执行项的 key 必须继续出现在当前执行计划中，不能改写或移除该项；改变其内容、位置或绑定目标导致 key 不匹配时会拒绝续跑。这不是对所有 manifest 结构变化的全面检测。保留已成功项，原位修复失败项或在末尾追加；确需重组时先核实远端状态并移除已完成的交付内容，再重建 checkpoint，避免重复写入。旧版本 checkpoint 中的 applied key 若未绑定上述目标信息，也会拒绝续跑；必须先对账，不能直接删除 checkpoint 后重放原清单。
+
+checkpoint 不是锁。同一份 manifest 只能有一个执行者；确认原进程退出后才能续跑。
+
+- `failed`（本地校验或发射写入子命令前失败）：修复后直接重跑，或用 `--continue-on-failure` 让整批先跑完再统一处理。
+- `unknown`（写入子命令已发射但未确认成功，包括子命令非零退出或进程异常）：一切续跑被阻塞，`--continue-on-failure` 也不能绕过。先在 Linear 核实该项及可能的部分副作用，再根据对账结果修订待执行清单和 checkpoint；只有确认未执行的内容才能重试。不要把 CLI 报错当作远端未写入：Linear 的 create 没有幂等键，重试可能造成重复。
 
 批量不是事务：中途停止保留已成功的结果，不回滚、不删除重建。

@@ -69,7 +69,7 @@ flowchart TD
 
 ## 开发与验证
 
-1. 使用 `mise.toml` 固定的 Deno `2.9.4`。非 Orb 环境运行 `mise install`；Orb 只在工具链缺失或损坏时运行 `.agents/setup`，平时由 `.agents/resume` 维护源码 wrapper。
+1. 使用 `mise.toml` 固定的 Deno `2.9.6`。非 Orb 环境运行 `mise install`；Orb 只在工具链缺失或损坏时运行 `.agents/setup`，平时由 `.agents/resume` 维护源码 wrapper。
 2. 修改前读取 owner 模块及其测试。命令测试通常镜像源码路径，例如 `src/commands/issue/issue-view.ts` 对应 `test/commands/issue/issue-view.test.ts`。
 3. 行为变化时修改对应层级测试。开发中运行最窄的相关 `deno task test --filter ...` 或测试文件；只在有意更新快照时运行 `deno task update-snapshots`。测试任务已固定 `TZ=UTC`。使用 Deno task、check 和 lint，不使用 `tsc` 或把 LSP 诊断当作验证结果。
 4. 修改 `graphql/schema.graphql` 或 `src/` 中的 `gql` document 后运行 `deno task generate-graphql-types`。生成文件被 ignore，不提交。
@@ -81,6 +81,6 @@ flowchart TD
    git diff --check
    ```
 
-`deno task verify-source` 负责 GraphQL codegen、format check、lint、type check 和所有非 Keyring 测试；`verify-release` 是完整本地门禁，也是 Pull Request Source gate。Linux Keyring integration 和五平台构建由滚动发布 workflow 执行。
+`deno task verify-source` 负责 GraphQL codegen、format check、lint、type check 和所有非 Keyring 测试；`verify-release` 是源码门禁，也是 Pull Request Source gate，不包含编译产物、Linux Keyring integration 或五平台构建。后两者由滚动发布 workflow 执行。
 
 未经用户明确授权，不 push 或发布。用户要求发布 `main` 时，加载并遵循 `.agents/skills/releasing/SKILL.md`；不要手工修改版本、创建 tag 或另建发布流程。

@@ -2,7 +2,7 @@
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
-deno_version="2.9.4"
+deno_version="2.9.6"
 tool_root="$HOME/.local/share/amp/jihuanshe-linear"
 bin_dir="$tool_root/bin"
 deno_bin="$tool_root/deno/$deno_version/deno"

@@ -340,6 +340,7 @@ function fileFingerprint(
 async function expandIssue(
   issue: DeliveryIssue,
   issueIndex: number,
+  workspace: string,
   workspaceFlags: string[],
   files: Map<string, ManifestFile>,
 ): Promise<DeliveryItem[]> {
@@ -349,6 +350,10 @@ async function expandIssue(
   if (issue.set != null || issue.operation === "create") {
     const set = issue.set ?? {}
     const hash = await itemHash({
+      workspace,
+      operation: issue.operation,
+      identifier: issue.identifier ?? null,
+      team: issue.team ?? null,
       set,
       base: issue.base ?? null,
       descriptionFileSha: set.descriptionFile == null
@@ -404,6 +409,10 @@ async function expandIssue(
 
   for (const [subIndex, comment] of (issue.comments ?? []).entries()) {
     const hash = await itemHash({
+      workspace,
+      operation: issue.operation,
+      identifier: issue.identifier ?? null,
+      team: issue.team ?? null,
       comment,
       bodyFileSha: comment.bodyFile == null
         ? null
@@ -450,6 +459,10 @@ async function expandIssue(
 
   for (const [subIndex, attachment] of (issue.attachments ?? []).entries()) {
     const hash = await itemHash({
+      workspace,
+      operation: issue.operation,
+      identifier: issue.identifier ?? null,
+      team: issue.team ?? null,
       attachment,
       fileSha: attachment.kind === "file"
         ? fileFingerprint(files, attachment.path)
@@ -485,7 +498,13 @@ async function expandIssue(
   }
 
   for (const [subIndex, relation] of (issue.relations ?? []).entries()) {
-    const hash = await itemHash({ relation })
+    const hash = await itemHash({
+      workspace,
+      operation: issue.operation,
+      identifier: issue.identifier ?? null,
+      team: issue.team ?? null,
+      relation,
+    })
     items.push({
       key: `${issueIndex}:relation:${subIndex}:${hash}`,
       kind: "relation",
@@ -618,11 +637,9 @@ async function readBackIssue(
 }
 
 function classifyFailure(result: CommandResult): "failed" | "unknown" {
-  // A handled CLI error prints "✗ ..." before a nonzero exit; that pattern is
-  // treated as "failed without remote effect". Anything else — crash, signal,
-  // empty stderr — cannot prove the mutation did not land, so it is unknown
-  // and stops the run until explicitly reconciled.
-  return result.code !== 0 && result.stderr.includes("✗") ? "failed" : "unknown"
+  // A launched child may have produced a remote side effect before returning
+  // an error; stderr formatting cannot prove that it did not.
+  return result.code === 0 ? "failed" : "unknown"
 }
 
 export interface ApplyContext {
@@ -700,7 +717,13 @@ export async function applyManifest(
   const expansions: DeliveryItem[][] = []
   for (const [issueIndex, issue] of manifest.issues.entries()) {
     expansions.push(
-      await expandIssue(issue, issueIndex, workspaceFlags, loaded.files),
+      await expandIssue(
+        issue,
+        issueIndex,
+        manifest.workspace,
+        workspaceFlags,
+        loaded.files,
+      ),
     )
   }
 
@@ -755,7 +778,7 @@ export async function applyManifest(
         "--json",
       ])
       if (view.code !== 0) {
-        const status = classifyFailure(view)
+        const status = "failed" as const
         results.push({
           key: `${issueIndex}:fields:0:read`,
           kind: "fields",
@@ -763,13 +786,8 @@ export async function applyManifest(
           status,
           detail: view.stderr.trim().split("\n")[0],
         })
-        if (status === "unknown") {
-          unknownSeen = true
-          halted = true
-        } else {
-          failedSeen = true
-          halted = !continueOnFailure
-        }
+        failedSeen = true
+        halted = !continueOnFailure
         issueHalted = true
       } else {
         remoteView = JSON.parse(view.stdout)
@@ -1215,6 +1233,7 @@ export async function planManifest(
     const items = await expandIssue(
       issue,
       issueIndex,
+      manifest.workspace,
       workspaceFlags,
       loaded.files,
     )
