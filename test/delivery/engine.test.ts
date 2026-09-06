@@ -1513,19 +1513,19 @@ Deno.test("continue mode handles read failures per issue", async () => {
       continueOnFailure: true,
     })
 
-    assertEquals(outcome.status, "stopped-on-unknown")
+    assertEquals(outcome.status, "completed-with-failures")
     assertEquals(outcome.items.map((item) => item.status), [
-      "unknown",
+      "failed",
       "unattempted",
-      "unattempted",
+      "applied",
     ])
     assertEquals(
       runner.calls.filter((args) => args[1] === "view").length,
-      1,
+      3,
     )
     assertEquals(
       runner.calls.filter((args) => args[1] === "update").length,
-      0,
+      1,
     )
   } finally {
     await Deno.remove(dir, { recursive: true })

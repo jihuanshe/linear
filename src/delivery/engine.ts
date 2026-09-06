@@ -340,6 +340,7 @@ function fileFingerprint(
 async function expandIssue(
   issue: DeliveryIssue,
   issueIndex: number,
+  workspace: string,
   workspaceFlags: string[],
   files: Map<string, ManifestFile>,
 ): Promise<DeliveryItem[]> {
@@ -349,7 +350,7 @@ async function expandIssue(
   if (issue.set != null || issue.operation === "create") {
     const set = issue.set ?? {}
     const hash = await itemHash({
-      workspace: ws,
+      workspace,
       operation: issue.operation,
       identifier: issue.identifier ?? null,
       team: issue.team ?? null,
@@ -408,7 +409,7 @@ async function expandIssue(
 
   for (const [subIndex, comment] of (issue.comments ?? []).entries()) {
     const hash = await itemHash({
-      workspace: ws,
+      workspace,
       operation: issue.operation,
       identifier: issue.identifier ?? null,
       team: issue.team ?? null,
@@ -458,7 +459,7 @@ async function expandIssue(
 
   for (const [subIndex, attachment] of (issue.attachments ?? []).entries()) {
     const hash = await itemHash({
-      workspace: ws,
+      workspace,
       operation: issue.operation,
       identifier: issue.identifier ?? null,
       team: issue.team ?? null,
@@ -498,7 +499,7 @@ async function expandIssue(
 
   for (const [subIndex, relation] of (issue.relations ?? []).entries()) {
     const hash = await itemHash({
-      workspace: ws,
+      workspace,
       operation: issue.operation,
       identifier: issue.identifier ?? null,
       team: issue.team ?? null,
@@ -716,7 +717,13 @@ export async function applyManifest(
   const expansions: DeliveryItem[][] = []
   for (const [issueIndex, issue] of manifest.issues.entries()) {
     expansions.push(
-      await expandIssue(issue, issueIndex, workspaceFlags, loaded.files),
+      await expandIssue(
+        issue,
+        issueIndex,
+        manifest.workspace,
+        workspaceFlags,
+        loaded.files,
+      ),
     )
   }
 
@@ -771,7 +778,7 @@ export async function applyManifest(
         "--json",
       ])
       if (view.code !== 0) {
-        const status = classifyFailure(view)
+        const status = "failed" as const
         results.push({
           key: `${issueIndex}:fields:0:read`,
           kind: "fields",
@@ -779,13 +786,8 @@ export async function applyManifest(
           status,
           detail: view.stderr.trim().split("\n")[0],
         })
-        if (status === "unknown") {
-          unknownSeen = true
-          halted = true
-        } else {
-          failedSeen = true
-          halted = !continueOnFailure
-        }
+        failedSeen = true
+        halted = !continueOnFailure
         issueHalted = true
       } else {
         remoteView = JSON.parse(view.stdout)
@@ -1231,6 +1233,7 @@ export async function planManifest(
     const items = await expandIssue(
       issue,
       issueIndex,
+      manifest.workspace,
       workspaceFlags,
       loaded.files,
     )
