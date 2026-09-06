@@ -86,7 +86,10 @@ export const issueApplyCommand = withUsageMetadata(
       "--continue-on-failure",
       "Keep executing after a confirmed failed item; unknown outcomes always stop",
     )
-    .option("--json", "Output per-item results and read-back as JSON")
+    .option(
+      "--json",
+      "Output per-item results and read-back as JSON; progress goes to stderr",
+    )
     .action(async ({ file, confirmWorkspace, json, continueOnFailure }) => {
       try {
         const loaded = await loadManifest(file)
@@ -98,7 +101,7 @@ export const issueApplyCommand = withUsageMetadata(
         const outcome = await applyManifest({
           loaded,
           runner: selfExecRunner(),
-          onProgress: json ? undefined : (line) => console.error(line),
+          onProgress: (line) => console.error(line),
           continueOnFailure,
           envAuthenticated: Deno.env.get("LINEAR_API_KEY") != null,
         })

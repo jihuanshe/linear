@@ -85,7 +85,7 @@ apply 在第一笔写入前重复整批 manifest 与文件校验，然后按顺�
 
 apply 逐执行项返回 applied / failed / unknown / unattempted / skipped，结束后读回每个本次已应用或从 checkpoint 跳过的目标 Issue。mutation 已成功但当前视图读回失败时，执行项仍保持 applied 以免误重试，整体状态返回 applied-unverified 并以非零退出；修复访问后重跑会跳过 mutation，只重试读回。
 
-`issue apply` 是同步命令：它会等待整批执行和写后读回，最后才在 stdout 输出一份完整结果。人类模式的执行进度写 stderr；JSON 模式不输出执行进度。外层 shell 或 Agent 超时但原进程仍在运行时，继续等待它；checkpoint 不是并发锁，不能据此启动第二个执行者。只有确认原进程已经退出后，才能检查 manifest 旁的 checkpoint 并用同一份 manifest 续跑。原进程状态无法确认时停止续跑；checkpoint 中的未知结果必须先对账。
+`issue apply` 是同步命令：它会等待整批执行和写后读回，最后才在 stdout 输出一份完整结果。人类与 JSON 模式都把 Issue 序号、执行项种类和序号写入 stderr，JSON stdout 保持一份完整结果。外层 shell 或 Agent 超时但原进程仍在运行时，继续等待它；checkpoint 不是并发锁，不能据此启动第二个执行者。只有确认原进程已经退出后，才能检查 manifest 旁的 checkpoint 并用同一份 manifest 续跑。原进程状态无法确认时停止续跑；checkpoint 中的未知结果必须先对账。
 
 机器编排应保留两个流和退出码，并验证每个目标的读回，而不是只看 `created` 或命令是否启动：
 

@@ -456,7 +456,7 @@ snapshot[`usage JSON v1 freezes its existing fields and types 1`] = `
               variadic: false,
             },
           ],
-          description: "Find issues for one URL per line (blank lines and lines starting with # are ignored); JSON returns lookups in input order; --limit is ignored",
+          description: "Find issues for one URL per line (blank lines and lines starting with # are ignored); JSON returns {lookups: [{url, nodes, pageInfo}]} in input order; --limit is ignored",
           flags: [
             "--url-file",
           ],
@@ -907,7 +907,7 @@ snapshot[`usage JSON v1 freezes its existing fields and types 1`] = `
         },
       ],
       confirmation: null,
-      description: "View issue details (default) or open in browser/app",
+      description: "View issue details with all comments and attachments, or open in browser/app. For project, assignee and state changes, use issue history.",
       details: "linear issue view --help",
       guides: [
         {
@@ -977,7 +977,7 @@ snapshot[`usage JSON v1 freezes its existing fields and types 1`] = `
         },
         {
           arguments: [],
-          description: "Output issue data as JSON",
+          description: "Output issue data as JSON; comments and attachments retain {nodes, pageInfo}",
           flags: [
             "-j",
             "--json",
@@ -2357,7 +2357,7 @@ snapshot[`usage JSON v1 freezes its existing fields and types 1`] = `
         },
         {
           arguments: [],
-          description: "Output per-item results and read-back as JSON",
+          description: "Output per-item results and read-back as JSON; progress goes to stderr",
           flags: [
             "--json",
           ],

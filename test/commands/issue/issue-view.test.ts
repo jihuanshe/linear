@@ -62,9 +62,11 @@ await snapshotTest({
                 nodes: [],
               },
               comments: {
+                pageInfo: { hasNextPage: false, endCursor: null },
                 nodes: [],
               },
               attachments: {
+                pageInfo: { hasNextPage: false, endCursor: null },
                 nodes: [],
               },
               labels: {
@@ -128,6 +130,7 @@ await snapshotTest({
                 nodes: [],
               },
               attachments: {
+                pageInfo: { hasNextPage: false, endCursor: null },
                 nodes: [],
               },
               labels: {
@@ -191,6 +194,7 @@ await snapshotTest({
                 nodes: [],
               },
               comments: {
+                pageInfo: { hasNextPage: false, endCursor: null },
                 nodes: [
                   {
                     id: "comment-1",
@@ -247,6 +251,7 @@ await snapshotTest({
                 ],
               },
               attachments: {
+                pageInfo: { hasNextPage: false, endCursor: null },
                 nodes: [],
               },
             },
@@ -309,6 +314,7 @@ await snapshotTest({
                 nodes: [],
               },
               attachments: {
+                pageInfo: { hasNextPage: false, endCursor: null },
                 nodes: [
                   {
                     id: "attachment-1",
@@ -454,6 +460,7 @@ await snapshotTest({
                 nodes: [],
               },
               attachments: {
+                pageInfo: { hasNextPage: false, endCursor: null },
                 nodes: [],
               },
             },
@@ -507,6 +514,7 @@ await snapshotTest({
                 nodes: [],
               },
               attachments: {
+                pageInfo: { hasNextPage: false, endCursor: null },
                 nodes: [],
               },
               labels: {
@@ -581,6 +589,7 @@ await snapshotTest({
                 nodes: [],
               },
               comments: {
+                pageInfo: { hasNextPage: false, endCursor: null },
                 nodes: [
                   {
                     id: "comment-1",
@@ -611,6 +620,7 @@ await snapshotTest({
                 ],
               },
               attachments: {
+                pageInfo: { hasNextPage: false, endCursor: null },
                 nodes: [],
               },
             },
@@ -673,6 +683,7 @@ await snapshotTest({
                 nodes: [],
               },
               attachments: {
+                pageInfo: { hasNextPage: false, endCursor: null },
                 nodes: [
                   {
                     id: "attachment-1",
@@ -818,6 +829,7 @@ await snapshotTest({
                 ],
               },
               attachments: {
+                pageInfo: { hasNextPage: false, endCursor: null },
                 nodes: [],
               },
             },
@@ -881,6 +893,7 @@ await snapshotTest({
                 nodes: [],
               },
               attachments: {
+                pageInfo: { hasNextPage: false, endCursor: null },
                 nodes: [],
               },
             },
@@ -952,6 +965,7 @@ await snapshotTest({
                 nodes: [],
               },
               attachments: {
+                pageInfo: { hasNextPage: false, endCursor: null },
                 nodes: [],
               },
             },
@@ -1020,6 +1034,7 @@ await snapshotTest({
                 nodes: [],
               },
               attachments: {
+                pageInfo: { hasNextPage: false, endCursor: null },
                 nodes: [],
               },
             },
@@ -1076,6 +1091,7 @@ await snapshotTest({
                 nodes: [],
               },
               comments: {
+                pageInfo: { hasNextPage: false, endCursor: null },
                 nodes: [
                   {
                     id: "comment-root-open",
@@ -1131,6 +1147,7 @@ await snapshotTest({
                 ],
               },
               attachments: {
+                pageInfo: { hasNextPage: false, endCursor: null },
                 nodes: [],
               },
             },
@@ -1187,6 +1204,7 @@ await snapshotTest({
                 nodes: [],
               },
               comments: {
+                pageInfo: { hasNextPage: false, endCursor: null },
                 nodes: [
                   {
                     id: "comment-root-open",
@@ -1242,6 +1260,7 @@ await snapshotTest({
                 ],
               },
               attachments: {
+                pageInfo: { hasNextPage: false, endCursor: null },
                 nodes: [],
               },
             },
@@ -1320,6 +1339,7 @@ await snapshotTest({
                 nodes: [],
               },
               comments: {
+                pageInfo: { hasNextPage: false, endCursor: null },
                 nodes: [
                   {
                     id: "comment-root-json",
@@ -1359,6 +1379,7 @@ await snapshotTest({
                 ],
               },
               attachments: {
+                pageInfo: { hasNextPage: false, endCursor: null },
                 nodes: [],
               },
             },
@@ -1435,6 +1456,7 @@ await snapshotTest({
                 ],
               },
               comments: {
+                pageInfo: { hasNextPage: false, endCursor: null },
                 nodes: [
                   {
                     id: "comment-1",
@@ -1450,6 +1472,7 @@ await snapshotTest({
                 ],
               },
               attachments: {
+                pageInfo: { hasNextPage: false, endCursor: null },
                 nodes: [],
               },
             },
