@@ -7,7 +7,7 @@ commands:
 
 # 检查 Linear 健康度
 
-需要回答「哪里需要处理」，但还没有决定具体怎么改时使用 `doctor`。它只读 Linear，输出问题、证据和待确认的建议，不会自动修改任务或项目。
+`doctor` 只读检查健康治理候选，输出证据和建议，不修改任务或项目。
 
 ## 选择范围
 
@@ -36,7 +36,7 @@ linear doctor workspace --history --limit 0 --json >doctor.json
 | 任务归属 | `project-team-mismatch`、`missing-project`                              | 任务是否属于正确的项目和团队                   |
 | 流程推进 | `stale-started`                                                         | 进行中任务是否长时间没有更新                   |
 
-周期只在团队启用周期且存在当前周期时提示；积压和待分流任务不因没有周期而报警。项目进展只检查进行中和计划中的项目。历史任务的问题统一按较低严重度提示，不因为补填字段制造虚假的执行压力。
+周期只在团队启用周期且存在当前周期时提示；积压和待分流任务不因缺少周期报警。项目进展只检查进行中和计划中的项目，历史任务按较低严重度提示。
 
 只运行指定检查项时重复传 `--rule`：
 
@@ -60,10 +60,8 @@ jq '.strategySummaries[] | {name, findingCount, affectedResourceCount}' doctor.j
 jq '.findings[] | {target, id: (.issue.id // .project.id), ruleId, severity, field, evidence}' doctor.json
 ```
 
-`summary` 是总数，`strategySummaries` 适合先找影响面最大的策略，`findings` 才是逐条任务或项目的证据。每条 finding 都带 `recommendation.needsHumanDecision: true`：它是待审提示，不是可直接执行的补丁。
+`summary` 为总数，`strategySummaries` 按策略汇总，`findings` 提供逐项证据。`recommendation.needsHumanDecision: true` 表示 finding 不是可执行补丁；有用户规则和充分证据的项可在授权内处理，其余留待确认。
 
-## 从提示到处理
+## 治理结果
 
-先读完整报告，按用户已有规则和当前证据确定具体值；缺少依据或决定冲突的项集中交人确认。批量治理按 [automation](automation.md) 生成变更清单，在已授权范围内处理并回读。
-
-处理后用相同范围与 `--rule` 重跑，按 `target`、对象 ID（`.issue.id` 或 `.project.id`）与 `ruleId` 比较命中集合。保留忽略原因、待确认项和复查条件；规则候选数量减少不单独证明元数据已经正确。
+处理结果须有字段读回证据，见 [automation](automation.md)。相同范围与 `--rule` 的复查按 `target`、对象 ID 和 `ruleId` 比较命中集合，保留忽略原因及待确认项；候选数量减少不单独证明修复。

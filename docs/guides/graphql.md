@@ -9,7 +9,7 @@ commands:
 
 # Schema 发现与 GraphQL 查询
 
-常见领域操作、名称解析和安全写入使用专用命令。精确字段选择、少见 filter 和跨实体只读查询直接使用 `linear api`；这些临时读取形状不需要先扩建 typed command。raw mutation 不拥有专用写命令的输入保护与结果核算，仍是没有专用原语时的最后手段。当前 schema 虽然已有 `issueBatchUpdate`，CLI 没有把它做成永久批量命令；它不能替代已有的专用写命令，规则和流程见 [automation](automation.md)。
+`linear api` 用于精确字段、少见 filter、跨实体只读查询及专用命令未覆盖的写入。
 
 ## 发现 schema
 
@@ -49,7 +49,7 @@ linear api '{ issues(first: 5) { nodes { identifier title } } }' \
 
 ## 精确批量读取
 
-只选择当前判断需要的字段。以下查询一次读取项目 Issue 的 identifier、state、title 与 description；响应只有一个顶层 connection，可以由 `--paginate` 安全拼接各页：
+`--paginate` 可拼接单个顶层 connection。项目 Issue 正文查询示例：
 
 ```bash
 linear api \
@@ -69,13 +69,13 @@ query ProjectIssueContext($filter: IssueFilter!, $after: String) {
 GRAPHQL
 ```
 
-`--paginate` 会读取到 connection 结束，只在确实需要完整集合时使用；只需样本时省略该 flag，并把 `first` 设为明确上限。字段投影、分组和重排继续用 `jq`、Python 或调用宿主，不在 CLI 内重造查询语言。
+`--paginate` 读取到 connection 结束；只需样本时省略它，并用 `first` 限定数量。
 
 ## 批量修改 Issue
 
-当前 CLI 没有专用的批量 Issue 更新原语。对于 `issue update` 已支持的字段（例如 Priority、Estimate），脚本必须逐条调用 `issue update`，保留它的名称解析和输入校验。没有批量命令不是改用 raw mutation 的理由。
+批量修改使用专用命令：组合多个执行项且字段在 manifest 支持范围内时用 `issue apply`（见 [issue-delivery](issue-delivery.md)）；其他 `issue update` 已支持的操作由脚本逐条调用，保留名称解析和输入校验。没有单次批量 mutation 命令不是改用 raw mutation 的理由。
 
-schema 虽然提供 `issueBatchUpdate`，但它不是 CLI 的批量原语；不要通过 `linear api` 用它替代 `issue update`。如果以后需要 CLI 尚未覆盖的批量写入，必须先提供保留同等名称解析、输入校验和读回保障的专用原语。
+不要通过 `linear api` 调用 `issueBatchUpdate` 来绕过已有专用写命令。只有目标操作未被专用命令覆盖时，才在已有授权内使用 `linear api`：先查 schema、解析目标并校验输入，写后核对业务结果和目标字段；结果未知时停止后续写入并对账。一次性操作不要求先开发新的 CLI 命令，编排方式见 [automation](automation.md)。
 
 ## 拆分查询
 
@@ -83,33 +83,6 @@ schema 虽然提供 `issueBatchUpdate`，但它不是 CLI 的批量原语；不�
 
 ## 直接 HTTP
 
-只有需要完整 HTTP 控制时才降级到直接 HTTP。优先在临时 Python / TypeScript 进程中从 `linear auth token` 读取 token 并放入内存中的请求 header；不要把 token 放入命令行参数、文件、日志或 shell 历史。GraphQL 请求必须检查 `data` 存在且 `errors` 为空：
+仅在需要完整 HTTP 控制时使用。凭据通过 `linear auth token` 读入进程内存，放入 `Authorization` header；不得进入命令行参数、文件、日志或 shell 历史。使用 `linear api` 无需脚本接触 token。
 
-```bash
-python3 - <<'PY'
-import json
-import subprocess
-import urllib.request
-
-token = subprocess.run(
-    ["linear", "auth", "token"],
-    check=True,
-    capture_output=True,
-    text=True,
-).stdout.strip()
-request = urllib.request.Request(
-    "https://api.linear.app/graphql",
-    data=json.dumps({"query": "{ viewer { id } }"}).encode(),
-    headers={"Content-Type": "application/json", "Authorization": token},
-)
-with urllib.request.urlopen(request) as response:
-    payload = json.load(response)
-data = payload.get("data") or {}
-viewer = data.get("viewer") or {}
-if payload.get("errors") or viewer.get("id") is None:
-    raise SystemExit(payload)
-print(viewer["id"])
-PY
-```
-
-这个示例只把查询结果打印到 stdout；mutation 脚本还必须检查业务 payload 的 `success` 和返回对象。GraphQL 的错误可能出现在 HTTP 200 的 `errors` 数组里，不能只看 HTTP 状态码。
+HTTP 200 不代表 GraphQL 成功：检查 `errors` 为空、`data` 包含目标结果；mutation 还须核对业务 payload 的 `success` 和返回对象。
