@@ -48,19 +48,19 @@ snapshot[`usage JSON v1 freezes its existing fields and types 1`] = `
     details: "linear issue usage",
     guides: [
       {
-        description: "渐进发现、typed command 与 GraphQL 的分工、写入授权边界，以及影响命令选择的语义陷阱",
+        description: "选择命令、核对 workspace、确定查询范围与写入授权",
         name: "core",
       },
       {
-        description: "无人值守执行、临时脚本编排、JSON 校验、Markdown 文件 flag 与写后读回验证",
+        description: "无人值守脚本的输出、分页、URL 查重与写后验证",
         name: "automation",
       },
       {
-        description: "事实源判断、证据持久化、写前确认与写后读回、关闭原因与下一跳，让无上下文的接手者能独立继续",
+        description: "Issue 的责任归属、持久证据、验收依据与后续交接",
         name: "issue-authoring",
       },
       {
-        description: "delivery manifest 的字段保护、checkpoint 续跑、unknown 对账与批量语义，单次和批量共用同一协议",
+        description: "用 manifest 交付 Issue，处理字段冲突、checkpoint 续跑与 unknown 对账",
         name: "issue-delivery",
       },
     ],
@@ -402,7 +402,7 @@ snapshot[`usage JSON v1 freezes its existing fields and types 1`] = `
       details: "linear issue query --help",
       guides: [
         {
-          description: "无人值守执行、临时脚本编排、JSON 校验、Markdown 文件 flag 与写后读回验证",
+          description: "无人值守脚本的输出、分页、URL 查重与写后验证",
           name: "automation",
         },
       ],
@@ -911,11 +911,11 @@ snapshot[`usage JSON v1 freezes its existing fields and types 1`] = `
       details: "linear issue view --help",
       guides: [
         {
-          description: "无人值守执行、临时脚本编排、JSON 校验、Markdown 文件 flag 与写后读回验证",
+          description: "无人值守脚本的输出、分页、URL 查重与写后验证",
           name: "automation",
         },
         {
-          description: "事实源判断、证据持久化、写前确认与写后读回、关闭原因与下一跳，让无上下文的接手者能独立继续",
+          description: "Issue 的责任归属、持久证据、验收依据与后续交接",
           name: "issue-authoring",
         },
       ],
@@ -1021,11 +1021,11 @@ snapshot[`usage JSON v1 freezes its existing fields and types 1`] = `
       details: "linear issue history --help",
       guides: [
         {
-          description: "无人值守执行、临时脚本编排、JSON 校验、Markdown 文件 flag 与写后读回验证",
+          description: "无人值守脚本的输出、分页、URL 查重与写后验证",
           name: "automation",
         },
         {
-          description: "事实源判断、证据持久化、写前确认与写后读回、关闭原因与下一跳，让无上下文的接手者能独立继续",
+          description: "Issue 的责任归属、持久证据、验收依据与后续交接",
           name: "issue-authoring",
         },
       ],
@@ -1069,7 +1069,7 @@ snapshot[`usage JSON v1 freezes its existing fields and types 1`] = `
       details: "linear issue url --help",
       guides: [
         {
-          description: "事实源判断、证据持久化、写前确认与写后读回、关闭原因与下一跳，让无上下文的接手者能独立继续",
+          description: "Issue 的责任归属、持久证据、验收依据与后续交接",
           name: "issue-authoring",
         },
       ],
@@ -1345,11 +1345,11 @@ snapshot[`usage JSON v1 freezes its existing fields and types 1`] = `
       details: "linear issue create --help",
       guides: [
         {
-          description: "无人值守执行、临时脚本编排、JSON 校验、Markdown 文件 flag 与写后读回验证",
+          description: "无人值守脚本的输出、分页、URL 查重与写后验证",
           name: "automation",
         },
         {
-          description: "事实源判断、证据持久化、写前确认与写后读回、关闭原因与下一跳，让无上下文的接手者能独立继续",
+          description: "Issue 的责任归属、持久证据、验收依据与后续交接",
           name: "issue-authoring",
         },
       ],
@@ -1681,15 +1681,15 @@ snapshot[`usage JSON v1 freezes its existing fields and types 1`] = `
       details: "linear issue update --help",
       guides: [
         {
-          description: "渐进发现、typed command 与 GraphQL 的分工、写入授权边界，以及影响命令选择的语义陷阱",
+          description: "选择命令、核对 workspace、确定查询范围与写入授权",
           name: "core",
         },
         {
-          description: "无人值守执行、临时脚本编排、JSON 校验、Markdown 文件 flag 与写后读回验证",
+          description: "无人值守脚本的输出、分页、URL 查重与写后验证",
           name: "automation",
         },
         {
-          description: "事实源判断、证据持久化、写前确认与写后读回、关闭原因与下一跳，让无上下文的接手者能独立继续",
+          description: "Issue 的责任归属、持久证据、验收依据与后续交接",
           name: "issue-authoring",
         },
       ],
@@ -2039,15 +2039,15 @@ snapshot[`usage JSON v1 freezes its existing fields and types 1`] = `
       details: "linear issue comment usage",
       guides: [
         {
-          description: "渐进发现、typed command 与 GraphQL 的分工、写入授权边界，以及影响命令选择的语义陷阱",
+          description: "选择命令、核对 workspace、确定查询范围与写入授权",
           name: "core",
         },
         {
-          description: "无人值守执行、临时脚本编排、JSON 校验、Markdown 文件 flag 与写后读回验证",
+          description: "无人值守脚本的输出、分页、URL 查重与写后验证",
           name: "automation",
         },
         {
-          description: "事实源判断、证据持久化、写前确认与写后读回、关闭原因与下一跳，让无上下文的接手者能独立继续",
+          description: "Issue 的责任归属、持久证据、验收依据与后续交接",
           name: "issue-authoring",
         },
       ],
@@ -2085,11 +2085,11 @@ snapshot[`usage JSON v1 freezes its existing fields and types 1`] = `
       details: "linear issue attach --help",
       guides: [
         {
-          description: "渐进发现、typed command 与 GraphQL 的分工、写入授权边界，以及影响命令选择的语义陷阱",
+          description: "选择命令、核对 workspace、确定查询范围与写入授权",
           name: "core",
         },
         {
-          description: "事实源判断、证据持久化、写前确认与写后读回、关闭原因与下一跳，让无上下文的接手者能独立继续",
+          description: "Issue 的责任归属、持久证据、验收依据与后续交接",
           name: "issue-authoring",
         },
       ],
@@ -2176,7 +2176,7 @@ snapshot[`usage JSON v1 freezes its existing fields and types 1`] = `
       details: "linear issue link --help",
       guides: [
         {
-          description: "事实源判断、证据持久化、写前确认与写后读回、关闭原因与下一跳，让无上下文的接手者能独立继续",
+          description: "Issue 的责任归属、持久证据、验收依据与后续交接",
           name: "issue-authoring",
         },
       ],
@@ -2236,11 +2236,11 @@ snapshot[`usage JSON v1 freezes its existing fields and types 1`] = `
       details: "linear issue plan --help",
       guides: [
         {
-          description: "事实源判断、证据持久化、写前确认与写后读回、关闭原因与下一跳，让无上下文的接手者能独立继续",
+          description: "Issue 的责任归属、持久证据、验收依据与后续交接",
           name: "issue-authoring",
         },
         {
-          description: "delivery manifest 的字段保护、checkpoint 续跑、unknown 对账与批量语义，单次和批量共用同一协议",
+          description: "用 manifest 交付 Issue，处理字段冲突、checkpoint 续跑与 unknown 对账",
           name: "issue-delivery",
         },
       ],
@@ -2296,11 +2296,11 @@ snapshot[`usage JSON v1 freezes its existing fields and types 1`] = `
       details: "linear issue apply --help",
       guides: [
         {
-          description: "事实源判断、证据持久化、写前确认与写后读回、关闭原因与下一跳，让无上下文的接手者能独立继续",
+          description: "Issue 的责任归属、持久证据、验收依据与后续交接",
           name: "issue-authoring",
         },
         {
-          description: "delivery manifest 的字段保护、checkpoint 续跑、unknown 对账与批量语义，单次和批量共用同一协议",
+          description: "用 manifest 交付 Issue，处理字段冲突、checkpoint 续跑与 unknown 对账",
           name: "issue-delivery",
         },
       ],
