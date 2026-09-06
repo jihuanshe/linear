@@ -843,7 +843,10 @@ export const createCommand = withUsageMetadata(new Command(), {
         if (start && assignee === undefined) {
           assignee = "self"
         }
-        if (start && assignee !== undefined && assignee !== "self") {
+        if (
+          start && assignee !== undefined && assignee !== "self" &&
+          assignee !== "@me"
+        ) {
           throw new ValidationError(
             "Cannot use --start and a non-self --assignee",
           )
