@@ -57,11 +57,13 @@ linear doctor self \
 ```bash
 jq -e '.schemaVersion == 1 and (.findings | arrays)' doctor.json >/dev/null
 jq '.strategySummaries[] | {name, findingCount, affectedResourceCount}' doctor.json
-jq '.findings[] | {target, ruleId, severity, field, evidence}' doctor.json
+jq '.findings[] | {target, id: (.issue.id // .project.id), ruleId, severity, field, evidence}' doctor.json
 ```
 
 `summary` 是总数，`strategySummaries` 适合先找影响面最大的策略，`findings` 才是逐条任务或项目的证据。每条 finding 都带 `recommendation.needsHumanDecision: true`：它是待审提示，不是可直接执行的补丁。
 
 ## 从提示到处理
 
-先读完整报告，再由人和 AI 确认项目、优先级、估时、周期或标签等具体值。一次性处理多条任务时，按 [automation](automation.md) 指南生成临时审批表和补丁；不要把 `doctor` 输出直接接到写入命令，也不要因为报告有问题就自动补齐元数据。
+先读完整报告，按用户已有规则和当前证据确定具体值；缺少依据或决定冲突的项集中交人确认。批量治理按 [automation](automation.md) 生成变更清单，在已授权范围内处理并回读。
+
+处理后用相同范围与 `--rule` 重跑，按 `target`、对象 ID（`.issue.id` 或 `.project.id`）与 `ruleId` 比较命中集合。保留忽略原因、待确认项和复查条件；规则候选数量减少不单独证明元数据已经正确。
