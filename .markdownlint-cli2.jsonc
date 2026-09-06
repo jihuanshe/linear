@@ -1,0 +1,8 @@
+{
+  "gitignore": true,
+  "ignores": ["CLAUDE.md"],
+  "config": {
+    // Deno owns wrapping; deno.json deliberately uses proseWrap: never.
+    "MD013": false
+  }
+}

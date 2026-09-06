@@ -1,2 +1,18 @@
+min_version = "2026.9.1"
+
 [tools]
 deno = "2.9.6"
+node = "24.20.0"
+"npm:markdownlint-cli2" = "0.23.2"
+"github:huacnlee/autocorrect" = "2.16.3"
+prek = "0.5.2"
+
+[settings]
+lockfile = true
+lockfile_platforms = ["linux-x64", "linux-arm64", "macos-x64", "macos-arm64", "windows-x64"]
+exec_auto_install = false
+task.run_auto_install = false
+
+[tasks."hooks:install"]
+description = "Install the repository's pre-commit checks"
+run = "prek install"

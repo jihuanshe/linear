@@ -304,17 +304,18 @@ Deno.test("issue-delivery guide file attachment example parses", async () => {
   await withManifest(JSON.parse(example[1]), async (manifestPath, dir) => {
     await Deno.writeTextFile(join(dir, "description.md"), "description")
     await Deno.writeTextFile(join(dir, "evidence.md"), "evidence")
-    await Deno.writeFile(join(dir, "replay-a.yrp"), new Uint8Array([1, 2, 3]))
+    await Deno.writeFile(join(dir, "screenshot.png"), new Uint8Array([1, 2, 3]))
+    await Deno.writeFile(join(dir, "replay.yrp"), new Uint8Array([1, 2, 3]))
 
     const loaded = await loadManifest(manifestPath)
     assertEquals(loaded.manifest.issues[0].attachments?.[1], {
       kind: "file",
-      path: "replay-a.yrp",
-      title: "Raw replay",
+      path: "replay.yrp",
+      title: "原始 Replay",
     })
     assertEquals(loaded.manifest.issues[1], {
       operation: "create",
-      team: "DATA",
+      team: "ENG",
       set: { title: "新建 Issue", priority: 3 },
     })
   })
