@@ -106,7 +106,7 @@ jq '{status, summary, createdIdentifiers, verification: [.verification[] | {targ
 
 ## checkpoint 与续跑
 
-`<manifest>.checkpoint.json` 随 manifest 一起交接，以执行项位置和内容哈希记录状态；每项哈希还绑定 workspace、operation、identifier 和 team。续跑跳过已成功项，原位修复失败项后按新内容执行。
+`<manifest>.checkpoint.json` 随 manifest 一起交接，以执行项位置和内容哈希记录状态；哈希输入包含 workspace、operation、identifier、team 和执行内容，checkpoint 本身只保存 key、status 和 note。续跑跳过已成功项，原位修复失败项后按新内容执行。
 
 已有 applied 执行项的 key 必须继续出现在当前执行计划中，不能改写或移除该项；改变其内容、位置或绑定目标导致 key 不匹配时会拒绝续跑。这不是对所有 manifest 结构变化的全面检测。保留已成功项，原位修复失败项或在末尾追加；确需重组时先核实远端状态并移除已完成的交付内容，再重建 checkpoint，避免重复写入。旧版本 checkpoint 中的 applied key 若未绑定上述目标信息，也会拒绝续跑；必须先对账，不能直接删除 checkpoint 后重放原清单。
 

@@ -40,7 +40,7 @@ linear usage --json       # 机器可读的命令树（含 writes/interactive/co
 
 ## 影响命令选择的语义陷阱
 
-- `issue update --label` 和 `project update --label` 替换完整标签集，不是增量添加；增量加标签用 `issue update --add-label`。用 `--label` 时先读当前对象，把要保留的标签逐个重新传入。
+- `issue update --label` 替换完整标签集，不是增量添加；增量加标签用 `issue update --add-label`。用 `--label` 时先读当前对象，把要保留的标签逐个重新传入。Project 的 `--label` 使用 project-label 的单值语义，不套用 Issue 的标签集合规则。
 - 内联图片和侧栏 Attachment 是两个不同的 Linear 对象。`issue comment add --attach <file>` 上传文件并渲染在评论正文中；`issue attach` 创建侧栏 Attachment，不内联渲染。
 - 上传默认对 workspace 成员私有。`--public` 只接受 PNG/JPEG/GIF/WebP/BMP/TIFF 图片并生成无需登录的公开 URL，其他类型直接失败而不是回退私有；只在用户明确需要公开访问时使用。
 - `document update` 会保护含内联评论锚点的内容。用户明确接受「锚点可能丢失」这一风险之前，不要用 `--force` 绕过警告。
@@ -55,7 +55,7 @@ linear usage --json       # 机器可读的命令树（含 writes/interactive/co
 - 缺凭据或 401：让用户在 Linear 的 Settings > Account > Security & Access 页面创建最小权限 personal API key，然后运行 `linear auth login`，把 key 直接输入命令提示符。key 不粘贴进聊天、不写入 shell 历史、不出现在进程参数里。
 - 多 workspace：`auth list` 查看已配置的，`auth default` 设默认。使用已存凭据时，全局 `--workspace <slug>` 选择单次命令的 workspace；它与 `LINEAR_API_KEY` 冲突，也不会覆盖配置中的 `api_key`。切换前移除这两种 key 来源，再用 `auth whoami --workspace <slug>` 核对身份。
 - 无系统 keyring 的环境（容器、部分 VM）：`auth login --plaintext` 落盘存储。
-- 经代理访问 GraphQL：设置 `LINEAR_GRAPHQL_ENDPOINT` 环境变量后再登录；认证 header 由代理注入时，login 的 key 只用于建立本地认证状态。
+- 经代理访问 GraphQL：设置 `LINEAR_GRAPHQL_ENDPOINT` 环境变量；登录仍会用 key 验证 GraphQL 身份。代理注入认证时遵循代理自身的凭据配置。
 
 认证失败不说明二进制来源错误。命令缺失或被其他安装遮蔽时，按宿主的安装文档处理。
 

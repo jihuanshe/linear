@@ -18,7 +18,7 @@ commands:
 | `linear doctor project <project-id-or-name>` | 一个项目的任务和项目进展                         |
 | `linear doctor workspace`                    | 整个 workspace 的任务和项目                      |
 
-默认只检查进行中和待办任务，以及进行中和计划中的项目。要把已完成、已合并、已取消和重复的任务纳入检查，显式加 `--history`：
+默认查询进行中和待办任务，以及进行中和计划中的项目。要取消任务状态过滤并纳入历史任务，显式加 `--history`；各规则仍会对 backlog、triage 和未启用相关配置的对象执行豁免：
 
 ```bash
 linear doctor self --history
@@ -60,8 +60,8 @@ jq '.strategySummaries[] | {name, findingCount, affectedResourceCount}' doctor.j
 jq '.findings[] | {target, id: (.issue.id // .project.id), ruleId, severity, field, evidence}' doctor.json
 ```
 
-`summary` 为总数，`strategySummaries` 按策略汇总，`findings` 提供逐项证据。`recommendation.needsHumanDecision: true` 表示 finding 不是可执行补丁；有用户规则和充分证据的项可在授权内处理，其余留待确认。
+`summary` 为总数，`strategySummaries` 按策略汇总，`findings` 提供逐项证据。`recommendation.needsHumanDecision: true` 表示 doctor 不提供可执行补丁；外部 automation 只有在拥有规则和充分证据时才可在授权内处理，其余留待确认。
 
 ## 治理结果
 
-处理结果须有字段读回证据，见 [automation](automation.md)。相同范围与 `--rule` 的复查按 `target`、对象 ID 和 `ruleId` 比较命中集合，保留忽略原因及待确认项；候选数量减少不单独证明修复。
+外部 automation 处理结果须有字段读回证据，见 [automation](automation.md)。复查时按相同范围和 `--rule` 比较 `target`、对象 ID 与 `ruleId` 的命中集合，并由 automation 自行保存忽略原因及待确认项；候选数量减少不单独证明修复。

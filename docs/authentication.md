@@ -26,7 +26,7 @@ linear auth default <slug>     # set default workspace directly
 linear auth logout <slug>      # remove a workspace
 linear auth logout <slug> -f   # remove without confirmation
 linear auth whoami             # show current user and workspace
-linear auth token              # print the resolved API key
+linear auth token              # print the resolved API key; use only in a tightly controlled process
 ```
 
 For scripts, inject `LINEAR_API_KEY` through the process environment from your secret manager or CI secret store. Do not pass keys in command-line arguments or write them to shell history or logs. `auth token` prints a secret; only consume it in process memory when a lower-level HTTP client needs it.

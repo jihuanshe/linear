@@ -13,7 +13,7 @@ commands:
 
 ## 发现 schema
 
-已知字段和输入类型时直接请求；只有字段、类型或参数不确定时，才把 schema 写到临时文件搜索：
+已知字段和输入类型时直接请求；只有字段、类型或参数不确定时，才查询 schema：
 
 ```bash
 linear schema -o "${TMPDIR:-/tmp}/linear-schema.graphql"
@@ -23,7 +23,7 @@ rg -A 30 "^type Issue " "${TMPDIR:-/tmp}/linear-schema.graphql"
 
 ## 发起请求
 
-含非空类型标记（`String!` 这类）的查询用 heredoc 传入，避免 shell 转义问题；无标记的简单查询可以内联：
+查询较长、包含 `$` 或复杂 shell 字符时可用单引号 heredoc；短查询可以内联：
 
 ```bash
 # 简单查询
@@ -49,7 +49,7 @@ linear api '{ issues(first: 5) { nodes { identifier title } } }' \
 
 ## 精确批量读取
 
-`--paginate` 可拼接单个顶层 connection。项目 Issue 正文查询示例：
+`--paginate` 可拼接查询中发现的单个 connection；同一查询包含多个 connection 时拆分查询。项目 Issue 正文查询示例：
 
 ```bash
 linear api \
@@ -83,6 +83,6 @@ GRAPHQL
 
 ## 直接 HTTP
 
-仅在需要完整 HTTP 控制时使用。凭据通过 `linear auth token` 读入进程内存，放入 `Authorization` header；不得进入命令行参数、文件、日志或 shell 历史。使用 `linear api` 无需脚本接触 token。
+仅在需要完整 HTTP 控制、且 `linear api` 无法满足时使用。脚本应通过受控环境变量或 secret store 提供凭据；不得把 token 放入命令行参数、文件、日志或 shell 历史。使用 `linear api` 无需脚本接触 token。
 
 HTTP 200 不代表 GraphQL 成功：检查 `errors` 为空、`data` 包含目标结果；mutation 还须核对业务 payload 的 `success` 和返回对象。

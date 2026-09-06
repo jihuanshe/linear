@@ -81,6 +81,6 @@ flowchart TD
    git diff --check
    ```
 
-`deno task verify-source` 负责 GraphQL codegen、format check、lint、type check 和所有非 Keyring 测试；`verify-release` 是完整本地门禁，也是 Pull Request Source gate。Linux Keyring integration 和五平台构建由滚动发布 workflow 执行。
+`deno task verify-source` 负责 GraphQL codegen、format check、lint、type check 和所有非 Keyring 测试；`verify-release` 是源码门禁，也是 Pull Request Source gate，不包含编译产物、Linux Keyring integration 或五平台构建。后两者由滚动发布 workflow 执行。
 
 未经用户明确授权，不 push 或发布。用户要求发布 `main` 时，加载并遵循 `.agents/skills/releasing/SKILL.md`；不要手工修改版本、创建 tag 或另建发布流程。
