@@ -1540,11 +1540,11 @@ Deno.test("continue mode handles read failures per issue", async () => {
     ])
     assertEquals(
       runner.calls.filter((args) => args[1] === "view").length,
-      0,
+      1,
     )
     assertEquals(
       runner.calls.filter((args) => args[1] === "update").length,
-      1,
+      0,
     )
   } finally {
     await Deno.remove(dir, { recursive: true })
