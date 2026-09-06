@@ -349,6 +349,7 @@ async function expandIssue(
   if (issue.set != null || issue.operation === "create") {
     const set = issue.set ?? {}
     const hash = await itemHash({
+      workspace: ws,
       operation: issue.operation,
       identifier: issue.identifier ?? null,
       team: issue.team ?? null,
@@ -407,6 +408,7 @@ async function expandIssue(
 
   for (const [subIndex, comment] of (issue.comments ?? []).entries()) {
     const hash = await itemHash({
+      workspace: ws,
       operation: issue.operation,
       identifier: issue.identifier ?? null,
       team: issue.team ?? null,
@@ -456,6 +458,7 @@ async function expandIssue(
 
   for (const [subIndex, attachment] of (issue.attachments ?? []).entries()) {
     const hash = await itemHash({
+      workspace: ws,
       operation: issue.operation,
       identifier: issue.identifier ?? null,
       team: issue.team ?? null,
@@ -495,6 +498,7 @@ async function expandIssue(
 
   for (const [subIndex, relation] of (issue.relations ?? []).entries()) {
     const hash = await itemHash({
+      workspace: ws,
       operation: issue.operation,
       identifier: issue.identifier ?? null,
       team: issue.team ?? null,
@@ -632,7 +636,9 @@ async function readBackIssue(
 }
 
 function classifyFailure(result: CommandResult): "failed" | "unknown" {
-  return result.code !== 0 && result.stderr.includes("✗") ? "failed" : "unknown"
+  // A launched child may have produced a remote side effect before returning
+  // an error; stderr formatting cannot prove that it did not.
+  return result.code === 0 ? "failed" : "unknown"
 }
 
 export interface ApplyContext {

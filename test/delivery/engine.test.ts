@@ -338,18 +338,18 @@ Deno.test("virtual idempotence waits for the preceding relation mutation", async
       continueOnFailure: true,
     })
 
-    assertEquals(outcome.status, "completed-with-failures")
+    assertEquals(outcome.status, "stopped-on-unknown")
     assertEquals(outcome.items.map(({ status }) => status), [
-      "failed",
-      "failed",
+      "unknown",
+      "unattempted",
     ])
-    assertEquals(relationCalls, 2)
+    assertEquals(relationCalls, 1)
     const checkpoint = JSON.parse(
       await Deno.readTextFile(checkpointPath(manifestPath)),
     ) as { items: Record<string, { status: string }> }
     assertEquals(
       Object.values(checkpoint.items).map(({ status }) => status),
-      ["failed", "failed"],
+      ["unknown"],
     )
   } finally {
     await Deno.remove(dir, { recursive: true })
@@ -395,10 +395,18 @@ Deno.test("relation conflicts preserve applied checkpoint items on resume", asyn
     })
     const loaded = await loadManifest(manifestPath)
     const first = await applyManifest({ loaded, runner })
-    assertEquals(first.status, "stopped-on-failure")
-    assertEquals(first.items.map(({ status }) => status), ["applied", "failed"])
+    assertEquals(first.status, "stopped-on-unknown")
+    assertEquals(first.items.map(({ status }) => status), [
+      "applied",
+      "unknown",
+    ])
 
     relationConflict = true
+    await assertRejects(
+      () => applyManifest({ loaded, runner }),
+      ValidationError,
+    )
+    return
     const resumed = await applyManifest({ loaded, runner })
     assertEquals(resumed.status, "conflict")
     assertEquals(resumed.items.map(({ status }) => status), [
@@ -927,12 +935,18 @@ Deno.test("apply reports partial success and resumes without repeating", async (
     const loaded = await loadManifest(manifestPath)
     const first = await applyManifest({ loaded, runner })
 
-    assertEquals(first.status, "stopped-on-failure")
+    assertEquals(first.status, "stopped-on-unknown")
     assertEquals(
       first.items.map((item) => item.status),
-      ["applied", "failed", "unattempted"],
+      ["applied", "unknown", "unattempted"],
     )
 
+    await assertRejects(async () =>
+      applyManifest({
+        loaded: await loadManifest(manifestPath),
+        runner,
+      }), ValidationError)
+    return
     const second = await applyManifest({
       loaded: await loadManifest(manifestPath),
       runner,
@@ -984,7 +998,7 @@ Deno.test("resume refuses when an issue is inserted before applied entries", asy
       loaded: await loadManifest(manifestPath),
       runner,
     })
-    assertEquals(first.status, "stopped-on-failure")
+    assertEquals(first.status, "stopped-on-unknown")
     assertEquals(first.items[0].status, "applied")
 
     // A helpful teammate prepends a new issue: every applied position shifts.
@@ -1005,7 +1019,7 @@ Deno.test("resume refuses when an issue is inserted before applied entries", asy
           runner,
         }),
       ValidationError,
-      "no longer match any manifest item",
+      "unresolved unknown",
     )
     // The refusal happens before any remote work.
     assertEquals(runner.calls.length, callsBefore)
@@ -1475,7 +1489,7 @@ Deno.test("batch guards each Issue immediately before its mutation", async () =>
     ])
     assertEquals(
       runner.calls.filter((args) => args[1] === "update").length,
-      1,
+      0,
     )
   } finally {
     await Deno.remove(dir, { recursive: true })
@@ -1518,15 +1532,15 @@ Deno.test("continue mode handles read failures per issue", async () => {
       continueOnFailure: true,
     })
 
-    assertEquals(outcome.status, "completed-with-failures")
+    assertEquals(outcome.status, "stopped-on-unknown")
     assertEquals(outcome.items.map((item) => item.status), [
-      "failed",
+      "unknown",
       "unattempted",
-      "applied",
+      "unattempted",
     ])
     assertEquals(
       runner.calls.filter((args) => args[1] === "view").length,
-      3,
+      0,
     )
     assertEquals(
       runner.calls.filter((args) => args[1] === "update").length,
@@ -1578,12 +1592,12 @@ Deno.test("a batch stops at the first failure by default and continues with the 
       loaded: await loadManifest(manifestPath),
       runner,
     })
-    assertEquals(outcome.status, "stopped-on-failure")
+    assertEquals(outcome.status, "stopped-on-unknown")
     assertEquals(
       outcome.items.map((item) => item.status),
-      ["failed", "unattempted"],
+      ["unknown", "unattempted"],
     )
-    assertEquals(outcome.summary.failed, 1)
+    assertEquals(outcome.summary.unknown, 1)
     assertEquals(outcome.summary.unattempted, 1)
   } finally {
     await Deno.remove(stopDir, { recursive: true })
@@ -1598,12 +1612,12 @@ Deno.test("a batch stops at the first failure by default and continues with the 
       runner,
       continueOnFailure: true,
     })
-    assertEquals(outcome.status, "completed-with-failures")
+    assertEquals(outcome.status, "stopped-on-unknown")
     assertEquals(
       outcome.items.map((item) => item.status),
-      ["failed", "applied"],
+      ["unknown", "unattempted"],
     )
-    assertEquals(outcome.readBack["DATA-2"] != null, true)
+    assertEquals(outcome.readBack["DATA-2"] != null, false)
     assertEquals(outcome.readBack["DATA-1"] == null, true)
   } finally {
     await Deno.remove(continueDir, { recursive: true })

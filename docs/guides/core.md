@@ -40,7 +40,7 @@ linear usage --json       # 机器可读的命令树（含 writes/interactive/co
 
 ## 影响命令选择的语义陷阱
 
-- `issue update --label` 替换完整标签集，不是增量添加；增量加标签用 `issue update --add-label`。用 `--label` 时先读当前对象，把要保留的标签逐个重新传入。Project 的 `--label` 使用 project-label 的单值语义，不套用 Issue 的标签集合规则。
+- `issue update --label` 和 `project update --label` 都替换完整标签集，不是增量添加；增量加标签用 `issue update --add-label`。用 `--label` 时先读当前对象，把要保留的标签逐个重新传入。
 - 内联图片和侧栏 Attachment 是两个不同的 Linear 对象。`issue comment add --attach <file>` 上传文件并渲染在评论正文中；`issue attach` 创建侧栏 Attachment，不内联渲染。
 - 上传默认对 workspace 成员私有。`--public` 只接受 PNG/JPEG/GIF/WebP/BMP/TIFF 图片并生成无需登录的公开 URL，其他类型直接失败而不是回退私有；只在用户明确需要公开访问时使用。
 - `document update` 会保护含内联评论锚点的内容。用户明确接受「锚点可能丢失」这一风险之前，不要用 `--force` 绕过警告。
