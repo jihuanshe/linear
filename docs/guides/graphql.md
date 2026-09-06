@@ -13,7 +13,7 @@ commands:
 
 ## 发现 schema
 
-把 schema 写到临时文件再搜索，不要凭记忆猜字段：
+已知字段和输入类型时直接请求；只有字段、类型或参数不确定时，才把 schema 写到临时文件搜索：
 
 ```bash
 linear schema -o "${TMPDIR:-/tmp}/linear-schema.graphql"
@@ -73,9 +73,9 @@ GRAPHQL
 
 ## 批量修改 Issue
 
-批量修改使用专用命令：组合多个执行项且字段在 manifest 支持范围内时用 `issue apply`（见 [issue-delivery](issue-delivery.md)）；其他 `issue update` 已支持的操作由脚本逐条调用，保留名称解析和输入校验。没有单次批量 mutation 命令不是改用 raw mutation 的理由。
+组合多个执行项且字段在 manifest 支持范围内时用 `issue apply`（见 [issue-delivery](issue-delivery.md)）；其他 `issue update` 已支持的操作由脚本逐条调用，编排方式见 [automation](automation.md)。
 
-不要通过 `linear api` 调用 `issueBatchUpdate` 来绕过已有专用写命令。只有目标操作未被专用命令覆盖时，才在已有授权内使用 `linear api`：先查 schema、解析目标并校验输入，写后核对业务结果和目标字段；结果未知时停止后续写入并对账。一次性操作不要求先开发新的 CLI 命令，编排方式见 [automation](automation.md)。
+目标操作未被专用命令覆盖时，按 [core 的入口与授权规则](core.md) 使用 `linear api`：解析目标并校验输入，字段或类型不确定时查 schema，写后核对业务结果和目标字段；结果未知时停止后续写入并对账。
 
 ## 拆分查询
 

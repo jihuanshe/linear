@@ -44,7 +44,7 @@ linear usage --json       # 机器可读的命令树（含 writes/interactive/co
 - 内联图片和侧栏 Attachment 是两个不同的 Linear 对象。`issue comment add --attach <file>` 上传文件并渲染在评论正文中；`issue attach` 创建侧栏 Attachment，不内联渲染。
 - 上传默认对 workspace 成员私有。`--public` 只接受 PNG/JPEG/GIF/WebP/BMP/TIFF 图片并生成无需登录的公开 URL，其他类型直接失败而不是回退私有；只在用户明确需要公开访问时使用。
 - `document update` 会保护含内联评论锚点的内容。用户明确接受「锚点可能丢失」这一风险之前，不要用 `--force` 绕过警告。
-- Project 的 `description` 字段被 Linear API 限制在 255 字符；长 Markdown 用 project overview 的 `content` / `content-file`。
+- Project 的 `description` 字段被 Linear API 限制在 255 字符；创建时长 Markdown 用 `project create --content` / `--content-file` 写入 overview。`project update` 不支持这两个选项；更新已有 overview 按上面的低层入口选择规则处理。
 - workflow state 和用户名不要猜：`linear team states --json` 列出状态，`linear user list --json` 解析成员。
 - `issue query --state` 按 Linear 的状态类型过滤（如 `started`）；只匹配团队工作流中的精确状态名用可重复的 `--state-name`（如 `Merged`）。
 
@@ -53,7 +53,7 @@ linear usage --json       # 机器可读的命令树（含 writes/interactive/co
 `linear auth whoami` 验证认证并显示当前 workspace 与用户。
 
 - 缺凭据或 401：让用户在 Linear 的 Settings > Account > Security & Access 页面创建最小权限 personal API key，然后运行 `linear auth login`，把 key 直接输入命令提示符。key 不粘贴进聊天、不写入 shell 历史、不出现在进程参数里。
-- 多 workspace：`auth list` 查看已配置的，`auth default` 设默认，单次命令用全局 `--workspace <slug>` 覆盖。
+- 多 workspace：`auth list` 查看已配置的，`auth default` 设默认。使用已存凭据时，全局 `--workspace <slug>` 选择单次命令的 workspace；它与 `LINEAR_API_KEY` 冲突，也不会覆盖配置中的 `api_key`。切换前移除这两种 key 来源，再用 `auth whoami --workspace <slug>` 核对身份。
 - 无系统 keyring 的环境（容器、部分 VM）：`auth login --plaintext` 落盘存储。
 - 经代理访问 GraphQL：设置 `LINEAR_GRAPHQL_ENDPOINT` 环境变量后再登录；认证 header 由代理注入时，login 的 key 只用于建立本地认证状态。
 
@@ -67,12 +67,12 @@ Linear URL 自带定位信息，不要先列出整个 workspace 再查找。cano
 https://linear.app/<workspace>/project/<project-name>-<project-slug-id>/issues
 ```
 
-从路径取 workspace slug 和 project slug ID，先 `linear project view <id> --workspace <slug>` 核对名称，再进行后续查询。核对失败就停止，不把解析结果用于写操作。
+从路径取 workspace slug 和 project slug ID，按上面的认证规则选择并核对身份，再用 `linear project view <id> --workspace <slug>` 核对名称。若使用环境或配置 key，先用不带 `--workspace` 的 `auth whoami` 核对其 workspace，再用不带该 flag 的 `project view`。身份或对象核对失败就停止，不把解析结果用于写操作。
 
 ## 查询范围
 
 - `--project` 已经提供查询作用域，默认覆盖该 project 关联的全部 team；显式传入 `--team` 会有意缩窄结果。没有 project 时，查询当前 workspace 的全部 team 使用 `--all-teams`。
-- CLI 从 `linear config` 保存的配置或当前目录名推断默认 team。没有 project 且推断不出时，查询必须显式提供 team scope；不知道 team key 先 `linear team list`。
+- 默认 team 来自 `LINEAR_TEAM_ID` 或配置中的 `team_id`（环境变量优先），不会从当前目录名推断。没有 project 且没有默认 team 时，查询必须显式提供 team scope；不知道 team key 先 `linear team list`。
 - `issue mine` 是当前用户的默认待办入口，支持 `--web` / `--app`。明确筛选或机器处理用 `issue query --assignee self`；查询其他人时指定对应负责人。
 - 默认排序是 priority；要保持看板手工顺序显式传 `--sort manual`。
 

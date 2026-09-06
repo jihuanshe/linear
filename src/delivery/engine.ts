@@ -349,6 +349,9 @@ async function expandIssue(
   if (issue.set != null || issue.operation === "create") {
     const set = issue.set ?? {}
     const hash = await itemHash({
+      operation: issue.operation,
+      identifier: issue.identifier ?? null,
+      team: issue.team ?? null,
       set,
       base: issue.base ?? null,
       descriptionFileSha: set.descriptionFile == null
@@ -404,6 +407,9 @@ async function expandIssue(
 
   for (const [subIndex, comment] of (issue.comments ?? []).entries()) {
     const hash = await itemHash({
+      operation: issue.operation,
+      identifier: issue.identifier ?? null,
+      team: issue.team ?? null,
       comment,
       bodyFileSha: comment.bodyFile == null
         ? null
@@ -450,6 +456,9 @@ async function expandIssue(
 
   for (const [subIndex, attachment] of (issue.attachments ?? []).entries()) {
     const hash = await itemHash({
+      operation: issue.operation,
+      identifier: issue.identifier ?? null,
+      team: issue.team ?? null,
       attachment,
       fileSha: attachment.kind === "file"
         ? fileFingerprint(files, attachment.path)
@@ -485,7 +494,12 @@ async function expandIssue(
   }
 
   for (const [subIndex, relation] of (issue.relations ?? []).entries()) {
-    const hash = await itemHash({ relation })
+    const hash = await itemHash({
+      operation: issue.operation,
+      identifier: issue.identifier ?? null,
+      team: issue.team ?? null,
+      relation,
+    })
     items.push({
       key: `${issueIndex}:relation:${subIndex}:${hash}`,
       kind: "relation",
@@ -618,10 +632,6 @@ async function readBackIssue(
 }
 
 function classifyFailure(result: CommandResult): "failed" | "unknown" {
-  // A handled CLI error prints "✗ ..." before a nonzero exit; that pattern is
-  // treated as "failed without remote effect". Anything else — crash, signal,
-  // empty stderr — cannot prove the mutation did not land, so it is unknown
-  // and stops the run until explicitly reconciled.
   return result.code !== 0 && result.stderr.includes("✗") ? "failed" : "unknown"
 }
 

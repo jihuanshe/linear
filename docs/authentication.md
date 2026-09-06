@@ -20,7 +20,6 @@ The canonical command list is `linear auth --help`; these examples show the mult
 linear auth login              # add a workspace (prompts for API key)
 linear auth login --plaintext  # store on disk when no system keyring exists
 linear auth migrate            # move plaintext-era keys into the system keyring
-linear auth login --key <key>  # add with key directly (for scripts)
 linear auth list               # list configured workspaces
 linear auth default            # interactively set default workspace
 linear auth default <slug>     # set default workspace directly
@@ -29,6 +28,8 @@ linear auth logout <slug> -f   # remove without confirmation
 linear auth whoami             # show current user and workspace
 linear auth token              # print the resolved API key
 ```
+
+For scripts, inject `LINEAR_API_KEY` through the process environment from your secret manager or CI secret store. Do not pass keys in command-line arguments or write them to shell history or logs. `auth token` prints a secret; only consume it in process memory when a lower-level HTTP client needs it.
 
 ### adding workspaces
 
@@ -77,7 +78,7 @@ default = "acme"
 workspaces = ["acme", "side-project"]
 ```
 
-API keys are not stored in this file. they are stored in the system keyring and loaded at startup.
+In keyring mode, this file contains workspace metadata only; API keys are stored in the system keyring and loaded at startup. With `auth login --plaintext` or an existing plaintext-format credentials file, keys are stored directly in this TOML file. Protect it as a secret and use `auth migrate` to move those keys into the keyring when available.
 
 ### platform requirements
 

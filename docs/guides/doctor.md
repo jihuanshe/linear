@@ -22,7 +22,7 @@ commands:
 
 ```bash
 linear doctor self --history
-linear doctor workspace --history --limit 0 --json >doctor.json
+linear doctor workspace --history --json >doctor.json
 ```
 
 `--include-archived` 才会纳入归档任务或项目。`--limit` 只限制人类可读报告中显示的问题；`--limit 0` 显示全部。`--stale-days <days>` 同时控制长期未更新任务和项目更新的过期阈值，默认是 14 天。
