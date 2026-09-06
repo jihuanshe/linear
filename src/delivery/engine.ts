@@ -938,7 +938,11 @@ export async function applyManifest(
         continue
       }
 
-      progress(`→ ${item.describe}`)
+      progress(
+        `→ issue ${issueIndex + 1}/${manifest.issues.length}: ${item.kind} ${
+          item.subIndex + 1
+        }`,
+      )
       const command = await item.buildCommand(identifier ?? "")
 
       // Record the launch before the mutation goes out: a hard crash while

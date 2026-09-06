@@ -20,6 +20,7 @@ import { Select } from "./prompt.ts"
 import { getOption, resolveIssueSort } from "../config.ts"
 import { CliError, NotFoundError, ValidationError } from "./errors.ts"
 import { getGraphQLClient } from "./graphql.ts"
+import { completeConnection } from "./pagination.ts"
 import { normalizeIssueIdentifier } from "./issue-identifier.ts"
 import { getCurrentIssueFromVcs } from "./vcs.ts"
 import { unified } from "unified"
@@ -553,6 +554,7 @@ const issueDetailsWithCommentsQuery = gql(/* GraphQL */ `
           id
           body
           createdAt
+          updatedAt
           url
           resolvedAt
           resolvingCommentId
@@ -572,6 +574,7 @@ const issueDetailsWithCommentsQuery = gql(/* GraphQL */ `
             id
           }
         }
+        pageInfo { hasNextPage endCursor }
       }
       attachments(first: 50) {
         nodes {
@@ -583,6 +586,7 @@ const issueDetailsWithCommentsQuery = gql(/* GraphQL */ `
           metadata
           createdAt
         }
+        pageInfo { hasNextPage endCursor }
       }
       relations(first: 250) {
         nodes {
@@ -740,6 +744,7 @@ const issueDetailsQuery = gql(/* GraphQL */ `
           metadata
           createdAt
         }
+        pageInfo { hasNextPage endCursor }
       }
       relations(first: 250) {
         nodes {
@@ -781,20 +786,128 @@ const issueDetailsQuery = gql(/* GraphQL */ `
   }
 `)
 
+const issueCommentsQuery = gql(/* GraphQL */ `
+  query GetIssueComments($id: String!, $first: Int!, $after: String) {
+    issue(id: $id) {
+      comments(first: $first, after: $after, orderBy: createdAt) {
+        nodes {
+          id
+          body
+          createdAt
+          updatedAt
+          url
+          resolvedAt
+          resolvingCommentId
+          resolvingUser { name displayName }
+          user { name displayName }
+          externalUser { name displayName }
+          parent { id }
+        }
+        pageInfo { hasNextPage endCursor }
+      }
+    }
+  }
+`)
+
+const issueAttachmentsQuery = gql(/* GraphQL */ `
+  query GetIssueAttachments($id: String!, $first: Int!, $after: String) {
+    issue(id: $id) {
+      attachments(first: $first, after: $after) {
+        nodes { id title url subtitle sourceType metadata createdAt }
+        pageInfo { hasNextPage endCursor }
+      }
+    }
+  }
+`)
+
+export async function fetchIssueComments(
+  issueId: string,
+  limit = 0,
+  initial?: GetIssueDetailsWithCommentsQuery["issue"]["comments"],
+) {
+  const fetchPage = async (
+    after?: string,
+    first = limit > 0 ? Math.min(100, limit) : 100,
+  ) => {
+    const result = await getGraphQLClient().request(issueCommentsQuery, {
+      id: issueId,
+      first,
+      after,
+    })
+    if (result.issue == null) throw new NotFoundError("Issue", issueId)
+    return result.issue.comments
+  }
+  return await completeConnection(
+    initial ?? await fetchPage(),
+    fetchPage,
+    `comments for ${issueId}`,
+    limit,
+  )
+}
+
+async function completeIssueAttachments(
+  issueId: string,
+  initial: GetIssueDetailsQuery["issue"]["attachments"],
+) {
+  return await completeConnection(initial, async (after, first) => {
+    const result = await getGraphQLClient().request(issueAttachmentsQuery, {
+      id: issueId,
+      first,
+      after,
+    })
+    if (result.issue == null) throw new NotFoundError("Issue", issueId)
+    return result.issue.attachments
+  }, `attachments for ${issueId}`)
+}
+
+export function fetchIssueDetailsRaw(
+  issueId: string,
+  includeComments: true,
+  completeCommentsAndAttachments?: boolean,
+): Promise<IssueDetailsWithComments>
+export function fetchIssueDetailsRaw(
+  issueId: string,
+  includeComments?: false,
+  completeCommentsAndAttachments?: boolean,
+): Promise<IssueDetailsWithoutComments>
+export function fetchIssueDetailsRaw(
+  issueId: string,
+  includeComments: boolean,
+  completeCommentsAndAttachments?: boolean,
+): Promise<IssueDetailsWithComments | IssueDetailsWithoutComments>
 export async function fetchIssueDetailsRaw(
   issueId: string,
   includeComments = false,
+  completeCommentsAndAttachments = false,
 ) {
   const client = getGraphQLClient()
   if (includeComments) {
     const data = await client.request(issueDetailsWithCommentsQuery, {
       id: issueId,
     })
-    return data.issue
+    if (data.issue == null) throw new NotFoundError("Issue", issueId)
+    if (!completeCommentsAndAttachments) return data.issue
+    const [comments, attachments] = await Promise.all([
+      fetchIssueComments(issueId, 0, data.issue.comments),
+      completeIssueAttachments(issueId, data.issue.attachments),
+    ])
+    return {
+      ...data.issue,
+      comments,
+      attachments,
+    }
   }
 
   const data = await client.request(issueDetailsQuery, { id: issueId })
-  return data.issue
+  if (data.issue == null) throw new NotFoundError("Issue", issueId)
+  if (!completeCommentsAndAttachments) return data.issue
+  return {
+    ...data.issue,
+    attachments: await completeIssueAttachments(
+      issueId,
+      data.issue.attachments,
+    ),
+  }
 }
 
 type IssueDetailsWithComments = GetIssueDetailsWithCommentsQuery["issue"]
@@ -835,19 +948,19 @@ export async function fetchIssueDetails(
   issueId: string,
   _showSpinner = false,
   includeComments = false,
+  completeCommentsAndAttachments = false,
 ): Promise<FetchedIssueDetails> {
   const { Spinner } = await import("@std/cli/unstable-spinner")
   const { shouldShowSpinner } = await import("./hyperlink.ts")
   const spinner = shouldShowSpinner() ? new Spinner() : null
   spinner?.start()
   try {
-    const client = getGraphQLClient()
-
     if (includeComments) {
-      const response = await client.request(issueDetailsWithCommentsQuery, {
-        id: issueId,
-      })
-      const data = response.issue
+      const data = await fetchIssueDetailsRaw(
+        issueId,
+        true,
+        completeCommentsAndAttachments,
+      )
       spinner?.stop()
       return {
         ...data,
@@ -858,8 +971,11 @@ export async function fetchIssueDetails(
       }
     }
 
-    const response = await client.request(issueDetailsQuery, { id: issueId })
-    const data = response.issue
+    const data = await fetchIssueDetailsRaw(
+      issueId,
+      false,
+      completeCommentsAndAttachments,
+    )
     spinner?.stop()
     return {
       ...data,

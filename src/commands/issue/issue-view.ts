@@ -39,7 +39,9 @@ import {
 
 export const viewCommand = new Command()
   .name("view")
-  .description("View issue details (default) or open in browser/app")
+  .description(
+    "View issue details with all comments and attachments, or open in browser/app. For project, assignee and state changes, use issue history.",
+  )
   .alias("v")
   .arguments("[issueId:string]")
   .option("-w, --web", "Open in web browser")
@@ -50,7 +52,10 @@ export const viewCommand = new Command()
     "Include resolved comment threads in the output",
   )
   .option("--no-pager", "Disable automatic paging for long output")
-  .option("-j, --json", "Output issue data as JSON")
+  .option(
+    "-j, --json",
+    "Output issue data as JSON; comments and attachments retain {nodes, pageInfo}",
+  )
   .option("--no-download", "Keep remote URLs instead of downloading files")
   .action(async (options, issueId) => {
     const { web, app, comments, showResolvedThreads, pager, json, download } =
@@ -73,7 +78,11 @@ export const viewCommand = new Command()
       }
 
       if (json) {
-        const issueData = await fetchIssueDetailsRaw(resolvedId, showComments)
+        const issueData = await fetchIssueDetailsRaw(
+          resolvedId,
+          showComments,
+          true,
+        )
         console.log(JSON.stringify(issueData, null, 2))
         return
       }
@@ -82,6 +91,7 @@ export const viewCommand = new Command()
         resolvedId,
         shouldShowSpinner(),
         showComments,
+        true,
       )
 
       let issueComments = "comments" in issueData

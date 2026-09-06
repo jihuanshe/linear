@@ -79,7 +79,7 @@ schema 虽然提供 `issueBatchUpdate`，但它不是 CLI 的批量原语；不�
 
 ## 拆分查询
 
-`description` 这类标量可以随 Issue connection 批量读取；comments、children 和 relations 是嵌套集合，不要把多个大集合塞进同一查询。先读 Issue 标量；需要完整集合时，按 Issue 把每个嵌套 connection 拆成独立 GraphQL 查询，并用 `--paginate` 读完。只需固定边界的详情预览时才使用 `issue view --json` 或 `issue relation list`，这两个命令不保证把嵌套 connection 分页读完。收到 `Query too complex` 时减少字段或拆批，不要原样重试。
+`description` 这类标量可以随 Issue connection 批量读取。`issue view --json` 自动读完评论和附件；只需评论可用 `issue comment list <id> --limit 0 --json`，变更经过用 `issue history <id> --json`。children、documents、relations 等其他嵌套集合仍是有上限的详情预览；需要完整集合时，按 Issue 把对应 connection 拆成独立 GraphQL 查询，并用 `--paginate` 读完。不要把多个大集合塞进同一查询；收到 `Query too complex` 时减少字段或拆批，不要原样重试。
 
 ## 直接 HTTP
 

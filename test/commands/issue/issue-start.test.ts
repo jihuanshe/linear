@@ -79,7 +79,13 @@ Deno.test("Issue Start Command - reports partial VCS success when state update f
             parent: null,
             children: { nodes: [] },
             inverseRelations: { nodes: [] },
-            attachments: { nodes: [] },
+            attachments: {
+              nodes: [],
+              pageInfo: {
+                hasNextPage: true,
+                endCursor: "unneeded-attachments",
+              },
+            },
             documents: { nodes: [] },
           },
         },

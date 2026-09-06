@@ -63,10 +63,12 @@ jq '.lookups[] | {url, identifiers: [.nodes[].identifier]}' url-lookups.json
 
 空行和以 `#` 开头的行会忽略，重复 URL 只查一次；JSON 输出保持首次出现顺序，逐项返回 `{url,nodes,pageInfo}`。单个 `--url` 返回 `{nodes,pageInfo}`。
 
-`issue comment list --json` 同样返回 connection envelope `{nodes,pageInfo}`，而不是评论数组；当前只读取固定首 50 条，不能据此断言没有更早或更晚的评论。例如：
+`issue view --json` 返回当前字段以及完整的 `.comments`、`.attachments` 连接（均为 `{nodes,pageInfo}`）；PR 等外部链接可以在 `.attachments.nodes` 的 `url`、`sourceType`、`metadata` 中核对。`--no-comments` 跳过评论读取；变更经过用 `issue history <id> --json`。
+
+只需评论时用 `issue comment list --json`，输出 `{nodes,pageInfo}`；默认最多 50 条，`--limit 0` 读完全部页。例如：
 
 ```bash
-linear issue comment list ENG-123 --json >comments.json &&
+linear issue comment list ENG-123 --limit 0 --json >comments.json &&
   jq -e '.nodes | arrays' comments.json >/dev/null &&
   jq '{comments: [.nodes[] | {id, body}], pageInfo}' comments.json
 ```
