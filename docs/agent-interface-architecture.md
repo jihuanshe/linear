@@ -1,6 +1,6 @@
 # Agent 接口架构与交付路线图
 
-状态：已接受的架构与实施计划，经独立设计评审、真实 Issue 交接事故和 2026-08-08 的一次性交付决定修订。本次发布范围的全部 CLI 能力（指南、面包屑、access/authoring 迁移、生成手册移除、upload、delivery plan/apply、batch checkpoint）已在集成分支完成；下一步是发布编排与 skills#219 的 family 原子替换。
+本记录保存 2026-08-08 接受的架构、迁移计划及后续实施取舍。当前 CLI 操作以命令 `--help` 与内嵌 Guide 为准，命令树和测试负责校验。
 
 ## 执行摘要
 

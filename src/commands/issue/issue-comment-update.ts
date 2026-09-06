@@ -8,6 +8,7 @@ import { CliError, handleError, ValidationError } from "../../utils/errors.ts"
 export const commentUpdateCommand = withUsageMetadata(new Command(), {
   writes: true,
   interactive: true,
+  outputModes: ["human", "json"],
 })
   .name("update")
   .description("Update an existing comment")
@@ -17,8 +18,9 @@ export const commentUpdateCommand = withUsageMetadata(new Command(), {
     "--body-file <path:string>",
     "Read comment body from a file (preferred for markdown content)",
   )
+  .option("-j, --json", "Output {comment} as JSON")
   .action(async (options, commentId) => {
-    const { body, bodyFile } = options
+    const { body, bodyFile, json } = options
 
     try {
       // Validate that body and bodyFile are not both provided
@@ -43,6 +45,16 @@ export const commentUpdateCommand = withUsageMetadata(new Command(), {
             },
           )
         }
+      }
+
+      if (json && !newBody?.trim()) {
+        throw new ValidationError(
+          "JSON mode requires --body or --body-file",
+          {
+            suggestion:
+              "Provide the replacement body explicitly; JSON mode never prompts for input.",
+          },
+        )
       }
 
       let existingBody = ""
@@ -109,8 +121,12 @@ export const commentUpdateCommand = withUsageMetadata(new Command(), {
         throw new CliError("Comment update failed - no comment returned")
       }
 
-      console.log("✓ Comment updated")
-      console.log(comment.url)
+      if (json) {
+        console.log(JSON.stringify({ comment }, null, 2))
+      } else {
+        console.log("✓ Comment updated")
+        console.log(comment.url)
+      }
     } catch (error) {
       handleError(error, "Failed to update comment")
     }

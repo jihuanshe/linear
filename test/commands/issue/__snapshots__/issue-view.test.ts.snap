@@ -7,18 +7,18 @@ Usage: view [issueId]
 
 Description:
 
-  View issue details (default) or open in browser/app
+  View issue details with all comments and attachments, or open in browser/app. For project, assignee and state changes, use issue history.
 
 Options:
 
-  -h, --help               - Show this help.                                 
-  -w, --web                - Open in web browser                             
-  -a, --app                - Open in Linear.app                              
-  --no-comments            - Exclude comments from the output                
-  --show-resolved-threads  - Include resolved comment threads in the output  
-  --no-pager               - Disable automatic paging for long output        
-  -j, --json               - Output issue data as JSON                       
-  --no-download            - Keep remote URLs instead of downloading files   
+  -h, --help               - Show this help.                                                               
+  -w, --web                - Open in web browser                                                           
+  -a, --app                - Open in Linear.app                                                            
+  --no-comments            - Exclude comments from the output                                              
+  --show-resolved-threads  - Include resolved comment threads in the output                                
+  --no-pager               - Disable automatic paging for long output                                      
+  -j, --json               - Output issue data as JSON; comments and attachments retain {nodes, pageInfo}  
+  --no-download            - Keep remote URLs instead of downloading files                                 
 
 "
 stderr:
@@ -144,7 +144,11 @@ stdout:
     "nodes": []
   },
   "attachments": {
-    "nodes": []
+    "nodes": [],
+    "pageInfo": {
+      "hasNextPage": false,
+      "endCursor": null
+    }
   }
 }
 '
@@ -169,7 +173,11 @@ stdout:
     "nodes": []
   },
   "attachments": {
-    "nodes": []
+    "nodes": [],
+    "pageInfo": {
+      "hasNextPage": false,
+      "endCursor": null
+    }
   },
   "labels": {
     "nodes": [
@@ -240,10 +248,18 @@ stdout:
           "id": "comment-1"
         }
       }
-    ]
+    ],
+    "pageInfo": {
+      "hasNextPage": false,
+      "endCursor": null
+    }
   },
   "attachments": {
-    "nodes": []
+    "nodes": [],
+    "pageInfo": {
+      "hasNextPage": false,
+      "endCursor": null
+    }
   }
 }
 \`
@@ -286,7 +302,11 @@ stdout:
         "metadata": {},
         "createdAt": "2024-01-15T10:30:00Z"
       }
-    ]
+    ],
+    "pageInfo": {
+      "hasNextPage": false,
+      "endCursor": null
+    }
   },
   "relations": {
     "nodes": [
@@ -516,10 +536,18 @@ stdout:
           "id": "comment-root-json"
         }
       }
-    ]
+    ],
+    "pageInfo": {
+      "hasNextPage": false,
+      "endCursor": null
+    }
   },
   "attachments": {
-    "nodes": []
+    "nodes": [],
+    "pageInfo": {
+      "hasNextPage": false,
+      "endCursor": null
+    }
   }
 }
 '
@@ -577,10 +605,18 @@ stdout:
         "externalUser": null,
         "parent": null
       }
-    ]
+    ],
+    "pageInfo": {
+      "hasNextPage": false,
+      "endCursor": null
+    }
   },
   "attachments": {
-    "nodes": []
+    "nodes": [],
+    "pageInfo": {
+      "hasNextPage": false,
+      "endCursor": null
+    }
   }
 }
 '

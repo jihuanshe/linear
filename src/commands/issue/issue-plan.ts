@@ -9,13 +9,8 @@ import { loadManifest } from "../../delivery/manifest.ts"
 import { handleError } from "../../utils/errors.ts"
 import { withUsageMetadata } from "../usage.ts"
 
-// `issue plan` previews a delivery manifest with zero remote writes: it
-// validates the manifest and every referenced file, reads each update
-// target's current state, and shows the manifest request with three-way field
-// verdicts. Apply handles checkpointed items separately and re-reads pending
-// update targets immediately before their own mutations. Plan is optional:
-// apply repeats the local validation itself (design:
-// docs/agent-interface-architecture.md, "`plan`").
+// `issue plan` validates a delivery manifest without remote writes, reads each
+// update target, and reports the three-way field verdicts used by apply.
 
 function formatContent(content: PlanContent): string {
   if (content.source === "inline") {

@@ -1,7 +1,5 @@
 import { Command } from "@cliffy/command"
-import { gql } from "../../__codegen__/gql.ts"
-import { getGraphQLClient } from "../../utils/graphql.ts"
-import { getIssueIdentifier } from "../../utils/linear.ts"
+import { fetchIssueComments, getIssueIdentifier } from "../../utils/linear.ts"
 import { formatRelativeTime } from "../../utils/display.ts"
 import { bold } from "@std/fmt/colors"
 import { handleError, ValidationError } from "../../utils/errors.ts"
@@ -10,11 +8,19 @@ export const commentListCommand = new Command()
   .name("list")
   .description("List comments for an issue")
   .arguments("[issueId:string]")
-  .option("-j, --json", "Output as JSON")
+  .option(
+    "--limit <limit:number>",
+    "Maximum number of comments (use 0 for all pages)",
+    { default: 50 },
+  )
+  .option("-j, --json", "Output {nodes, pageInfo} as JSON")
   .action(async (options, issueId) => {
-    const { json } = options
+    const { json, limit } = options
 
     try {
+      if (!Number.isSafeInteger(limit) || limit < 0) {
+        throw new ValidationError("--limit must be a non-negative integer")
+      }
       const resolvedIdentifier = await getIssueIdentifier(issueId)
       if (!resolvedIdentifier) {
         throw new ValidationError(
@@ -23,47 +29,10 @@ export const commentListCommand = new Command()
         )
       }
 
-      const query = gql(`
-        query GetIssueComments($id: String!) {
-          issue(id: $id) {
-            comments(first: 50, orderBy: createdAt) {
-              nodes {
-                id
-                body
-                createdAt
-                updatedAt
-                url
-                user {
-                  name
-                  displayName
-                }
-                externalUser {
-                  name
-                  displayName
-                }
-                parent {
-                  id
-                }
-              }
-              pageInfo {
-                hasNextPage
-                endCursor
-              }
-            }
-          }
-        }
-      `)
-
-      const client = getGraphQLClient()
-      const data = await client.request(query, { id: resolvedIdentifier })
-
-      const commentsConnection = data.issue?.comments ?? {
-        nodes: [],
-        pageInfo: {
-          hasNextPage: false,
-          endCursor: null,
-        },
-      }
+      const commentsConnection = await fetchIssueComments(
+        resolvedIdentifier,
+        limit,
+      )
       const comments = commentsConnection.nodes
 
       if (json) {

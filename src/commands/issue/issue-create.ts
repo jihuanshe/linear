@@ -662,7 +662,7 @@ export const createCommand = withUsageMetadata(new Command(), {
   .option("-t, --title <title:string>", "Title of the issue")
   .option(
     "-j, --json",
-    "Output the created issue, including id, identifier, and url, as JSON (non-interactive only)",
+    "Output {success, issue: {id, identifier, url, team}} as JSON (non-interactive only)",
   )
   .action(
     async (

@@ -86,13 +86,16 @@ Deno.test("guide fails with guidance for an unknown name", async () => {
   )
 })
 
-Deno.test("guide rejects name with --json", async () => {
+Deno.test("guide --json returns a named guide body and metadata", async () => {
   const result = await run(["guide", "core", "--json"])
 
-  assertEquals(result.code === 0, false)
-  assertEquals(result.stdout, "")
-  assertStringIncludes(result.stderr, "✗")
-  assertStringIncludes(result.stderr, "cannot be used with --json")
+  assertEquals(result.code, 0, result.stderr)
+  assertEquals(result.stderr, "")
+  const document = JSON.parse(result.stdout)
+  assertEquals(document.name, "core")
+  assertEquals(typeof document.description, "string")
+  assertEquals(Array.isArray(document.commands), true)
+  assertEquals(document.body.startsWith("# 命令发现与选择"), true)
 })
 
 Deno.test("removed plural and nested guide commands are unavailable", async () => {
@@ -145,7 +148,7 @@ Deno.test("domain usage lists related guides without embedding bodies", async ()
   assertStringIncludes(result.stdout, "related guides:")
   assertStringIncludes(result.stdout, "issue-authoring")
   assertStringIncludes(result.stdout, "guides: linear guide <name>")
-  assertEquals(result.stdout.includes("# "), false)
+  assertEquals(/^# /m.test(result.stdout), false)
 })
 
 Deno.test("leaf help shows a Related guides breadcrumb", async () => {

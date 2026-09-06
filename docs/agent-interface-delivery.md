@@ -1,6 +1,6 @@
 # Agent 接口交付记录
 
-状态：一次性交付的执行记录与剩余步骤。设计本体见 [agent-interface-architecture.md](agent-interface-architecture.md)；被替换 Skill family 的逐节去向见 [skill-migration-ledger.md](skill-migration-ledger.md)。本次发布范围的全部 CLI 能力已在集成分支（jihuanshe/linear#5）完成，skills#219 携带 family 原子替换；剩余步骤只有发布编排的 merge、fresh-agent 场景与 skillshare sync。
+本记录保留 Agent 接口一次性交付的范围、验证结果和当时的发布计划；当前行为以命令 `--help` 与内嵌 Guide 为准。设计本体见 [agent-interface-architecture.md](agent-interface-architecture.md)；被替换 Skill family 的逐节去向见 [skill-migration-ledger.md](skill-migration-ledger.md)。
 
 ## 实现 TODO
 

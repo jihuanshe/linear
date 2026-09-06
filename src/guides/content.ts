@@ -4,10 +4,7 @@
 // bundles each file into the executable, so `guide <name>` works without
 // repository files or network access.
 //
-// Guide bodies are Chinese with English command names and flags: their primary
-// consumers are Jihuanshe agents that follow the company Skill language
-// policy, while every executable surface they quote stays in the CLI's own
-// English. Cross-command workflow knowledge belongs here; a fact one command
+// Cross-command workflow knowledge belongs here; a fact one command
 // can state alone belongs in that command's description instead.
 import automation from "../../docs/guides/automation.md" with { type: "text" }
 import core from "../../docs/guides/core.md" with { type: "text" }

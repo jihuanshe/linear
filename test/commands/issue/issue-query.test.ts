@@ -1,5 +1,5 @@
 import { snapshotTest } from "@cliffy/testing"
-import { assertEquals } from "@std/assert"
+import { assertEquals, assertStringIncludes } from "@std/assert"
 import { getColorEnabled, setColorEnabled } from "@std/fmt/colors"
 import { fromFileUrl } from "@std/path"
 import { stub } from "@std/testing/mock"
@@ -275,6 +275,828 @@ Deno.test("Issue Query Command - Explicit team narrows project scope", async () 
   } finally {
     await cleanup()
   }
+})
+
+Deno.test("Issue Query Command - exact URL matches description, not relevance neighbors", async () => {
+  const targetUrl = "https://example.com/objects/42"
+  const { server, cleanup } = await setupMockLinearServer([
+    {
+      queryName: "GetIssuesForQuery",
+      variables: {
+        filter: {
+          or: [
+            { description: { contains: targetUrl } },
+            { comments: { body: { contains: targetUrl } } },
+          ],
+        },
+        first: 100,
+        includeDescription: true,
+        includeComments: true,
+      },
+      response: {
+        data: {
+          issues: {
+            nodes: [
+              {
+                ...mockIssueNode,
+                description: `来源链接：${targetUrl}`,
+              },
+              {
+                ...mockIssueNode,
+                id: "issue-neighbor",
+                identifier: "ENG-102",
+                description: "来源链接：https://example.com/objects/420",
+              },
+              {
+                ...mockIssueNode,
+                id: "issue-extension",
+                identifier: "ENG-103",
+                description: `来源链接：${targetUrl}.json`,
+              },
+              {
+                ...mockIssueNode,
+                id: "issue-suffix",
+                identifier: "ENG-104",
+                description: `来源链接：${targetUrl}:detail`,
+              },
+              {
+                ...mockIssueNode,
+                id: "issue-punctuation",
+                identifier: "ENG-105",
+                description: `来源链接：${targetUrl}。`,
+              },
+              {
+                ...mockIssueNode,
+                id: "issue-wrapped",
+                identifier: "ENG-106",
+                description: `来源链接：（${targetUrl}）`,
+              },
+              {
+                ...mockIssueNode,
+                id: "issue-markdown",
+                identifier: "ENG-107",
+                description: `**来源链接：${targetUrl}**`,
+              },
+              {
+                ...mockIssueNode,
+                id: "issue-comment-only",
+                identifier: "ENG-108",
+                description: "没有链接的正文",
+                comments: { nodes: [{ body: `评论中引用 ${targetUrl}` }] },
+              },
+              {
+                ...mockIssueNode,
+                id: "issue-unicode-suffix",
+                identifier: "ENG-109",
+                description: `[详情](${targetUrl}详情)`,
+              },
+              {
+                ...mockIssueNode,
+                id: "issue-underscore-prefix",
+                identifier: "ENG-110",
+                description: `已有_token_${targetUrl}`,
+              },
+              {
+                ...mockIssueNode,
+                id: "issue-tilde-prefix",
+                identifier: "ENG-111",
+                description: `已有~token~${targetUrl}`,
+              },
+              {
+                ...mockIssueNode,
+                id: "issue-underscore-markdown",
+                identifier: "ENG-112",
+                description: `_来源：${targetUrl}_`,
+              },
+              {
+                ...mockIssueNode,
+                id: "issue-chinese-sentence",
+                identifier: "ENG-113",
+                description: `${targetUrl}。后续说明`,
+              },
+              {
+                ...mockIssueNode,
+                id: "issue-underscore-suffix",
+                identifier: "ENG-114",
+                description: `${targetUrl}_`,
+              },
+              {
+                ...mockIssueNode,
+                id: "issue-quoted-description",
+                identifier: "ENG-115",
+                description: `'${targetUrl}'`,
+              },
+              {
+                ...mockIssueNode,
+                id: "issue-quoted-comment",
+                identifier: "ENG-116",
+                description: null,
+                comments: { nodes: [{ body: `'${targetUrl}'` }] },
+              },
+              {
+                ...mockIssueNode,
+                id: "issue-quoted-extension",
+                identifier: "ENG-117",
+                description: `'${targetUrl}/detail'`,
+              },
+              {
+                ...mockIssueNode,
+                id: "issue-embedded-quote",
+                identifier: "ENG-118",
+                description: `https://other.example/'${targetUrl}'`,
+              },
+              {
+                ...mockIssueNode,
+                id: "issue-apostrophe-description",
+                identifier: "ENG-119",
+                description: `'${targetUrl}'detail'`,
+              },
+              {
+                ...mockIssueNode,
+                id: "issue-apostrophe-comment",
+                identifier: "ENG-120",
+                description: null,
+                comments: { nodes: [{ body: `'${targetUrl}'detail'` }] },
+              },
+              {
+                ...mockIssueNode,
+                id: "issue-quoted-sentence",
+                identifier: "ENG-121",
+                description: `See '${targetUrl}'.`,
+              },
+            ],
+            pageInfo: { hasNextPage: false, endCursor: "candidate-end" },
+          },
+        },
+      },
+    },
+  ], { NO_COLOR: "true" })
+  const root = await Deno.makeTempDir()
+
+  try {
+    const result = await new Deno.Command(Deno.execPath(), {
+      args: [
+        "run",
+        "--allow-all",
+        "--quiet",
+        main,
+        "issue",
+        "query",
+        "--all-teams",
+        "--url",
+        targetUrl,
+        "--limit",
+        "0",
+        "--json",
+      ],
+      cwd: root,
+      clearEnv: true,
+      env: {
+        HOME: root,
+        XDG_CONFIG_HOME: root,
+        NO_COLOR: "1",
+        LINEAR_GRAPHQL_ENDPOINT: server.getEndpoint(),
+        LINEAR_API_KEY: "Bearer test-token",
+      },
+      stdout: "piped",
+      stderr: "piped",
+    }).output()
+
+    const decoder = new TextDecoder()
+    const stdout = decoder.decode(result.stdout)
+    const stderr = decoder.decode(result.stderr)
+    assertEquals(result.code, 0, stderr)
+    assertEquals(stderr, "")
+    const payload = JSON.parse(stdout)
+    assertEquals(
+      payload.nodes.map((issue: { identifier: string }) => issue.identifier),
+      [
+        "ENG-101",
+        "ENG-105",
+        "ENG-106",
+        "ENG-107",
+        "ENG-108",
+        "ENG-112",
+        "ENG-113",
+        "ENG-115",
+        "ENG-116",
+        "ENG-121",
+      ],
+    )
+    assertEquals(payload.nodes[0].description, `来源链接：${targetUrl}`)
+    assertEquals(payload.pageInfo, { hasNextPage: false, endCursor: null })
+  } finally {
+    await Deno.remove(root, { recursive: true })
+    await cleanup()
+  }
+})
+
+Deno.test("Issue Query Command - URL boundaries follow Markdown and prose in descriptions and comments", async () => {
+  const targetUrl = "https://example.com/objects/42"
+  const matchingContent = [
+    `**${targetUrl}**.`,
+    `*${targetUrl}*,`,
+    `~~${targetUrl}~~!`,
+    `**_${targetUrl}_**;`,
+    `**来源：${targetUrl}**。后续说明`,
+    `「${targetUrl}」`,
+    `『${targetUrl}』`,
+    `“${targetUrl}”`,
+    `‘${targetUrl}’`,
+    `"${targetUrl}".`,
+    `'${targetUrl}'.`,
+    `[source](${targetUrl}).`,
+    `[source][reference]\n\n[reference]: ${targetUrl}`,
+    `<${targetUrl}>`,
+    `\`${targetUrl}\`.`,
+    `\`\`\`text\n${targetUrl}\n\`\`\``,
+  ]
+  const nonmatchingContent = [
+    `${targetUrl}_`,
+    `${targetUrl}~`,
+    `${targetUrl}*`,
+    `${targetUrl}.json`,
+    `${targetUrl}:detail`,
+    `${targetUrl}/detail`,
+    `${targetUrl}?page=2`,
+    `${targetUrl}#part`,
+    `${targetUrl}0`,
+    `${targetUrl}详情`,
+    `**${targetUrl}_**.`,
+    `**${targetUrl}.json**.`,
+    `「${targetUrl}/detail」`,
+    `'${targetUrl}'detail'`,
+    `已有_token_${targetUrl}`,
+    `已有~token~${targetUrl}`,
+    `https://other.example/'${targetUrl}'`,
+    `[${targetUrl}](${targetUrl}/detail)`,
+    `[${targetUrl}][reference]\n\n[reference]: ${targetUrl}/detail`,
+    `![${targetUrl}][reference]\n\n[reference]: ${targetUrl}/detail`,
+  ]
+  const cases = [
+    ...matchingContent.map((content) => ({ content, matches: true })),
+    ...nonmatchingContent.map((content) => ({ content, matches: false })),
+  ].flatMap((entry) => [
+    { ...entry, description: entry.content, comments: undefined },
+    {
+      ...entry,
+      description: null,
+      comments: { nodes: [{ body: entry.content }] },
+    },
+  ])
+  const nodes = cases.map(({ description, comments }, index) => ({
+    ...mockIssueNode,
+    description,
+    comments,
+    id: `issue-${index}`,
+    identifier: `ENG-${index + 1}`,
+  }))
+  const { server, cleanup } = await setupMockLinearServer([{
+    queryName: "GetIssuesForQuery",
+    response: {
+      data: {
+        issues: {
+          nodes,
+          pageInfo: { hasNextPage: false, endCursor: null },
+        },
+      },
+    },
+  }])
+  try {
+    const result = await new Deno.Command(Deno.execPath(), {
+      args: [
+        "run",
+        ...commonDenoArgs,
+        main,
+        "issue",
+        "query",
+        "--all-teams",
+        "--url",
+        targetUrl,
+        "--json",
+      ],
+      env: {
+        NO_COLOR: "1",
+        LINEAR_PROMPT_DISABLED: "1",
+        LINEAR_GRAPHQL_ENDPOINT: server.getEndpoint(),
+        LINEAR_API_KEY: "Bearer test-token",
+      },
+      stdout: "piped",
+      stderr: "piped",
+    }).output()
+    const decoder = new TextDecoder()
+    assertEquals(result.code, 0, decoder.decode(result.stderr))
+    const payload = JSON.parse(decoder.decode(result.stdout))
+    assertEquals(
+      payload.nodes.map((node: { identifier: string }) => node.identifier),
+      nodes.filter((_, index) => cases[index].matches).map((node) =>
+        node.identifier
+      ),
+    )
+  } finally {
+    await cleanup()
+  }
+})
+
+Deno.test("Issue Query Command - exact URL keeps all matches with a finite limit", async () => {
+  const targetUrl = "https://example.com/objects/multi"
+  const { cleanup } = await setupMockLinearServer([
+    {
+      queryName: "GetIssuesForQuery",
+      variables: {
+        filter: {
+          or: [
+            { description: { contains: targetUrl } },
+            { comments: { body: { contains: targetUrl } } },
+          ],
+        },
+        first: 100,
+        includeDescription: true,
+        includeComments: true,
+      },
+      response: {
+        data: {
+          issues: {
+            nodes: [
+              {
+                ...mockIssueNode,
+                identifier: "ENG-201",
+                description: "来源：" + targetUrl,
+              },
+              {
+                ...mockIssueNode,
+                id: "issue-multi-2",
+                identifier: "ENG-202",
+                description: "来源：" + targetUrl,
+              },
+            ],
+            pageInfo: { hasNextPage: false, endCursor: null },
+          },
+        },
+      },
+    },
+  ], { NO_COLOR: "true" })
+  const logs: string[] = []
+  const logStub = stub(console, "log", (...args: unknown[]) => {
+    logs.push(args.map(String).join(" "))
+  })
+
+  try {
+    await queryCommand.parse([
+      "--all-teams",
+      "--url",
+      targetUrl,
+      "--limit",
+      "1",
+      "--json",
+    ])
+  } finally {
+    logStub.restore()
+    await cleanup()
+  }
+
+  const payload = JSON.parse(logs[0])
+  assertEquals(
+    payload.nodes.map((issue: { identifier: string }) => issue.identifier),
+    ["ENG-201", "ENG-202"],
+  )
+  assertEquals(payload.pageInfo, { hasNextPage: false, endCursor: null })
+})
+
+Deno.test("Issue Query Command - exact URL checks later candidate pages", async () => {
+  const targetUrl = "https://example.com/objects/42"
+  const { server, cleanup } = await setupMockLinearServer([
+    {
+      queryName: "GetIssuesForQuery",
+      variables: { after: "cursor-1" },
+      response: {
+        data: {
+          issues: {
+            nodes: [{ ...mockIssueNode, description: targetUrl }],
+            pageInfo: { hasNextPage: false, endCursor: null },
+          },
+        },
+      },
+    },
+    {
+      queryName: "GetIssuesForQuery",
+      response: {
+        data: {
+          issues: {
+            nodes: [{ ...mockIssueNode, description: `${targetUrl}/other` }],
+            pageInfo: { hasNextPage: true, endCursor: "cursor-1" },
+          },
+        },
+      },
+    },
+  ], { NO_COLOR: "true" })
+  const logs: string[] = []
+  const logStub = stub(console, "log", (...args: unknown[]) => {
+    logs.push(args.map(String).join(" "))
+  })
+
+  try {
+    await queryCommand.parse([
+      "--all-teams",
+      "--url",
+      targetUrl,
+      "--limit",
+      "1",
+      "--json",
+    ])
+    const payload = JSON.parse(logs[0])
+    assertEquals(
+      payload.nodes.map((issue: { description: string }) => issue.description),
+      [targetUrl],
+    )
+    assertEquals(payload.pageInfo, { hasNextPage: false, endCursor: null })
+    assertEquals(server.graphqlRequests.length, 2)
+  } finally {
+    logStub.restore()
+    await cleanup()
+  }
+})
+
+Deno.test("Issue Query Command - rejects stalled candidate pagination", async (t) => {
+  for (const endCursor of [null, "cursor-1"]) {
+    await t.step(`cursor ${endCursor}`, async () => {
+      const { server, cleanup } = await setupMockLinearServer([
+        {
+          queryName: "GetIssuesForQuery",
+          response: {
+            data: {
+              issues: {
+                nodes: [],
+                pageInfo: { hasNextPage: true, endCursor },
+              },
+            },
+          },
+        },
+      ])
+      const errorLogs: string[] = []
+      const logs: unknown[] = []
+      const logStub = stub(
+        console,
+        "log",
+        (...args: unknown[]) => logs.push(args),
+      )
+      const errorStub = stub(console, "error", (...args: unknown[]) => {
+        errorLogs.push(args.map(String).join(" "))
+      })
+      const exitStub = stub(Deno, "exit", (_code?: number) => {
+        throw new Error("EXIT")
+      })
+      try {
+        await queryCommand.parse([
+          "--all-teams",
+          "--url",
+          "https://example.com/objects/42",
+          "--json",
+        ])
+      } catch (error) {
+        if (!(error instanceof Error) || error.message !== "EXIT") throw error
+      } finally {
+        logStub.restore()
+        errorStub.restore()
+        exitStub.restore()
+        await cleanup()
+      }
+      assertEquals(logs, [])
+      assertStringIncludes(errorLogs.join("\n"), "Incomplete issue pagination")
+      assertEquals(server.graphqlRequests.length, endCursor == null ? 1 : 2)
+    })
+  }
+})
+
+Deno.test("Issue Query Command - exact URL returns complete paginated comments", async () => {
+  const targetUrl = "https://example.com/objects/paginated"
+  const { cleanup } = await setupMockLinearServer([
+    {
+      queryName: "GetIssuesForQuery",
+      response: {
+        data: {
+          issues: {
+            nodes: [{
+              ...mockIssueNode,
+              comments: {
+                nodes: [{ body: "first comment" }],
+                pageInfo: { hasNextPage: true, endCursor: "cursor-1" },
+              },
+            }],
+            pageInfo: { hasNextPage: false, endCursor: null },
+          },
+        },
+      },
+    },
+    {
+      queryName: "GetIssueCommentsForUrlLookup",
+      variables: { id: "issue-1", after: "cursor-1" },
+      response: {
+        data: {
+          issue: {
+            comments: {
+              nodes: [{ body: `later comment ${targetUrl}` }],
+              pageInfo: { hasNextPage: false, endCursor: null },
+            },
+          },
+        },
+      },
+    },
+    {
+      queryName: "GetIssueCommentsForUrlLookup",
+      response: {
+        data: {
+          issue: {
+            comments: {
+              nodes: [{ body: "first comment" }],
+              pageInfo: { hasNextPage: true, endCursor: "cursor-1" },
+            },
+          },
+        },
+      },
+    },
+  ], { NO_COLOR: "true" })
+  const logs: string[] = []
+  const logStub = stub(console, "log", (...args: unknown[]) => {
+    logs.push(args.map(String).join(" "))
+  })
+
+  try {
+    await queryCommand.parse([
+      "--all-teams",
+      "--url",
+      targetUrl,
+      "--json",
+    ])
+  } finally {
+    logStub.restore()
+    await cleanup()
+  }
+
+  const payload = JSON.parse(logs[0])
+  assertEquals(payload.nodes[0].comments, {
+    nodes: [
+      { body: "first comment" },
+      { body: `later comment ${targetUrl}` },
+    ],
+    pageInfo: { hasNextPage: false, endCursor: null },
+  })
+})
+
+Deno.test("Issue Query Command - exact Linear issue URL resolves by identifier", async () => {
+  const targetUrl = "https://linear.app/test/issue/ENG-101/old-title"
+  const { cleanup } = await setupMockLinearServer([
+    {
+      queryName: "GetIssuesForQuery",
+      variables: {
+        filter: { id: { eq: "ENG-101" } },
+        first: 100,
+        includeDescription: true,
+        includeComments: false,
+      },
+      response: {
+        data: {
+          issues: {
+            nodes: [mockIssueNode],
+            pageInfo: { hasNextPage: false, endCursor: null },
+          },
+        },
+      },
+    },
+  ], { NO_COLOR: "true" })
+  const logs: string[] = []
+  const logStub = stub(console, "log", (...args: unknown[]) => {
+    logs.push(args.map(String).join(" "))
+  })
+
+  try {
+    await queryCommand.parse([
+      "--all-teams",
+      "--url",
+      targetUrl,
+      "--json",
+    ])
+  } finally {
+    logStub.restore()
+    await cleanup()
+  }
+
+  const payload = JSON.parse(logs[0])
+  assertEquals(
+    payload.nodes.map((issue: { identifier: string }) => issue.identifier),
+    ["ENG-101"],
+  )
+})
+
+Deno.test("Issue Query Command - exact Linear URL does not cross workspace scope", async () => {
+  const targetUrl = "https://linear.app/other/issue/ENG-101/old-title"
+  const { cleanup } = await setupMockLinearServer([
+    {
+      queryName: "GetIssuesForQuery",
+      variables: {
+        filter: { id: { eq: "ENG-101" } },
+        first: 100,
+        includeDescription: true,
+      },
+      response: {
+        data: {
+          issues: {
+            nodes: [mockIssueNode],
+            pageInfo: { hasNextPage: false, endCursor: null },
+          },
+        },
+      },
+    },
+  ], { NO_COLOR: "true" })
+  const logs: string[] = []
+  const logStub = stub(console, "log", (...args: unknown[]) => {
+    logs.push(args.map(String).join(" "))
+  })
+
+  try {
+    await queryCommand.parse([
+      "--all-teams",
+      "--url",
+      targetUrl,
+      "--json",
+    ])
+  } finally {
+    logStub.restore()
+    await cleanup()
+  }
+
+  assertEquals(JSON.parse(logs[0]).nodes, [])
+})
+
+Deno.test("Issue Query Command - URL file preserves lookup order", async () => {
+  const firstUrl = "https://example.com/objects/1"
+  const secondUrl = "https://example.com/objects/2"
+  const urlFile = await Deno.makeTempFile({ suffix: ".txt" })
+  await Deno.writeTextFile(
+    urlFile,
+    `# current batch\n${firstUrl}\n\n${secondUrl}\n${firstUrl}\n`,
+  )
+  const { cleanup } = await setupMockLinearServer([
+    {
+      queryName: "GetIssuesForQuery",
+      response: {
+        data: {
+          issues: {
+            nodes: [{
+              ...mockIssueNode,
+              description: `来源：${firstUrl}\n${secondUrl}`,
+            }],
+            pageInfo: { hasNextPage: false, endCursor: null },
+          },
+        },
+      },
+    },
+  ], { NO_COLOR: "true" })
+  const logs: string[] = []
+  const logStub = stub(console, "log", (...args: unknown[]) => {
+    logs.push(args.map(String).join(" "))
+  })
+
+  try {
+    await queryCommand.parse([
+      "--all-teams",
+      "--url-file",
+      urlFile,
+      "--limit",
+      "0",
+      "--json",
+    ])
+  } finally {
+    logStub.restore()
+    await cleanup()
+    await Deno.remove(urlFile)
+  }
+
+  const payload = JSON.parse(logs[0])
+  assertEquals(payload.lookups.map((lookup: { url: string }) => lookup.url), [
+    firstUrl,
+    secondUrl,
+  ])
+  assertEquals(
+    payload.lookups.map((lookup: { nodes: Array<{ identifier: string }> }) =>
+      lookup.nodes[0].identifier
+    ),
+    ["ENG-101", "ENG-101"],
+  )
+  assertEquals(
+    payload.lookups.every((lookup: { pageInfo: unknown }) =>
+      JSON.stringify(lookup.pageInfo) ===
+        JSON.stringify({ hasNextPage: false, endCursor: null })
+    ),
+    true,
+  )
+})
+
+Deno.test("Issue Query Command - URL file resolves assignee once", async () => {
+  const firstUrl = "https://example.com/objects/assignee-1"
+  const secondUrl = "https://example.com/objects/assignee-2"
+  const urlFile = await Deno.makeTempFile({ suffix: ".txt" })
+  await Deno.writeTextFile(urlFile, firstUrl + "\n" + secondUrl + "\n")
+  const { server, cleanup } = await setupMockLinearServer([
+    {
+      queryName: "GetViewerId",
+      response: { data: { viewer: { id: "user-1" } } },
+    },
+    {
+      queryName: "GetIssuesForQuery",
+      response: {
+        data: {
+          issues: {
+            nodes: [mockIssueNode],
+            pageInfo: { hasNextPage: false, endCursor: null },
+          },
+        },
+      },
+    },
+  ], { NO_COLOR: "true" })
+  const logStub = stub(console, "log", () => {})
+
+  try {
+    await queryCommand.parse([
+      "--all-teams",
+      "--url-file",
+      urlFile,
+      "--assignee",
+      "self",
+      "--limit",
+      "0",
+      "--json",
+    ])
+  } finally {
+    logStub.restore()
+    await cleanup()
+    await Deno.remove(urlFile)
+  }
+
+  const viewerLookups = server.graphqlRequests.filter((request) =>
+    request.query.includes("query GetViewerId")
+  )
+  const issueQueries = server.graphqlRequests.filter((request) =>
+    request.query.includes("query GetIssuesForQuery")
+  )
+  assertEquals(viewerLookups.length, 1)
+  assertEquals(issueQueries.length, 2)
+})
+
+Deno.test("Issue Query Command - rejects relevance search combined with exact URL", async () => {
+  const errorLogs: string[] = []
+  const errorStub = stub(console, "error", (...args: unknown[]) => {
+    errorLogs.push(args.map(String).join(" "))
+  })
+  const exitStub = stub(Deno, "exit", (_code?: number) => {
+    throw new Error("EXIT")
+  })
+
+  try {
+    await queryCommand.parse([
+      "--all-teams",
+      "--search",
+      "seller order",
+      "--url",
+      "https://example.com/objects/42",
+    ])
+  } catch {
+    // expected
+  } finally {
+    errorStub.restore()
+    exitStub.restore()
+  }
+
+  assertEquals(
+    errorLogs.some((line) =>
+      line.includes("Cannot use both --search and --url")
+    ),
+    true,
+  )
+})
+
+Deno.test("Issue Query Command - rejects malformed exact URL", async () => {
+  const errorLogs: string[] = []
+  const errorStub = stub(console, "error", (...args: unknown[]) => {
+    errorLogs.push(args.map(String).join(" "))
+  })
+  const exitStub = stub(Deno, "exit", (_code?: number) => {
+    throw new Error("EXIT")
+  })
+
+  try {
+    await queryCommand.parse(["--all-teams", "--url", "not-a-url"])
+  } catch {
+    // expected
+  } finally {
+    errorStub.restore()
+    exitStub.restore()
+  }
+
+  assertEquals(
+    errorLogs.some((line) => line.includes("Invalid URL")),
+    true,
+  )
 })
 
 Deno.test("Issue Query Command - filters issues without a project", async () => {

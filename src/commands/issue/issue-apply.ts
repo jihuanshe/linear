@@ -35,6 +35,19 @@ export function formatApply(outcome: ApplyOutcome): string {
         .join(", ")
     }`,
   )
+  if (outcome.verification.length > 0) {
+    const verified = outcome.verification.filter((item) =>
+      item.status === "verified"
+    ).length
+    const failed = outcome.verification.length - verified
+    lines.push(
+      `read-back: ${verified}/${outcome.verification.length} verified${
+        failed > 0 ? `, ${failed} failed` : ""
+      }`,
+    )
+  } else {
+    lines.push("read-back: no issue target to verify")
+  }
   const created = Object.values(outcome.createdIdentifiers)
   if (created.length > 0) {
     lines.push(`created: ${created.join(", ")}`)
@@ -73,7 +86,10 @@ export const issueApplyCommand = withUsageMetadata(
       "--continue-on-failure",
       "Keep executing after a confirmed failed item; unknown outcomes always stop",
     )
-    .option("--json", "Output per-item results and read-back as JSON")
+    .option(
+      "--json",
+      "Output per-item results and read-back as JSON; progress goes to stderr",
+    )
     .action(async ({ file, confirmWorkspace, json, continueOnFailure }) => {
       try {
         const loaded = await loadManifest(file)
@@ -85,7 +101,7 @@ export const issueApplyCommand = withUsageMetadata(
         const outcome = await applyManifest({
           loaded,
           runner: selfExecRunner(),
-          onProgress: json ? undefined : (line) => console.error(line),
+          onProgress: (line) => console.error(line),
           continueOnFailure,
           envAuthenticated: Deno.env.get("LINEAR_API_KEY") != null,
         })

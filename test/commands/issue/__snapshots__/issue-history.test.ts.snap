@@ -1,0 +1,54 @@
+export const snapshot = {};
+
+snapshot[`Issue History Command - Help Text 1`] = `
+stdout:
+"
+Usage: history [issueId]
+
+Description:
+
+  Show issue history (project, assignee and state changes)
+
+Options:
+
+  -h, --help  - Show this help.         
+  -j, --json  - Output history as JSON  
+
+"
+stderr:
+""
+`;
+
+snapshot[`Issue History Command - JSON 1`] = `
+stdout:
+'{
+  "nodes": [
+    {
+      "createdAt": "2026-09-05T00:00:00Z",
+      "actor": {
+        "name": "alex",
+        "displayName": "Alex"
+      },
+      "botActor": null,
+      "fromProject": {
+        "name": "Old"
+      },
+      "toProject": {
+        "name": "New"
+      },
+      "fromAssignee": null,
+      "toAssignee": null,
+      "fromState": null,
+      "toState": null,
+      "changes": null
+    }
+  ],
+  "pageInfo": {
+    "hasNextPage": false,
+    "endCursor": null
+  }
+}
+'
+stderr:
+""
+`;

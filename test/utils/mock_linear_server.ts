@@ -32,6 +32,11 @@ export class MockLinearServer {
   private mockResponses: MockResponse[]
   /** Signed-URL file uploads received via PUT, in arrival order */
   readonly uploadRequests: UploadRequest[] = []
+  /** GraphQL requests received, in arrival order. */
+  readonly graphqlRequests: Array<{
+    query: string
+    variables: Record<string, unknown>
+  }> = []
 
   constructor(responses: MockResponse[] = []) {
     this.mockResponses = responses
@@ -123,6 +128,7 @@ export class MockLinearServer {
     try {
       const body = await request.json()
       const { query, variables } = body
+      this.graphqlRequests.push({ query, variables: variables ?? {} })
 
       // Find matching mock response
       const mockResponse = this.findMatchingResponse(query, variables)
