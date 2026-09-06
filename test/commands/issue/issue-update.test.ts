@@ -1,11 +1,187 @@
 import { snapshotTest } from "@cliffy/testing"
-import { assertEquals } from "@std/assert"
+import { assertEquals, assertRejects, assertStringIncludes } from "@std/assert"
 import { stub } from "@std/testing/mock"
+import { stripIgnoredCharacters } from "graphql"
 import { updateCommand } from "../../../src/commands/issue/issue-update.ts"
 import {
   commonDenoArgs,
   setupMockLinearServer,
 } from "../../utils/test-helpers.ts"
+
+for (const outcome of ["found", "missing", "error"] as const) {
+  Deno.test(`Issue Update Command - UUID assignee ${outcome} never falls back to a name`, async () => {
+    const userId = "abcdef01-2345-4678-9abc-def012345678"
+    const { server, cleanup } = await setupMockLinearServer([
+      {
+        queryName: "GetTeamIdByKey",
+        variables: { team: "ENG" },
+        response: { data: { teams: { nodes: [{ id: "team-eng-id" }] } } },
+      },
+      {
+        queryName: "LookupUserById",
+        variables: { id: userId },
+        response: outcome === "error"
+          ? { errors: [{ message: "User lookup unavailable" }] }
+          : {
+            data: {
+              users: { nodes: outcome === "found" ? [{ id: userId }] : [] },
+            },
+          },
+      },
+      {
+        queryName: "UpdateIssue",
+        response: {
+          data: {
+            issueUpdate: {
+              success: true,
+              issue: {
+                id: "issue-id",
+                identifier: "ENG-123",
+                title: "Existing issue",
+                url: "https://linear.app/test/issue/ENG-123",
+              },
+            },
+          },
+        },
+      },
+    ], { LINEAR_TEAM_ID: "ENG" })
+    const logs: string[] = []
+    const logStub = stub(console, "log", () => {})
+    const errorStub = stub(
+      console,
+      "error",
+      (...args: unknown[]) => logs.push(args.join(" ")),
+    )
+    const exitStub = stub(Deno, "exit", () => {
+      throw new Error("EXIT")
+    })
+    try {
+      const args = ["ENG-123", "--assignee", userId.toUpperCase(), "--json"]
+      if (outcome === "found") await updateCommand.parse(args)
+      else {
+        await assertRejects(() => updateCommand.parse(args), Error, "EXIT")
+        assertStringIncludes(
+          logs.join("\n"),
+          outcome === "missing" ? "User not found:" : "User lookup unavailable",
+        )
+      }
+      const lookup = server.graphqlRequests.find((request) =>
+        request.query.includes("query LookupUserById")
+      )
+      assertEquals(lookup?.variables, { id: userId })
+      assertStringIncludes(
+        stripIgnoredCharacters(lookup?.query ?? ""),
+        "users(filter:{id:{eq:$id}})",
+      )
+      assertEquals(
+        server.graphqlRequests.some((request) =>
+          /query LookupUser\(/.test(request.query)
+        ),
+        false,
+      )
+      const mutations = server.graphqlRequests.filter((request) =>
+        request.query.includes("mutation ")
+      )
+      assertEquals(mutations.length, outcome === "found" ? 1 : 0)
+      if (outcome === "found") {
+        assertEquals(mutations[0].variables, {
+          id: "ENG-123",
+          input: { assigneeId: userId },
+        })
+      }
+    } finally {
+      logStub.restore()
+      errorStub.restore()
+      exitStub.restore()
+      await cleanup()
+    }
+  })
+}
+
+for (
+  const { input, expectedId } of [
+    { input: "JANE@EXAMPLE.COM", expectedId: "email-match" },
+    { input: "JANE", expectedId: "display-match" },
+    { input: "Developer", expectedId: "first-name-match" },
+  ]
+) {
+  Deno.test(`Issue Update Command - name assignee preserves lookup precedence for ${input}`, async () => {
+    const { server, cleanup } = await setupMockLinearServer([
+      {
+        queryName: "GetTeamIdByKey",
+        response: { data: { teams: { nodes: [{ id: "team-eng-id" }] } } },
+      },
+      {
+        queryName: "LookupUser",
+        variables: { input },
+        response: {
+          data: {
+            users: {
+              nodes: [
+                {
+                  id: "first-name-match",
+                  name: "Developer Jane",
+                  displayName: "other",
+                  email: "other@example.com",
+                },
+                {
+                  id: "display-match",
+                  name: "Jane Developer",
+                  displayName: input === "JANE@EXAMPLE.COM"
+                    ? "jane@example.com"
+                    : "jane",
+                  email: "another@example.com",
+                },
+                {
+                  id: "email-match",
+                  name: "Jane Developer",
+                  displayName: "third",
+                  email: "jane@example.com",
+                },
+              ],
+            },
+          },
+        },
+      },
+      {
+        queryName: "UpdateIssue",
+        response: {
+          data: {
+            issueUpdate: {
+              success: true,
+              issue: {
+                id: "issue-id",
+                identifier: "ENG-123",
+                title: "Existing issue",
+                url: "https://linear.app/test/issue/ENG-123",
+              },
+            },
+          },
+        },
+      },
+    ], { LINEAR_TEAM_ID: "ENG" })
+    const logStub = stub(console, "log", () => {})
+    try {
+      await updateCommand.parse(["ENG-123", "--assignee", input, "--json"])
+      const mutation = server.graphqlRequests.find((request) =>
+        request.query.includes("mutation UpdateIssue")
+      )
+      assertEquals(mutation?.variables, {
+        id: "ENG-123",
+        input: { assigneeId: expectedId },
+      })
+      assertEquals(
+        server.graphqlRequests.some((request) =>
+          request.query.includes("LookupUserById")
+        ),
+        false,
+      )
+    } finally {
+      logStub.restore()
+      await cleanup()
+    }
+  })
+}
 
 // Test help output
 await snapshotTest({

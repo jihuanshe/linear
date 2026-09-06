@@ -16,7 +16,7 @@ Options:
 
   -h, --help                                - Show this help.                                                                                         
   --start                                   - Start the issue after creation                                                                          
-  -a, --assignee             <assignee>     - Assign the issue to 'self' or someone (by username or name)                                             
+  -a, --assignee             <assignee>     - Assignee (user UUID, username, name, email, 'self', or '@me')                                           
   --due-date                 <dueDate>      - Due date of the issue                                                                                   
   --parent                   <parent>       - Parent issue (if any) as a team_number code                                                             
   -p, --priority             <priority>     - Priority of the issue (1-4, descending priority)                                                        

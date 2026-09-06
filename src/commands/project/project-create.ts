@@ -186,7 +186,7 @@ export const createCommand = withUsageMetadata(new Command(), {
   )
   .option(
     "-l, --lead <lead:string>",
-    "Project lead (username, email, or @me)",
+    "Project lead (user UUID, username, name, email, 'self', or '@me')",
   )
   .option(
     "-s, --status <status:string>",
@@ -208,7 +208,7 @@ export const createCommand = withUsageMetadata(new Command(), {
   )
   .option(
     "--member <user:string>",
-    "Project member (username, email, display name, or @me). May be repeated.",
+    "Project member (user UUID, username, name, email, 'self', or '@me'). May be repeated.",
     { collect: true },
   )
   .option("--icon <icon:string>", "Project icon")

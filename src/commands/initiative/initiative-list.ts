@@ -86,7 +86,10 @@ export const listCommand = new Command()
     "Filter by status (active, planned, completed)",
   )
   .option("--all-statuses", "Show all statuses (default: active only)")
-  .option("-o, --owner <owner:string>", "Filter by owner (username or email)")
+  .option(
+    "-o, --owner <owner:string>",
+    "Filter by owner (user UUID, username, name, email, 'self', or '@me')",
+  )
   .option("-w, --web", "Open initiatives page in web browser")
   .option("-a, --app", "Open initiatives page in Linear.app")
   .option("-j, --json", "Output as JSON")

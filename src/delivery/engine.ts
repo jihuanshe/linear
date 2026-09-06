@@ -4,6 +4,7 @@ import { CliError, ValidationError } from "../utils/errors.ts"
 import {
   EMPTY_ISSUE_RELATION_SNAPSHOT,
   extractIssueRelationSnapshot,
+  isLinearUuid,
   type IssueRelationPlan,
   planIssueRelations,
 } from "../utils/linear.ts"
@@ -108,7 +109,7 @@ export interface RemoteFields {
   priority?: number | null
   state?: string
   stateAliases?: string[]
-  assignee?: { name?: string; displayName?: string } | null
+  assignee?: { id?: string; name?: string; displayName?: string } | null
   labels?: string[]
   labelsComplete?: boolean
   project?: string | null
@@ -235,6 +236,9 @@ function fieldEquals(
       const assignee = remote.assignee
       if (manifestValue == null || assignee == null) {
         return manifestValue == null && assignee == null
+      }
+      if (typeof manifestValue === "string" && isLinearUuid(manifestValue)) {
+        return manifestValue.toLowerCase() === assignee.id?.toLowerCase()
       }
       return manifestValue === assignee.name ||
         manifestValue === assignee.displayName

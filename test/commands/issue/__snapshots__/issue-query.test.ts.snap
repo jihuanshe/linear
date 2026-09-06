@@ -28,7 +28,7 @@ Options:
                                                                                                                    "unstarted", "started",           
                                                                                                                    "completed", "canceled")          
   --state-name        <name>          - Filter by exact workflow state name (case-insensitive; can be repeated)                                      
-  --assignee          <assignee>      - Filter by assignee (username, name, email, 'self', or '@me')                                                 
+  --assignee          <assignee>      - Filter by assignee (user UUID, username, name, email, 'self', or '@me')                                      
   -U, --unassigned                    - Show only unassigned issues                                                                                  
   --sort              <sort>          - Sort order: manual or priority (default: priority, not available with      (Values: "manual", "priority")    
                                         --search)                                                                                                    

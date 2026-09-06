@@ -14,7 +14,7 @@ Description:
 Options:
 
   -h, --help                         - Show this help.                                                                                                
-  -a, --assignee      <assignee>     - Assign the issue to 'self' or someone (by username or name)                                                    
+  -a, --assignee      <assignee>     - Assignee (user UUID, username, name, email, 'self', or '@me')                                                  
   --unassign                         - Clear the issue's assignee (cannot be combined with --assignee)                                                
   --due-date          <dueDate>      - Due date of the issue                                                                                          
   --parent            <parent>       - Parent issue (if any) as a team_number code                                                                    

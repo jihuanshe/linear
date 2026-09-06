@@ -494,6 +494,7 @@ const issueDetailsWithCommentsQuery = gql(/* GraphQL */ `
         color
       }
       assignee {
+        id
         name
         displayName
       }
@@ -679,6 +680,7 @@ const issueDetailsQuery = gql(/* GraphQL */ `
         color
       }
       assignee {
+        id
         name
         displayName
       }
@@ -2330,7 +2332,7 @@ export async function searchTeamsByKeySubstring(
 
 export async function lookupUserId(
   /**
-   * email, username, display name, 'self', or '@me' for viewer
+   * User UUID, email, username, display name, 'self', or '@me' for viewer
    */
   input: "self" | "@me" | string,
 ): Promise<string | undefined> {
@@ -2345,6 +2347,19 @@ export async function lookupUserId(
     `)
     const data = await client.request(query, {})
     return data.viewer.id
+  } else if (isLinearUuid(input)) {
+    const client = getGraphQLClient()
+    const query = gql(/* GraphQL */ `
+      query LookupUserById($id: ID!) {
+        users(filter: { id: { eq: $id } }) {
+          nodes {
+            id
+          }
+        }
+      }
+    `)
+    const data = await client.request(query, { id: input.toLowerCase() })
+    return data.users.nodes[0]?.id
   } else {
     const client = getGraphQLClient()
     const query = gql(/* GraphQL */ `

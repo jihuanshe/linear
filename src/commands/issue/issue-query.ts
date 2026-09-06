@@ -148,7 +148,7 @@ export const queryCommand = withUsageMetadata(new Command(), {
   )
   .option(
     "--assignee <assignee:string>",
-    "Filter by assignee (username, name, email, 'self', or '@me')",
+    "Filter by assignee (user UUID, username, name, email, 'self', or '@me')",
   )
   .option("-U, --unassigned", "Show only unassigned issues")
   .option(

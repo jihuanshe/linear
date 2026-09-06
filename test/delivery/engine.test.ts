@@ -90,6 +90,141 @@ async function writeManifest(
   return manifestPath
 }
 
+const USER_A = "abcdef01-2345-4678-9abc-def012345678"
+const USER_B = "abcdef02-2345-4678-9abc-def012345678"
+const USER_C = "abcdef03-2345-4678-9abc-def012345678"
+
+for (
+  const scenario of [
+    {
+      name: "same UUID remains idempotent after renaming",
+      desired: USER_A.toUpperCase(),
+      base: USER_B,
+      remote: { id: USER_A, name: "Renamed", displayName: "renamed" },
+      verdict: "idempotent",
+    },
+    {
+      name: "matching base UUID permits reassignment after renaming",
+      desired: USER_B,
+      base: USER_A.toUpperCase(),
+      remote: { id: USER_A, name: "Renamed", displayName: "renamed" },
+      verdict: "write",
+    },
+    {
+      name: "a different remote UUID conflicts despite unchanged names",
+      desired: USER_C,
+      base: USER_A,
+      remote: { id: USER_B, name: "Same name", displayName: "same" },
+      verdict: "conflict",
+    },
+    {
+      name: "a name equal to the desired UUID does not match that user",
+      desired: USER_A,
+      base: null,
+      remote: { id: USER_B, name: USER_A, displayName: USER_A },
+      verdict: "conflict",
+    },
+    {
+      name: "a name equal to the base UUID does not authorize clearing",
+      desired: null,
+      base: USER_A,
+      remote: { id: USER_B, name: USER_A, displayName: USER_A },
+      verdict: "conflict",
+    },
+    {
+      name: "a missing remote ID cannot match a UUID",
+      desired: USER_A,
+      base: USER_B,
+      remote: { name: USER_A, displayName: USER_B },
+      verdict: "conflict",
+    },
+    {
+      name: "non-UUID names keep their existing comparison",
+      desired: "Same name",
+      base: null,
+      remote: { id: USER_B, name: "Same name", displayName: "same" },
+      verdict: "idempotent",
+    },
+    {
+      name: "non-UUID display names keep their existing comparison",
+      desired: "same",
+      base: null,
+      remote: { id: USER_B, name: "Same name", displayName: "same" },
+      verdict: "idempotent",
+    },
+    {
+      name: "matching base name permits assigning a UUID",
+      desired: USER_B,
+      base: "Original",
+      remote: { id: USER_A, name: "Original", displayName: "original" },
+      verdict: "write",
+    },
+    {
+      name: "matching base UUID permits clearing",
+      desired: null,
+      base: USER_A,
+      remote: { id: USER_A, name: "Original", displayName: "original" },
+      verdict: "write",
+    },
+    {
+      name: "cleared assignee stays idempotent",
+      desired: null,
+      base: USER_A,
+      remote: null,
+      verdict: "idempotent",
+    },
+  ]
+) {
+  Deno.test(`assignee plan/apply: ${scenario.name}`, async () => {
+    const dir = await Deno.makeTempDir()
+    try {
+      const manifestPath = await writeManifest(dir, {
+        schemaVersion: 1,
+        workspace: "jihuanshe",
+        issues: [{
+          operation: "update",
+          identifier: "DATA-606",
+          set: { assignee: scenario.desired },
+          base: { assignee: scenario.base },
+        }],
+      })
+      const runner = fakeRunner((args) =>
+        args[1] === "view"
+          ? viewResult({ assignee: scenario.remote })
+          : undefined
+      )
+      const loaded = await loadManifest(manifestPath)
+      const plan = await planManifest({ loaded, runner })
+      assertEquals(plan.issues[0].fields.map((field) => field.verdict), [
+        scenario.verdict,
+      ])
+      assertEquals(runner.calls.every((call) => call[1] === "view"), true)
+
+      const outcome = await applyManifest({ loaded, runner })
+      assertEquals(
+        outcome.status,
+        scenario.verdict === "conflict" ? "conflict" : "completed",
+      )
+      const updates = runner.calls.filter((call) => call[1] === "update")
+      assertEquals(updates.length, scenario.verdict === "write" ? 1 : 0)
+      if (scenario.verdict === "write") {
+        const flags = updates[0]
+        if (scenario.desired === null) {
+          assertEquals(flags.includes("--unassign"), true)
+          assertEquals(flags.includes("--assignee"), false)
+        } else {
+          assertEquals(flags[flags.indexOf("--assignee") + 1], scenario.desired)
+        }
+      }
+      if (scenario.verdict === "idempotent") {
+        assertStringIncludes(outcome.items[0].detail ?? "", "idempotent")
+      }
+    } finally {
+      await Deno.remove(dir, { recursive: true })
+    }
+  })
+}
+
 Deno.test("plan reads update targets and never writes", async () => {
   const dir = await Deno.makeTempDir()
   try {

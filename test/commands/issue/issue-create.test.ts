@@ -1,8 +1,9 @@
 import { snapshotTest } from "@cliffy/testing"
-import { assertEquals, assertStringIncludes } from "@std/assert"
+import { assertEquals, assertRejects, assertStringIncludes } from "@std/assert"
 import { fromFileUrl } from "@std/path"
 import { Checkbox, Input, Select } from "@cliffy/prompt"
 import { stub } from "@std/testing/mock"
+import { stripIgnoredCharacters } from "graphql"
 import { createCommand } from "../../../src/commands/issue/issue-create.ts"
 import {
   commonDenoArgs,
@@ -10,6 +11,109 @@ import {
 } from "../../utils/test-helpers.ts"
 
 const main = fromFileUrl(new URL("../../../src/main.ts", import.meta.url))
+
+for (const outcome of ["found", "missing", "error"] as const) {
+  Deno.test(`Issue Create Command - UUID assignee ${outcome} overrides default self only after lookup`, async () => {
+    const userId = "abcdef01-2345-4678-9abc-def012345678"
+    const { server, cleanup } = await setupMockLinearServer([
+      {
+        queryName: "GetTeamIdByKey",
+        variables: { team: "ENG" },
+        response: { data: { teams: { nodes: [{ id: "team-eng-id" }] } } },
+      },
+      {
+        queryName: "GetViewerId",
+        response: { data: { viewer: { id: "user-self-123" } } },
+      },
+      {
+        queryName: "LookupUserById",
+        variables: { id: userId },
+        response: outcome === "error"
+          ? { errors: [{ message: "User lookup unavailable" }] }
+          : {
+            data: {
+              users: { nodes: outcome === "found" ? [{ id: userId }] : [] },
+            },
+          },
+      },
+      {
+        queryName: "CreateIssue",
+        response: {
+          data: {
+            issueCreate: {
+              success: true,
+              issue: {
+                id: "issue-id",
+                identifier: "ENG-123",
+                url: "https://linear.app/test/issue/ENG-123",
+                team: { key: "ENG" },
+              },
+            },
+          },
+        },
+      },
+    ], { LINEAR_TEAM_ID: "ENG", LINEAR_ISSUE_CREATE_ASSIGN_SELF: "always" })
+    const logs: string[] = []
+    const logStub = stub(console, "log", () => {})
+    const errorStub = stub(
+      console,
+      "error",
+      (...args: unknown[]) => logs.push(args.join(" ")),
+    )
+    const exitStub = stub(Deno, "exit", () => {
+      throw new Error("EXIT")
+    })
+    try {
+      const args = [
+        "--title",
+        "Assigned by UUID",
+        "--team",
+        "ENG",
+        "--assignee",
+        userId.toUpperCase(),
+        "--no-interactive",
+        "--json",
+      ]
+      if (outcome === "found") await createCommand.parse(args)
+      else {
+        await assertRejects(() => createCommand.parse(args), Error, "EXIT")
+        assertStringIncludes(
+          logs.join("\n"),
+          outcome === "missing" ? "User not found:" : "User lookup unavailable",
+        )
+      }
+      const lookup = server.graphqlRequests.find((request) =>
+        request.query.includes("query LookupUserById")
+      )
+      assertEquals(lookup?.variables, { id: userId })
+      assertStringIncludes(
+        stripIgnoredCharacters(lookup?.query ?? ""),
+        "users(filter:{id:{eq:$id}})",
+      )
+      assertEquals(
+        server.graphqlRequests.some((request) =>
+          /query LookupUser\(/.test(request.query)
+        ),
+        false,
+      )
+      const mutations = server.graphqlRequests.filter((request) =>
+        request.query.includes("mutation ")
+      )
+      assertEquals(mutations.length, outcome === "found" ? 1 : 0)
+      if (outcome === "found") {
+        assertEquals(
+          (mutations[0].variables.input as { assigneeId: string }).assigneeId,
+          userId,
+        )
+      }
+    } finally {
+      logStub.restore()
+      errorStub.restore()
+      exitStub.restore()
+      await cleanup()
+    }
+  })
+}
 
 Deno.test("issue create rejects --json with --start through the standard error boundary", async () => {
   const result = await new Deno.Command(Deno.execPath(), {
