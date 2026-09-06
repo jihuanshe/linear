@@ -1657,3 +1657,60 @@ Deno.test("markdown normalization absorbs Linear's equivalent rewrites only", ()
     false,
   )
 })
+
+Deno.test("checkpoint keys reject a retargeted workspace", async () => {
+  const dir = await Deno.makeTempDir()
+  try {
+    const manifestPath = await writeManifest(dir, {
+      schemaVersion: 1,
+      workspace: "jihuanshe",
+      issues: [{
+        operation: "update",
+        identifier: "DATA-606",
+        set: { title: "New title" },
+        base: { title: "Old title" },
+      }],
+    })
+    const runner = fakeRunner((args) => {
+      if (args[0] === "auth" && args[1] === "whoami") {
+        return {
+          code: 0,
+          stdout: JSON.stringify({
+            organization: {
+              urlKey: args.includes("other-workspace")
+                ? "other-workspace"
+                : "jihuanshe",
+            },
+          }),
+          stderr: "",
+        }
+      }
+      return undefined
+    })
+    const loaded = await loadManifest(manifestPath)
+    const first = await applyManifest({ loaded, runner })
+    assertEquals(first.status, "completed")
+
+    await writeManifest(dir, {
+      schemaVersion: 1,
+      workspace: "other-workspace",
+      issues: [{
+        operation: "update",
+        identifier: "DATA-606",
+        set: { title: "New title" },
+        base: { title: "Old title" },
+      }],
+    })
+    await assertRejects(
+      async () =>
+        applyManifest({
+          loaded: await loadManifest(manifestPath),
+          runner,
+        }),
+      ValidationError,
+      "applied entries",
+    )
+  } finally {
+    await Deno.remove(dir, { recursive: true })
+  }
+})
