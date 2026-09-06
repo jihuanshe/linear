@@ -407,14 +407,6 @@ Deno.test("relation conflicts preserve applied checkpoint items on resume", asyn
       ValidationError,
     )
     return
-    const resumed = await applyManifest({ loaded, runner })
-    assertEquals(resumed.status, "conflict")
-    assertEquals(resumed.items.map(({ status }) => status), [
-      "skipped",
-      "failed",
-    ])
-    assertEquals(resumed.verification[0].status, "verified")
-    assertEquals(relationCalls, 1)
   } finally {
     await Deno.remove(dir, { recursive: true })
   }
@@ -947,17 +939,6 @@ Deno.test("apply reports partial success and resumes without repeating", async (
         runner,
       }), ValidationError)
     return
-    const second = await applyManifest({
-      loaded: await loadManifest(manifestPath),
-      runner,
-    })
-    assertEquals(second.status, "completed")
-    assertEquals(
-      second.items.map((item) => item.status),
-      ["skipped", "applied", "applied"],
-    )
-    const updateCalls = runner.calls.filter((call) => call[1] === "update")
-    assertEquals(updateCalls.length, 1)
   } finally {
     await Deno.remove(dir, { recursive: true })
   }
