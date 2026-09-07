@@ -61,11 +61,13 @@ jq -e '((.errors // []) | length == 0) and (.data.issues.nodes | type == "array"
 
 结果在原 connection 中拼接 `nodes`，保留最后一页的 `pageInfo`。只需样本时省略 `--paginate`，用 `first` 限量。服务端分页约定见 [Linear 分页文档](https://linear.app/developers/pagination)。
 
+查询可以包含嵌套 connection，但 `--paginate` 只推进外层 connection 的游标，不补齐其节点中的嵌套集合。即使命令成功且外层 `hasNextPage` 为 `false`，内层仍可能有后续页；需要完整内层集合时，按父对象单独查询并分页。
+
 ## 拆分查询
 
 `description` 等标量可以随 Issue 列表批量读取。评论、附件和历史优先用专用入口，见 [automation](automation.md)。`issue view --json` 中的 children、documents、relations 等其他集合仍是有限预览；需要完整集合时，按 Issue 拆成独立 connection 查询并分页。
 
-不要把多个待分页集合放进同一 `--paginate` 查询，嵌套 connection 也算。收到 `Query too complex` 时减少字段或拆批，不原样重试。
+不要把多个需要完整读取的集合交给同一 `--paginate` 查询；多个独立 connection 会被拒绝，嵌套 connection 则保留服务端返回的有限内容。收到 `Query too complex` 时减少字段或拆批，不原样重试。
 
 ## 未覆盖的写入与直接 HTTP
 

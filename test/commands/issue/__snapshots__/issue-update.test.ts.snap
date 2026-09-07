@@ -26,7 +26,7 @@ Options:
   --parent            <parent>       - Parent issue (if any) as a team_number code                                                                    
   -p, --priority      <priority>     - Priority of the issue (1-4, descending priority)                                                               
   --estimate          <estimate>     - Points estimate of the issue                                                                                   
-  -d, --description   <description>  - Description of the issue                                                                                       
+  -d, --description   <description>  - Description of the issue (empty string clears it)                                                              
   --description-file  <path>         - Read description from a file (preferred for markdown content)                                                  
   -l, --label         <label>        - Replace all issue labels. May be repeated.                                                                     
   --add-label         <label>        - Add an issue label without replacing existing labels. May be repeated.                                         

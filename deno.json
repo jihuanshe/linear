@@ -23,7 +23,8 @@
   },
   "imports": {
     "@cliffy/ansi": "jsr:@cliffy/ansi@^1.2.1",
-    "@cliffy/command": "jsr:@cliffy/command@^1.2.1",
+    "@cliffy/command": "jsr:@cliffy/command@1.2.1",
+    "jsr:@cliffy/flags@1.2.1": "./third_party/cliffy-flags/mod.ts",
     "@cliffy/internal": "jsr:@cliffy/internal@^1.2.1",
     "@cliffy/prompt": "jsr:@cliffy/prompt@^1.2.1",
     "@cliffy/testing": "jsr:@cliffy/testing@^1.2.1",
@@ -55,7 +56,8 @@
   "fmt": {
     "exclude": [
       "__generated__/",
-      "src/__codegen__/"
+      "src/__codegen__/",
+      "third_party/cliffy-flags/**/*.ts"
     ],
     "proseWrap": "never",
     "semiColons": false
@@ -63,7 +65,8 @@
   "lint": {
     "exclude": [
       "__generated__/",
-      "src/__codegen__/"
+      "src/__codegen__/",
+      "third_party/cliffy-flags/**/*.ts"
     ]
   },
   "unstable": [

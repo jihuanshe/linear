@@ -57,11 +57,13 @@ export const updateCommand = withUsageMetadata(new Command(), { writes: true })
   )
   .option(
     "-d, --description <description:string>",
-    "Description of the issue",
+    "Description of the issue (empty string clears it)",
+    { preserveEmpty: true },
   )
   .option(
     "--description-file <path:string>",
     "Read description from a file (preferred for markdown content)",
+    { preserveEmpty: true },
   )
   .option(
     "-l, --label <label:string>",
@@ -168,7 +170,7 @@ export const updateCommand = withUsageMetadata(new Command(), { writes: true })
         }
 
         // Validate that description and descriptionFile are not both provided
-        if (description && descriptionFile) {
+        if (description != null && descriptionFile != null) {
           throw new ValidationError(
             "Cannot specify both --description and --description-file",
           )
@@ -192,7 +194,10 @@ export const updateCommand = withUsageMetadata(new Command(), { writes: true })
 
         // Read description from file if provided
         let finalDescription = description
-        if (descriptionFile) {
+        if (descriptionFile === "") {
+          throw new ValidationError("Description file path cannot be empty")
+        }
+        if (descriptionFile != null) {
           try {
             finalDescription = await Deno.readTextFile(descriptionFile)
           } catch (error) {

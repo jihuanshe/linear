@@ -1837,7 +1837,7 @@ Run \`linear guide markdown\` for mentions, collapsible sections and rewrite ris
               variadic: false,
             },
           ],
-          description: "Description of the issue",
+          description: "Description of the issue (empty string clears it)",
           flags: [
             "-d",
             "--description",

@@ -8,7 +8,7 @@ import {
   printStyled,
   printStyledHeader,
 } from "../../utils/display.ts"
-import { getIssueId } from "../../utils/linear.ts"
+import { getIssueId, resolveProjectId } from "../../utils/linear.ts"
 import { shouldShowSpinner } from "../../utils/hyperlink.ts"
 import {
   handleError,
@@ -49,7 +49,10 @@ export const listCommand = new Command()
   .name("list")
   .description("List documents")
   .alias("l")
-  .option("--project <project:string>", "Filter by project (slug or name)")
+  .option(
+    "--project <project:string>",
+    "Filter by project (UUID, slug ID, or exact name)",
+  )
   .option("--issue <issue:string>", "Filter by issue (identifier like TC-123)")
   .option("--json", "Output as JSON")
   .option("--limit <limit:number>", "Maximum results (positive integer)", {
@@ -74,7 +77,7 @@ export const listCommand = new Command()
       if (project) {
         filter = {
           ...(filter ?? {}),
-          project: { slugId: { eq: project } },
+          project: { id: { eq: await resolveProjectId(project) } },
         }
       }
 

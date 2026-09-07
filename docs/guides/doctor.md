@@ -31,7 +31,7 @@ linear doctor self --json >doctor.json &&
   jq '.findings[] | {target, id: (.issue.id // .project.id), ruleId, severity, field, evidence}' doctor.json
 ```
 
-`strategySummaries` 提供执行准备、项目进展、任务归属和流程推进四类检查的规则及汇总；`findings` 是逐项证据。缩小检查范围时，从报告的 `rules[].ruleId` 选择，可重复传 `--rule`：
+`strategySummaries` 提供执行准备、项目进展、任务归属和流程推进四类检查的规则及汇总；`findings` 是逐项证据。缩小检查范围时，从报告的 `strategySummaries[].rules[].ruleId` 选择，可重复传 `--rule`：
 
 ```bash
 linear doctor self --rule missing-project --rule project-team-mismatch --limit 0

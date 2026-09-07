@@ -66,11 +66,13 @@ export const updateCommand = withUsageMetadata(new Command(), { writes: true })
   .option("-n, --name <name:string>", "Project name")
   .option(
     "-d, --description <description:string>",
-    `Project description (max ${PROJECT_DESCRIPTION_MAX_LENGTH} characters, enforced by Linear's API)`,
+    `Project description (max ${PROJECT_DESCRIPTION_MAX_LENGTH} characters, enforced by Linear's API; empty string clears it)`,
+    { preserveEmpty: true },
   )
   .option(
     "-f, --description-file <path:string>",
     `Read project description from file (still subject to the ${PROJECT_DESCRIPTION_MAX_LENGTH}-character API limit)`,
+    { preserveEmpty: true },
   )
   .option(
     "-s, --status <status:string>",
