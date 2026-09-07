@@ -90,6 +90,141 @@ async function writeManifest(
   return manifestPath
 }
 
+const USER_A = "abcdef01-2345-4678-9abc-def012345678"
+const USER_B = "abcdef02-2345-4678-9abc-def012345678"
+const USER_C = "abcdef03-2345-4678-9abc-def012345678"
+
+for (
+  const scenario of [
+    {
+      name: "same UUID remains idempotent after renaming",
+      desired: USER_A.toUpperCase(),
+      base: USER_B,
+      remote: { id: USER_A, name: "Renamed", displayName: "renamed" },
+      verdict: "idempotent",
+    },
+    {
+      name: "matching base UUID permits reassignment after renaming",
+      desired: USER_B,
+      base: USER_A.toUpperCase(),
+      remote: { id: USER_A, name: "Renamed", displayName: "renamed" },
+      verdict: "write",
+    },
+    {
+      name: "a different remote UUID conflicts despite unchanged names",
+      desired: USER_C,
+      base: USER_A,
+      remote: { id: USER_B, name: "Same name", displayName: "same" },
+      verdict: "conflict",
+    },
+    {
+      name: "a name equal to the desired UUID does not match that user",
+      desired: USER_A,
+      base: null,
+      remote: { id: USER_B, name: USER_A, displayName: USER_A },
+      verdict: "conflict",
+    },
+    {
+      name: "a name equal to the base UUID does not authorize clearing",
+      desired: null,
+      base: USER_A,
+      remote: { id: USER_B, name: USER_A, displayName: USER_A },
+      verdict: "conflict",
+    },
+    {
+      name: "a missing remote ID cannot match a UUID",
+      desired: USER_A,
+      base: USER_B,
+      remote: { name: USER_A, displayName: USER_B },
+      verdict: "conflict",
+    },
+    {
+      name: "non-UUID names keep their existing comparison",
+      desired: "Same name",
+      base: null,
+      remote: { id: USER_B, name: "Same name", displayName: "same" },
+      verdict: "idempotent",
+    },
+    {
+      name: "non-UUID display names keep their existing comparison",
+      desired: "same",
+      base: null,
+      remote: { id: USER_B, name: "Same name", displayName: "same" },
+      verdict: "idempotent",
+    },
+    {
+      name: "matching base name permits assigning a UUID",
+      desired: USER_B,
+      base: "Original",
+      remote: { id: USER_A, name: "Original", displayName: "original" },
+      verdict: "write",
+    },
+    {
+      name: "matching base UUID permits clearing",
+      desired: null,
+      base: USER_A,
+      remote: { id: USER_A, name: "Original", displayName: "original" },
+      verdict: "write",
+    },
+    {
+      name: "cleared assignee stays idempotent",
+      desired: null,
+      base: USER_A,
+      remote: null,
+      verdict: "idempotent",
+    },
+  ]
+) {
+  Deno.test(`assignee plan/apply: ${scenario.name}`, async () => {
+    const dir = await Deno.makeTempDir()
+    try {
+      const manifestPath = await writeManifest(dir, {
+        schemaVersion: 1,
+        workspace: "jihuanshe",
+        issues: [{
+          operation: "update",
+          identifier: "DATA-606",
+          set: { assignee: scenario.desired },
+          base: { assignee: scenario.base },
+        }],
+      })
+      const runner = fakeRunner((args) =>
+        args[1] === "view"
+          ? viewResult({ assignee: scenario.remote })
+          : undefined
+      )
+      const loaded = await loadManifest(manifestPath)
+      const plan = await planManifest({ loaded, runner })
+      assertEquals(plan.issues[0].fields.map((field) => field.verdict), [
+        scenario.verdict,
+      ])
+      assertEquals(runner.calls.every((call) => call[1] === "view"), true)
+
+      const outcome = await applyManifest({ loaded, runner })
+      assertEquals(
+        outcome.status,
+        scenario.verdict === "conflict" ? "conflict" : "completed",
+      )
+      const updates = runner.calls.filter((call) => call[1] === "update")
+      assertEquals(updates.length, scenario.verdict === "write" ? 1 : 0)
+      if (scenario.verdict === "write") {
+        const flags = updates[0]
+        if (scenario.desired === null) {
+          assertEquals(flags.includes("--unassign"), true)
+          assertEquals(flags.includes("--assignee"), false)
+        } else {
+          assertEquals(flags[flags.indexOf("--assignee") + 1], scenario.desired)
+        }
+      }
+      if (scenario.verdict === "idempotent") {
+        assertStringIncludes(outcome.items[0].detail ?? "", "idempotent")
+      }
+    } finally {
+      await Deno.remove(dir, { recursive: true })
+    }
+  })
+}
+
 Deno.test("plan reads update targets and never writes", async () => {
   const dir = await Deno.makeTempDir()
   try {
@@ -338,18 +473,18 @@ Deno.test("virtual idempotence waits for the preceding relation mutation", async
       continueOnFailure: true,
     })
 
-    assertEquals(outcome.status, "completed-with-failures")
+    assertEquals(outcome.status, "stopped-on-unknown")
     assertEquals(outcome.items.map(({ status }) => status), [
-      "failed",
-      "failed",
+      "unknown",
+      "unattempted",
     ])
-    assertEquals(relationCalls, 2)
+    assertEquals(relationCalls, 1)
     const checkpoint = JSON.parse(
       await Deno.readTextFile(checkpointPath(manifestPath)),
     ) as { items: Record<string, { status: string }> }
     assertEquals(
       Object.values(checkpoint.items).map(({ status }) => status),
-      ["failed", "failed"],
+      ["unknown"],
     )
   } finally {
     await Deno.remove(dir, { recursive: true })
@@ -395,18 +530,18 @@ Deno.test("relation conflicts preserve applied checkpoint items on resume", asyn
     })
     const loaded = await loadManifest(manifestPath)
     const first = await applyManifest({ loaded, runner })
-    assertEquals(first.status, "stopped-on-failure")
-    assertEquals(first.items.map(({ status }) => status), ["applied", "failed"])
+    assertEquals(first.status, "stopped-on-unknown")
+    assertEquals(first.items.map(({ status }) => status), [
+      "applied",
+      "unknown",
+    ])
 
     relationConflict = true
-    const resumed = await applyManifest({ loaded, runner })
-    assertEquals(resumed.status, "conflict")
-    assertEquals(resumed.items.map(({ status }) => status), [
-      "skipped",
-      "failed",
-    ])
-    assertEquals(resumed.verification[0].status, "verified")
-    assertEquals(relationCalls, 1)
+    await assertRejects(
+      () => applyManifest({ loaded, runner }),
+      ValidationError,
+    )
+    return
   } finally {
     await Deno.remove(dir, { recursive: true })
   }
@@ -927,23 +1062,18 @@ Deno.test("apply reports partial success and resumes without repeating", async (
     const loaded = await loadManifest(manifestPath)
     const first = await applyManifest({ loaded, runner })
 
-    assertEquals(first.status, "stopped-on-failure")
+    assertEquals(first.status, "stopped-on-unknown")
     assertEquals(
       first.items.map((item) => item.status),
-      ["applied", "failed", "unattempted"],
+      ["applied", "unknown", "unattempted"],
     )
 
-    const second = await applyManifest({
-      loaded: await loadManifest(manifestPath),
-      runner,
-    })
-    assertEquals(second.status, "completed")
-    assertEquals(
-      second.items.map((item) => item.status),
-      ["skipped", "applied", "applied"],
-    )
-    const updateCalls = runner.calls.filter((call) => call[1] === "update")
-    assertEquals(updateCalls.length, 1)
+    await assertRejects(async () =>
+      applyManifest({
+        loaded: await loadManifest(manifestPath),
+        runner,
+      }), ValidationError)
+    return
   } finally {
     await Deno.remove(dir, { recursive: true })
   }
@@ -984,7 +1114,7 @@ Deno.test("resume refuses when an issue is inserted before applied entries", asy
       loaded: await loadManifest(manifestPath),
       runner,
     })
-    assertEquals(first.status, "stopped-on-failure")
+    assertEquals(first.status, "stopped-on-unknown")
     assertEquals(first.items[0].status, "applied")
 
     // A helpful teammate prepends a new issue: every applied position shifts.
@@ -1005,7 +1135,7 @@ Deno.test("resume refuses when an issue is inserted before applied entries", asy
           runner,
         }),
       ValidationError,
-      "no longer match any manifest item",
+      "unresolved unknown",
     )
     // The refusal happens before any remote work.
     assertEquals(runner.calls.length, callsBefore)
@@ -1578,12 +1708,12 @@ Deno.test("a batch stops at the first failure by default and continues with the 
       loaded: await loadManifest(manifestPath),
       runner,
     })
-    assertEquals(outcome.status, "stopped-on-failure")
+    assertEquals(outcome.status, "stopped-on-unknown")
     assertEquals(
       outcome.items.map((item) => item.status),
-      ["failed", "unattempted"],
+      ["unknown", "unattempted"],
     )
-    assertEquals(outcome.summary.failed, 1)
+    assertEquals(outcome.summary.unknown, 1)
     assertEquals(outcome.summary.unattempted, 1)
   } finally {
     await Deno.remove(stopDir, { recursive: true })
@@ -1598,12 +1728,12 @@ Deno.test("a batch stops at the first failure by default and continues with the 
       runner,
       continueOnFailure: true,
     })
-    assertEquals(outcome.status, "completed-with-failures")
+    assertEquals(outcome.status, "stopped-on-unknown")
     assertEquals(
       outcome.items.map((item) => item.status),
-      ["failed", "applied"],
+      ["unknown", "unattempted"],
     )
-    assertEquals(outcome.readBack["DATA-2"] != null, true)
+    assertEquals(outcome.readBack["DATA-2"] != null, false)
     assertEquals(outcome.readBack["DATA-1"] == null, true)
   } finally {
     await Deno.remove(continueDir, { recursive: true })
@@ -1661,4 +1791,61 @@ Deno.test("markdown normalization absorbs Linear's equivalent rewrites only", ()
     normalizeMarkdown("| a | b |") === normalizeMarkdown("| a | c |"),
     false,
   )
+})
+
+Deno.test("checkpoint keys reject a retargeted workspace", async () => {
+  const dir = await Deno.makeTempDir()
+  try {
+    const manifestPath = await writeManifest(dir, {
+      schemaVersion: 1,
+      workspace: "jihuanshe",
+      issues: [{
+        operation: "update",
+        identifier: "DATA-606",
+        set: { title: "New title" },
+        base: { title: "Old title" },
+      }],
+    })
+    const runner = fakeRunner((args) => {
+      if (args[0] === "auth" && args[1] === "whoami") {
+        return {
+          code: 0,
+          stdout: JSON.stringify({
+            organization: {
+              urlKey: args.includes("other-workspace")
+                ? "other-workspace"
+                : "jihuanshe",
+            },
+          }),
+          stderr: "",
+        }
+      }
+      return undefined
+    })
+    const loaded = await loadManifest(manifestPath)
+    const first = await applyManifest({ loaded, runner })
+    assertEquals(first.status, "completed")
+
+    await writeManifest(dir, {
+      schemaVersion: 1,
+      workspace: "other-workspace",
+      issues: [{
+        operation: "update",
+        identifier: "DATA-606",
+        set: { title: "New title" },
+        base: { title: "Old title" },
+      }],
+    })
+    await assertRejects(
+      async () =>
+        applyManifest({
+          loaded: await loadManifest(manifestPath),
+          runner,
+        }),
+      ValidationError,
+      "applied entries",
+    )
+  } finally {
+    await Deno.remove(dir, { recursive: true })
+  }
 })

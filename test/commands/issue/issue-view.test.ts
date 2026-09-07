@@ -1,13 +1,60 @@
 import { snapshotTest } from "@cliffy/testing"
-import { assertEquals } from "@std/assert"
+import { assertEquals, assertMatch } from "@std/assert"
+import { stub } from "@std/testing/mock"
 import {
   formatThreadIdLabel,
   viewCommand,
 } from "../../../src/commands/issue/issue-view.ts"
 import { MockLinearServer } from "../../utils/mock_linear_server.ts"
+import { setupMockLinearServer } from "../../utils/test-helpers.ts"
 
 // Common Deno args for permissions
 const denoArgs = ["--allow-all", "--quiet"]
+
+for (const comments of [true, false]) {
+  Deno.test(`Issue View Command - JSON includes assignee ID with comments ${comments}`, async () => {
+    const assignee = {
+      id: "abcdef01-2345-4678-9abc-def012345678",
+      name: "Jane Developer",
+      displayName: "jane",
+    }
+    const { server, cleanup } = await setupMockLinearServer([{
+      queryName: comments ? "GetIssueDetailsWithComments" : "GetIssueDetails",
+      variables: { id: "ENG-123" },
+      response: {
+        data: {
+          issue: {
+            identifier: "ENG-123",
+            assignee,
+            comments: {
+              nodes: [],
+              pageInfo: { hasNextPage: false, endCursor: null },
+            },
+            attachments: {
+              nodes: [],
+              pageInfo: { hasNextPage: false, endCursor: null },
+            },
+          },
+        },
+      },
+    }])
+    const output: string[] = []
+    const logStub = stub(console, "log", (value: string) => output.push(value))
+    try {
+      await viewCommand.parse([
+        "ENG-123",
+        "--json",
+        ...(comments ? [] : ["--no-comments"]),
+      ])
+      assertEquals(JSON.parse(output.join("\n")).assignee, assignee)
+      assertEquals(server.graphqlRequests.length, 1)
+      assertMatch(server.graphqlRequests[0].query, /assignee\s*\{\s*id\b/)
+    } finally {
+      logStub.restore()
+      await cleanup()
+    }
+  })
+}
 
 // Test help output
 await snapshotTest({

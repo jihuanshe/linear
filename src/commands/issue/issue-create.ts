@@ -603,7 +603,7 @@ export const createCommand = withUsageMetadata(new Command(), {
   )
   .option(
     "-a, --assignee <assignee:string>",
-    "Assign the issue to 'self' or someone (by username or name)",
+    "Assignee (user UUID, username, name, email, 'self', or '@me')",
   )
   .option(
     "--due-date <dueDate:string>",
@@ -843,7 +843,10 @@ export const createCommand = withUsageMetadata(new Command(), {
         if (start && assignee === undefined) {
           assignee = "self"
         }
-        if (start && assignee !== undefined && assignee !== "self") {
+        if (
+          start && assignee !== undefined && assignee !== "self" &&
+          assignee !== "@me"
+        ) {
           throw new ValidationError(
             "Cannot use --start and a non-self --assignee",
           )

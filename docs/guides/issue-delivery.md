@@ -1,117 +1,119 @@
 ---
 name: issue-delivery
-description: delivery manifest 的字段保护、checkpoint 续跑、unknown 对账与批量语义，单次和批量共用同一协议
+description: 用 manifest 交付 Issue，处理字段冲突、checkpoint 续跑与 unknown 对账
 commands:
   - issue plan
   - issue apply
   - upload
 ---
 
-# 用 manifest 交付完整 Issue
+# 用 manifest 交付 Issue
 
-一次交付涉及正文、评论、文件、Attachment 或关系时，手工串联多条命令正是附件被遗漏的方式。delivery manifest 把整个交付写成一个文件；`issues[]` 放一条是单次，放多条就是批量，协议完全相同。
+一次交付包含正文、评论、文件、Attachment 或关系等多个执行项时，用 manifest 保存清单和进度。`issues[]` 可放一条或多条；单个执行项直接用专用命令。
 
-## Manifest 形态
+## Manifest
 
 ```json
 {
   "schemaVersion": 1,
-  "workspace": "jihuanshe",
+  "workspace": "acme",
   "issues": [
     {
       "operation": "update",
-      "identifier": "DATA-606",
+      "identifier": "ENG-123",
       "set": { "title": "新标题", "descriptionFile": "description.md" },
       "base": { "title": "旧标题", "description": "旧正文" },
       "comments": [
-        { "bodyFile": "evidence.md", "files": [{ "path": "replay-a.yrp" }] }
+        { "bodyFile": "evidence.md", "files": [{ "path": "screenshot.png" }] }
       ],
       "attachments": [
-        {
-          "kind": "url",
-          "url": "https://example.com/source",
-          "title": "Source"
-        },
-        {
-          "kind": "file",
-          "path": "replay-a.yrp",
-          "title": "Raw replay"
-        }
+        { "kind": "url", "url": "https://example.com/source", "title": "来源" },
+        { "kind": "file", "path": "replay.yrp", "title": "原始 Replay" }
       ],
-      "relations": [{ "type": "related", "issue": "DATA-580" }]
+      "relations": [{ "type": "related", "issue": "ENG-100" }]
     },
     {
       "operation": "create",
-      "team": "DATA",
+      "team": "ENG",
       "set": { "title": "新建 Issue", "priority": 3 }
     }
   ]
 }
 ```
 
-- 文件路径相对 manifest 所在目录解析；plan 和 apply 都会在第一笔写入前校验整批文件的存在、大小和 MIME。
-- `set` 的字段词表与 `issue create/update` 一致：title、description/descriptionFile、priority、state、assignee（null 表示清除）、labels（完整集合）、project、parent。update 的每个 `set` 字段必须在 `base` 中记录上次从 Linear 读到的值；create 不使用 `base`。create 另需把 `team` 放在 Issue 条目顶层，与 `operation` 和 `set` 同级；`team` 不是 `set` 字段。
-- 同一个现有 Issue 在一份 manifest 中只能有一个 update 条目；把它的字段、Comment、Attachment 和 Relation 合并在该条目中。重复 identifier（包括大小写等价形式）会在任何远端读取、checkpoint 或 mutation 前被拒绝，避免后一个条目的 conflict 发生在前一个条目已经写入之后。
-- `comments[].files` 上传文件并内联进评论。`attachments` 的 `url` 与 `file` 两种 kind 都创建侧栏 Attachment：`url` 直接链接外部地址，`file` 通过 `path` 指定要先上传的本地文件。
-- `relations` 的 `issue` 必须使用 `DATA-580` 形态的完整 identifier，类型词表与 `issue relation add` 一致：related、blocks、blocked-by（由 CLI 反转为上游的 blocks）、duplicate。duplicate 的方向：本条目所在 Issue 成为 `issue` 字段所指 Issue 的 duplicate。Linear 的同一对 Issue 只能保留一种关系：同类型和方向按幂等处理，不同类型或方向在 plan/apply 中报告 conflict；需要替换时先用 `issue relation delete` 显式删除旧关系。
-- 已有评论、Attachment 和关系不会被本协议隐式修改或删除；单项修改用对应的专用命令。
+文件路径相对 manifest 所在目录。plan 和 apply 在远端操作前检查整批文件存在和大小；MIME 由扩展名推定，公开上传等限制仍由上传命令校验。
 
-## base：并发安全
+`set` 支持 title、description/descriptionFile、priority（1–4）、state、assignee、labels、project、parent。description 与 descriptionFile 互斥；create 要求顶层 `team` 和 `set.title`，不接受 identifier 或 base。estimate、due date、cycle、milestone、清除 project/parent 等未覆盖操作需另选入口，见专用命令的 `--help`。
 
-你准备材料需要时间，期间同事可能改了同一个 Issue。update 的每个替换字段都必须写 `base`（你上次读到的值）；缺失会在本地校验阶段失败，不会降级成无条件覆盖。当前值为空时显式写 `null`，空标签集合写 `[]`。apply 对每个字段做三方比较，比较 base、目标值和远端当前值，verdict 用同一词表出现在 plan 输出里：
+update 的每个 `set` 字段都要对应 `base`，`descriptionFile` 对应 `base.description`。同一 Issue 的字段、评论、附件和关系合并为一个 update 条目；重复 identifier 不区分大小写，会被拒绝。
 
-- `write`：远端仍等于 base，写入。
-- `idempotent`：远端已等于目标值，跳过。
-- `conflict`：两者都不是，同事改过这个字段，拒绝覆盖。
+- `assignee: null` 只用于 update 清除负责人；create 省略 assignee 仍可能受 `issue_create_assign_self` 配置影响。
+- `labels` 替换完整集合，update 不接受空数组。仅增删标签用 `issue update --add-label/--remove-label`，无需整集替换。
+- `comments` 接受互斥的 `body/bodyFile` 和可选 `files`；文件嵌入评论。`public: true` 适用于该评论的所有上传图片，公开访问边界见 [issue-authoring](issue-authoring.md)。
+- `attachments` 创建侧栏 Attachment；`kind: "url"` 链接外部地址，`kind: "file"` 先上传本地文件，`title` 可省略。
+- `relations[].issue` 使用完整 identifier。类型为 related、blocks、blocked-by、duplicate；blocked-by 反转 blocks 方向，duplicate 把当前条目标为所指 Issue 的重复项。同一对 Issue 同类型同方向时跳过，不同类型或方向报 conflict；替换须先用 `issue relation delete` 删除旧关系。
 
-`set.labels` 表示完整集合替换，因此同样必须带完整 `base.labels`。只需增删标签时使用 `issue update --add-label/--remove-label`；它们映射 Linear 的增量标签原语，不需要先读取并替换整个集合。Comment、Attachment 和 Relation 的追加也不需要字段 base；Relation 保留自己的冲突检查。
+manifest 不修改或删除已有评论、附件和关系，这类操作用专用命令。
 
-报 conflict 后，读取远端新值并保留同事的更新。在已授权范围内能够合并时，将 base 刷新为远端当前值、set 改为合并后的目标，再次 apply；内容或决定互相冲突时请用户裁决。保留 base 保护，后续再次漂移仍会报 conflict。
+## 字段冲突
 
-Markdown 正文的比较做等价规范化（换行、行尾空格、列表符号），Linear 的等价改写不会被误判为漂移。
+`base` 记录上次读取的值，只包含本次 `set` 要替换的字段。可空字段的空值写 `null`，空标签集写 `[]`；未设置优先级时，把远端的 `priority: 0` 写为 `base.priority: null`。
 
-三方比较之外，apply 读取远端时还核对对象本身：identifier 解析到了别的 Issue（重命名或迁移 team）、目标已归档或已进回收站时，直接拒绝写入该条目。base 保护是乐观校验，不是服务端 CAS——Linear 的更新接口没有版本前置条件，读与写之间存在极窄的竞态窗口。
+plan 和 apply 比较 base、目标值和远端值：
 
-## plan 与 apply
+| verdict      | 条件与动作             |
+| ------------ | ---------------------- |
+| `idempotent` | 远端已等于目标值，跳过 |
+| `write`      | 远端仍等于 base，写入  |
+| `conflict`   | 两者都不是，拒绝覆盖   |
+
+负责人可在 `base.assignee` 与 `set.assignee` 中使用用户 UUID，按 ID 比较，不受改名影响；当前负责人的 ID 从 `issue view --json` 的 `assignee.id` 读取。标签比较完整集合；Markdown 比较会规范化换行、行尾空格和列表符号。追加评论、附件、关系不需要字段 base，但关系仍检查冲突。
+
+冲突可在授权内合并时，将 base 更新为远端值，set 改为保留同事修改的合并结果；决定冲突时请用户裁决。目标已归档、进回收站，或 identifier 解析到其他 Issue 时拒绝写入。
+
+base 是写前乐观校验，不是服务端锁；读取与写入之间仍有竞态窗口。
+
+## 预览与执行
 
 ```bash
-linear issue plan --file delivery.json            # 零写入预览：字段 verdict、执行项清单、文件清单
-linear issue apply --file delivery.json --confirm-workspace jihuanshe
+linear issue plan --file delivery.json
+linear issue apply --file delivery.json --confirm-workspace acme
 ```
 
-plan 是可选的安全与执行摘要，不是人类审批界面，也不是每次 create 前的强制仪式。create 展示目标 workspace/team、标题和归属、长正文的来源与大小、Comment 上传公开性、文件、Attachment 和关系，但不把完整长正文复制进终端；需要用户审核 Agent 新拟的正文时，Agent 必须在对话中展示草稿。update 继续展示本次字段的 base/desired/remote verdict；Relation 逐项显示 add/idempotent/conflict。用户已经明确要求按给定内容写入时，不需要为了确认而重复确认。
+plan 对远端零写入，预览整批字段 verdict、执行项与文件清单。update 的非 idempotent 字段显示完整 desired、remote 和 base；create 正文与评论仅显示大小等摘要，不能代替草稿审核。plan 可选，已有明确授权和内容时直接 apply；授权规则见 [core](core.md)。
 
-apply 在第一笔写入前重复整批 manifest 与文件校验，然后按顺序在每个 Issue 自己的第一笔 mutation 前读取远端并比较。默认策略遇到读取失败或 conflict 就停止，保留已经成功的结果；显式 `--continue-on-failure` 跳过失败或冲突条目并继续后续干净条目。需要在执行前查看全部远端 verdict 时显式运行 plan；apply 不重复整批远端预读，也不把客户端检查描述成锁或事务。checkpoint 续跑沿用同一套逐 Issue 检查。`--confirm-workspace` 必须重复 manifest 里的 workspace，防止把准备好的 manifest 打到错误目标——它不是授权，写入授权始终来自宿主和用户。
+apply 的 `--confirm-workspace` 必须匹配 manifest，plan/apply 还用执行时的同一凭据核对实际 workspace。apply 在每个 Issue 的首笔写入前重读目标，续跑也一样。读取失败或 conflict 默认停止；`--continue-on-failure` 可继续后续条目，但不能越过 unknown。
 
-apply 逐执行项返回 applied / failed / unknown / unattempted / skipped，结束后读回每个本次已应用或从 checkpoint 跳过的目标 Issue。mutation 已成功但当前视图读回失败时，执行项仍保持 applied 以免误重试，整体状态返回 applied-unverified 并以非零退出；修复访问后重跑会跳过 mutation，只重试读回。
+执行项状态为 applied、failed、unknown、unattempted、skipped。applied 项及从 checkpoint 跳过的项都会读回；若只有读回失败，整体为 `applied-unverified` 并非零退出，已成功项仍保留 applied。恢复访问后重跑只补读回。
 
-`issue apply` 是同步命令：它会等待整批执行和写后读回，最后才在 stdout 输出一份完整结果。人类与 JSON 模式都把 Issue 序号、执行项种类和序号写入 stderr，JSON stdout 保持一份完整结果。外层 shell 或 Agent 超时但原进程仍在运行时，继续等待它；checkpoint 不是并发锁，不能据此启动第二个执行者。只有确认原进程已经退出后，才能检查 manifest 旁的 checkpoint 并用同一份 manifest 续跑。原进程状态无法确认时停止续跑；checkpoint 中的未知结果必须先对账。
-
-机器编排应保留两个流和退出码，并验证每个目标的读回，而不是只看 `created` 或命令是否启动：
+apply 同步等待执行与读回，进度写 stderr，最后在 stdout 输出一份结果。外层等待超时不等于进程退出；确认原进程退出前不能启动第二个执行者。
 
 ```bash
-set +e
+code=0
 LINEAR_PROMPT_DISABLED=1 linear issue apply \
-  --file "$manifest" --confirm-workspace jihuanshe --json \
-  >apply.json 2>apply.log
-code=$?
-set -e
-jq -e '.status == "completed" and ([.verification[].status] | all(. == "verified"))' apply.json >/dev/null
-test "$code" -eq 0
-jq '{status, summary, createdIdentifiers, verification: [.verification[] | {target, status, url}]}' apply.json
+  --file delivery.json --confirm-workspace acme --json \
+  >apply.json 2>apply.log || code=$?
+jq '{status, summary, createdIdentifiers, verification}' apply.json
+test "$code" -eq 0 &&
+  jq -e '.status == "completed" and ([.verification[].status] | all(. == "verified"))' apply.json >/dev/null
 ```
 
-`verification` 是批量写后读回的事实来源；`readBack` 保存完整的 `issue view --json` 响应，需要比较字段时按 identifier 读取它。`status` 不是装饰字段：`applied-unverified`、`stopped-on-unknown`、`conflict` 和带失败项的结果都必须停下交给对账或人工裁决。
+`verified` 仅证明目标成功读回，不能证明字段达到期望。`readBack` 按 identifier 保存 `issue view --json` 响应，用它核对实际内容；补读规则见 [automation](automation.md)。
 
-## checkpoint 与续跑
+## Checkpoint 与恢复
 
-checkpoint 写在 manifest 旁边（`<manifest>.checkpoint.json`），随 manifest 一起交接。每个已尝试的执行项以「位置 + 内容哈希」为键记录结果状态。续跑跳过已确认成功的执行项；修复失败处的内容会改变对应执行项的哈希键，按新内容重跑。
+`<manifest>.checkpoint.json` 与 manifest 及引用文件一起交接。执行项 key 绑定位置、内容哈希、workspace、operation、identifier 和 team；续跑跳过已成功项。
 
-续跑期间对 manifest 的安全编辑只有两种：原位修复失败的 Issue 条目，或在 `issues[]` 末尾追加新条目。在已应用条目之前插入、重排，以及删除或改写已应用条目，都会使执行项的位置键失配。这种情况下 apply 拒绝续跑，而不是重复已落地的写入。确实需要重组时，先在 Linear 核实远端状态，再重建或删除 checkpoint。
+checkpoint 包含 `schemaVersion: 1`、`items` 和 `createdIdentifiers`。`items[key].status` 只能为 applied/failed/unknown，可另附 `note`；unattempted/skipped 只属于单次输出。`createdIdentifiers` 按 `issues[]` 的零起始下标记录新 Issue，如 `{"0":"ENG-700"}`，没有时仍保留 `{}`。
 
-checkpoint 不是锁：两个执行者同时 apply 同一份 manifest 看不见彼此，每一项都会写两遍。交接是移交执行权，不是复制执行权；同一份 manifest 同一时刻只能有一个执行者。
+| 结果                             | 恢复动作                                                                   |
+| -------------------------------- | -------------------------------------------------------------------------- |
+| `failed`                         | 确认失败原因，修复后重跑；可用 `--continue-on-failure` 继续其他条目        |
+| `applied-unverified`             | 修复读取问题后重跑，补读回而不重复写入                                     |
+| `unknown` / `stopped-on-unknown` | 先核对远端结果及部分副作用；所有续跑均被阻止，包括 `--continue-on-failure` |
 
-- `failed`（CLI 明确报错、无远端副作用）：修复后直接重跑，或用 `--continue-on-failure` 让整批先跑完再统一处理。
-- `unknown`（进程异常、结果无法判定）：一切续跑被阻塞。先在 Linear 核实该项的远端状态，再编辑或删除 checkpoint 里的对应执行项。不要盲目重试：Linear 的 create 没有幂等键，重试可能造成重复。
+写入子命令启动前先记录 unknown；非零退出或异常不能证明未写入。对账后，确认成功的项改为 applied；确认未执行的项才可改为 failed 或移除记录后重试。部分成功时先修订清单，避免重放已发生的副作用。unknown create 若已成功，还须在 `createdIdentifiers` 补上原条目下标与 identifier。
 
-批量不是事务：中途停止保留已成功的结果，不回滚、不删除重建。
+已有 applied key 必须继续匹配计划。保留成功项的内容、位置和目标，只原位修复失败项或末尾追加；旧版本 key 不匹配时也须先对账。确需重组时，核对远端后从新清单排除已完成内容，再重建 checkpoint，不能删除记录后重放原清单。
+
+checkpoint 不提供并发锁，批量也不是事务：同一 manifest 只能有一个执行者；中途停止保留成功结果，不自动回滚。

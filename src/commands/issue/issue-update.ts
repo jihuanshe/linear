@@ -32,7 +32,7 @@ export const updateCommand = withUsageMetadata(new Command(), { writes: true })
   .arguments("[issueId:string]")
   .option(
     "-a, --assignee <assignee:string>",
-    "Assign the issue to 'self' or someone (by username or name)",
+    "Assignee (user UUID, username, name, email, 'self', or '@me')",
   )
   .option(
     "--unassign",

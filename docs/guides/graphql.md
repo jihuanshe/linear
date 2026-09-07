@@ -1,67 +1,50 @@
 ---
 name: graphql
-description: schema 发现、精确批量读取、linear api 变量与分页，以及何时降级到直接 HTTP
+description: 查询 schema、传递变量、完整分页与拆分复杂查询
 commands:
   - api
   - schema
   - auth token
 ---
 
-# Schema 发现与 GraphQL 查询
+# Schema 与 GraphQL 查询
 
-常见领域操作、名称解析和安全写入使用专用命令。精确字段选择、少见 filter 和跨实体只读查询直接使用 `linear api`；这些临时读取形状不需要先扩建 typed command。raw mutation 不拥有专用写命令的输入保护与结果核算，仍是没有专用原语时的最后手段。当前 schema 虽然已有 `issueBatchUpdate`，CLI 没有把它做成永久批量命令；它不能替代已有的专用写命令，规则和流程见 [automation](automation.md)。
+`linear api` 用于精确字段、少见筛选、跨实体查询及专用命令未覆盖的写入；入口与授权边界见 [core](core.md)。
 
-## 发现 schema
+## Schema 与变量
 
-把 schema 写到临时文件再搜索，不要凭记忆猜字段：
+字段或参数不确定时查询 schema，已知类型时直接请求：
 
 ```bash
 linear schema -o "${TMPDIR:-/tmp}/linear-schema.graphql"
-rg -i "cycle" "${TMPDIR:-/tmp}/linear-schema.graphql"
-rg -A 30 "^type Issue " "${TMPDIR:-/tmp}/linear-schema.graphql"
+rg -A 30 '^type Issue ' "${TMPDIR:-/tmp}/linear-schema.graphql"
 ```
 
-## 发起请求
-
-含非空类型标记（`String!` 这类）的查询用 heredoc 传入，避免 shell 转义问题；无标记的简单查询可以内联：
+含 `$` 或多行查询使用单引号 heredoc，避免 shell 展开。简单变量用 `--variable`，对象或数组用 `--variables-json`：
 
 ```bash
-# 简单查询
-linear api '{ viewer { id name email } }'
-
-# 变量 + heredoc
 linear api --variable teamId=abc123 <<'GRAPHQL'
 query($teamId: String!) { team(id: $teamId) { name } }
 GRAPHQL
-
-# 复杂变量走 JSON
-linear api --variables-json '{"filter": {"state": {"name": {"eq": "In Progress"}}}}' <<'GRAPHQL'
-query($filter: IssueFilter!) { issues(filter: $filter) { nodes { title } } }
-GRAPHQL
-
-# 校验后再消费
-linear api '{ issues(first: 5) { nodes { identifier title } } }' \
-  >api-result.json 2>api-error.log &&
-  jq -e '.data.issues.nodes | map(.title)' api-result.json
 ```
 
-`linear api` 在 stdout 不是 TTY 时输出 JSON。响应保留 GraphQL 字段名、嵌套和连接形状（`nodes` / `pageInfo`），不做扁平化或重命名。
+`linear api` 在 stdout 非 TTY 时输出 JSON，保留 `{data,errors}` 响应及嵌套字段。检查退出码和目标字段；HTTP 200 仍可包含部分失败，不能忽略 `errors`。见 [Linear 错误处理](https://linear.app/developers/graphql#error-handling)。
 
-## 精确批量读取
+## 完整分页
 
-只选择当前判断需要的字段。以下查询一次读取项目 Issue 的 identifier、state、title 与 description；响应只有一个顶层 connection，可以由 `--paginate` 安全拼接各页：
+`--paginate` 只处理一个 connection。查询必须声明 `$after: String`，把它传给该 connection，并返回 `nodes` 与 `pageInfo { hasNextPage endCursor }`：
 
 ```bash
-linear api \
-  --paginate \
-  --variables-json '{"filter":{"team":{"key":{"eq":"JHS"}},"project":{"name":{"eq":"Pro｜卡组功能｜游戏王"}}}}' <<'GRAPHQL'
-query ProjectIssueContext($filter: IssueFilter!, $after: String) {
+linear api --paginate \
+  --variables-json '{"filter":{"team":{"key":{"eq":"ENG"}},"project":{"name":{"eq":"Example project"}}}}' \
+  >issues.json 2>issues.log <<'GRAPHQL'
+query ProjectIssues($filter: IssueFilter!, $after: String) {
   issues(filter: $filter, first: 100, after: $after) {
     nodes {
       identifier
-      state { name type }
       title
       description
+      state { name type }
     }
     pageInfo { hasNextPage endCursor }
   }
@@ -69,47 +52,23 @@ query ProjectIssueContext($filter: IssueFilter!, $after: String) {
 GRAPHQL
 ```
 
-`--paginate` 会读取到 connection 结束，只在确实需要完整集合时使用；只需样本时省略该 flag，并把 `first` 设为明确上限。字段投影、分组和重排继续用 `jq`、Python 或调用宿主，不在 CLI 内重造查询语言。
+命令成功后核对完整性再消费：
 
-## 批量修改 Issue
+```bash
+jq -e '((.errors // []) | length == 0) and (.data.issues.nodes | type == "array") and (.data.issues.pageInfo.hasNextPage == false)' issues.json >/dev/null &&
+  jq '.data.issues.nodes[] | {identifier, title}' issues.json
+```
 
-当前 CLI 没有专用的批量 Issue 更新原语。对于 `issue update` 已支持的字段（例如 Priority、Estimate），脚本必须逐条调用 `issue update`，保留它的名称解析和输入校验。没有批量命令不是改用 raw mutation 的理由。
-
-schema 虽然提供 `issueBatchUpdate`，但它不是 CLI 的批量原语；不要通过 `linear api` 用它替代 `issue update`。如果以后需要 CLI 尚未覆盖的批量写入，必须先提供保留同等名称解析、输入校验和读回保障的专用原语。
+结果在原 connection 中拼接 `nodes`，保留最后一页的 `pageInfo`。只需样本时省略 `--paginate`，用 `first` 限量。服务端分页约定见 [Linear 分页文档](https://linear.app/developers/pagination)。
 
 ## 拆分查询
 
-`description` 这类标量可以随 Issue connection 批量读取。`issue view --json` 自动读完评论和附件；只需评论可用 `issue comment list <id> --limit 0 --json`，变更经过用 `issue history <id> --json`。children、documents、relations 等其他嵌套集合仍是有上限的详情预览；需要完整集合时，按 Issue 把对应 connection 拆成独立 GraphQL 查询，并用 `--paginate` 读完。不要把多个大集合塞进同一查询；收到 `Query too complex` 时减少字段或拆批，不要原样重试。
+`description` 等标量可以随 Issue 列表批量读取。评论、附件和历史优先用专用入口，见 [automation](automation.md)。`issue view --json` 中的 children、documents、relations 等其他集合仍是有限预览；需要完整集合时，按 Issue 拆成独立 connection 查询并分页。
 
-## 直接 HTTP
+不要把多个待分页集合放进同一 `--paginate` 查询，嵌套 connection 也算。收到 `Query too complex` 时减少字段或拆批，不原样重试。
 
-只有需要完整 HTTP 控制时才降级到直接 HTTP。优先在临时 Python / TypeScript 进程中从 `linear auth token` 读取 token 并放入内存中的请求 header；不要把 token 放入命令行参数、文件、日志或 shell 历史。GraphQL 请求必须检查 `data` 存在且 `errors` 为空：
+## 未覆盖的写入与直接 HTTP
 
-```bash
-python3 - <<'PY'
-import json
-import subprocess
-import urllib.request
+组合多个执行项且均在 manifest 支持范围内时，用 [issue-delivery](issue-delivery.md)；其他已支持的操作用专用命令逐条执行。只有未覆盖的写入才用 `linear api`，写后核对 mutation 的业务结果（如 `success`、返回对象）和目标字段；结果未知时按 [automation](automation.md) 对账。
 
-token = subprocess.run(
-    ["linear", "auth", "token"],
-    check=True,
-    capture_output=True,
-    text=True,
-).stdout.strip()
-request = urllib.request.Request(
-    "https://api.linear.app/graphql",
-    data=json.dumps({"query": "{ viewer { id } }"}).encode(),
-    headers={"Content-Type": "application/json", "Authorization": token},
-)
-with urllib.request.urlopen(request) as response:
-    payload = json.load(response)
-data = payload.get("data") or {}
-viewer = data.get("viewer") or {}
-if payload.get("errors") or viewer.get("id") is None:
-    raise SystemExit(payload)
-print(viewer["id"])
-PY
-```
-
-这个示例只把查询结果打印到 stdout；mutation 脚本还必须检查业务 payload 的 `success` 和返回对象。GraphQL 的错误可能出现在 HTTP 200 的 `errors` 数组里，不能只看 HTTP 状态码。
+仅在 `linear api` 无法提供所需 HTTP 控制时直接请求。凭据由进程环境或 secret store 注入，不进入命令参数、文件或日志；`auth token` 会输出密钥，只能在受控进程内消费。

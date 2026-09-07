@@ -11,6 +11,49 @@ import {
 
 const main = fromFileUrl(new URL("../../../src/main.ts", import.meta.url))
 
+for (const search of [false, true]) {
+  Deno.test(`Issue Query Command - accepts a UUID assignee with search ${search}`, async () => {
+    const userId = "abcdef01-2345-4678-9abc-def012345678"
+    const { server, cleanup } = await setupMockLinearServer([
+      {
+        queryName: "LookupUserById",
+        variables: { id: userId },
+        response: { data: { users: { nodes: [{ id: userId }] } } },
+      },
+      {
+        queryName: search ? "SearchIssues" : "GetIssuesForQuery",
+        variables: { filter: { assignee: { id: { eq: userId } } } },
+        response: {
+          data: {
+            [search ? "searchIssues" : "issues"]: {
+              nodes: [],
+              pageInfo: { hasNextPage: false, endCursor: null },
+              ...(search ? { totalCount: 0 } : {}),
+            },
+          },
+        },
+      },
+    ])
+    const logStub = stub(console, "log", () => {})
+    try {
+      await queryCommand.parse([
+        "--all-teams",
+        "--assignee",
+        userId,
+        "--json",
+        ...(search ? ["--search", "assigned issue"] : []),
+      ])
+      assertEquals(server.graphqlRequests.length, 2)
+      assertEquals(server.graphqlRequests[1].variables.filter, {
+        assignee: { id: { eq: userId } },
+      })
+    } finally {
+      logStub.restore()
+      await cleanup()
+    }
+  })
+}
+
 // Test help output
 await snapshotTest({
   name: "Issue Query Command - Help Text",

@@ -14,7 +14,7 @@ permissions:
   contents: read
 
 env:
-  DENO_VERSION: "2.9.4"
+  DENO_VERSION: "2.9.6"
   NO_COLOR: "1"
 
 jobs:
@@ -339,7 +339,7 @@ jobs:
 
       - id: linear_release
         name: Record completed release in Linear
-        uses: linear/linear-release-action@af56a9a388625921f3757a2f988e4d7aca958377
+        uses: linear/linear-release-action@53ad0f863963e7f8e270fba18426bbb55ef55384 # v0.17.2
         with:
           access_key: ${{ secrets.LINEAR_ACCESS_KEY }}
           version: ${{ steps.metadata.outputs.version }}
