@@ -34,6 +34,7 @@ const GetInitiatives = gql(`
         icon
         url
         archivedAt
+        trashed
         owner {
           id
           displayName
@@ -93,7 +94,7 @@ export const listCommand = new Command()
   .option("-w, --web", "Open initiatives page in web browser")
   .option("-a, --app", "Open initiatives page in Linear.app")
   .option("-j, --json", "Output as JSON")
-  .option("--archived", "Include archived initiatives")
+  .option("--archived", "Include archived and trashed initiatives")
   .action(async ({ status, allStatuses, owner, web, app, json, archived }) => {
     // Handle open in browser/app
     if (web || app) {
@@ -223,7 +224,12 @@ export const listCommand = new Command()
         6,
         ...initiatives.map(
           (init) =>
-            (INITIATIVE_STATUS_DISPLAY[init.status] || init.status).length,
+            ((INITIATIVE_STATUS_DISPLAY[init.status] || init.status) +
+              (init.trashed
+                ? " (trashed)"
+                : init.archivedAt
+                ? " (archived)"
+                : "")).length,
         ),
       )
       const HEALTH_WIDTH = Math.max(
@@ -275,8 +281,9 @@ export const listCommand = new Command()
 
       // Print each initiative
       for (const init of initiatives) {
-        const statusDisplay = INITIATIVE_STATUS_DISPLAY[init.status] ||
-          init.status
+        const statusDisplay = (INITIATIVE_STATUS_DISPLAY[init.status] ||
+          init.status) +
+          (init.trashed ? " (trashed)" : init.archivedAt ? " (archived)" : "")
         const health = init.health || "-"
         const owner = init.owner?.initials || "-"
         const projectCount = String(init.projects?.nodes?.length || 0)

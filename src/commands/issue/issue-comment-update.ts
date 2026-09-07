@@ -1,5 +1,6 @@
 import { Command } from "@cliffy/command"
 import { withUsageMetadata } from "../usage.ts"
+import { withMarkdownHint } from "../../utils/markdown-help.ts"
 import { Input } from "../../utils/prompt.ts"
 import { gql } from "../../__codegen__/gql.ts"
 import { getGraphQLClient } from "../../utils/graphql.ts"
@@ -11,7 +12,7 @@ export const commentUpdateCommand = withUsageMetadata(new Command(), {
   outputModes: ["human", "json"],
 })
   .name("update")
-  .description("Update an existing comment")
+  .description(withMarkdownHint("Update an existing comment"))
   .arguments("<commentId:string>")
   .option("-b, --body <text:string>", "New comment body text")
   .option(

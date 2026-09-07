@@ -121,17 +121,11 @@ async function executeSingle(
     Deno.exit(1)
   }
 
-  let hasGraphQLErrors = false
-  try {
-    const parsed = JSON.parse(text)
-    hasGraphQLErrors = Array.isArray(parsed.errors) && parsed.errors.length > 0
-    if (!silent) {
-      outputJSON(parsed, text)
-    }
-  } catch {
-    if (!silent) {
-      console.log(text)
-    }
+  const parsed = parseResponse(text)
+  const hasGraphQLErrors = Array.isArray(parsed.errors) &&
+    parsed.errors.length > 0
+  if (!silent) {
+    outputJSON(parsed, text)
   }
 
   if (hasGraphQLErrors) {
@@ -174,16 +168,7 @@ async function executePaginated(
       Deno.exit(1)
     }
 
-    let parsed: Record<string, unknown>
-    try {
-      parsed = JSON.parse(text)
-    } catch {
-      if (!silent) {
-        console.log(text)
-      }
-      Deno.exit(1)
-    }
-
+    const parsed = parseResponse(text)
     if (Array.isArray(parsed.errors) && parsed.errors.length > 0) {
       if (!silent) {
         outputJSON(parsed, text)
@@ -330,6 +315,22 @@ function countConnections(obj: unknown): number {
   }
 
   return count
+}
+
+function parseResponse(text: string): Record<string, unknown> {
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(text)
+  } catch {
+    throw new CliError("API response is not valid JSON")
+  }
+  if (
+    parsed == null || typeof parsed !== "object" || Array.isArray(parsed) ||
+    !("data" in parsed || "errors" in parsed)
+  ) {
+    throw new CliError("API response is not a GraphQL response object")
+  }
+  return parsed as Record<string, unknown>
 }
 
 function outputJSON(parsed: unknown, rawText: string): void {

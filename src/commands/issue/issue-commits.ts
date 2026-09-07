@@ -2,6 +2,7 @@ import { Command } from "@cliffy/command"
 import { getIssueId, getIssueIdentifier } from "../../utils/linear.ts"
 import { getVcs } from "../../utils/vcs.ts"
 import {
+  CliError,
   handleError,
   isClientError,
   isNotFoundError,
@@ -46,8 +47,11 @@ export const commitsCommand = new Command()
         throw new NotFoundError("Issue", resolvedId)
       }
 
-      // Build the revset to find all commits with this Linear issue
-      const revset = `description(regex:"(?m)^Linear-issue:.*${resolvedId}")`
+      // Match a whole identifier, not FXA-10 or OTHERFXA-1 when asking for FXA-1.
+      // JSON escaping preserves the regex backslashes through jj's string parser.
+      const revset = `description(regex:${
+        JSON.stringify(`(?m)^Linear-issue:.*\\b${resolvedId}\\b`)
+      })`
 
       // First check if any commits exist
       const checkProcess = new Deno.Command("jj", {
@@ -56,6 +60,11 @@ export const commitsCommand = new Command()
         stderr: "piped",
       })
       const checkResult = await checkProcess.output()
+      if (!checkResult.success) {
+        throw new CliError("Failed to query jj commits", {
+          suggestion: new TextDecoder().decode(checkResult.stderr).trim(),
+        })
+      }
       const commitIds = new TextDecoder().decode(checkResult.stdout).trim()
 
       if (!commitIds) {

@@ -1,7 +1,97 @@
 import { snapshotTest } from "@cliffy/testing"
+import { assertEquals, assertStringIncludes } from "@std/assert"
 import { listCommand } from "../../../src/commands/document/document-list.ts"
 import { MockLinearServer } from "../../utils/mock_linear_server.ts"
 import { commonDenoArgs } from "../../utils/test-helpers.ts"
+
+for (const kind of ["UUID", "name", "slug", "unknown"] as const) {
+  Deno.test(`document list production entry resolves project ${kind}`, async () => {
+    const id = "00000000-0000-0000-0000-000000000000"
+    const project = kind === "UUID"
+      ? id
+      : kind === "slug"
+      ? "abc123def456"
+      : "Tech Debt"
+    const server = new MockLinearServer([
+      {
+        queryName: "GetProjectIdByName",
+        variables: { name: project },
+        response: {
+          data: { projects: { nodes: kind === "name" ? [{ id }] : [] } },
+        },
+      },
+      {
+        queryName: "GetProjectIdBySlugId",
+        variables: { slugId: project },
+        response: {
+          data: { projects: { nodes: kind === "slug" ? [{ id }] : [] } },
+        },
+      },
+      {
+        queryName: "ListDocuments",
+        variables: { filter: { project: { id: { eq: id } } }, first: 50 },
+        response: {
+          data: {
+            documents: {
+              nodes: [],
+              pageInfo: { hasNextPage: false, endCursor: null },
+            },
+          },
+        },
+      },
+    ])
+    try {
+      await server.start()
+      const result = await new Deno.Command(Deno.execPath(), {
+        args: [
+          "run",
+          ...commonDenoArgs,
+          "src/main.ts",
+          "document",
+          "list",
+          "--project",
+          project,
+          "--json",
+        ],
+        env: {
+          LINEAR_GRAPHQL_ENDPOINT: server.getEndpoint(),
+          LINEAR_API_KEY: "test-token",
+          NO_COLOR: "1",
+        },
+        stdin: "null",
+        stdout: "piped",
+        stderr: "piped",
+      }).output()
+      const stdout = new TextDecoder().decode(result.stdout)
+      const stderr = new TextDecoder().decode(result.stderr)
+      assertEquals(result.success, kind !== "unknown", stderr)
+      assertEquals(
+        server.graphqlRequests.map((request) =>
+          request.query.match(/(?:query|mutation)\s+(\w+)/)?.[1]
+        ),
+        kind === "UUID"
+          ? ["ListDocuments"]
+          : kind === "name"
+          ? ["GetProjectIdByName", "ListDocuments"]
+          : kind === "slug"
+          ? ["GetProjectIdByName", "GetProjectIdBySlugId", "ListDocuments"]
+          : ["GetProjectIdByName", "GetProjectIdBySlugId"],
+      )
+      if (kind === "unknown") {
+        assertEquals(stdout, "")
+        assertStringIncludes(stderr, "not found")
+        assertStringIncludes(stderr, "Tech Debt")
+      } else {
+        assertEquals(JSON.parse(stdout), {
+          nodes: [],
+          pageInfo: { hasNextPage: false, endCursor: null },
+        })
+      }
+    } finally {
+      await server.stop()
+    }
+  })
+}
 
 // Test help output
 await snapshotTest({

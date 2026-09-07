@@ -1,5 +1,6 @@
 import { Command } from "@cliffy/command"
 import { withUsageMetadata } from "../usage.ts"
+import { withMarkdownHint } from "../../utils/markdown-help.ts"
 import { gql } from "../../__codegen__/gql.ts"
 import type { IssueUpdateInput } from "../../__codegen__/graphql.ts"
 import { getGraphQLClient } from "../../utils/graphql.ts"
@@ -28,7 +29,7 @@ import {
 
 export const updateCommand = withUsageMetadata(new Command(), { writes: true })
   .name("update")
-  .description("Update a linear issue")
+  .description(withMarkdownHint("Update a linear issue"))
   .arguments("[issueId:string]")
   .option(
     "-a, --assignee <assignee:string>",
@@ -56,11 +57,13 @@ export const updateCommand = withUsageMetadata(new Command(), { writes: true })
   )
   .option(
     "-d, --description <description:string>",
-    "Description of the issue",
+    "Description of the issue (empty string clears it)",
+    { preserveEmpty: true },
   )
   .option(
     "--description-file <path:string>",
     "Read description from a file (preferred for markdown content)",
+    { preserveEmpty: true },
   )
   .option(
     "-l, --label <label:string>",
@@ -167,7 +170,7 @@ export const updateCommand = withUsageMetadata(new Command(), { writes: true })
         }
 
         // Validate that description and descriptionFile are not both provided
-        if (description && descriptionFile) {
+        if (description != null && descriptionFile != null) {
           throw new ValidationError(
             "Cannot specify both --description and --description-file",
           )
@@ -191,7 +194,10 @@ export const updateCommand = withUsageMetadata(new Command(), { writes: true })
 
         // Read description from file if provided
         let finalDescription = description
-        if (descriptionFile) {
+        if (descriptionFile === "") {
+          throw new ValidationError("Description file path cannot be empty")
+        }
+        if (descriptionFile != null) {
           try {
             finalDescription = await Deno.readTextFile(descriptionFile)
           } catch (error) {

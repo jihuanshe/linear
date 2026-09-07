@@ -28,7 +28,7 @@ export const deleteCommand = withUsageMetadata(new Command(), {
   confirmationRequiredUnless: "--force",
 })
   .name("delete")
-  .description("Permanently delete a Linear initiative")
+  .description("Move a Linear initiative to trash")
   .arguments("[initiativeId:string]")
   .option("-y, --force", "Skip confirmation prompt")
   .option(
@@ -127,11 +127,10 @@ async function handleSingleDelete(
         "Interactive confirmation required. Use --force to skip.",
       )
     }
-    console.log(`\n⚠️  This action is PERMANENT and cannot be undone.\n`)
+    console.log(`\n⚠️  This action moves the initiative to trash.\n`)
 
     const confirmed = await Confirm.prompt({
-      message:
-        `Are you sure you want to permanently delete "${initiative.name}"?`,
+      message: `Are you sure you want to move "${initiative.name}" to trash?`,
       default: false,
     })
 
@@ -174,7 +173,7 @@ async function handleSingleDelete(
       throw new CliError("Failed to delete initiative")
     }
 
-    console.log(`✓ Permanently deleted initiative: ${initiative.name}`)
+    console.log(`✓ Moved initiative to trash: ${initiative.name}`)
   } catch (error) {
     spinner?.stop()
     handleError(error, "Failed to delete initiative")
@@ -204,7 +203,7 @@ async function handleBulkDelete(
   }
 
   console.log(`Found ${ids.length} initiative(s) to delete.`)
-  console.log(`\n⚠️  This action is PERMANENT and cannot be undone.\n`)
+  console.log(`\n⚠️  This action moves the initiatives to trash.\n`)
 
   // Confirm bulk operation
   if (!force) {
@@ -214,7 +213,7 @@ async function handleBulkDelete(
       )
     }
     const confirmed = await Confirm.prompt({
-      message: `Permanently delete ${ids.length} initiative(s)?`,
+      message: `Move ${ids.length} initiative(s) to trash?`,
       default: false,
     })
 
@@ -295,7 +294,7 @@ async function handleBulkDelete(
   // Print summary
   printBulkSummary(summary, {
     entityName: "initiative",
-    operationName: "deleted",
+    operationName: "moved to trash",
     showDetails: true,
   })
 

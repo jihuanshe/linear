@@ -11,6 +11,8 @@ commands:
 
 一次交付包含正文、评论、文件、Attachment 或关系等多个执行项时，用 manifest 保存清单和进度。`issues[]` 可放一条或多条；单个执行项直接用专用命令。
 
+描述和评论中的真实提及、成员 URL 查找与折叠语法见 [markdown](markdown.md)。
+
 ## Manifest
 
 ```json
@@ -68,6 +70,8 @@ plan 和 apply 比较 base、目标值和远端值：
 | `conflict`   | 两者都不是，拒绝覆盖   |
 
 负责人可在 `base.assignee` 与 `set.assignee` 中使用用户 UUID，按 ID 比较，不受改名影响；当前负责人的 ID 从 `issue view --json` 的 `assignee.id` 读取。标签比较完整集合；Markdown 比较会规范化换行、行尾空格和列表符号。追加评论、附件、关系不需要字段 base，但关系仍检查冲突。
+
+描述的 `idempotent` 只表示规范化后的 API Markdown 相等，不证明富文本节点等价，也不保证原样重新提交能保留提及。服务端将成员 URL 改写为 `@name` 等形式后，同一清单写入成功再 plan 仍可能报冲突；先核对实际目标和正文，不通过强制重提或扩大文本替换来消除差异。导出与重写风险见 [markdown](markdown.md)。
 
 冲突可在授权内合并时，将 base 更新为远端值，set 改为保留同事修改的合并结果；决定冲突时请用户裁决。目标已归档、进回收站，或 identifier 解析到其他 Issue 时拒绝写入。
 

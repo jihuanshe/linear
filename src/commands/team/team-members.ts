@@ -9,7 +9,10 @@ export const membersCommand = new Command()
   .description("List team members")
   .arguments("[teamKey:string]")
   .option("-a, --all", "Include inactive members")
-  .option("-j, --json", "Output as JSON")
+  .option(
+    "-j, --json",
+    "Output as JSON; use each member's url for Markdown mentions",
+  )
   .action(async ({ all, json }, teamKey?: string) => {
     const showSpinner = !json && shouldShowSpinner()
     let spinner: { start: () => void; stop: () => void } | null = null

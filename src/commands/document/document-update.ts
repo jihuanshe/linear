@@ -1,5 +1,6 @@
 import { Command } from "@cliffy/command"
 import { withUsageMetadata } from "../usage.ts"
+import { withMarkdownHint } from "../../utils/markdown-help.ts"
 import { gql } from "../../__codegen__/gql.ts"
 import type { DocumentInlineCommentGuardQuery } from "../../__codegen__/graphql.ts"
 import { getGraphQLClient } from "../../utils/graphql.ts"
@@ -173,14 +174,21 @@ export const updateCommand = withUsageMetadata(new Command(), {
   interactive: true,
 })
   .name("update")
-  .description("Update an existing document")
+  .description(withMarkdownHint("Update an existing document"))
   .alias("u")
   .arguments("<documentId:string>")
   .option("-t, --title <title:string>", "New title for the document")
-  .option("-c, --content <content:string>", "New markdown content (inline)")
+  .option(
+    "-c, --content <content:string>",
+    "New markdown content (inline; empty string clears it)",
+    {
+      preserveEmpty: true,
+    },
+  )
   .option(
     "-f, --content-file <path:string>",
     "Read new content from file",
+    { preserveEmpty: true },
   )
   .option("--icon <icon:string>", "New icon (emoji)")
   .option(
@@ -198,6 +206,17 @@ export const updateCommand = withUsageMetadata(new Command(), {
       documentId,
     ) => {
       try {
+        if (
+          [content != null, contentFile != null, !!edit].filter(Boolean)
+            .length > 1
+        ) {
+          throw new ValidationError(
+            "Use only one of --content, --content-file, or --edit",
+          )
+        }
+        if (contentFile === "") {
+          throw new ValidationError("Content file path cannot be empty")
+        }
         const client = getGraphQLClient()
 
         // Build the update input
@@ -227,10 +246,10 @@ export const updateCommand = withUsageMetadata(new Command(), {
         // Resolve content from various sources
         let finalContent: string | undefined
 
-        if (content) {
+        if (content != null) {
           // Content provided inline
           finalContent = content
-        } else if (contentFile) {
+        } else if (contentFile != null) {
           // Content from file
           try {
             finalContent = await Deno.readTextFile(contentFile)
@@ -283,7 +302,13 @@ export const updateCommand = withUsageMetadata(new Command(), {
 
         // Add content to input if resolved
         if (finalContent !== undefined) {
-          input.content = finalContent
+          // TODO: Linear accepts ""/null without clearing existing Markdown;
+          // a single LF clears it and reads back as "".
+          // Evidence: https://github.com/jihuanshe/linear/pull/34
+          // Remove this encoding once a direct empty-string update independently
+          // reads back empty; update the empty-file payload tests at the same time.
+          // Never trim nonempty content or turn an omitted input into a clear.
+          input.content = finalContent === "" ? "\n" : finalContent
         }
 
         // Validate that at least one field is being updated
@@ -340,6 +365,26 @@ export const updateCommand = withUsageMetadata(new Command(), {
         const document = result.documentUpdate.document
         if (!document) {
           throw new CliError("Document update failed - no document returned")
+        }
+
+        if (finalContent === "") {
+          try {
+            const readBack = await client.request(GetDocumentForEdit, {
+              id: documentId,
+            })
+            if (readBack.document?.content !== "") {
+              throw new CliError("Document content is not empty on read-back")
+            }
+          } catch (error) {
+            throw new CliError(
+              "The document update write was sent, but clearing content could not be verified.",
+              {
+                cause: error,
+                suggestion:
+                  "Inspect the document before retrying; the write may already have taken effect. No automatic retry was performed.",
+              },
+            )
+          }
         }
 
         console.log(`✓ Updated document: ${document.title}`)

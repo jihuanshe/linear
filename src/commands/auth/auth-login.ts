@@ -56,7 +56,8 @@ export const loginCommand = withUsageMetadata(new Command(), {
           throw new ValidationError(
             "An API key is required when interactive prompting is disabled",
             {
-              suggestion: "Use --key <key> to provide the API key explicitly.",
+              suggestion:
+                "Run `linear auth login` in a terminal with LINEAR_PROMPT_DISABLED unset to enter the key at the secret prompt. For automation, have a secret manager inject LINEAR_API_KEY into the command's environment; auth login is not required.",
             },
           )
         }

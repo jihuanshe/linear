@@ -11,9 +11,9 @@ Description:
 
 Options:
 
-  -h, --help  - Show this help.           
-  -a, --all   - Include inactive members  
-  -j, --json  - Output as JSON            
+  -h, --help  - Show this help.                                              
+  -a, --all   - Include inactive members                                     
+  -j, --json  - Output as JSON; use each member's url for Markdown mentions  
 
 "
 stderr:
@@ -59,6 +59,7 @@ stdout:
   "nodes": [
     {
       "name": "pat",
+      "url": "https://linear.app/example/profiles/u-pat",
       "email": "pat@example.com",
       "active": true,
       "initials": "XX",
@@ -77,6 +78,7 @@ stdout:
     },
     {
       "name": "zoe",
+      "url": "https://linear.app/example/profiles/u-zoe",
       "email": "zoe@example.com",
       "active": true,
       "initials": "XX",
@@ -110,6 +112,7 @@ stdout:
   "nodes": [
     {
       "name": "olduser",
+      "url": "https://linear.app/example/profiles/u-old",
       "email": "olduser@example.com",
       "active": false,
       "initials": "XX",
@@ -128,6 +131,7 @@ stdout:
     },
     {
       "name": "pat",
+      "url": "https://linear.app/example/profiles/u-pat",
       "email": "pat@example.com",
       "active": true,
       "initials": "XX",
@@ -146,6 +150,7 @@ stdout:
     },
     {
       "name": "zoe",
+      "url": "https://linear.app/example/profiles/u-zoe",
       "email": "zoe@example.com",
       "active": true,
       "initials": "XX",
@@ -193,6 +198,7 @@ stdout:
   "nodes": [
     {
       "name": "aaron",
+      "url": "https://linear.app/example/profiles/u-first",
       "email": "aaron@example.com",
       "active": true,
       "initials": "XX",
@@ -211,6 +217,7 @@ stdout:
     },
     {
       "name": "mona",
+      "url": "https://linear.app/example/profiles/u-mid",
       "email": "mona@example.com",
       "active": true,
       "initials": "XX",

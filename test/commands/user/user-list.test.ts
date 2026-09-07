@@ -11,6 +11,7 @@ function member(
 ) {
   return {
     name: overrides.displayName,
+    url: `https://linear.app/example/profiles/${overrides.id}`,
     email: `${overrides.displayName}@example.com`,
     active: true,
     initials: "XX",
@@ -216,6 +217,7 @@ await cliffySnapshotTest({
       {
         queryName: "GetOrganizationMembers",
         variables: { includeDisabled: false, after: undefined },
+        queryIncludes: "url",
         response: usersResponse(
           [member({ id: "u-mid", displayName: "mona" })],
           { hasNextPage: true, endCursor: "cursor-1" },
@@ -224,6 +226,7 @@ await cliffySnapshotTest({
       {
         queryName: "GetOrganizationMembers",
         variables: { includeDisabled: false, after: "cursor-1" },
+        queryIncludes: "url",
         response: usersResponse(
           [member({ id: "u-first", displayName: "aaron" })],
         ),

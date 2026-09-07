@@ -22,6 +22,9 @@ export async function resolveProjectDescription(
   if (description != null) {
     value = description
   } else if (descriptionFile != null) {
+    if (descriptionFile === "") {
+      throw new ValidationError("Description file path cannot be empty")
+    }
     try {
       value = await Deno.readTextFile(descriptionFile)
     } catch (error) {

@@ -7,6 +7,12 @@ import { listGuides } from "../../../src/guides/guides.ts"
 
 const main = fromFileUrl(new URL("../../../src/main.ts", import.meta.url))
 const guidesDir = fromFileUrl(new URL("../../../docs/guides", import.meta.url))
+const { denoDir } = JSON.parse(new TextDecoder().decode(
+  (await new Deno.Command(Deno.execPath(), {
+    args: ["info", "--json"],
+    stdout: "piped",
+  }).output()).stdout,
+)) as { denoDir: string }
 
 async function run(args: string[]) {
   const root = await Deno.makeTempDir()
@@ -19,6 +25,7 @@ async function run(args: string[]) {
       env: {
         HOME: root,
         XDG_CONFIG_HOME: root,
+        DENO_DIR: denoDir,
         NO_COLOR: "1",
       },
     }).output()
@@ -55,6 +62,7 @@ Deno.test("guide --json preserves stable metadata", async () => {
       "issue-delivery",
       "graphql",
       "doctor",
+      "markdown",
     ],
   )
   for (const entry of documents) {
@@ -179,7 +187,7 @@ Deno.test("usage JSON exposes guide metadata additively", async () => {
   )
   assertEquals(
     update.guides.map((guide: { name: string }) => guide.name),
-    ["core", "automation", "issue-authoring"],
+    ["core", "automation", "issue-authoring", "markdown"],
   )
   for (const field of ["name", "path", "writes", "outputModes"]) {
     assertEquals(field in update, true, `${field} missing from usage JSON`)
@@ -192,4 +200,48 @@ Deno.test("guide commands never write and stay network-free", () => {
   const meta = guide.getMeta()
   assertEquals(meta["Writes"], undefined)
   assertEquals(guide.getCommands(), [])
+})
+
+Deno.test("Markdown authoring help gives an actionable route without a skill", async () => {
+  for (
+    const path of [
+      "issue create",
+      "issue update",
+      "issue comment add",
+      "issue comment update",
+      "document create",
+      "document update",
+    ]
+  ) {
+    const result = await run([...path.split(" "), "--help"])
+    assertEquals(result.code, 0, result.stderr)
+    assertEquals(result.stderr, "")
+    assertStringIncludes(result.stdout, "For API Markdown bodies")
+    assertStringIncludes(result.stdout, "bare Linear URL")
+    assertStringIncludes(
+      result.stdout,
+      "Named profile links can also mention people",
+    )
+    assertStringIncludes(result.stdout, "handling varies by body")
+    assertStringIncludes(result.stdout, "linear team members <TEAM> --json")
+    assertStringIncludes(result.stdout, "linear guide markdown")
+  }
+  const reference = await run(["guide", "markdown", "--json"])
+  assertEquals(reference.code, 0, reference.stderr)
+  assertEquals(reference.stderr, "")
+  const guide = JSON.parse(reference.stdout)
+  assertStringIncludes(guide.body, "+++ [服务器日志]")
+  assertStringIncludes(guide.body, "\n+++\n")
+  assertStringIncludes(guide.body, "不根据名字、邮箱或 UUID 拼接")
+  assertStringIncludes(guide.body, "因正文类型及创建／更新路径而异")
+  assertStringIncludes(
+    guide.body,
+    "在 Issue 创建、Comment 新增及更新时生成提及",
+  )
+  assertStringIncludes(guide.body, "在 Issue 更新、Document 创建及更新时为文本")
+  assertStringIncludes(guide.body, "导出的 Markdown 不是富文本的无损备份")
+  assertEquals(guide.commands.includes("issue apply"), true)
+  const delivery = await run(["guide", "issue-delivery", "--json"])
+  assertEquals(delivery.code, 0, delivery.stderr)
+  assertStringIncludes(JSON.parse(delivery.stdout).body, "不证明富文本节点等价")
 })

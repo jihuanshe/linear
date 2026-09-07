@@ -1,0 +1,208 @@
+/** Parser options. */
+export interface ParseFlagsOptions<
+  TFlagOptions extends FlagOptions = FlagOptions,
+> {
+  /** An array of flag options. */
+  flags?: Array<TFlagOptions>;
+  args?: Array<ArgumentOptions>;
+  /** Parser callback function for custom types. */
+  parse?: TypeHandler<unknown>;
+  /** Option callback function. Will be called for all parsed options. */
+  option?: (option: TFlagOptions, value?: unknown) => void;
+  /**
+   * Enable stop early. If enabled, all arguments starting from the first non
+   * option argument will be added to the unknown array.
+   *
+   * For example:
+   *     `command --debug-level warning server --port 80`
+   *
+   * Will result in:
+   *     - flags: `{ debugLevel: 'warning' }`
+   *     - unknown: `['server', '--port', '80']`
+   */
+  stopEarly?: boolean;
+  /** Works similar to `stopEarly`, bit stops on first unknown option or argument. */
+  stopOnUnknown?: boolean;
+  /**
+   * Don't throw an error when no arguments are passed to the `parseFlags`
+   * function.
+   */
+  allowEmpty?: boolean;
+  /** Ignore default values for defined flags. */
+  ignoreDefaults?: Record<string, unknown>;
+  /** Enable/disable dotted options. Default is `true`. */
+  dotted?: boolean;
+}
+
+/** Flag options. */
+export interface FlagOptions
+  extends Omit<ArgumentOptions, "optional" | "value"> {
+  /** The name of the flag. */
+  name: string;
+  /** An array of argument options. */
+  args?: Array<ArgumentOptions>;
+  /** Mark argument as optional. */
+  optionalValue?: boolean;
+  /** Name aliases. */
+  aliases?: string[];
+  /** If enabled, option cannot be combined with other options. */
+  standalone?: boolean;
+  /** Default value. */
+  default?: DefaultValue;
+  /** Mark flag as required. */
+  required?: boolean;
+  // TODO: Remove this local opt-in and both parseNext guards when upstream
+  // preserves selected empty values without changing optional metadata.
+  // See README.md for the dependency switch and regression checks to remove
+  // the vendor safely: https://github.com/jihuanshe/linear/pull/34
+  /** Preserve explicitly supplied empty argument values. Default is `false`. */
+  preserveEmpty?: boolean;
+  /**
+   * An array of required flags that needs to be called together with this flag.
+   * If one of the flags is missing, an error will be thrown.
+   */
+  depends?: string[];
+  /**
+   * An array of conflicting flags that cannot be called together with this flag.
+   * If one of the flags is used together with this flag, an error will be
+   * thrown.
+   *
+   * Conflicts are only checked against explicitly provided flags (as command
+   * line argument or environment variable). A conflicting flag that only has
+   * its default value does not trigger an error.
+   */
+  conflicts?: string[];
+  /**
+   * A callback function to map the flag value(s). The first argument of the
+   * callback function is the current value, and the second argument is an array
+   * of previous values when combined with the `collect` option.
+   */
+  value?: ValueHandler;
+  /**
+   * If enabled, the flag can be used multiple times and all values will be
+   * collected into an array.
+   */
+  collect?: boolean;
+  /**
+   * If enabled, the argument must be assigned with an equals sign to the flag
+   * `--flag=<value>`, otherwise the value for this option will be ignored.
+   */
+  equalsSign?: boolean;
+}
+
+/** Options for a flag argument. */
+export interface ArgumentOptions {
+  /** An optional name for the argument. */
+  name?: string;
+  /** Argument type. */
+  type?: ArgumentType | string;
+  /** Make argument optional. */
+  optional?: boolean;
+  /** Make argument variadic. */
+  variadic?: boolean;
+  /**
+   * If enabled, argument will be separated by a separator defined with the
+   * `separator` option.
+   */
+  list?: boolean;
+  /**
+   * Separator for list type arguments. If the argument is defined as list type
+   * with `[]` suffix, the separator is used to split the input value into an
+   * array of values. The default separator is comma `,`.
+   */
+  separator?: string;
+  /**
+   * Default value or a callback method that returns the default value. The
+   * default value is used when the argument is optional and not provided in
+   * the command line input.
+   */
+  default?: DefaultValue;
+  /**
+   * Argument value callback method to transform the argument value after
+   * parsing and type conversion. The callback is invoked with the parsed
+   * argument value and should return the transformed value.
+   */
+  // deno-lint-ignore no-explicit-any
+  value?: ArgumentValueHandler<any, any>;
+}
+
+/** Available build-in argument types. */
+export type ArgumentType = "string" | "boolean" | "number" | "integer";
+
+export type ArgumentValueHandler<
+  TValue = unknown,
+  TReturn = TValue,
+> = (
+  value: TValue,
+) => TReturn;
+
+/** Default flag value or a callback method that returns the default value. */
+export type DefaultValue<TValue = unknown> =
+  | TValue
+  | DefaultValueHandler<TValue>;
+
+/** Default value callback function to lazy load the default value. */
+export type DefaultValueHandler<TValue = unknown> = () => TValue;
+
+/** A callback method for custom processing or mapping of flag values. */
+// deno-lint-ignore no-explicit-any
+export type ValueHandler<TValue = any, TReturn = TValue> = (
+  val: TValue,
+  previous?: TReturn,
+) => TReturn;
+
+/**
+ * Parse result. The parse context will be returned by the `parseFlags` method
+ * and can be also passed as first argument to the `parseFlags` method.
+ */
+export interface ParseFlagsContext<
+  // deno-lint-ignore no-explicit-any
+  TFlags extends Record<string, any> = Record<string, any>,
+  TStandaloneOption extends FlagOptions = FlagOptions,
+> {
+  /** An object of parsed flags. */
+  flags: TFlags;
+  /** An array of parsed arguments. */
+  args?: Array<unknown>;
+  /** An array of unknown arguments. */
+  unknown: Array<string>;
+  /** An array of arguments defined after the double dash ` -- `. */
+  literal: Array<string>;
+  /** Matched standalone option. */
+  standalone?: TStandaloneOption;
+  /** Is set to `true` if `stopEarly` option is enabled. */
+  stopEarly: boolean;
+  /** Is set to `true` if `stopOnUnknown` option is enabled. */
+  stopOnUnknown: boolean;
+  /** A map of option names and default values. */
+  defaults: Record<string, boolean>;
+  /**
+   * Raw flag tokens in the order they were encountered, preserving the exact
+   * form used on the command line.
+   *
+   * Space form — flag and value as separate tokens:
+   *     `command --port 80`  →  `['--port', '80']`
+   *
+   * Equals form — flag and value as one token:
+   *     `command --port=80`  →  `['--port=80']`
+   */
+  parsedFlags: ReadonlyArray<string>;
+}
+
+/** Argument parsing informations. */
+export interface ArgumentValue {
+  /** A label/name which describes the kind of argument, e.g: `Option`. */
+  label: string;
+  /** The type of the argument. */
+  type: ArgumentType | string;
+  /** The name of the argument. */
+  name: string;
+  /** The value of the argument. */
+  value: string;
+}
+
+/**
+ * Parse method for custom types. Gets the raw user input passed as argument
+ * and returns the parsed value.
+ */
+export type TypeHandler<TReturn = unknown> = (arg: ArgumentValue) => TReturn;

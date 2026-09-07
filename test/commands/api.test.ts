@@ -1,10 +1,123 @@
 import { snapshotTest as cliffySnapshotTest } from "@cliffy/testing"
+import { assertEquals, assertStringIncludes } from "@std/assert"
 import { setColorEnabled } from "@std/fmt/colors"
+import { fromFileUrl } from "@std/path"
 import { apiCommand } from "../../src/commands/api.ts"
 import { loadCredentials } from "../../src/credentials.ts"
 import { MockLinearServer } from "../utils/mock_linear_server.ts"
 
 const denoArgs = ["--allow-all", "--quiet"]
+// Keep credential/config isolation without downloading dependencies per request.
+const { denoDir } = JSON.parse(new TextDecoder().decode(
+  (await new Deno.Command(Deno.execPath(), {
+    args: ["info", "--json"],
+    stdout: "piped",
+  }).output()).stdout,
+)) as { denoDir: string }
+
+for (const paginate of [false, true]) {
+  for (const silent of [false, true]) {
+    Deno.test(`API HTTP boundary - invalid JSON paginate=${paginate} silent=${silent}`, async () => {
+      const result = await runApiResponse("<html>Upstream unavailable</html>", [
+        ...(paginate ? ["--paginate"] : []),
+        ...(silent ? ["--silent"] : []),
+      ])
+      assertEquals(result.code, 1)
+      assertEquals(result.stdout, "")
+      assertStringIncludes(result.stderr, "API response is not valid JSON")
+      assertEquals(result.stderr.includes("<html>"), false)
+    })
+    Deno.test(`API HTTP boundary - invalid envelope paginate=${paginate} silent=${silent}`, async () => {
+      for (const value of [null, [], "invalid", 42, {}]) {
+        const result = await runApiResponse(JSON.stringify(value), [
+          ...(paginate ? ["--paginate"] : []),
+          ...(silent ? ["--silent"] : []),
+        ])
+        assertEquals(result.code, 1)
+        assertEquals(result.stdout, "")
+        assertStringIncludes(
+          result.stderr,
+          "API response is not a GraphQL response object",
+        )
+      }
+    })
+  }
+}
+
+for (const hasErrors of [false, true]) {
+  for (const silent of [false, true]) {
+    Deno.test(`API HTTP boundary - envelope errors=${hasErrors} silent=${silent}`, async () => {
+      const envelope = {
+        data: { viewer: { id: "user-1" } },
+        ...(hasErrors ? { errors: [{ message: "Partial failure" }] } : {}),
+        extensions: { traceId: "trace-1" },
+      }
+      const result = await runApiResponse(
+        JSON.stringify(envelope),
+        silent ? ["--silent"] : [],
+      )
+      assertEquals(result.code, hasErrors ? 1 : 0, result.stderr)
+      assertEquals(result.stderr, "")
+      if (silent) {
+        assertEquals(result.stdout, "")
+      } else {
+        assertEquals(JSON.parse(result.stdout), envelope)
+      }
+    })
+  }
+}
+
+async function runApiResponse(body: string, flags: string[]) {
+  const root = await Deno.makeTempDir()
+  let requests = 0
+  const server = Deno.serve(
+    { hostname: "127.0.0.1", port: 0, onListen() {} },
+    async (request) => {
+      assertEquals(request.method, "POST")
+      assertEquals(
+        (await request.json()).query,
+        "query GetViewer { viewer { id } }",
+      )
+      requests++
+      return new Response(body, { status: 200 })
+    },
+  )
+  try {
+    const result = await new Deno.Command(Deno.execPath(), {
+      args: [
+        "run",
+        "--allow-all",
+        "--quiet",
+        fromFileUrl(new URL("../../src/main.ts", import.meta.url)),
+        "api",
+        "query GetViewer { viewer { id } }",
+        ...flags,
+      ],
+      stdin: "null",
+      stdout: "piped",
+      stderr: "piped",
+      clearEnv: true,
+      env: {
+        HOME: root,
+        XDG_CONFIG_HOME: root,
+        APPDATA: root,
+        DENO_DIR: denoDir,
+        NO_COLOR: "1",
+        LINEAR_API_KEY: "test-token",
+        LINEAR_GRAPHQL_ENDPOINT: `http://127.0.0.1:${server.addr.port}`,
+      },
+    }).output()
+    assertEquals(requests, 1)
+    return {
+      code: result.code,
+      stdout: new TextDecoder().decode(result.stdout),
+      stderr: new TextDecoder().decode(result.stderr),
+    }
+  } finally {
+    await server.shutdown()
+    await Deno.remove(root, { recursive: true })
+  }
+}
 
 await cliffySnapshotTest({
   name: "API Command - Help Text",

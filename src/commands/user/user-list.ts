@@ -8,7 +8,10 @@ export const listCommand = new Command()
   .name("list")
   .description("List members of the workspace")
   .option("-a, --all", "Include inactive members")
-  .option("-j, --json", "Output as JSON")
+  .option(
+    "-j, --json",
+    "Output as JSON; use each member's url for Markdown mentions",
+  )
   .action(async ({ all, json }) => {
     const showSpinner = !json && shouldShowSpinner()
     let spinner: { start: () => void; stop: () => void } | null = null

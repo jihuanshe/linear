@@ -1,4 +1,12 @@
+# AI 工具的本地文件与交付物
 .aider.*
+/.amp/in/artifacts/
+
+# 本地 CLI 配置
 .config/linear.toml
+
+# IDE 配置
 .idea/
+
+# GraphQL 生成代码
 src/__codegen__/
