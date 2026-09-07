@@ -1,5 +1,6 @@
 import { Command } from "@cliffy/command"
 import { withUsageMetadata } from "../usage.ts"
+import { withMarkdownHint } from "../../utils/markdown-help.ts"
 import { gql } from "../../__codegen__/gql.ts"
 import type { DocumentInlineCommentGuardQuery } from "../../__codegen__/graphql.ts"
 import { getGraphQLClient } from "../../utils/graphql.ts"
@@ -173,7 +174,7 @@ export const updateCommand = withUsageMetadata(new Command(), {
   interactive: true,
 })
   .name("update")
-  .description("Update an existing document")
+  .description(withMarkdownHint("Update an existing document"))
   .alias("u")
   .arguments("<documentId:string>")
   .option("-t, --title <title:string>", "New title for the document")

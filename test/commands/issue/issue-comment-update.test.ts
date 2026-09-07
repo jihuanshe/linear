@@ -7,6 +7,51 @@ import {
   setupMockLinearServer,
 } from "../../utils/test-helpers.ts"
 
+Deno.test("comment update preserves mentions, ordinary links and collapsible Markdown", async () => {
+  const body = [
+    "https://linear.app/example/profiles/person-123 请确认。",
+    "[普通链接](https://linear.app/example/profiles/person-456)",
+    "+++ [日志]",
+    "",
+    "```text",
+    "@name is literal log text",
+    "```",
+    "",
+    "+++",
+  ].join("\n")
+  const { server, cleanup } = await setupMockLinearServer([{
+    queryName: "UpdateComment",
+    response: {
+      data: {
+        commentUpdate: {
+          success: true,
+          comment: {
+            id: "comment-123",
+            body,
+            url: "https://linear.app/example",
+          },
+        },
+      },
+    },
+  }])
+  const path = await Deno.makeTempFile({ suffix: ".md" })
+  const output = stub(console, "log")
+  try {
+    await Deno.writeTextFile(path, body)
+    for (const input of [["--body", body], ["--body-file", path]]) {
+      await commentUpdateCommand.parse(["comment-123", ...input, "--json"])
+    }
+    assertEquals(server.graphqlRequests.length, 2)
+    for (const request of server.graphqlRequests) {
+      assertEquals(request.variables, { id: "comment-123", input: { body } })
+    }
+  } finally {
+    output.restore()
+    await Deno.remove(path)
+    await cleanup()
+  }
+})
+
 // Test updating a comment with body flag
 await snapshotTest({
   name: "Issue Comment Update Command - With Body Flag",

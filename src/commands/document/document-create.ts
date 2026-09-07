@@ -1,5 +1,6 @@
 import { Command } from "@cliffy/command"
 import { withUsageMetadata } from "../usage.ts"
+import { withMarkdownHint } from "../../utils/markdown-help.ts"
 import { Input, Select } from "../../utils/prompt.ts"
 import { gql } from "../../__codegen__/gql.ts"
 import type { DocumentCreateInput } from "../../__codegen__/graphql.ts"
@@ -44,7 +45,7 @@ export const createCommand = withUsageMetadata(new Command(), {
   interactive: true,
 })
   .name("create")
-  .description("Create a new document")
+  .description(withMarkdownHint("Create a new document"))
   .alias("c")
   .option("-t, --title <title:string>", "Document title (required)")
   .option("-c, --content <content:string>", "Markdown content (inline)")

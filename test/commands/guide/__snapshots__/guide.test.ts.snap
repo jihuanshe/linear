@@ -8,6 +8,7 @@ snapshot[`guide prints the concise index 1`] = `
   issue-delivery   用 manifest 交付 Issue，处理字段冲突、checkpoint 续跑与 unknown 对账
   graphql          查询 schema、传递变量、完整分页与拆分复杂查询
   doctor           选择健康检查范围、解释候选问题并复查治理结果
+  markdown         通过 API 编写 Linear 提及与可折叠正文，查找真实成员 URL
 
 read: linear guide <name>
 machine-readable: linear guide --json

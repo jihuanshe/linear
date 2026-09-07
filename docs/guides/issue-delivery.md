@@ -11,6 +11,8 @@ commands:
 
 一次交付包含正文、评论、文件、Attachment 或关系等多个执行项时，用 manifest 保存清单和进度。`issues[]` 可放一条或多条；单个执行项直接用专用命令。
 
+描述和评论中的真实提及、成员 URL 查找与折叠语法见 [markdown](markdown.md)。
+
 ## Manifest
 
 ```json

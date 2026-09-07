@@ -55,6 +55,7 @@ Deno.test("guide --json preserves stable metadata", async () => {
       "issue-delivery",
       "graphql",
       "doctor",
+      "markdown",
     ],
   )
   for (const entry of documents) {
@@ -179,7 +180,7 @@ Deno.test("usage JSON exposes guide metadata additively", async () => {
   )
   assertEquals(
     update.guides.map((guide: { name: string }) => guide.name),
-    ["core", "automation", "issue-authoring"],
+    ["core", "automation", "issue-authoring", "markdown"],
   )
   for (const field of ["name", "path", "writes", "outputModes"]) {
     assertEquals(field in update, true, `${field} missing from usage JSON`)
@@ -192,4 +193,33 @@ Deno.test("guide commands never write and stay network-free", () => {
   const meta = guide.getMeta()
   assertEquals(meta["Writes"], undefined)
   assertEquals(guide.getCommands(), [])
+})
+
+Deno.test("Markdown authoring help gives an actionable route without a skill", async () => {
+  for (
+    const path of [
+      "issue create",
+      "issue update",
+      "issue comment add",
+      "issue comment update",
+      "document create",
+      "document update",
+    ]
+  ) {
+    const result = await run([...path.split(" "), "--help"])
+    assertEquals(result.code, 0, result.stderr)
+    assertEquals(result.stderr, "")
+    assertStringIncludes(result.stdout, "For API Markdown bodies")
+    assertStringIncludes(result.stdout, "bare Linear URL")
+    assertStringIncludes(result.stdout, "linear team members <TEAM> --json")
+    assertStringIncludes(result.stdout, "linear guide markdown")
+  }
+  const reference = await run(["guide", "markdown", "--json"])
+  assertEquals(reference.code, 0, reference.stderr)
+  assertEquals(reference.stderr, "")
+  const guide = JSON.parse(reference.stdout)
+  assertStringIncludes(guide.body, "+++ [服务器日志]")
+  assertStringIncludes(guide.body, "\n+++\n")
+  assertStringIncludes(guide.body, "不根据名字、邮箱或 UUID 拼接")
+  assertEquals(guide.commands.includes("issue apply"), true)
 })

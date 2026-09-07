@@ -1,5 +1,6 @@
 import { Command } from "@cliffy/command"
 import { withUsageMetadata } from "../usage.ts"
+import { withMarkdownHint } from "../../utils/markdown-help.ts"
 import { Input } from "../../utils/prompt.ts"
 import { gql } from "../../__codegen__/gql.ts"
 import { getGraphQLClient } from "../../utils/graphql.ts"
@@ -21,7 +22,9 @@ export const commentAddCommand = withUsageMetadata(new Command(), {
 })
   .name("add")
   .description(
-    "Add a comment or reply; images uploaded with --attach render inline",
+    withMarkdownHint(
+      "Add a comment or reply; images uploaded with --attach render inline",
+    ),
   )
   .arguments("[issueId:string]")
   .option("-b, --body <text:string>", "Comment body text")

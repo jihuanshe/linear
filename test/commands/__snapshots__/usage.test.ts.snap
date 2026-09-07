@@ -63,6 +63,10 @@ snapshot[`usage JSON v1 freezes its existing fields and types 1`] = `
         description: "用 manifest 交付 Issue，处理字段冲突、checkpoint 续跑与 unknown 对账",
         name: "issue-delivery",
       },
+      {
+        description: "通过 API 编写 Linear 提及与可折叠正文，查找真实成员 URL",
+        name: "markdown",
+      },
     ],
     hasSubcommands: true,
     interactive: false,
@@ -1072,6 +1076,10 @@ snapshot[`usage JSON v1 freezes its existing fields and types 1`] = `
           description: "Issue 的责任归属、持久证据、验收依据与后续交接",
           name: "issue-authoring",
         },
+        {
+          description: "通过 API 编写 Linear 提及与可折叠正文，查找真实成员 URL",
+          name: "markdown",
+        },
       ],
       hasSubcommands: false,
       interactive: false,
@@ -1341,7 +1349,12 @@ snapshot[`usage JSON v1 freezes its existing fields and types 1`] = `
       aliases: [],
       arguments: [],
       confirmation: null,
-      description: "Create a linear issue",
+      description: "Create a linear issue
+
+For API Markdown bodies, use a bare Linear URL to create a mention, not
+\`@name\`, \`@[Name](id)\`, or \`[Name](url)\`. Get a person's canonical \`url\` from
+\`linear team members <TEAM> --json\` or \`linear user list --json\`.
+Run \`linear guide markdown\` for mentions and collapsible sections.",
       details: "linear issue create --help",
       guides: [
         {
@@ -1351,6 +1364,10 @@ snapshot[`usage JSON v1 freezes its existing fields and types 1`] = `
         {
           description: "Issue 的责任归属、持久证据、验收依据与后续交接",
           name: "issue-authoring",
+        },
+        {
+          description: "通过 API 编写 Linear 提及与可折叠正文，查找真实成员 URL",
+          name: "markdown",
         },
       ],
       hasSubcommands: false,
@@ -1677,7 +1694,12 @@ snapshot[`usage JSON v1 freezes its existing fields and types 1`] = `
         },
       ],
       confirmation: null,
-      description: "Update a linear issue",
+      description: "Update a linear issue
+
+For API Markdown bodies, use a bare Linear URL to create a mention, not
+\`@name\`, \`@[Name](id)\`, or \`[Name](url)\`. Get a person's canonical \`url\` from
+\`linear team members <TEAM> --json\` or \`linear user list --json\`.
+Run \`linear guide markdown\` for mentions and collapsible sections.",
       details: "linear issue update --help",
       guides: [
         {
@@ -1691,6 +1713,10 @@ snapshot[`usage JSON v1 freezes its existing fields and types 1`] = `
         {
           description: "Issue 的责任归属、持久证据、验收依据与后续交接",
           name: "issue-authoring",
+        },
+        {
+          description: "通过 API 编写 Linear 提及与可折叠正文，查找真实成员 URL",
+          name: "markdown",
         },
       ],
       hasSubcommands: false,
@@ -2050,6 +2076,10 @@ snapshot[`usage JSON v1 freezes its existing fields and types 1`] = `
           description: "Issue 的责任归属、持久证据、验收依据与后续交接",
           name: "issue-authoring",
         },
+        {
+          description: "通过 API 编写 Linear 提及与可折叠正文，查找真实成员 URL",
+          name: "markdown",
+        },
       ],
       hasSubcommands: true,
       interactive: false,
@@ -2243,6 +2273,10 @@ snapshot[`usage JSON v1 freezes its existing fields and types 1`] = `
           description: "用 manifest 交付 Issue，处理字段冲突、checkpoint 续跑与 unknown 对账",
           name: "issue-delivery",
         },
+        {
+          description: "通过 API 编写 Linear 提及与可折叠正文，查找真实成员 URL",
+          name: "markdown",
+        },
       ],
       hasSubcommands: false,
       interactive: false,
@@ -2302,6 +2336,10 @@ snapshot[`usage JSON v1 freezes its existing fields and types 1`] = `
         {
           description: "用 manifest 交付 Issue，处理字段冲突、checkpoint 续跑与 unknown 对账",
           name: "issue-delivery",
+        },
+        {
+          description: "通过 API 编写 Linear 提及与可折叠正文，查找真实成员 URL",
+          name: "markdown",
         },
       ],
       hasSubcommands: false,

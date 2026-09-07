@@ -1,5 +1,6 @@
 import { Command } from "@cliffy/command"
 import { withUsageMetadata } from "../usage.ts"
+import { withMarkdownHint } from "../../utils/markdown-help.ts"
 import { Checkbox, Input, Select } from "../../utils/prompt.ts"
 import { gql } from "../../__codegen__/gql.ts"
 import { getOption } from "../../config.ts"
@@ -596,7 +597,7 @@ export const createCommand = withUsageMetadata(new Command(), {
   interactive: true,
 })
   .name("create")
-  .description("Create a linear issue")
+  .description(withMarkdownHint("Create a linear issue"))
   .option(
     "--start",
     "Start the issue after creation",

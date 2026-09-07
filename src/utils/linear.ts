@@ -2573,6 +2573,7 @@ export async function getTeamMembers(
         ) {
           nodes {
             id
+            url
             name
             displayName
             email
@@ -2662,6 +2663,7 @@ export async function getOrganizationMembers(
           ) {
             nodes {
               id
+              url
               name
               displayName
               email
