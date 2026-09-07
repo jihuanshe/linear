@@ -211,6 +211,11 @@ Deno.test("Markdown authoring help gives an actionable route without a skill", a
     assertEquals(result.stderr, "")
     assertStringIncludes(result.stdout, "For API Markdown bodies")
     assertStringIncludes(result.stdout, "bare Linear URL")
+    assertStringIncludes(
+      result.stdout,
+      "Named profile links can also mention people",
+    )
+    assertStringIncludes(result.stdout, "handling varies by body")
     assertStringIncludes(result.stdout, "linear team members <TEAM> --json")
     assertStringIncludes(result.stdout, "linear guide markdown")
   }
@@ -221,5 +226,10 @@ Deno.test("Markdown authoring help gives an actionable route without a skill", a
   assertStringIncludes(guide.body, "+++ [服务器日志]")
   assertStringIncludes(guide.body, "\n+++\n")
   assertStringIncludes(guide.body, "不根据名字、邮箱或 UUID 拼接")
+  assertStringIncludes(guide.body, "裸 `@name` 在 Comment 生成提及")
+  assertStringIncludes(guide.body, "导出的 Markdown 不是富文本的无损备份")
   assertEquals(guide.commands.includes("issue apply"), true)
+  const delivery = await run(["guide", "issue-delivery", "--json"])
+  assertEquals(delivery.code, 0, delivery.stderr)
+  assertStringIncludes(JSON.parse(delivery.stdout).body, "不证明富文本节点等价")
 })

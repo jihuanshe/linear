@@ -20,11 +20,13 @@ commands:
 
 # Linear Markdown
 
-本指南针对 CLI 通过 API 提交的 Markdown，不是 Linear 编辑器中输入 `@` 后选择成员的交互。CLI 不会把名字自动转换为提及，也不会重写普通链接。
+本指南针对 CLI 通过 API 提交的 Markdown，不是 Linear 编辑器中输入 `@` 后选择成员的交互。CLI 原样传递正文中的名字和链接，提及由 Linear 服务端解析。
 
 ## 提及成员与资源
 
-在正文中直接放入资源的完整 Linear URL，Linear 会将其解析为提及。`@name`、`@[Name](id)` 和 `[Name](url)` 不能替代裸 URL 提及；普通 Markdown 链接保留为链接，不要为了排版把提及包成命名链接。
+要创建提及，优先在正文中直接放入查询返回的完整 Linear URL。命名成员链接也能生成提及，不能用 `[Name](profile URL)` 来确保只产生普通链接。裸 `@name` 的解析因正文类型而异，不作为跨实体的可靠提及语法，也不保证它只是文本；不猜测 `@[Name](id)` 等未验证格式。
+
+[Kadoraba 实测](https://github.com/jihuanshe/linear/pull/34)中，同一活跃成员的命名 profile 链接在 Issue、Comment、Document 均生成成员提及；裸 `@name` 在 Comment 生成提及，在 Issue、Document 为文本。命名 Issue 链接在该样本中仍是普通链接。以上是 2026-09-07 的单一成员样本，不将不同资源的解析规则相互套用。
 
 已知团队时先用 `linear team members <TEAM> --json` 缩小查找范围；需要跨团队查找时用 `linear user list --json`。结合用户已指定的身份、返回的 `id`、名字和邮箱确认目标，原样复制其 `url` 字段，不根据名字、邮箱或 UUID 拼接 profile URL。同名或目标仍不明确时先确认，不能任选一个成员。
 
@@ -55,6 +57,8 @@ Issue 描述、评论和 Document 正文使用以下形式，保留标题方括�
 ## 提交与读回
 
 多行正文优先使用目标命令的文件输入，具体参数见该命令的 `--help`。交付清单中的描述和评论遵循相同规则，执行与恢复见 [issue-delivery](issue-delivery.md)。
+
+导出的 Markdown 不是富文本的无损备份。实测 Issue 中的成员提及被导出为 `@name`；原样重新提交后，导出 Markdown 字符串保持相同，成员提及节点却变成普通文本。不要为了确认保存成功而重提正文。确需编辑时保留原始编写稿与已确认的成员 URL，逐项核对提及目标，不自动转换全部 `@name`。
 
 复用写后读回核对目标与正文；要验证折叠展示或提及渲染，需要检查 Linear 中的实际结果，不能只看 mutation 成功。服务端可改写 Markdown；出现交付比较差异时按 [issue-delivery](issue-delivery.md) 对账，不为消除差异自动重放评论或改写 checkpoint。
 

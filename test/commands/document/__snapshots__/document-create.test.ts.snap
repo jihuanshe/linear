@@ -10,12 +10,13 @@ Interactive: true
 
 Description:
 
-  Create a new document                                                        
-                                                                               
-  For API Markdown bodies, use a bare Linear URL to create a mention, not      
-  \`@name\`, \`@[Name](id)\`, or \`[Name](url)\`. Get a person's canonical \`url\` from
-  \`linear team members <TEAM> --json\` or \`linear user list --json\`.            
-  Run \`linear guide markdown\` for mentions and collapsible sections.           
+  Create a new document                                                            
+                                                                                   
+  For API Markdown bodies, prefer a bare Linear URL for mentions.                  
+  Named profile links can also mention people; \`@name\` handling varies by body.    
+  Get a person's canonical \`url\` from                                              
+  \`linear team members <TEAM> --json\` or \`linear user list --json\`.                
+  Run \`linear guide markdown\` for mentions, collapsible sections and rewrite risks.
 
 Options:
 
