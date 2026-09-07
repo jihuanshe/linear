@@ -2,18 +2,15 @@ import { Command } from "@cliffy/command"
 import { withUsageMetadata } from "../usage.ts"
 import { Input, Select } from "../../utils/prompt.ts"
 import { gql } from "../../__codegen__/gql.ts"
+import type { InitiativeUpdateInput } from "../../__codegen__/graphql.ts"
+import {
+  INITIATIVE_STATUSES,
+  parseInitiativeStatus,
+} from "./initiative-status.ts"
 import { getGraphQLClient } from "../../utils/graphql.ts"
 import { lookupUserId } from "../../utils/linear.ts"
 import { shouldShowSpinner } from "../../utils/hyperlink.ts"
 import { CliError, handleError, NotFoundError } from "../../utils/errors.ts"
-
-// Initiative status options from Linear API
-const INITIATIVE_STATUSES = [
-  { name: "Planned", value: "planned" },
-  { name: "Active", value: "active" },
-  { name: "Completed", value: "completed" },
-  { name: "Paused", value: "paused" },
-]
 
 export const updateCommand = withUsageMetadata(new Command(), {
   writes: true,
@@ -26,7 +23,7 @@ export const updateCommand = withUsageMetadata(new Command(), {
   .option("-d, --description <description:string>", "New description")
   .option(
     "--status <status:string>",
-    "New status (planned, active, completed, paused)",
+    "New status (planned, active, completed; case-insensitive)",
   )
   .option(
     "--owner <owner:string>",
@@ -44,8 +41,10 @@ export const updateCommand = withUsageMetadata(new Command(), {
       options,
       initiativeId,
     ) => {
-      // Define GraphQL queries at top level for proper type inference
-      const detailsQuery = gql(`
+      try {
+        if (options.status !== undefined) parseInitiativeStatus(options.status)
+        // Define GraphQL queries at top level for proper type inference
+        const detailsQuery = gql(`
         query GetInitiativeForUpdate($id: String!) {
           initiative(id: $id) {
             id
@@ -64,7 +63,7 @@ export const updateCommand = withUsageMetadata(new Command(), {
         }
       `)
 
-      const updateMutation = gql(`
+        const updateMutation = gql(`
         mutation UpdateInitiative($id: String!, $input: InitiativeUpdateInput!) {
           initiativeUpdate(id: $id, input: $input) {
             success
@@ -78,154 +77,157 @@ export const updateCommand = withUsageMetadata(new Command(), {
         }
       `)
 
-      // Extract options - use let for variables that may be reassigned in interactive mode
-      let name = options.name
-      let description = options.description
-      let status = options.status
-      const owner = options.owner
-      let targetDate = options.targetDate
-      const color = options.color
-      const icon = options.icon
-      const interactive = options.interactive
-      let colorHex = color
-      const client = getGraphQLClient()
+        // Extract options - use let for variables that may be reassigned in interactive mode
+        let name = options.name
+        let description = options.description
+        let status = options.status
+        const owner = options.owner
+        let targetDate = options.targetDate
+        const color = options.color
+        const icon = options.icon
+        const interactive = options.interactive
+        let colorHex = color
+        const client = getGraphQLClient()
 
-      // Resolve initiative ID
-      const resolvedId = await resolveInitiativeId(client, initiativeId)
-      if (!resolvedId) {
-        throw new NotFoundError("Initiative", initiativeId)
-      }
+        // Resolve initiative ID
+        const resolvedId = await resolveInitiativeId(client, initiativeId)
+        if (!resolvedId) {
+          throw new NotFoundError("Initiative", initiativeId)
+        }
 
-      // Get current initiative details
-      let initiativeDetails
-      try {
-        initiativeDetails = await client.request(detailsQuery, {
-          id: resolvedId,
-        })
+        // Get current initiative details
+        let initiativeDetails
+        try {
+          initiativeDetails = await client.request(detailsQuery, {
+            id: resolvedId,
+          })
+        } catch (error) {
+          handleError(error, "Failed to fetch initiative details")
+        }
+
+        if (!initiativeDetails?.initiative) {
+          throw new NotFoundError("Initiative", initiativeId)
+        }
+
+        const initiative = initiativeDetails.initiative
+
+        // Interactive mode
+        const isInteractive = interactive && Deno.stdout.isTerminal()
+        const noFlagsProvided = !name &&
+          !description &&
+          !status &&
+          !owner &&
+          !targetDate &&
+          !colorHex &&
+          !icon
+
+        if (noFlagsProvided && isInteractive) {
+          console.log(`\nUpdating initiative: ${initiative.name}\n`)
+
+          // Prompt for name
+          const newName = await Input.prompt({
+            message: "Name:",
+            default: initiative.name,
+          })
+          if (newName !== initiative.name) {
+            name = newName
+          }
+
+          // Prompt for description
+          const newDescription = await Input.prompt({
+            message: "Description:",
+            default: initiative.description || "",
+          })
+          if (newDescription !== (initiative.description || "")) {
+            description = newDescription || undefined
+          }
+
+          // Prompt for status
+          const currentStatusIndex = INITIATIVE_STATUSES.findIndex(
+            (s) => s.value.toLowerCase() === initiative.status?.toLowerCase(),
+          )
+          const newStatus = await Select.prompt({
+            message: "Status:",
+            options: INITIATIVE_STATUSES,
+            default: currentStatusIndex >= 0
+              ? INITIATIVE_STATUSES[currentStatusIndex].value
+              : undefined,
+          })
+          if (newStatus !== initiative.status) {
+            status = newStatus
+          }
+
+          // Prompt for target date
+          const newTargetDate = await Input.prompt({
+            message: "Target date (YYYY-MM-DD):",
+            default: initiative.targetDate || "",
+          })
+          if (newTargetDate !== (initiative.targetDate || "")) {
+            targetDate = newTargetDate || undefined
+          }
+
+          // Prompt for color
+          const newColor = await Input.prompt({
+            message: "Color (hex, e.g., #5E6AD2):",
+            default: initiative.color || "",
+          })
+          if (newColor !== (initiative.color || "")) {
+            colorHex = newColor || undefined
+          }
+        }
+
+        // Build update input
+        const input: InitiativeUpdateInput = {}
+
+        if (name !== undefined) input.name = name
+        if (description !== undefined) input.description = description
+        if (status !== undefined) input.status = parseInitiativeStatus(status)
+        if (targetDate !== undefined) input.targetDate = targetDate
+        if (colorHex !== undefined) input.color = colorHex
+        if (icon !== undefined) input.icon = icon
+
+        if (owner !== undefined) {
+          const ownerId = await lookupUserId(owner)
+          if (!ownerId) {
+            throw new NotFoundError("Owner", owner)
+          }
+          input.ownerId = ownerId
+        }
+
+        // Check if any updates to make
+        if (Object.keys(input).length === 0) {
+          console.log("No changes specified")
+          return
+        }
+
+        const { Spinner } = await import("@std/cli/unstable-spinner")
+        const showSpinner = shouldShowSpinner()
+        const spinner = showSpinner ? new Spinner() : null
+        spinner?.start()
+
+        // Update the initiative
+        try {
+          const result = await client.request(updateMutation, {
+            id: resolvedId,
+            input,
+          })
+
+          spinner?.stop()
+
+          if (!result.initiativeUpdate.success) {
+            throw new CliError("Failed to update initiative")
+          }
+
+          const updated = result.initiativeUpdate.initiative
+          console.log(`✓ Updated initiative: ${updated.name}`)
+          if (updated.url) {
+            console.log(updated.url)
+          }
+        } catch (error) {
+          spinner?.stop()
+          throw error
+        }
       } catch (error) {
-        handleError(error, "Failed to fetch initiative details")
-      }
-
-      if (!initiativeDetails?.initiative) {
-        throw new NotFoundError("Initiative", initiativeId)
-      }
-
-      const initiative = initiativeDetails.initiative
-
-      // Interactive mode
-      const isInteractive = interactive && Deno.stdout.isTerminal()
-      const noFlagsProvided = !name &&
-        !description &&
-        !status &&
-        !owner &&
-        !targetDate &&
-        !colorHex &&
-        !icon
-
-      if (noFlagsProvided && isInteractive) {
-        console.log(`\nUpdating initiative: ${initiative.name}\n`)
-
-        // Prompt for name
-        const newName = await Input.prompt({
-          message: "Name:",
-          default: initiative.name,
-        })
-        if (newName !== initiative.name) {
-          name = newName
-        }
-
-        // Prompt for description
-        const newDescription = await Input.prompt({
-          message: "Description:",
-          default: initiative.description || "",
-        })
-        if (newDescription !== (initiative.description || "")) {
-          description = newDescription || undefined
-        }
-
-        // Prompt for status
-        const currentStatusIndex = INITIATIVE_STATUSES.findIndex(
-          (s) => s.value.toLowerCase() === initiative.status?.toLowerCase(),
-        )
-        const newStatus = await Select.prompt({
-          message: "Status:",
-          options: INITIATIVE_STATUSES,
-          default: currentStatusIndex >= 0
-            ? INITIATIVE_STATUSES[currentStatusIndex].value
-            : undefined,
-        })
-        if (newStatus !== initiative.status?.toLowerCase()) {
-          status = newStatus
-        }
-
-        // Prompt for target date
-        const newTargetDate = await Input.prompt({
-          message: "Target date (YYYY-MM-DD):",
-          default: initiative.targetDate || "",
-        })
-        if (newTargetDate !== (initiative.targetDate || "")) {
-          targetDate = newTargetDate || undefined
-        }
-
-        // Prompt for color
-        const newColor = await Input.prompt({
-          message: "Color (hex, e.g., #5E6AD2):",
-          default: initiative.color || "",
-        })
-        if (newColor !== (initiative.color || "")) {
-          colorHex = newColor || undefined
-        }
-      }
-
-      // Build update input
-      const input: Record<string, string | undefined> = {}
-
-      if (name !== undefined) input.name = name
-      if (description !== undefined) input.description = description
-      if (status !== undefined) input.status = status.toLowerCase()
-      if (targetDate !== undefined) input.targetDate = targetDate
-      if (colorHex !== undefined) input.color = colorHex
-      if (icon !== undefined) input.icon = icon
-
-      if (owner !== undefined) {
-        const ownerId = await lookupUserId(owner)
-        if (!ownerId) {
-          throw new NotFoundError("Owner", owner)
-        }
-        input.ownerId = ownerId
-      }
-
-      // Check if any updates to make
-      if (Object.keys(input).length === 0) {
-        console.log("No changes specified")
-        return
-      }
-
-      const { Spinner } = await import("@std/cli/unstable-spinner")
-      const showSpinner = shouldShowSpinner()
-      const spinner = showSpinner ? new Spinner() : null
-      spinner?.start()
-
-      // Update the initiative
-      try {
-        const result = await client.request(updateMutation, {
-          id: resolvedId,
-          input,
-        })
-
-        spinner?.stop()
-
-        if (!result.initiativeUpdate.success) {
-          throw new CliError("Failed to update initiative")
-        }
-
-        const updated = result.initiativeUpdate.initiative
-        console.log(`✓ Updated initiative: ${updated.name}`)
-        if (updated.url) {
-          console.log(updated.url)
-        }
-      } catch (error) {
-        spinner?.stop()
         handleError(error, "Failed to update initiative")
       }
     },

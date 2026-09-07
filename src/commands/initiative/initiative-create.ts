@@ -2,7 +2,10 @@ import { Command } from "@cliffy/command"
 import { withUsageMetadata } from "../usage.ts"
 import { Input, Select } from "../../utils/prompt.ts"
 import { gql } from "../../__codegen__/gql.ts"
-import type { InitiativeStatus } from "../../__codegen__/graphql.ts"
+import {
+  INITIATIVE_STATUSES,
+  parseInitiativeStatus,
+} from "./initiative-status.ts"
 import { getGraphQLClient } from "../../utils/graphql.ts"
 import { lookupUserId } from "../../utils/linear.ts"
 import { shouldShowSpinner } from "../../utils/hyperlink.ts"
@@ -26,13 +29,6 @@ const CreateInitiative = gql(`
     }
   }
 `)
-
-// Initiative statuses (enum values: Planned, Active, Completed)
-const INITIATIVE_STATUSES = [
-  { name: "Planned", value: "Planned" },
-  { name: "Active", value: "Active" },
-  { name: "Completed", value: "Completed" },
-]
 
 // Common initiative colors from Linear's palette
 const DEFAULT_COLORS = [
@@ -58,7 +54,7 @@ export const createCommand = withUsageMetadata(new Command(), {
   .option("-d, --description <description:string>", "Initiative description")
   .option(
     "-s, --status <status:string>",
-    "Status: planned, active, completed (default: planned)",
+    "Status: planned, active, completed (case-insensitive; non-interactive omission uses server default). Use --status to set explicitly",
   )
   .option(
     "-o, --owner <owner:string>",
@@ -75,187 +71,179 @@ export const createCommand = withUsageMetadata(new Command(), {
     "Interactive mode (default if no flags provided)",
   )
   .action(async (options) => {
-    const {
-      name: providedName,
-      description: providedDescription,
-      status: providedStatus,
-      owner: providedOwner,
-      targetDate: providedTargetDate,
-      color: providedColor,
-      icon: providedIcon,
-      interactive: interactiveFlag,
-    } = options
+    try {
+      const {
+        name: providedName,
+        description: providedDescription,
+        status: providedStatus,
+        owner: providedOwner,
+        targetDate: providedTargetDate,
+        color: providedColor,
+        icon: providedIcon,
+        interactive: interactiveFlag,
+      } = options
 
-    const client = getGraphQLClient()
-    const icon = providedIcon
+      const client = getGraphQLClient()
+      const icon = providedIcon
 
-    let name = providedName
-    let description = providedDescription
-    let status = providedStatus
-    let owner = providedOwner
-    let targetDate = providedTargetDate
-    let color = providedColor
+      let name = providedName
+      let description = providedDescription
+      let status = providedStatus
+      let owner = providedOwner
+      let targetDate = providedTargetDate
+      let color = providedColor
 
-    // Determine if we should run in interactive mode
-    const noFlagsProvided = !name
-    const isInteractive = (noFlagsProvided || interactiveFlag) &&
-      Deno.stdout.isTerminal()
+      // Determine if we should run in interactive mode
+      const noFlagsProvided = !name
+      const isInteractive = (noFlagsProvided || interactiveFlag) &&
+        Deno.stdout.isTerminal()
 
-    if (isInteractive) {
-      console.log("\nCreate a new initiative\n")
+      if (isInteractive) {
+        console.log("\nCreate a new initiative\n")
 
-      // Name (required)
-      if (!name) {
-        name = await Input.prompt({
-          message: "Initiative name:",
-          minLength: 1,
-        })
-      }
-
-      // Description (optional)
-      if (!description) {
-        description = await Input.prompt({
-          message: "Description (optional):",
-        })
-        if (!description) description = undefined
-      }
-
-      // Status selection
-      if (!status) {
-        const selectedStatus = await Select.prompt({
-          message: "Status:",
-          options: INITIATIVE_STATUSES,
-          default: "planned",
-        })
-        status = selectedStatus
-      }
-
-      // Owner (optional)
-      if (!owner) {
-        owner = await Input.prompt({
-          message: "Owner (username, email, or @me - press Enter to skip):",
-        })
-        if (!owner) owner = undefined
-      }
-
-      // Target date (optional)
-      if (!targetDate) {
-        targetDate = await Input.prompt({
-          message: "Target date (YYYY-MM-DD - press Enter to skip):",
-        })
-        if (!targetDate) targetDate = undefined
-      }
-
-      // Color selection (optional)
-      if (!color) {
-        const colorOptions = [
-          { name: "Skip (use default)", value: "__skip__" },
-          ...DEFAULT_COLORS.map((c) => ({
-            name: `${c.name} (${c.value})`,
-            value: c.value,
-          })),
-          { name: "Custom color", value: "__custom__" },
-        ]
-
-        const selectedColor = await Select.prompt({
-          message: "Color (optional):",
-          options: colorOptions,
-          default: "__skip__",
-        })
-
-        if (selectedColor === "__custom__") {
-          color = await Input.prompt({
-            message: "Enter hex color (e.g., #FF5733):",
-            validate: (value) => {
-              if (!/^#[0-9A-Fa-f]{6}$/.test(value)) {
-                return "Please enter a valid hex color (e.g., #FF5733)"
-              }
-              return true
-            },
+        // Name (required)
+        if (!name) {
+          name = await Input.prompt({
+            message: "Initiative name:",
+            minLength: 1,
           })
-        } else if (selectedColor !== "__skip__") {
-          color = selectedColor
+        }
+
+        // Description (optional)
+        if (!description) {
+          description = await Input.prompt({
+            message: "Description (optional):",
+          })
+          if (!description) description = undefined
+        }
+
+        // Status selection
+        if (!status) {
+          const selectedStatus = await Select.prompt({
+            message: "Status:",
+            options: INITIATIVE_STATUSES,
+            default: "Planned",
+          })
+          status = selectedStatus
+        }
+
+        // Owner (optional)
+        if (!owner) {
+          owner = await Input.prompt({
+            message: "Owner (username, email, or @me - press Enter to skip):",
+          })
+          if (!owner) owner = undefined
+        }
+
+        // Target date (optional)
+        if (!targetDate) {
+          targetDate = await Input.prompt({
+            message: "Target date (YYYY-MM-DD - press Enter to skip):",
+          })
+          if (!targetDate) targetDate = undefined
+        }
+
+        // Color selection (optional)
+        if (!color) {
+          const colorOptions = [
+            { name: "Skip (use default)", value: "__skip__" },
+            ...DEFAULT_COLORS.map((c) => ({
+              name: `${c.name} (${c.value})`,
+              value: c.value,
+            })),
+            { name: "Custom color", value: "__custom__" },
+          ]
+
+          const selectedColor = await Select.prompt({
+            message: "Color (optional):",
+            options: colorOptions,
+            default: "__skip__",
+          })
+
+          if (selectedColor === "__custom__") {
+            color = await Input.prompt({
+              message: "Enter hex color (e.g., #FF5733):",
+              validate: (value) => {
+                if (!/^#[0-9A-Fa-f]{6}$/.test(value)) {
+                  return "Please enter a valid hex color (e.g., #FF5733)"
+                }
+                return true
+              },
+            })
+          } else if (selectedColor !== "__skip__") {
+            color = selectedColor
+          }
         }
       }
-    }
 
-    // Validate required fields
-    if (!name) {
-      throw new ValidationError(
-        "Initiative name is required. Use --name or -n flag.",
-      )
-    }
-
-    // Validate status if provided (user can input lowercase, we convert to API format)
-    if (status) {
-      const statusLower = status.toLowerCase()
-      const statusEntry = INITIATIVE_STATUSES.find(
-        (s) => s.value.toLowerCase() === statusLower,
-      )
-      if (!statusEntry) {
+      // Validate required fields
+      if (!name) {
         throw new ValidationError(
-          `Invalid status: ${status}. Valid values: ${
-            INITIATIVE_STATUSES.map((s) => s.value.toLowerCase()).join(", ")
-          }`,
+          "Initiative name is required. Use --name or -n flag.",
         )
       }
-      status = statusEntry.value
-    }
 
-    // Validate color format if provided
-    if (color && !/^#[0-9A-Fa-f]{6}$/.test(color)) {
-      throw new ValidationError(
-        "Color must be a valid hex code (e.g., #5E6AD2)",
-      )
-    }
+      const apiStatus = status !== undefined
+        ? parseInitiativeStatus(status)
+        : undefined
 
-    // Validate target date format if provided
-    if (targetDate && !/^\d{4}-\d{2}-\d{2}$/.test(targetDate)) {
-      throw new ValidationError("Target date must be in YYYY-MM-DD format")
-    }
-
-    // Build input
-    let ownerId: string | undefined
-    if (owner) {
-      ownerId = await lookupUserId(owner)
-      if (!ownerId) {
-        throw new NotFoundError("Owner", owner)
+      // Validate color format if provided
+      if (color && !/^#[0-9A-Fa-f]{6}$/.test(color)) {
+        throw new ValidationError(
+          "Color must be a valid hex code (e.g., #5E6AD2)",
+        )
       }
-    }
 
-    const input = {
-      name: name as string,
-      ...(description && { description }),
-      ...(status && { status: status as InitiativeStatus }),
-      ...(ownerId && { ownerId }),
-      ...(targetDate && { targetDate }),
-      ...(color && { color }),
-      ...(icon && { icon }),
-    }
+      // Validate target date format if provided
+      if (targetDate && !/^\d{4}-\d{2}-\d{2}$/.test(targetDate)) {
+        throw new ValidationError("Target date must be in YYYY-MM-DD format")
+      }
 
-    const { Spinner } = await import("@std/cli/unstable-spinner")
-    const showSpinner = shouldShowSpinner()
-    const spinner = showSpinner ? new Spinner() : null
-    spinner?.start()
+      // Build input
+      let ownerId: string | undefined
+      if (owner) {
+        ownerId = await lookupUserId(owner)
+        if (!ownerId) {
+          throw new NotFoundError("Owner", owner)
+        }
+      }
 
-    try {
-      const result = await client.request(CreateInitiative, { input })
+      const input = {
+        name: name as string,
+        ...(description && { description }),
+        ...(apiStatus && { status: apiStatus }),
+        ...(ownerId && { ownerId }),
+        ...(targetDate && { targetDate }),
+        ...(color && { color }),
+        ...(icon && { icon }),
+      }
 
-      if (!result.initiativeCreate.success) {
+      const { Spinner } = await import("@std/cli/unstable-spinner")
+      const showSpinner = shouldShowSpinner()
+      const spinner = showSpinner ? new Spinner() : null
+      spinner?.start()
+
+      try {
+        const result = await client.request(CreateInitiative, { input })
+
+        if (!result.initiativeCreate.success) {
+          spinner?.stop()
+          throw new CliError("Failed to create initiative")
+        }
+
+        const initiative = result.initiativeCreate.initiative
         spinner?.stop()
-        throw new CliError("Failed to create initiative")
-      }
 
-      const initiative = result.initiativeCreate.initiative
-      spinner?.stop()
-
-      console.log(`✓ Created initiative: ${initiative.name}`)
-      console.log(`  Slug: ${initiative.slugId}`)
-      if (initiative.url) {
-        console.log(`  URL: ${initiative.url}`)
+        console.log(`✓ Created initiative: ${initiative.name}`)
+        console.log(`  Slug: ${initiative.slugId}`)
+        if (initiative.url) {
+          console.log(`  URL: ${initiative.url}`)
+        }
+      } catch (error) {
+        spinner?.stop()
+        throw error
       }
     } catch (error) {
-      spinner?.stop()
       handleError(error, "Failed to create initiative")
     }
   })
