@@ -24,9 +24,9 @@ commands:
 
 ## 提及成员与资源
 
-要创建提及，优先在正文中直接放入查询返回的完整 Linear URL。命名成员链接也能生成提及，不能用 `[Name](profile URL)` 来确保只产生普通链接。裸 `@name` 的解析因正文类型而异，不作为跨实体的可靠提及语法，也不保证它只是文本；不猜测 `@[Name](id)` 等未验证格式。
+要创建提及，优先在正文中直接放入查询返回的完整 Linear URL。命名成员链接也能生成提及，不能用 `[Name](profile URL)` 来确保只产生普通链接。裸 `@name` 的解析因正文类型及创建／更新路径而异，不作为跨入口的可靠提及语法，也不保证它只是文本；不猜测 `@[Name](id)` 等未验证格式。
 
-[Kadoraba 实测](https://github.com/jihuanshe/linear/pull/34)中，同一活跃成员的命名 profile 链接在 Issue、Comment、Document 均生成成员提及；裸 `@name` 在 Comment 生成提及，在 Issue、Document 为文本。命名 Issue 链接在该样本中仍是普通链接。以上是 2026-09-07 的单一成员样本，不将不同资源的解析规则相互套用。
+[Kadoraba 实测](https://github.com/jihuanshe/linear/pull/34)中，同一活跃成员的命名 profile 链接在 Issue、Comment、Document 均生成成员提及。同一个裸成员名在 Issue 创建、Comment 新增及更新时生成提及，在 Issue 更新、Document 创建及更新时为文本。命名 Issue 链接在该样本中仍是普通链接。以上是 2026-09-07 的单一成员样本，不将不同资源或创建／更新路径的解析规则相互套用。
 
 已知团队时先用 `linear team members <TEAM> --json` 缩小查找范围；需要跨团队查找时用 `linear user list --json`。结合用户已指定的身份、返回的 `id`、名字和邮箱确认目标，原样复制其 `url` 字段，不根据名字、邮箱或 UUID 拼接 profile URL。同名或目标仍不明确时先确认，不能任选一个成员。
 
@@ -47,7 +47,7 @@ Issue 描述、评论和 Document 正文使用以下形式，保留标题方括�
 ```text
 +++ [服务器日志]
 
-这里放默认折叠的 Markdown 内容。
+这里放长日志或辅助证据。
 
 +++
 ```
