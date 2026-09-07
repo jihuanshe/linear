@@ -23,7 +23,7 @@ export const updateCommand = withUsageMetadata(new Command(), {
   .option("-d, --description <description:string>", "New description")
   .option(
     "--status <status:string>",
-    "New status (planned, active, completed; case-insensitive)",
+    "New status (planned, active, completed, proposed, canceled; case-insensitive)",
   )
   .option(
     "--owner <owner:string>",

@@ -54,7 +54,7 @@ export const createCommand = withUsageMetadata(new Command(), {
   .option("-d, --description <description:string>", "Initiative description")
   .option(
     "-s, --status <status:string>",
-    "Status: planned, active, completed (case-insensitive; non-interactive omission uses server default). Use --status to set explicitly",
+    "Status: planned, active, completed, proposed, canceled (case-insensitive; non-interactive omission uses server default). Use --status to set explicitly",
   )
   .option(
     "-o, --owner <owner:string>",

@@ -7,6 +7,8 @@ export const INITIATIVE_STATUSES: { name: string; value: InitiativeStatus }[] =
     { name: "Planned", value: "Planned" },
     { name: "Active", value: "Active" },
     { name: "Completed", value: "Completed" },
+    { name: "Proposed", value: "Proposed" },
+    { name: "Canceled", value: "Canceled" },
   ]
 
 export function parseInitiativeStatus(value: string): InitiativeStatus {
@@ -15,7 +17,7 @@ export function parseInitiativeStatus(value: string): InitiativeStatus {
   )
   if (!status) {
     throw new ValidationError(
-      `Invalid status: ${value}. Valid values: planned, active, completed`,
+      `Invalid status: ${value}. Valid values: planned, active, completed, proposed, canceled`,
     )
   }
   return status.value

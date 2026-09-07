@@ -72,7 +72,18 @@ for (const command of ["create", "update"]) {
     ])
     await server.start()
     try {
-      for (const canonical of ["Planned", "Active", "Completed"]) {
+      const help = await runCli(server, [command, "--help"])
+      assertEquals(help.code, 0, help.stderr)
+      for (
+        const canonical of [
+          "Planned",
+          "Active",
+          "Completed",
+          "Proposed",
+          "Canceled",
+        ]
+      ) {
+        assertStringIncludes(help.stdout, canonical.toLowerCase())
         for (
           const status of [
             canonical,
@@ -115,7 +126,7 @@ for (const command of ["create", "update"]) {
         assertStringIncludes(result.stderr, `Invalid status: ${status}`)
         assertStringIncludes(
           result.stderr,
-          "Valid values: planned, active, completed",
+          "Valid values: planned, active, completed, proposed, canceled",
         )
         assertEquals(server.graphqlRequests.length, 0)
       }
@@ -190,8 +201,10 @@ for (const command of ["create", "update"]) {
           { name: "Planned", value: "Planned" },
           { name: "Active", value: "Active" },
           { name: "Completed", value: "Completed" },
+          { name: "Proposed", value: "Proposed" },
+          { name: "Canceled", value: "Canceled" },
         ])
-        return Promise.resolve("Planned")
+        return Promise.resolve(command === "create" ? "Proposed" : "Canceled")
       },
     )
     try {
@@ -210,8 +223,8 @@ for (const command of ["create", "update"]) {
       assertEquals(
         server.graphqlRequests.at(-1)?.variables.input,
         command === "create"
-          ? { name: "Example", status: "Planned", color: "#123456" }
-          : { status: "Planned" },
+          ? { name: "Example", status: "Proposed", color: "#123456" }
+          : { status: "Canceled" },
       )
     } finally {
       select.restore()
