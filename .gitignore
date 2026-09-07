@@ -1,4 +1,5 @@
 .aider.*
+/.amp/in/artifacts/
 .config/linear.toml
 .idea/
 src/__codegen__/
