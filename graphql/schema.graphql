@@ -61,6 +61,9 @@ type AccessKeyReleasePipeline {
 type AccessKeyReleaseStage {
   """The name of the release stage."""
   name: String!
+
+  """The type of the release stage."""
+  type: ReleaseStageType!
 }
 
 """Activity collection filtering options."""
@@ -174,6 +177,11 @@ type AgentActivity implements Node {
   Whether the activity is ephemeral, and should disappear after the next agent activity.
   """
   ephemeral: Boolean!
+
+  """
+  [Internal] The reason this activity was persisted without being sent to the agent runtime.
+  """
+  executionSkippedReason: AgentActivityExecutionSkippedReason
 
   """The unique identifier of the entity."""
   id: ID!
@@ -349,6 +357,13 @@ type AgentActivityErrorContent {
 
   """The type of activity."""
   type: AgentActivityType!
+}
+
+"""
+The reason an agent activity was persisted without being sent to the agent runtime.
+"""
+enum AgentActivityExecutionSkippedReason {
+  quotaExceeded
 }
 
 """Agent activity filtering options."""
@@ -1179,6 +1194,9 @@ type AiConversation implements Node {
   """
   iterationId: String
 
+  """[Internal] The Loop execution that created this conversation."""
+  loopExecution: LoopExecution
+
   """
   The ordered sequence of conversation parts (prompts, text responses, reasoning steps, tool calls, errors, and widgets) that make up this conversation's visible history.
   """
@@ -1347,6 +1365,15 @@ type AiConversationCodeIntelligenceToolCallArgs {
   question: String!
 }
 
+"""The affirmative response recorded for a confirmation elicitation."""
+type AiConversationConfirmationElicitationResponseData {
+  """True when the user confirmed the action."""
+  confirmed: Boolean!
+
+  """The kind of elicitation that was answered."""
+  kind: AiConversationElicitationKind!
+}
+
 type AiConversationCreateEntityToolCall implements AiConversationBaseToolCall {
   """The arguments to the tool call."""
   args: AiConversationCreateEntityToolCallArgs
@@ -1371,8 +1398,15 @@ type AiConversationCreateEntityToolCallArgs {
 }
 
 type AiConversationCreateEntityToolCallResult {
-  createdEntities: [AiConversationSearchEntitiesToolCallResultEntities!]
+  createdEntities: [AiConversationCreateEntityToolCallResultCreatedEntities!]
   startedAgentSessions: [AiConversationSearchEntitiesToolCallResultEntities!]
+}
+
+type AiConversationCreateEntityToolCallResultCreatedEntities {
+  id: String!
+  label: String
+  parent: AiConversationSearchEntitiesToolCallResultEntities
+  type: String!
 }
 
 type AiConversationCreateSandboxToolCall implements AiConversationBaseToolCall {
@@ -1407,14 +1441,22 @@ type AiConversationDeleteEntityToolCall implements AiConversationBaseToolCall {
 
   """The result of the tool call."""
   rawResult: JSON
+
+  """The result of the tool call."""
+  result: AiConversationDeleteEntityToolCallResult
 }
 
 type AiConversationDeleteEntityToolCallArgs {
   entity: AiConversationSearchEntitiesToolCallResultEntities!
 }
 
+type AiConversationDeleteEntityToolCallResult {
+  deletedEntities: [AiConversationCreateEntityToolCallResultCreatedEntities!]
+}
+
 """The kind of input an AI conversation elicitation asks for."""
 enum AiConversationElicitationKind {
+  confirmation
   mcpServerConnection
   multipleChoice
 }
@@ -1424,8 +1466,10 @@ type AiConversationElicitationOption {
   """The short label shown for the option."""
   label: String!
 
-  """The user prompt rendered to the agent when this option is selected."""
-  prompt: String!
+  """
+  The user prompt rendered to the agent when this option is selected. Null when selecting the option only dismisses the elicitation without replying.
+  """
+  prompt: String
 }
 
 """A structured request for user input shown with an AI conversation."""
@@ -1444,7 +1488,9 @@ type AiConversationElicitationPart implements AiConversationBasePart {
   """The metadata of the part."""
   metadata: AiConversationPartMetadata!
 
-  """Selectable prompt options for multiple-choice elicitations."""
+  """
+  The selectable actions for multiple-choice and confirmation elicitations.
+  """
   options: [AiConversationElicitationOption!]!
 
   """
@@ -1457,7 +1503,7 @@ type AiConversationElicitationPart implements AiConversationBasePart {
   """
   serverUrl: String
 
-  """The title shown above the elicitation choices."""
+  """The optional title shown above the elicitation choices."""
   title: String
 
   """The type of the part."""
@@ -1467,7 +1513,7 @@ type AiConversationElicitationPart implements AiConversationBasePart {
 """
 The kind-specific data recorded when a user answers an AI conversation elicitation.
 """
-union AiConversationElicitationResponseData = AiConversationMcpServerConnectionElicitationResponseData | AiConversationMultipleChoiceElicitationResponseData
+union AiConversationElicitationResponseData = AiConversationConfirmationElicitationResponseData | AiConversationMcpServerConnectionElicitationResponseData | AiConversationMultipleChoiceElicitationResponseData
 
 """A structured user response to an elicitation in an AI conversation."""
 type AiConversationElicitationResponsePart implements AiConversationBasePart {
@@ -1976,11 +2022,20 @@ type AiConversationNotifyUsersToolCall implements AiConversationBaseToolCall {
 
   """The result of the tool call."""
   rawResult: JSON
+
+  """The result of the tool call."""
+  result: AiConversationNotifyUsersToolCallResult
 }
 
 type AiConversationNotifyUsersToolCallArgs {
+  message: String
   summary: String
   userIds: [String!]!
+}
+
+type AiConversationNotifyUsersToolCallResult {
+  notifiedUserIds: [String!]
+  skippedUserIds: [String!]
 }
 
 """A part in an AI conversation."""
@@ -2077,8 +2132,10 @@ type AiConversationPromptCodingSessionToolCallArgs {
 
 type AiConversationPromptCodingSessionToolCallResult {
   agentSession: AiConversationSearchEntitiesToolCallResultEntities!
+  created: Boolean
   entities: [AiConversationSearchEntitiesToolCallResultEntities!]
   pullRequests: [AiConversationSearchEntitiesToolCallResultEntities!]
+  quotaBlocked: Boolean
 }
 
 """A prompt part in an AI conversation."""
@@ -2324,10 +2381,17 @@ type AiConversationRestoreEntityToolCall implements AiConversationBaseToolCall {
 
   """The result of the tool call."""
   rawResult: JSON
+
+  """The result of the tool call."""
+  result: AiConversationRestoreEntityToolCallResult
 }
 
 type AiConversationRestoreEntityToolCallArgs {
   entity: AiConversationSearchEntitiesToolCallResultEntities!
+}
+
+type AiConversationRestoreEntityToolCallResult {
+  restoredEntities: [AiConversationCreateEntityToolCallResultCreatedEntities!]
 }
 
 type AiConversationRetrieveEntitiesToolCall implements AiConversationBaseToolCall {
@@ -2368,6 +2432,26 @@ type AiConversationRetryPullRequestCheckToolCallArgs {
   checkName: String!
   entity: AiConversationSearchEntitiesToolCallResultEntities!
   workflowName: String
+}
+
+type AiConversationSearchChatChannelsToolCall implements AiConversationBaseToolCall {
+  """The arguments to the tool call."""
+  args: AiConversationSearchChatChannelsToolCallArgs
+  displayInfo: AiConversationToolDisplayInfo!
+
+  """The name of the tool that was called."""
+  name: AiConversationTool!
+
+  """The arguments of the tool call."""
+  rawArgs: JSON
+
+  """The result of the tool call."""
+  rawResult: JSON
+}
+
+type AiConversationSearchChatChannelsToolCallArgs {
+  filter: String!
+  platform: AiConversationPostChatMessageToolCallArgsPlatform!
 }
 
 type AiConversationSearchDocumentationToolCall implements AiConversationBaseToolCall {
@@ -2474,7 +2558,7 @@ type AiConversationSettingWidgetArgs {
   """The stable semantic setting ID returned by SearchSettings"""
   id: String!
 
-  """The resolved settings target returned by ReadSetting"""
+  """The settings target when the setting scope does not imply it"""
   target: AiConversationSettingWidgetArgsTarget
 }
 
@@ -2664,6 +2748,7 @@ enum AiConversationTool {
   RestoreEntity
   RetrieveEntities
   RetryPullRequestCheck
+  SearchChatChannels
   SearchDocumentation
   SearchEntities
   SearchSettings
@@ -2681,7 +2766,7 @@ enum AiConversationTool {
 }
 
 """The tool call."""
-union AiConversationToolCall = AiConversationBashToolCall | AiConversationCodeIntelligenceToolCall | AiConversationCreateEntityToolCall | AiConversationCreateSandboxToolCall | AiConversationDeleteEntityToolCall | AiConversationGetMicrosoftTeamsConversationHistoryToolCall | AiConversationGetPullRequestCheckLogsToolCall | AiConversationGetPullRequestDiffToolCall | AiConversationGetPullRequestFileToolCall | AiConversationGetSlackConversationHistoryToolCall | AiConversationHandoffToCodingSessionToolCall | AiConversationInvokeMcpToolToolCall | AiConversationListCodingSessionsToolCall | AiConversationNavigateToPageToolCall | AiConversationNotifyUsersToolCall | AiConversationPostChatMessageToolCall | AiConversationPromptCodingSessionToolCall | AiConversationQueryActivityToolCall | AiConversationQueryUpdatesToolCall | AiConversationQueryViewToolCall | AiConversationReadFileToolCall | AiConversationReadSandboxFileToolCall | AiConversationReadSettingToolCall | AiConversationRemoveSpendLimitToolCall | AiConversationResearchToolCall | AiConversationRestoreEntityToolCall | AiConversationRetrieveEntitiesToolCall | AiConversationRetryPullRequestCheckToolCall | AiConversationSearchDocumentationToolCall | AiConversationSearchEntitiesToolCall | AiConversationSearchSettingsToolCall | AiConversationSetSpendLimitToolCall | AiConversationSpawnSubagentToolCall | AiConversationStartCodingSessionToolCall | AiConversationSubscribeToEventToolCall | AiConversationSuggestRepositoryToolCall | AiConversationSuggestValuesToolCall | AiConversationTranscribeMediaToolCall | AiConversationTranscribeVideoToolCall | AiConversationUnsubscribeFromEventToolCall | AiConversationUpdateEntityToolCall | AiConversationWebSearchToolCall
+union AiConversationToolCall = AiConversationBashToolCall | AiConversationCodeIntelligenceToolCall | AiConversationCreateEntityToolCall | AiConversationCreateSandboxToolCall | AiConversationDeleteEntityToolCall | AiConversationGetMicrosoftTeamsConversationHistoryToolCall | AiConversationGetPullRequestCheckLogsToolCall | AiConversationGetPullRequestDiffToolCall | AiConversationGetPullRequestFileToolCall | AiConversationGetSlackConversationHistoryToolCall | AiConversationHandoffToCodingSessionToolCall | AiConversationInvokeMcpToolToolCall | AiConversationListCodingSessionsToolCall | AiConversationNavigateToPageToolCall | AiConversationNotifyUsersToolCall | AiConversationPostChatMessageToolCall | AiConversationPromptCodingSessionToolCall | AiConversationQueryActivityToolCall | AiConversationQueryUpdatesToolCall | AiConversationQueryViewToolCall | AiConversationReadFileToolCall | AiConversationReadSandboxFileToolCall | AiConversationReadSettingToolCall | AiConversationRemoveSpendLimitToolCall | AiConversationResearchToolCall | AiConversationRestoreEntityToolCall | AiConversationRetrieveEntitiesToolCall | AiConversationRetryPullRequestCheckToolCall | AiConversationSearchChatChannelsToolCall | AiConversationSearchDocumentationToolCall | AiConversationSearchEntitiesToolCall | AiConversationSearchSettingsToolCall | AiConversationSetSpendLimitToolCall | AiConversationSpawnSubagentToolCall | AiConversationStartCodingSessionToolCall | AiConversationSubscribeToEventToolCall | AiConversationSuggestRepositoryToolCall | AiConversationSuggestValuesToolCall | AiConversationTranscribeMediaToolCall | AiConversationTranscribeVideoToolCall | AiConversationUnsubscribeFromEventToolCall | AiConversationUpdateEntityToolCall | AiConversationWebSearchToolCall
 
 """A tool call part in an AI conversation."""
 type AiConversationToolCallPart implements AiConversationBasePart {
@@ -2777,6 +2862,7 @@ type AiConversationUpdateEntityToolCallArgs {
 
 type AiConversationUpdateEntityToolCallResult {
   startedAgentSessions: [AiConversationSearchEntitiesToolCallResultEntities!]
+  updatedEntities: [AiConversationCreateEntityToolCallResultCreatedEntities!]
 }
 
 """
@@ -9013,10 +9099,40 @@ input EmojiCreateInput {
   url: String!
 }
 
+"""Emoji creation date sorting options."""
+input EmojiCreatedAtSort {
+  """Whether nulls should be sorted first or last"""
+  nulls: PaginationNulls = last
+
+  """The order for the individual sort"""
+  order: PaginationSortOrder
+}
+
 type EmojiEdge {
   """Used in `before` and `after` args"""
   cursor: String!
   node: Emoji!
+}
+
+"""Custom emoji filtering options."""
+input EmojiFilter {
+  """Compound filters, all of which need to be matched by the emoji."""
+  and: [EmojiFilter!]
+
+  """Comparator for the created at date."""
+  createdAt: DateComparator
+
+  """Comparator for the identifier."""
+  id: IDComparator
+
+  """Comparator for the emoji name."""
+  name: StringComparator
+
+  """Compound filters, one of which needs to be matched by the emoji."""
+  or: [EmojiFilter!]
+
+  """Comparator for the updated at date."""
+  updatedAt: DateComparator
 }
 
 """The result of a custom emoji mutation."""
@@ -9029,6 +9145,12 @@ type EmojiPayload {
 
   """Whether the operation was successful."""
   success: Boolean!
+}
+
+"""Custom emoji sorting options."""
+input EmojiSortInput {
+  """Sort by emoji creation date."""
+  createdAt: EmojiCreatedAtSort
 }
 
 """A basic entity."""
@@ -9645,6 +9767,9 @@ type Favorite implements Node {
 
   """The favorited user."""
   user: User
+
+  """The favorited loop."""
+  workflowDefinition: WorkflowDefinition
 }
 
 type FavoriteConnection {
@@ -9745,6 +9870,9 @@ input FavoriteCreateInput {
 
   """The identifier of the user to favorite."""
   userId: String
+
+  """The identifier of the loop to favorite."""
+  workflowDefinitionId: String
 }
 
 type FavoriteEdge {
@@ -10643,6 +10771,32 @@ enum InboxBadgeScope {
   all
   none
   priority
+}
+
+"""State changes to apply to an inbox notification stack."""
+input InboxNotificationUpdateInput {
+  """Whether to mark the notification stack as read."""
+  read: Boolean
+
+  """
+  The time until which to snooze the notification stack. Null unsnoozes it.
+  """
+  snoozedUntilAt: DateTime
+}
+
+"""Return type for inbox notification updates."""
+type InboxNotificationUpdatePayload {
+  """The identifier of the last sync operation."""
+  lastSyncId: Float!
+
+  """The requested notification after the update."""
+  notification: Notification!
+
+  """Whether the operation was successful."""
+  success: Boolean!
+
+  """The notifications changed by the stack update."""
+  updatedNotifications: [Notification!]!
 }
 
 input InheritanceEntityMapping {
@@ -12730,6 +12884,7 @@ enum IntegrationService {
   microsoftTeamsProjectPost
   notion
   opsgenie
+  origin
   pagerDuty
   salesforce
   sentry
@@ -17436,6 +17591,11 @@ input JiraPersonalSettingsInput {
   The name of the Jira site currently authorized through the integration.
   """
   siteName: String
+
+  """
+  The id of the workspace Jira integration this personal integration authenticates through.
+  """
+  workspaceIntegrationId: String
 }
 
 input JiraProjectDataInput {
@@ -17673,6 +17833,50 @@ type LogoutResponse {
   success: Boolean!
 }
 
+"""[Internal] A Loop execution and the entity that triggered it."""
+type LoopExecution implements Node {
+  """[Internal] The AI conversation created for this Loop execution."""
+  aiConversation: AiConversation!
+
+  """
+  The time at which the entity was archived. Null if the entity has not been archived.
+  """
+  archivedAt: DateTime
+
+  """The time at which the entity was created."""
+  createdAt: DateTime!
+
+  """[Internal] The cycle that triggered this Loop execution."""
+  cycle: Cycle
+
+  """[Internal] The document that triggered this Loop execution."""
+  document: Document
+
+  """The unique identifier of the entity."""
+  id: ID!
+
+  """[Internal] The initiative that triggered this Loop execution."""
+  initiative: Initiative
+
+  """[Internal] The issue that triggered this Loop execution."""
+  issue: Issue
+
+  """[Internal] The project that triggered this Loop execution."""
+  project: Project
+
+  """[Internal] The team that triggered this Loop execution."""
+  team: Team
+
+  """
+  The last time at which the entity was meaningfully updated. This is the same as the creation time if the entity hasn't
+      been updated after creation.
+  """
+  updatedAt: DateTime!
+
+  """[Internal] The Loop that was executed."""
+  workflowDefinition: WorkflowDefinition
+}
+
 """Issue manual sorting options."""
 input ManualSort {
   """Whether nulls should be sorted first or last"""
@@ -17698,24 +17902,14 @@ input McpServerCustomHeaderInput {
 """
 type Meeting implements Node {
   """
-  [Internal] The transcript analysis state: `pending` while analysis runs and `completed` after it finishes. Null before analysis starts.
-  """
-  analysisStatus: MeetingAnalysisStatus
-
-  """
   The time at which the entity was archived. Null if the entity has not been archived.
   """
   archivedAt: DateTime
 
   """
-  [Internal] The meeting attendees. Each entry has a name and may include an active workspace user identifier.
+  [Internal] The IDs of the workspace users who attended the meeting, identified during import.
   """
-  attendees: [JSONObject!]
-
-  """
-  [Internal] The source that owns the attendee list. Null when attendees have not been set.
-  """
-  attendeesSource: String
+  attendeeIds: [String!]!
 
   """The time at which the entity was created."""
   createdAt: DateTime!
@@ -17743,30 +17937,16 @@ type Meeting implements Node {
   """
   project: Project
 
-  """[Internal] The meeting's unique URL slug."""
-  slugId: String!
-
   """
-  [Internal] The meeting summary in markdown format. Null before a summary exists.
+  [Internal] The meeting title generated during import. Null when the import produced no title.
   """
-  summary: String
-
-  """
-  [Internal] The meeting summary as a Prosemirror document. Null before a summary exists.
-  """
-  summaryData: String
+  title: String
 
   """
   The last time at which the entity was meaningfully updated. This is the same as the creation time if the entity hasn't
       been updated after creation.
   """
   updatedAt: DateTime!
-}
-
-"""[Internal] The analysis state of a meeting transcript."""
-enum MeetingAnalysisStatus {
-  completed
-  pending
 }
 
 type MicrosoftTeamsChannel {
@@ -17888,6 +18068,12 @@ type Mutation {
   agentSessionCreateOnIssue(
     """The agent session object to create."""
     input: AgentSessionCreateOnIssue!
+  ): AgentSessionPayload!
+
+  """[Internal] Restarts a routed coding session with the default model."""
+  agentSessionRestartWithDefaultModel(
+    """The identifier of the agent session to restart."""
+    id: String!
   ): AgentSessionPayload!
 
   """Updates an agent session."""
@@ -18904,6 +19090,17 @@ type Mutation {
     """File size of the uploaded file."""
     size: Int!
   ): UploadPayload!
+
+  """
+  Updates a notification in the authenticated user's inbox using inbox grouping behavior.
+  """
+  inboxNotificationUpdate(
+    """The identifier of the inbox notification to update."""
+    id: String!
+
+    """The inbox state changes to apply."""
+    input: InboxNotificationUpdateInput!
+  ): InboxNotificationUpdatePayload!
 
   """Adds a label to an initiative."""
   initiativeAddLabel(
@@ -26118,7 +26315,7 @@ type Project implements Node {
   lead: User
 
   """
-  [Internal] The team that leads the project. Null if no lead team is assigned.
+  [Internal] The team that leads the project. Null if the viewer does not have access to the team.
   """
   leadTeam: Team
 
@@ -28432,7 +28629,7 @@ type ProjectSearchResult implements Node {
   lead: User
 
   """
-  [Internal] The team that leads the project. Null if no lead team is assigned.
+  [Internal] The team that leads the project. Null if the viewer does not have access to the team.
   """
   leadTeam: Team
 
@@ -30696,6 +30893,9 @@ type Query {
     """A cursor to be used with last for backward pagination."""
     before: String
 
+    """Filter returned emojis."""
+    filter: EmojiFilter
+
     """
     The number of items to forward paginate (used with after). Defaults to 50.
     """
@@ -30713,6 +30913,9 @@ type Query {
     By which field should the pagination order by. Available options are createdAt (default) and updatedAt.
     """
     orderBy: PaginationOrderBy
+
+    """[INTERNAL] Sort returned emojis."""
+    sort: [EmojiSortInput!]
   ): EmojiConnection!
 
   """Retrieves a single entity external link by its identifier."""
@@ -30795,6 +30998,22 @@ type Query {
     """
     orderBy: PaginationOrderBy
   ): FavoriteConnection!
+
+  """
+  The authenticated user's active inbox notifications, grouped according to inbox behavior.
+  """
+  inboxNotifications(
+    """The cursor after which to return inbox notification stacks."""
+    after: String
+
+    """
+    The maximum number of inbox notification stacks to return. Defaults to 50.
+    """
+    first: Int
+
+    """Whether to return only unread inbox notification stacks."""
+    unreadOnly: Boolean
+  ): NotificationConnection!
 
   """Returns a single initiative by its identifier or URL slug."""
   initiative(id: String!): Initiative!
@@ -33080,6 +33299,11 @@ input ReleaseCompleteInput {
   commitSha: String
 
   """
+  Optional release description to apply when completing the release. Pass null to clear it.
+  """
+  description: String
+
+  """
   Documents to attach to the completed release. Existing documents with the same title are updated.
   """
   documents: [ReleaseDocumentInput!]
@@ -33110,6 +33334,11 @@ input ReleaseCompleteInputBase {
   The commit SHA to store when moving a release to completed. With a version, an existing SHA is preserved. Without a version, this SHA replaces the started release's SHA and is used to detect retries.
   """
   commitSha: String
+
+  """
+  Optional release description to apply when completing the release. Pass null to clear it.
+  """
+  description: String
 
   """
   Documents to attach to the completed release. Existing documents with the same title are updated.
@@ -34149,6 +34378,11 @@ input ReleaseSyncInput {
   debugSink: ReleaseDebugSinkInput
 
   """
+  The description of the release. Pass null to clear an existing description.
+  """
+  description: String
+
+  """
   Documents to attach to the release. Existing documents on the release with the same title are updated.
   """
   documents: [ReleaseDocumentInput!]
@@ -34164,6 +34398,11 @@ input ReleaseSyncInput {
 
   """The identifier of the pipeline this release belongs to."""
   pipelineId: String!
+
+  """
+  When true, an existing scheduled release keeps its stored commit SHA instead of taking this sync's commit. Set by CLI syncs from a checkout behind the stored commit, so the scan baseline does not move backwards. Has no effect on continuous pipelines, which identify releases by commit SHA.
+  """
+  preserveStoredCommitSha: Boolean
 
   """
   Pull request references to look up. Issues linked to found PRs will be associated with this release.
@@ -34198,6 +34437,11 @@ input ReleaseSyncInputBase {
   debugSink: ReleaseDebugSinkInput
 
   """
+  The description of the release. Pass null to clear an existing description.
+  """
+  description: String
+
+  """
   Documents to attach to the release. Existing documents on the release with the same title are updated.
   """
   documents: [ReleaseDocumentInput!]
@@ -34210,6 +34454,11 @@ input ReleaseSyncInputBase {
 
   """The name of the release."""
   name: String
+
+  """
+  When true, an existing scheduled release keeps its stored commit SHA instead of taking this sync's commit. Set by CLI syncs from a checkout behind the stored commit, so the scan baseline does not move backwards. Has no effect on continuous pipelines, which identify releases by commit SHA.
+  """
+  preserveStoredCommitSha: Boolean
 
   """
   Pull request references to look up. Issues linked to found PRs will be associated with this release.
@@ -34237,6 +34486,11 @@ input ReleaseSyncInputBase {
 Input for updating a release by pipeline identifier. Extends the base update input with the target pipeline identifier.
 """
 input ReleaseUpdateByPipelineInput {
+  """
+  Optional release description to apply when updating the release. Pass null to clear it.
+  """
+  description: String
+
   """
   Documents to attach to the updated release. Existing documents with the same title are updated.
   """
@@ -34269,6 +34523,11 @@ input ReleaseUpdateByPipelineInput {
 Base input for updating a release by pipeline. Contains optional version and stage name. The pipeline ID is provided separately or inferred from the access key.
 """
 input ReleaseUpdateByPipelineInputBase {
+  """
+  Optional release description to apply when updating the release. Pass null to clear it.
+  """
+  description: String
+
   """
   Documents to attach to the updated release. Existing documents with the same title are updated.
   """
@@ -34700,6 +34959,12 @@ enum SLADayCountType {
   onlyBusinessDays
 }
 
+"""Determines when timing begins for an SLA applied by a rule."""
+enum SLAStartMode {
+  issueCreation
+  ruleMatch
+}
+
 """[INTERNAL] Comparator for Salesforce metadata."""
 input SalesforceMetadataIntegrationComparator {
   """Salesforce Case metadata filter"""
@@ -34941,6 +35206,9 @@ type SlaConfiguration {
 
   """The SLA type used when the rule sets an SLA."""
   slaType: SLADayCountType
+
+  """When SLA timing begins. Null when the rule removes an SLA."""
+  startMode: SLAStartMode
 }
 
 enum SlaStatus {
@@ -35308,7 +35576,7 @@ input SlackSettingsInput {
 """Comparator for issue source type."""
 input SourceMetadataComparator {
   """
-  Null constraint. Matches any non-null values if the given value is false, otherwise it matches null values.
+  Null constraint. When true, matches issues without an external source: issues with no source metadata and issues created through the API, an OAuth application, or a loop. When false, matches issues created by an integration or an intake source such as email.
   """
   null: Boolean
 
@@ -39079,6 +39347,11 @@ type UserSettings implements Node {
   """
   notificationDeliveryPreferences: NotificationDeliveryPreferences!
 
+  """
+  [Internal] The user's preferred merge method for pull requests. Null if the user chooses a method for each pull request.
+  """
+  pullRequestMergeStrategyPreference: PullRequestMergeMethod
+
   """Whether to show full user names instead of display names."""
   showFullUserNames: Boolean!
 
@@ -40025,6 +40298,11 @@ type ViewPreferencesValues {
 
   """Whether to show the review repository field."""
   reviewFieldRepository: Boolean
+
+  """
+  Whether to show the most pressing SLA from connected issues on review list items. Null if the preference is unset.
+  """
+  reviewFieldSla: Boolean
 
   """Whether to show review status details on a second line."""
   reviewFieldStatusDetails: Boolean
