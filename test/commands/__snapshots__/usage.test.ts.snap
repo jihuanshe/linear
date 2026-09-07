@@ -549,7 +549,7 @@ snapshot[`usage JSON v1 freezes its existing fields and types 1`] = `
               variadic: false,
             },
           ],
-          description: "Filter by assignee (username, name, email, 'self', or '@me')",
+          description: "Filter by assignee (user UUID, username, name, email, 'self', or '@me')",
           flags: [
             "--assignee",
           ],
@@ -1377,7 +1377,7 @@ snapshot[`usage JSON v1 freezes its existing fields and types 1`] = `
               variadic: false,
             },
           ],
-          description: "Assign the issue to 'self' or someone (by username or name)",
+          description: "Assignee (user UUID, username, name, email, 'self', or '@me')",
           flags: [
             "-a",
             "--assignee",
@@ -1707,7 +1707,7 @@ snapshot[`usage JSON v1 freezes its existing fields and types 1`] = `
               variadic: false,
             },
           ],
-          description: "Assign the issue to 'self' or someone (by username or name)",
+          description: "Assignee (user UUID, username, name, email, 'self', or '@me')",
           flags: [
             "-a",
             "--assignee",

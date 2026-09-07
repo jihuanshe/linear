@@ -28,7 +28,10 @@ export const updateCommand = withUsageMetadata(new Command(), {
     "--status <status:string>",
     "New status (planned, active, completed, paused)",
   )
-  .option("--owner <owner:string>", "New owner (username, email, or @me)")
+  .option(
+    "--owner <owner:string>",
+    "New owner (user UUID, username, name, email, 'self', or '@me')",
+  )
   .option(
     "--target-date <targetDate:string>",
     "Target completion date (YYYY-MM-DD)",

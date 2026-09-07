@@ -1,8 +1,9 @@
 import { snapshotTest } from "@cliffy/testing"
-import { assertEquals, assertStringIncludes } from "@std/assert"
-import { fromFileUrl } from "@std/path"
+import { assertEquals, assertRejects, assertStringIncludes } from "@std/assert"
+import { fromFileUrl, join } from "@std/path"
 import { Checkbox, Input, Select } from "@cliffy/prompt"
 import { stub } from "@std/testing/mock"
+import { stripIgnoredCharacters } from "graphql"
 import { createCommand } from "../../../src/commands/issue/issue-create.ts"
 import {
   commonDenoArgs,
@@ -10,6 +11,291 @@ import {
 } from "../../utils/test-helpers.ts"
 
 const main = fromFileUrl(new URL("../../../src/main.ts", import.meta.url))
+
+for (
+  const { assignee, allowed } of [
+    { assignee: "self", allowed: true },
+    { assignee: "@me", allowed: true },
+    { assignee: "jane", allowed: false },
+    { assignee: "abcdef01-2345-4678-9abc-def012345678", allowed: false },
+  ]
+) {
+  Deno.test(`Issue Create Command - --start assignee ${assignee}`, async () => {
+    const viewerId = "abcdef01-2345-4678-9abc-def012345678"
+    const issueId = "12345678-1234-4678-9abc-def012345678"
+    const branchName = "eng-123-start-alias"
+    const { server, cleanup } = await setupMockLinearServer([
+      {
+        queryName: "GetTeamIdByKey",
+        variables: { team: "ENG" },
+        response: { data: { teams: { nodes: [{ id: "team-eng-id" }] } } },
+      },
+      {
+        queryName: "GetViewerId",
+        response: { data: { viewer: { id: viewerId } } },
+      },
+      {
+        queryName: "CreateIssue",
+        response: {
+          data: {
+            issueCreate: {
+              success: true,
+              issue: {
+                id: issueId,
+                identifier: "ENG-123",
+                url: "https://linear.app/test/issue/ENG-123/start-alias",
+                team: { key: "ENG" },
+              },
+            },
+          },
+        },
+      },
+      {
+        queryName: "GetIssueDetails",
+        variables: { id: issueId },
+        response: { data: { issue: { identifier: "ENG-123", branchName } } },
+      },
+      {
+        queryName: "GetWorkflowStates",
+        variables: { teamKey: "ENG" },
+        response: {
+          data: {
+            team: {
+              states: {
+                nodes: [{
+                  id: "state-started",
+                  name: "In Progress",
+                  type: "started",
+                  position: 1,
+                }],
+              },
+            },
+          },
+        },
+      },
+      {
+        queryName: "UpdateIssueState",
+        variables: { issueId, stateId: "state-started" },
+        response: { data: { issueUpdate: { success: true } } },
+      },
+    ])
+    const tempDir = await Deno.makeTempDir()
+
+    try {
+      // Keep the real startWorkOnIssue/VCS path inside a disposable repository.
+      for (
+        const args of [
+          ["init", "-b", "main"],
+          ["config", "user.name", "Linear Test"],
+          ["config", "user.email", "linear-test@example.com"],
+          [
+            "-c",
+            "commit.gpgsign=false",
+            "commit",
+            "--allow-empty",
+            "-m",
+            "initial",
+          ],
+        ]
+      ) {
+        const result = await new Deno.Command("git", {
+          args,
+          cwd: tempDir,
+          stdout: "null",
+          stderr: "piped",
+        }).output()
+        assertEquals(result.success, true)
+      }
+      const denoJsonPath = fromFileUrl(
+        new URL("../../../deno.json", import.meta.url),
+      )
+      const denoDir = Deno.env.get("DENO_DIR") ??
+        join(Deno.env.get("HOME") ?? tempDir, ".cache", "deno")
+      const result = await new Deno.Command(Deno.execPath(), {
+        args: [
+          "run",
+          "--allow-all",
+          "--quiet",
+          `--config=${denoJsonPath}`,
+          main,
+          "issue",
+          "create",
+          "--title",
+          "Start with viewer alias",
+          "--team",
+          "ENG",
+          "--start",
+          "--assignee",
+          assignee,
+          "--no-interactive",
+        ],
+        cwd: tempDir,
+        clearEnv: true,
+        env: {
+          PATH: Deno.env.get("PATH") ?? "",
+          HOME: tempDir,
+          DENO_DIR: denoDir,
+          LINEAR_API_KEY: "Bearer test-token",
+          LINEAR_GRAPHQL_ENDPOINT: server.getEndpoint(),
+          LINEAR_PROMPT_DISABLED: "1",
+          LINEAR_ISSUE_CREATE_ASSIGN_SELF: "never",
+          LINEAR_VCS: "git",
+          NO_COLOR: "1",
+        },
+        stdout: "piped",
+        stderr: "piped",
+      }).output()
+      const stdout = new TextDecoder().decode(result.stdout)
+      const stderr = new TextDecoder().decode(result.stderr)
+      assertEquals(result.code, allowed ? 0 : 1, stderr)
+      const requests = server.graphqlRequests
+      assertEquals(
+        requests.map((request) =>
+          request.query.match(/(?:query|mutation)\s+(\w+)/)?.[1]
+        ),
+        allowed
+          ? [
+            "GetTeamIdByKey",
+            "GetViewerId",
+            "CreateIssue",
+            "GetIssueDetails",
+            "GetWorkflowStates",
+            "UpdateIssueState",
+          ]
+          : ["GetTeamIdByKey"],
+      )
+      if (allowed) {
+        assertEquals(
+          (requests[2].variables.input as { assigneeId: string }).assigneeId,
+          viewerId,
+        )
+        assertStringIncludes(stdout, "Issue state updated to 'In Progress'")
+      } else {
+        assertStringIncludes(
+          stderr,
+          "Cannot use --start and a non-self --assignee",
+        )
+      }
+      const branch = await new Deno.Command("git", {
+        args: ["branch", "--show-current"],
+        cwd: tempDir,
+        stdout: "piped",
+        stderr: "piped",
+      }).output()
+      assertEquals(branch.success, true)
+      assertEquals(
+        new TextDecoder().decode(branch.stdout).trim(),
+        allowed ? branchName : "main",
+      )
+    } finally {
+      await Deno.remove(tempDir, { recursive: true })
+      await cleanup()
+    }
+  })
+}
+
+for (const outcome of ["found", "missing", "error"] as const) {
+  Deno.test(`Issue Create Command - UUID assignee ${outcome} overrides default self only after lookup`, async () => {
+    const userId = "abcdef01-2345-4678-9abc-def012345678"
+    const { server, cleanup } = await setupMockLinearServer([
+      {
+        queryName: "GetTeamIdByKey",
+        variables: { team: "ENG" },
+        response: { data: { teams: { nodes: [{ id: "team-eng-id" }] } } },
+      },
+      {
+        queryName: "GetViewerId",
+        response: { data: { viewer: { id: "user-self-123" } } },
+      },
+      {
+        queryName: "LookupUserById",
+        variables: { id: userId },
+        response: outcome === "error"
+          ? { errors: [{ message: "User lookup unavailable" }] }
+          : {
+            data: {
+              users: { nodes: outcome === "found" ? [{ id: userId }] : [] },
+            },
+          },
+      },
+      {
+        queryName: "CreateIssue",
+        response: {
+          data: {
+            issueCreate: {
+              success: true,
+              issue: {
+                id: "issue-id",
+                identifier: "ENG-123",
+                url: "https://linear.app/test/issue/ENG-123",
+                team: { key: "ENG" },
+              },
+            },
+          },
+        },
+      },
+    ], { LINEAR_TEAM_ID: "ENG", LINEAR_ISSUE_CREATE_ASSIGN_SELF: "always" })
+    const logs: string[] = []
+    const logStub = stub(console, "log", () => {})
+    const errorStub = stub(
+      console,
+      "error",
+      (...args: unknown[]) => logs.push(args.join(" ")),
+    )
+    const exitStub = stub(Deno, "exit", () => {
+      throw new Error("EXIT")
+    })
+    try {
+      const args = [
+        "--title",
+        "Assigned by UUID",
+        "--team",
+        "ENG",
+        "--assignee",
+        userId.toUpperCase(),
+        "--no-interactive",
+        "--json",
+      ]
+      if (outcome === "found") await createCommand.parse(args)
+      else {
+        await assertRejects(() => createCommand.parse(args), Error, "EXIT")
+        assertStringIncludes(
+          logs.join("\n"),
+          outcome === "missing" ? "User not found:" : "User lookup unavailable",
+        )
+      }
+      const lookup = server.graphqlRequests.find((request) =>
+        request.query.includes("query LookupUserById")
+      )
+      assertEquals(lookup?.variables, { id: userId })
+      assertStringIncludes(
+        stripIgnoredCharacters(lookup?.query ?? ""),
+        "users(filter:{id:{eq:$id}})",
+      )
+      assertEquals(
+        server.graphqlRequests.some((request) =>
+          /query LookupUser\(/.test(request.query)
+        ),
+        false,
+      )
+      const mutations = server.graphqlRequests.filter((request) =>
+        request.query.includes("mutation ")
+      )
+      assertEquals(mutations.length, outcome === "found" ? 1 : 0)
+      if (outcome === "found") {
+        assertEquals(
+          (mutations[0].variables.input as { assigneeId: string }).assigneeId,
+          userId,
+        )
+      }
+    } finally {
+      logStub.restore()
+      errorStub.restore()
+      exitStub.restore()
+      await cleanup()
+    }
+  })
+}
 
 Deno.test("issue create rejects --json with --start through the standard error boundary", async () => {
   const result = await new Deno.Command(Deno.execPath(), {

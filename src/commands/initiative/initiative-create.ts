@@ -62,7 +62,7 @@ export const createCommand = withUsageMetadata(new Command(), {
   )
   .option(
     "-o, --owner <owner:string>",
-    "Owner (username, email, or @me for yourself)",
+    "Owner (user UUID, username, name, email, 'self', or '@me')",
   )
   .option(
     "--target-date <targetDate:string>",

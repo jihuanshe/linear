@@ -76,7 +76,10 @@ export const updateCommand = withUsageMetadata(new Command(), { writes: true })
     "-s, --status <status:string>",
     "Status (planned, started, paused, completed, canceled, backlog)",
   )
-  .option("-l, --lead <lead:string>", "Project lead (username, email, or @me)")
+  .option(
+    "-l, --lead <lead:string>",
+    "Project lead (user UUID, username, name, email, 'self', or '@me')",
+  )
   .option("--start-date <startDate:string>", "Start date (YYYY-MM-DD)")
   .option("--target-date <targetDate:string>", "Target date (YYYY-MM-DD)")
   .option(

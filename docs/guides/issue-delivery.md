@@ -67,7 +67,7 @@ plan 和 apply 比较 base、目标值和远端值：
 | `write`      | 远端仍等于 base，写入  |
 | `conflict`   | 两者都不是，拒绝覆盖   |
 
-标签比较完整集合；Markdown 比较会规范化换行、行尾空格和列表符号。追加评论、附件、关系不需要字段 base，但关系仍检查冲突。
+负责人可在 `base.assignee` 与 `set.assignee` 中使用用户 UUID，按 ID 比较，不受改名影响；当前负责人的 ID 从 `issue view --json` 的 `assignee.id` 读取。标签比较完整集合；Markdown 比较会规范化换行、行尾空格和列表符号。追加评论、附件、关系不需要字段 base，但关系仍检查冲突。
 
 冲突可在授权内合并时，将 base 更新为远端值，set 改为保留同事修改的合并结果；决定冲突时请用户裁决。目标已归档、进回收站，或 identifier 解析到其他 Issue 时拒绝写入。
 
