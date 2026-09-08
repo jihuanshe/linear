@@ -46,7 +46,11 @@ export async function getProjectTeams(projectId: string) {
 }
 
 /** Share the same complete connection guard with dedicated commands and delivery. */
-export function assertProjectTeam(project: unknown, team: string): void {
+export function assertProjectTeam(
+  project: unknown,
+  team: string,
+  teamLabel = team,
+): void {
   const value = project as {
     id?: unknown
     name?: unknown
@@ -71,7 +75,7 @@ export function assertProjectTeam(project: unknown, team: string): void {
   )
   if (!match) {
     throw new ValidationError(
-      `Team ${team} does not belong to project ${value.name ?? value.id}`,
+      `Team ${teamLabel} does not belong to project ${value.name ?? value.id}`,
       {
         suggestion:
           "Choose a project that includes the issue's team, or agree on ownership before explicitly moving the issue or changing project teams. No write was sent.",
@@ -83,6 +87,7 @@ export function assertProjectTeam(project: unknown, team: string): void {
 export async function requireProjectTeam(
   projectId: string,
   team: string,
+  teamLabel = team,
 ): Promise<void> {
-  assertProjectTeam(await getProjectTeams(projectId), team)
+  assertProjectTeam(await getProjectTeams(projectId), team, teamLabel)
 }

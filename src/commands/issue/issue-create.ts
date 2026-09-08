@@ -389,6 +389,7 @@ async function promptInteractiveIssueCreation(
 ): Promise<{
   title: string
   teamId: string
+  teamKey: string
   assigneeId?: string
   priority?: number
   estimate?: number
@@ -581,6 +582,7 @@ async function promptInteractiveIssueCreation(
   return {
     title,
     teamId,
+    teamKey,
     assigneeId,
     priority,
     estimate,
@@ -741,6 +743,7 @@ export const createCommand = withUsageMetadata(new Command(), {
             await requireProjectTeam(
               interactiveData.projectId,
               interactiveData.teamId,
+              interactiveData.teamKey,
             )
           }
 
@@ -942,7 +945,7 @@ export const createCommand = withUsageMetadata(new Command(), {
 
         const targetProjectId = projectId ?? parentData?.projectId
         if (targetProjectId != null) {
-          await requireProjectTeam(targetProjectId, teamId)
+          await requireProjectTeam(targetProjectId, teamId, team)
         }
 
         const input = {

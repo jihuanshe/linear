@@ -103,7 +103,7 @@ for (const operation of ["create", "update", "move"] as const) {
           assertStringIncludes(
             errors.join("\n"),
             scenario === "incompatible"
-              ? "does not belong"
+              ? "Team ENG does not belong"
               : scenario === "read-failure"
               ? "Project unavailable"
               : "pagination cursor",
