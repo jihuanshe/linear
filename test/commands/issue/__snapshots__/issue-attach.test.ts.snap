@@ -58,6 +58,7 @@ Description:
 Options:
 
   -h, --help              - Show this help.                                                                            
+  --json                  - Output {attachment} as JSON                                                                
   -t, --title    <title>  - Custom title for the attachment                                                            
   -c, --comment  <body>   - Create a linked comment with this body; the file remains a sidebar attachment              
   --public                - Upload images to a public, unauthenticated URL (default: private, workspace-members only)  
@@ -65,4 +66,19 @@ Options:
 "
 stderr:
 ""
+`;
+
+snapshot[`Issue Attach Command - JSON preserves attachment receipt 1`] = `
+stdout:
+'{
+  "attachment": {
+    "id": "attachment-uuid-1",
+    "url": "https://uploads.linear.app/fake/proof.png",
+    "title": "proof.png"
+  }
+}
+'
+stderr:
+"✓ Uploaded proof.png
+"
 `;

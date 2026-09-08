@@ -20,6 +20,7 @@ export const linkCommand = withUsageMetadata(new Command(), { writes: true })
   .name("link")
   .description("Link a URL to an issue")
   .arguments("<urlOrIssueId:string> [url:string]")
+  .option("--json", "Output {attachment} as JSON")
   .option("-t, --title <title:string>", "Custom title for the link")
   .example(
     "Link a URL to issue detected from branch",
@@ -34,7 +35,7 @@ export const linkCommand = withUsageMetadata(new Command(), { writes: true })
     'linear issue link ENG-123 https://example.com --title "Design doc"',
   )
   .action(async (options, urlOrIssueId, url) => {
-    const { title } = options
+    const { title, json } = options
 
     try {
       let issueIdInput: string | undefined
@@ -112,6 +113,10 @@ export const linkCommand = withUsageMetadata(new Command(), { writes: true })
       }
 
       const attachment = data.attachmentLinkURL.attachment
+      if (json) {
+        console.log(JSON.stringify({ attachment }, null, 2))
+        return
+      }
       console.log(`✓ Linked to ${resolvedIdentifier}: ${attachment.title}`)
     } catch (error) {
       handleError(error, "Failed to link URL")

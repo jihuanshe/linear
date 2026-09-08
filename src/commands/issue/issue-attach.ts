@@ -28,6 +28,7 @@ export const attachCommand = withUsageMetadata(new Command(), { writes: true })
     "Create a sidebar attachment on an issue (images do not render inline)",
   )
   .arguments("<issueId:string> <filepath:string>")
+  .option("--json", "Output {attachment} as JSON")
   .option("-t, --title <title:string>", "Custom title for the attachment")
   .option(
     "-c, --comment <body:string>",
@@ -38,7 +39,7 @@ export const attachCommand = withUsageMetadata(new Command(), { writes: true })
     "Upload images to a public, unauthenticated URL (default: private, workspace-members only)",
   )
   .action(async (options, issueId, filepath) => {
-    const { title, comment, public: makePublic } = options
+    const { title, comment, public: makePublic, json } = options
 
     try {
       const resolvedIdentifier = await getIssueIdentifier(issueId)
@@ -68,10 +69,11 @@ export const attachCommand = withUsageMetadata(new Command(), { writes: true })
 
       // Upload the file
       const uploadResult = await uploadFile(filepath, {
-        showProgress: shouldShowSpinner(),
+        showProgress: shouldShowSpinner() && !json,
         makePublic,
       })
-      console.log(`✓ Uploaded ${uploadResult.filename}`)
+      if (json) console.error(`✓ Uploaded ${uploadResult.filename}`)
+      else console.log(`✓ Uploaded ${uploadResult.filename}`)
       if (uploadResult.public) {
         console.warn(
           `⚠ Uploaded to a public URL readable by anyone: ${uploadResult.assetUrl}`,
@@ -109,6 +111,10 @@ export const attachCommand = withUsageMetadata(new Command(), { writes: true })
       }
 
       const attachment = data.attachmentCreate.attachment
+      if (json) {
+        console.log(JSON.stringify({ attachment }, null, 2))
+        return
+      }
       console.log(`✓ Sidebar attachment created: ${attachment.title}`)
       console.log(attachment.url)
       if (uploadResult.contentType.startsWith("image/")) {

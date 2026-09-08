@@ -1,3 +1,4 @@
+import type { TypedDocumentNode } from "@graphql-typed-document-node/core"
 import { gql } from "../__codegen__/gql.ts"
 import type {
   GetAllTeamsQuery,
@@ -2330,14 +2331,29 @@ export async function searchTeamsByKeySubstring(
   )
 }
 
+export type UserLookupRequest = <T, V extends Record<string, unknown>>(
+  document: TypedDocumentNode<T, V>,
+  variables: V,
+) => Promise<T>
+
+function requestUserLookup<T, V extends Record<string, unknown>>(
+  document: TypedDocumentNode<T, V>,
+  variables: V,
+): Promise<T> {
+  return getGraphQLClient().request<T, Record<string, unknown>>(
+    document,
+    variables,
+  )
+}
+
 export async function lookupUserId(
   /**
    * User UUID, email, username, display name, 'self', or '@me' for viewer
    */
   input: "self" | "@me" | string,
+  request: UserLookupRequest = requestUserLookup,
 ): Promise<string | undefined> {
   if (input === "@me" || input === "self") {
-    const client = getGraphQLClient()
     const query = gql(/* GraphQL */ `
       query GetViewerId {
         viewer {
@@ -2345,10 +2361,9 @@ export async function lookupUserId(
         }
       }
     `)
-    const data = await client.request(query, {})
+    const data = await request(query, {})
     return data.viewer.id
   } else if (isLinearUuid(input)) {
-    const client = getGraphQLClient()
     const query = gql(/* GraphQL */ `
       query LookupUserById($id: ID!) {
         users(filter: { id: { eq: $id } }) {
@@ -2358,10 +2373,9 @@ export async function lookupUserId(
         }
       }
     `)
-    const data = await client.request(query, { id: input.toLowerCase() })
+    const data = await request(query, { id: input.toLowerCase() })
     return data.users.nodes[0]?.id
   } else {
-    const client = getGraphQLClient()
     const query = gql(/* GraphQL */ `
       query LookupUser($input: String!) {
         users(
@@ -2382,7 +2396,7 @@ export async function lookupUserId(
         }
       }
     `)
-    const data = await client.request(query, { input })
+    const data = await request(query, { input })
 
     if (!data.users?.nodes?.length) {
       return undefined

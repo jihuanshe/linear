@@ -2,12 +2,14 @@ import { assertProjectTeam } from "../utils/project-teams.ts"
 import { getTeamKeyFromIssueIdentifier } from "../utils/issue-identifier.ts"
 import { encodeHex } from "@std/encoding/hex"
 import { fromFileUrl } from "@std/path"
+import { print } from "graphql"
 import { CliError, ValidationError } from "../utils/errors.ts"
 import {
   EMPTY_ISSUE_RELATION_SNAPSHOT,
   extractIssueRelationSnapshot,
   isLinearUuid,
   type IssueRelationPlan,
+  lookupUserId,
   planIssueRelations,
 } from "../utils/linear.ts"
 import type {
@@ -18,7 +20,11 @@ import type {
   LoadedManifest,
   ManifestFile,
 } from "./manifest.ts"
-import { prepareCheckpoint, saveCheckpoint } from "./checkpoint.ts"
+import {
+  type DeliveryReceipt,
+  prepareCheckpoint,
+  saveCheckpoint,
+} from "./checkpoint.ts"
 
 // Each delivery step invokes this CLI's commands so name resolution,
 // validation, and output semantics stay with their command owners.
@@ -30,7 +36,10 @@ export interface CommandResult {
 }
 
 export interface CommandRunner {
-  run(args: string[]): Promise<CommandResult>
+  run(
+    args: string[],
+    options?: { signal?: AbortSignal },
+  ): Promise<CommandResult>
 }
 
 /** Re-invoke this CLI: the compiled binary directly, or deno + main.ts in dev. */
@@ -38,7 +47,7 @@ export function selfExecRunner(): CommandRunner {
   const execPath = Deno.execPath()
   const viaDeno = /(^|[\\/])deno(\.exe)?$/.test(execPath)
   return {
-    async run(args) {
+    async run(args, options) {
       const full = viaDeno
         ? [
           "run",
@@ -53,6 +62,7 @@ export function selfExecRunner(): CommandRunner {
         stdout: "piped",
         stderr: "piped",
         env: { NO_COLOR: "1" },
+        signal: options?.signal,
       }).output()
       const decoder = new TextDecoder()
       return {
@@ -216,8 +226,16 @@ function fieldEquals(
           },
         )
       }
-      const a = [...(manifestValue as string[] ?? [])].sort()
-      const b = [...(remoteValue as string[] ?? [])].sort()
+      const a = [
+        ...new Set(
+          (manifestValue as string[] ?? []).map((label) => label.toLowerCase()),
+        ),
+      ].sort()
+      const b = [
+        ...new Set(
+          (remoteValue as string[] ?? []).map((label) => label.toLowerCase()),
+        ),
+      ].sort()
       return a.length === b.length &&
         a.every((label, index) => label === b[index])
     }
@@ -435,7 +453,7 @@ async function expandIssue(
         (comment.files ?? []).length
       } file(s)`,
       buildCommand: async (identifier) => {
-        const args = ["issue", "comment", "add", identifier, ...ws]
+        const args = ["issue", "comment", "add", identifier, ...ws, "--json"]
         let temp: string | null = null
         if (comment.bodyFile != null) {
           args.push(
@@ -489,6 +507,7 @@ async function expandIssue(
             identifier,
             attachment.url,
             ...ws,
+            "--json",
             ...(attachment.title == null ? [] : ["--title", attachment.title]),
           ]
           : [
@@ -497,6 +516,7 @@ async function expandIssue(
             identifier,
             files.get(attachment.path)?.resolvedPath ?? attachment.path,
             ...ws,
+            "--json",
             ...(attachment.title == null ? [] : ["--title", attachment.title]),
           ],
       }),
@@ -564,6 +584,7 @@ export interface VerificationResult {
   issueIndex: number
   target: string
   status: "verified" | "failed"
+  scope?: "issue" | "fields-and-objects"
   detail?: string
   url?: string
 }
@@ -578,6 +599,10 @@ async function readBackIssue(
   issueIndex: number,
   identifier: string,
   workspaceFlags: string[],
+  receipts: DeliveryReceipt[],
+  desired: DeliverySet,
+  legacyItems: boolean,
+  signal: AbortSignal,
 ): Promise<ReadBackResult> {
   const failed = (detail: string): ReadBackResult => ({
     verification: {
@@ -589,13 +614,45 @@ async function readBackIssue(
   })
 
   try {
+    signal.throwIfAborted()
+    if (desired.assignee != null && !isLinearUuid(desired.assignee)) {
+      const id = await lookupUserId(
+        desired.assignee,
+        async (document, variables) => {
+          const result = await runner.run([
+            "api",
+            print(document),
+            ...workspaceFlags,
+            "--variables-json",
+            JSON.stringify(variables),
+          ], { signal })
+          if (result.code !== 0) {
+            throw new CliError(
+              result.stderr.trim() ||
+                "Failed to resolve assignee for verification",
+            )
+          }
+          const response = JSON.parse(result.stdout)
+          if (
+            response.data == null || response.errors?.length
+          ) throw new CliError("Assignee lookup returned no usable data")
+          return response.data
+        },
+      )
+      if (typeof id !== "string" || !id) {
+        throw new ValidationError(
+          "Cannot resolve the requested assignee for verification",
+        )
+      }
+      desired.assignee = id
+    }
     const view = await runner.run([
       "issue",
       "view",
       identifier,
       ...workspaceFlags,
       "--json",
-    ])
+    ], { signal })
     if (view.code !== 0) {
       return failed(
         view.stderr.trim().split("\n")[0] ||
@@ -628,17 +685,64 @@ async function readBackIssue(
       )
     }
 
+    const remote = extractRemoteFields(data)
+    const drift = objectDrift(identifier, remote)
+    if (drift != null) {
+      return failed(
+        `${drift}; applied writes were preserved and will not be repeated`,
+      )
+    }
+    const missingFields = MANAGED_FIELDS.filter((field) =>
+      desired[field] !== undefined &&
+      !fieldEquals(field, desired[field], remote)
+    )
+    const missingReceipts = receipts.filter((receipt) => {
+      const connection =
+        data[receipt.kind === "comment" ? "comments" : "attachments"]
+      if (connection == null || typeof connection !== "object") return true
+      const nodes = (connection as { nodes?: unknown }).nodes
+      return !Array.isArray(nodes) ||
+        !nodes.some((node) =>
+          node != null && typeof node === "object" && node.id === receipt.id
+        )
+    })
+    if (missingFields.length || missingReceipts.length) {
+      return {
+        ...failed(
+          "Not yet confirmed: " + [
+            ...missingFields.map((field) => "field " + field),
+            ...missingReceipts.map((receipt) =>
+              receipt.kind + " " + receipt.id
+            ),
+          ].join(", ") +
+            "; run the same apply again to verify without repeating applied writes",
+        ),
+        data,
+      }
+    }
+
     return {
       verification: {
         issueIndex,
         target: identifier,
         status: "verified",
+        scope: legacyItems ? "issue" : "fields-and-objects",
+        ...(legacyItems
+          ? {
+            detail:
+              "Legacy checkpoint has no object receipts; only issue identity and declared fields were verified",
+          }
+          : {}),
         ...(typeof data.url === "string" ? { url: data.url } : {}),
       },
       data,
     }
   } catch (error) {
-    return failed((error as Error).message)
+    return failed(
+      signal.aborted
+        ? "Read-back timed out; run the same apply again to verify without repeating applied writes"
+        : (error as Error).message,
+    )
   }
 }
 
@@ -667,6 +771,10 @@ export interface ApplyContext {
    * mutation.
    */
   continueOnFailure?: boolean
+  /** Delay between bounded read-back attempts; injectable for deterministic tests. */
+  verificationDelay?: (milliseconds: number) => Promise<void>
+  /** Overall deadline for read-back only; mutations are never interrupted. */
+  verificationTimeoutMs?: number
 }
 
 async function verifyWorkspaceIdentity(
@@ -735,7 +843,7 @@ export async function applyManifest(
 
   const checkpoint = await prepareCheckpoint(
     manifestPath,
-    expansions.flat().map((item) => item.key),
+    expansions.flat(),
   )
 
   const results: ItemResult[] = []
@@ -1045,7 +1153,38 @@ export async function applyManifest(
           identifier = createdIdentifier
           checkpoint.createdIdentifiers[String(issueIndex)] = createdIdentifier
         }
-        checkpoint.items[item.key] = { status: "applied" }
+        let receipt: DeliveryReceipt | undefined
+        if (item.kind === "comment" || item.kind === "attachment") {
+          try {
+            const output = JSON.parse(result.stdout)
+            const id = output?.[item.kind]?.id
+            if (typeof id !== "string" || !id.trim()) {
+              throw new Error("missing id")
+            }
+            receipt = { kind: item.kind, id }
+          } catch {
+            checkpoint.items[item.key] = {
+              status: "unknown",
+              note: "write succeeded but its object ID was not returned",
+            }
+            await saveCheckpoint(manifestPath, checkpoint)
+            results.push({
+              key: item.key,
+              kind: item.kind,
+              describe: item.describe,
+              status: "unknown",
+              detail:
+                "write succeeded but its object ID was not returned; reconcile before resuming",
+            })
+            unknownSeen = true
+            halted = true
+            continue
+          }
+        }
+        checkpoint.items[item.key] = {
+          status: "applied",
+          ...(receipt ? { receipt } : {}),
+        }
         await saveCheckpoint(manifestPath, checkpoint)
         issueNeedsVerification = true
         results.push({
@@ -1083,12 +1222,70 @@ export async function applyManifest(
     }
 
     if (issueNeedsVerification && identifier != null) {
-      const result = await readBackIssue(
-        runner,
-        issueIndex,
-        identifier,
-        workspaceFlags,
+      const appliedItems = items.filter((item) =>
+        checkpoint.items[item.key]?.status === "applied"
       )
+      const receipts = appliedItems.flatMap((item) =>
+        checkpoint.items[item.key].receipt ?? []
+      )
+      const legacyItems = appliedItems.some((item) =>
+        (item.kind === "comment" || item.kind === "attachment") &&
+        checkpoint.items[item.key].receipt == null
+      )
+      const desired: DeliverySet = appliedItems.some((item) =>
+          item.kind === "fields"
+        )
+        ? { ...issue.set }
+        : {}
+      if (desired.descriptionFile != null) {
+        desired.description = await Deno.readTextFile(
+          loaded.files.get(desired.descriptionFile)?.resolvedPath ??
+            desired.descriptionFile,
+        )
+        delete desired.descriptionFile
+      }
+      let result: ReadBackResult
+      const controller = new AbortController()
+      const timer = setTimeout(
+        () => controller.abort(),
+        context.verificationTimeoutMs ?? 30_000,
+      )
+      try {
+        for (let attempt = 0;; attempt++) {
+          result = await readBackIssue(
+            runner,
+            issueIndex,
+            identifier,
+            workspaceFlags,
+            receipts,
+            desired,
+            legacyItems,
+            controller.signal,
+          )
+          if (
+            result.verification.status === "verified" || result.data == null ||
+            attempt === 2 ||
+            controller.signal.aborted
+          ) break
+          await (context.verificationDelay ?? ((milliseconds) =>
+            new Promise<void>((resolve) => {
+              const finish = () => {
+                clearTimeout(delayTimer)
+                controller.signal.removeEventListener("abort", finish)
+                resolve()
+              }
+              const delayTimer = setTimeout(finish, milliseconds)
+              controller.signal.addEventListener("abort", finish, {
+                once: true,
+              })
+              if (controller.signal.aborted) finish()
+            })))(
+              1000 * (attempt + 1),
+            )
+        }
+      } finally {
+        clearTimeout(timer)
+      }
       verification.push(result.verification)
       if (result.data != null) readBack[identifier] = result.data
     }
