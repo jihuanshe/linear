@@ -644,6 +644,12 @@ async function readBackIssue(
     }
 
     const remote = extractRemoteFields(data)
+    const drift = objectDrift(identifier, remote)
+    if (drift != null) {
+      return failed(
+        `${drift}; applied writes were preserved and will not be repeated`,
+      )
+    }
     const missingFields = MANAGED_FIELDS.filter((field) =>
       desired[field] !== undefined &&
       !fieldEquals(field, desired[field], remote)

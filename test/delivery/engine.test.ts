@@ -2170,3 +2170,70 @@ Deno.test("a successful field write remains unverified until the desired value i
     await Deno.remove(dir, { recursive: true })
   }
 })
+
+for (
+  const [changed, detail] of [
+    [
+      { trashed: true, archivedAt: "2026-09-08T12:15:48Z" },
+      "issue is in the trash",
+    ],
+    [{ archivedAt: "2026-09-08T12:15:48Z" }, "issue is archived"],
+  ] as const
+) {
+  Deno.test(`resume cannot verify an inactive issue: ${detail}`, async () => {
+    const dir = await Deno.makeTempDir()
+    try {
+      const path = await writeManifest(dir, {
+        schemaVersion: 1,
+        workspace: "jihuanshe",
+        issues: [{
+          operation: "create",
+          team: "DATA",
+          set: { title: "Title" },
+        }],
+      })
+      let inactive = false
+      const runner = fakeRunner((args) => {
+        if (args[1] === "create") {
+          return {
+            code: 0,
+            stdout: '{"issue":{"identifier":"DATA-700"}}',
+            stderr: "",
+          }
+        }
+        if (args[1] === "view") {
+          return viewResult({
+            identifier: "DATA-700",
+            title: "Title",
+            ...(inactive ? changed : {}),
+          })
+        }
+        return undefined
+      })
+      const loaded = await loadManifest(path)
+      assertEquals(
+        (await applyManifest({ loaded, runner })).status,
+        "completed",
+      )
+      inactive = true
+      const before = runner.calls.length
+      const resumed = await applyManifest({ loaded, runner })
+      assertEquals(resumed.status, "applied-unverified")
+      assertEquals(resumed.items[0].status, "skipped")
+      assertEquals(resumed.verification[0].status, "failed")
+      assertStringIncludes(resumed.verification[0].detail ?? "", detail)
+      assertEquals(runner.calls.slice(before).map((args) => args[1]), ["view"])
+      const checkpoint = JSON.parse(
+        await Deno.readTextFile(checkpointPath(path)),
+      )
+      assertEquals(
+        Object.values(checkpoint.items).map((item) =>
+          (item as { status: string }).status
+        ),
+        ["applied"],
+      )
+    } finally {
+      await Deno.remove(dir, { recursive: true })
+    }
+  })
+}

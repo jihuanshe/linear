@@ -102,7 +102,7 @@ test "$code" -eq 0 &&
   jq -e '.status == "completed" and ([.verification[].status] | all(. == "verified"))' apply.json >/dev/null
 ```
 
-`verified` 且 `scope: "fields-and-objects"` 表示目标身份、清单声明的字段，以及本次评论和 Attachment 的返回 ID 均已读回匹配；不验证关系、文件字节或页面渲染。缺失字段或对象时，最多读回 3 次，间隔 1 秒、2 秒；每个 Issue 的读回总时限为 30 秒，只取消读回，不取消写入。读取错误直接报告，恢复后可重跑同一清单。`readBack` 按 identifier 保存 `issue view --json` 响应，用它核对实际内容；补读规则见 [automation](automation.md)。
+`verified` 且 `scope: "fields-and-objects"` 表示目标身份、清单声明的字段，以及本次评论和 Attachment 的返回 ID 均已读回匹配；不验证关系、文件字节或页面渲染。目标已归档或进入回收站时核验失败，保留成功记录，不重建工单。缺失字段或对象时，最多读回 3 次，间隔 1 秒、2 秒；每个 Issue 的读回总时限为 30 秒，只取消读回，不取消写入。读取错误直接报告，恢复后可重跑同一清单。`readBack` 按 identifier 保存 `issue view --json` 响应，用它核对实际内容；补读规则见 [automation](automation.md)。
 
 ## Checkpoint 与恢复
 
