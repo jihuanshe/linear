@@ -5,10 +5,20 @@ import { ValidationError } from "../utils/errors.ts"
 // retried. `skipped` and `unattempted` describe one apply invocation and must
 // never enter this file: accepting them on resume could make an invalid local
 // state look authoritative.
-const checkpointItemSchema = v.strictObject({
-  status: v.picklist(["applied", "failed", "unknown"]),
-  note: v.optional(v.string()),
-})
+const checkpointItemSchema = v.pipe(
+  v.strictObject({
+    status: v.picklist(["applied", "failed", "unknown"]),
+    note: v.optional(v.string()),
+    receipt: v.optional(v.strictObject({
+      kind: v.picklist(["comment", "attachment"]),
+      id: v.pipe(v.string(), v.minLength(1)),
+    })),
+  }),
+  v.check(
+    (item) => item.receipt == null || item.status === "applied",
+    "Object receipts require an applied item",
+  ),
+)
 
 const checkpointSchema = v.pipe(
   v.strictObject({
@@ -26,6 +36,10 @@ const checkpointSchema = v.pipe(
     items,
   })),
 )
+
+export type DeliveryReceipt = NonNullable<
+  v.InferOutput<typeof checkpointItemSchema>["receipt"]
+>
 
 export type Checkpoint = v.InferOutput<typeof checkpointSchema>
 
@@ -66,8 +80,11 @@ export async function loadCheckpoint(
 
 export async function prepareCheckpoint(
   manifestPath: string,
-  currentItemKeys: Iterable<string>,
+  currentItems: Iterable<{ key: string; kind: string }>,
 ): Promise<Checkpoint> {
+  const itemKinds = new Map(
+    [...currentItems].map((item) => [item.key, item.kind]),
+  )
   const existing = await loadCheckpoint(manifestPath)
   if (existing != null) {
     // An unknown mutation may already have landed, so no later work is safe
@@ -89,7 +106,7 @@ export async function prepareCheckpoint(
 
     // Position is part of every item key. If an applied key disappears, a
     // resume could repeat the write after an insert, reorder, edit, or delete.
-    const currentKeys = new Set(currentItemKeys)
+    const currentKeys = new Set(itemKinds.keys())
     const displaced = Object.entries(existing.items)
       .filter(([key, item]) =>
         item.status === "applied" && !currentKeys.has(key)
@@ -107,6 +124,17 @@ export async function prepareCheckpoint(
             }`,
         },
       )
+    }
+    for (const [key, item] of Object.entries(existing.items)) {
+      if (
+        item.receipt != null &&
+        (itemKinds.get(key) !== item.receipt.kind ||
+          !["comment", "attachment"].includes(itemKinds.get(key) ?? ""))
+      ) {
+        throw new ValidationError(
+          `Checkpoint receipt does not match execution item ${key}`,
+        )
+      }
     }
   }
 

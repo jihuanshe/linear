@@ -2131,6 +2131,16 @@ Run \`linear guide markdown\` for mentions, collapsible sections and rewrite ris
       name: "attach",
       options: [
         {
+          arguments: [],
+          description: "Output {attachment} as JSON",
+          flags: [
+            "--json",
+          ],
+          name: "json",
+          repeatable: false,
+          staticallyRequired: false,
+        },
+        {
           arguments: [
             {
               list: false,
@@ -2181,6 +2191,7 @@ Run \`linear guide markdown\` for mentions, collapsible sections and rewrite ris
       ],
       outputModes: [
         "human",
+        "json",
       ],
       path: "linear issue attach",
       usage: "linear issue attach <issueId> <filepath> [options]",
@@ -2218,6 +2229,16 @@ Run \`linear guide markdown\` for mentions, collapsible sections and rewrite ris
       name: "link",
       options: [
         {
+          arguments: [],
+          description: "Output {attachment} as JSON",
+          flags: [
+            "--json",
+          ],
+          name: "json",
+          repeatable: false,
+          staticallyRequired: false,
+        },
+        {
           arguments: [
             {
               list: false,
@@ -2239,6 +2260,7 @@ Run \`linear guide markdown\` for mentions, collapsible sections and rewrite ris
       ],
       outputModes: [
         "human",
+        "json",
       ],
       path: "linear issue link",
       usage: "linear issue link <urlOrIssueId> [url] [options]",

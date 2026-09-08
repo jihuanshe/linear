@@ -13,8 +13,9 @@ Description:
 
 Options:
 
-  -h, --help            - Show this help.            
-  -t, --title  <title>  - Custom title for the link  
+  -h, --help            - Show this help.              
+  --json                - Output {attachment} as JSON  
+  -t, --title  <title>  - Custom title for the link    
 
 Examples:
 
@@ -58,4 +59,18 @@ stdout:
 stderr:
 "✗ Failed to link URL: Issue not found: ENG-999
 "
+`;
+
+snapshot[`Issue Link Command - JSON preserves attachment receipt 1`] = `
+stdout:
+'{
+  "attachment": {
+    "id": "attachment-receipt",
+    "title": "Proof",
+    "url": "https://example.com/proof"
+  }
+}
+'
+stderr:
+""
 `;

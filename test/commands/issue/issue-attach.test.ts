@@ -258,3 +258,27 @@ await snapshotTest({
     await attachCommand.parse()
   },
 })
+
+await snapshotTest({
+  name: "Issue Attach Command - JSON preserves attachment receipt",
+  meta: import.meta,
+  colors: false,
+  args: ["TEST-123", "/tmp/linear-cli-test-attach/proof.png", "--json"],
+  denoArgs: commonDenoArgs,
+  async fn() {
+    await Deno.mkdir("/tmp/linear-cli-test-attach", { recursive: true })
+    await Deno.writeFile("/tmp/linear-cli-test-attach/proof.png", PNG_BYTES)
+    const { server, cleanup } = await setupMockLinearServer([
+      GET_ISSUE_ID_RESPONSE,
+    ])
+    mockAttachFlow(server, {
+      assetUrl: "https://uploads.linear.app/fake/proof.png",
+    })
+    try {
+      await attachCommand.parse()
+    } finally {
+      await cleanup()
+      await Deno.remove("/tmp/linear-cli-test-attach", { recursive: true })
+    }
+  },
+})

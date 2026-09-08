@@ -188,11 +188,27 @@ for (
           base: { assignee: scenario.base },
         }],
       })
-      const runner = fakeRunner((args) =>
-        args[1] === "view"
-          ? viewResult({ assignee: scenario.remote })
-          : undefined
-      )
+      let updated = false
+      const runner = fakeRunner((args) => {
+        if (args[0] === "api") {
+          return {
+            code: 0,
+            stdout: JSON.stringify({
+              data: { users: { nodes: [scenario.remote] } },
+            }),
+            stderr: "",
+          }
+        }
+        if (args[1] === "update") updated = true
+        if (args[1] === "view") {
+          return viewResult({
+            assignee: updated
+              ? (scenario.desired == null ? null : { id: scenario.desired })
+              : scenario.remote,
+          })
+        }
+        return undefined
+      })
       const loaded = await loadManifest(manifestPath)
       const plan = await planManifest({ loaded, runner })
       assertEquals(plan.issues[0].fields.map((field) => field.verdict), [
@@ -800,11 +816,28 @@ Deno.test("apply creates, threads the identifier, and reads back", async () => {
         }
       }
       if (args[1] === "view") {
-        return viewResult({ identifier: "DATA-700", title: "New issue" })
+        return viewResult({
+          identifier: "DATA-700",
+          title: "New issue",
+          comments: { nodes: [{ id: "comment-1" }] },
+          attachments: { nodes: [{ id: "attachment-1" }] },
+        })
       }
       if (args[1] === "comment") {
         const bodyFile = args[args.indexOf("--body-file") + 1]
         commentBody = Deno.readTextFileSync(bodyFile)
+        return {
+          code: 0,
+          stdout: JSON.stringify({ comment: { id: "comment-1" } }),
+          stderr: "",
+        }
+      }
+      if (args[1] === "link") {
+        return {
+          code: 0,
+          stdout: JSON.stringify({ attachment: { id: "attachment-1" } }),
+          stderr: "",
+        }
       }
       return undefined
     })
@@ -833,6 +866,7 @@ Deno.test("apply creates, threads the identifier, and reads back", async () => {
       issueIndex: 0,
       target: "DATA-700",
       status: "verified",
+      scope: "fields-and-objects",
     }])
     assertStringIncludes(formatApply(outcome), "read-back: 1/1 verified")
   } finally {
@@ -921,7 +955,7 @@ Deno.test("an all-skipped resume retries final read-back", async () => {
         viewCalls += 1
         return viewCalls === 2
           ? { code: 1, stdout: "", stderr: "✗ temporary read-back failure" }
-          : viewResult()
+          : viewResult({ title: viewCalls > 2 ? "New title" : "Old title" })
       }
       return undefined
     })
@@ -990,15 +1024,17 @@ Deno.test("all-skipped verification failures stay applied-unverified", async () 
           base: { title: "Old title" },
         }],
       })
+      let updated = false
       let failVerification = false
       let resumedViewCalls = 0
       const runner = fakeRunner((args) => {
+        if (args[1] === "update") updated = true
         if (args[1] === "view") {
           if (failVerification) {
             resumedViewCalls += 1
             return failedView
           }
-          return viewResult()
+          return viewResult({ title: updated ? "New title" : "Old title" })
         }
         return undefined
       })
@@ -1163,6 +1199,8 @@ Deno.test("resume refuses when an applied issue is removed or edited", async () 
           stdout: JSON.stringify({ issue: { identifier: "DATA-700" } }),
           stderr: "",
         }
+        : args[1] === "view"
+        ? viewResult({ identifier: args[2], title: "Issue A" })
         : undefined
     )
     const first = await applyManifest({
@@ -1219,6 +1257,12 @@ Deno.test("resume allows appending new issues after applied entries", async () =
           }),
           stderr: "",
         }
+      }
+      if (args[1] === "view") {
+        return viewResult({
+          identifier: args[2],
+          title: args[2] === "DATA-701" ? "Issue A" : "Issue B",
+        })
       }
       return undefined
     })
@@ -1381,6 +1425,9 @@ Deno.test("a launched mutation is checkpointed before its result", async () => {
           stdout: JSON.stringify({ issue: { identifier: "DATA-700" } }),
           stderr: "",
         }
+      }
+      if (args[1] === "view") {
+        return viewResult({ identifier: args[2], title: "New issue" })
       }
       return undefined
     })
@@ -1633,12 +1680,17 @@ Deno.test("continue mode handles read failures per issue", async () => {
         },
       ],
     })
+    let updated = false
     const runner = fakeRunner((args) => {
+      if (args[1] === "update") updated = true
       if (args[1] === "view" && args[2] === "DATA-1") {
         return { code: 1, stdout: "", stderr: "✗ issue not found" }
       }
       if (args[1] === "view" && args[2] === "DATA-2") {
-        return viewResult({ identifier: "DATA-2", title: "Old title" })
+        return viewResult({
+          identifier: "DATA-2",
+          title: updated ? "Second" : "Old title",
+        })
       }
       return undefined
     })
@@ -1806,7 +1858,12 @@ Deno.test("checkpoint keys reject a retargeted workspace", async () => {
         base: { title: "Old title" },
       }],
     })
+    let updated = false
     const runner = fakeRunner((args) => {
+      if (args[1] === "update") updated = true
+      if (args[1] === "view") {
+        return viewResult({ title: updated ? "New title" : "Old title" })
+      }
       if (args[0] === "auth" && args[1] === "whoami") {
         return {
           code: 0,
@@ -1849,3 +1906,567 @@ Deno.test("checkpoint keys reject a retargeted workspace", async () => {
     await Deno.remove(dir, { recursive: true })
   }
 })
+
+for (const eventuallyVisible of [true, false]) {
+  Deno.test(`receipt verification retries only reads: visible=${eventuallyVisible}`, async () => {
+    const dir = await Deno.makeTempDir()
+    try {
+      const path = await writeManifest(dir, {
+        schemaVersion: 1,
+        workspace: "jihuanshe",
+        issues: [{
+          operation: "update",
+          identifier: "DATA-606",
+          comments: [{ body: "same content" }],
+          attachments: [{ kind: "url", url: "https://example.com/proof" }],
+        }],
+      })
+      let reads = 0
+      let visible = false
+      const runner = fakeRunner((args) => {
+        if (args[1] === "comment") {
+          return {
+            code: 0,
+            stdout: JSON.stringify({ comment: { id: "new-comment" } }),
+            stderr: "",
+          }
+        }
+        if (args[1] === "link") {
+          return {
+            code: 0,
+            stdout: JSON.stringify({ attachment: { id: "new-attachment" } }),
+            stderr: "",
+          }
+        }
+        if (args[1] === "view") {
+          reads++
+          if (eventuallyVisible && reads === 4) visible = true
+          return viewResult({
+            comments: {
+              nodes: [{
+                id: visible ? "new-comment" : "old-comment",
+                body: "same content",
+              }],
+            },
+            attachments: {
+              nodes: [{
+                id: visible ? "new-attachment" : "old-attachment",
+                url: "https://example.com/proof",
+              }],
+            },
+          })
+        }
+        return undefined
+      })
+      const delays: number[] = []
+      const loaded = await loadManifest(path)
+      const first = await applyManifest({
+        loaded,
+        runner,
+        verificationDelay: (ms) => {
+          delays.push(ms)
+          return Promise.resolve()
+        },
+      })
+      assertEquals(
+        first.status,
+        eventuallyVisible ? "completed" : "applied-unverified",
+      )
+      assertEquals(reads, 4)
+      assertEquals(delays, [1000, 2000])
+      const checkpoint = JSON.parse(
+        await Deno.readTextFile(checkpointPath(path)),
+      )
+      assertEquals(
+        Object.values(checkpoint.items).map((item) =>
+          (item as { receipt: unknown }).receipt
+        ),
+        [
+          { kind: "comment", id: "new-comment" },
+          { kind: "attachment", id: "new-attachment" },
+        ],
+      )
+      if (!eventuallyVisible) {
+        assertStringIncludes(
+          first.verification[0].detail ?? "",
+          "comment new-comment",
+        )
+        assertStringIncludes(
+          first.verification[0].detail ?? "",
+          "attachment new-attachment",
+        )
+      }
+      visible = true
+      const resumed = await applyManifest({ loaded, runner })
+      assertEquals(resumed.status, "completed")
+      assertEquals(resumed.items.map((item) => item.status), [
+        "skipped",
+        "skipped",
+      ])
+      assertEquals(
+        runner.calls.filter((args) => args[1] === "comment").length,
+        1,
+      )
+      assertEquals(runner.calls.filter((args) => args[1] === "link").length, 1)
+    } finally {
+      await Deno.remove(dir, { recursive: true })
+    }
+  })
+}
+
+Deno.test("legacy object checkpoint reports limited verification without replay", async () => {
+  const dir = await Deno.makeTempDir()
+  try {
+    const path = await writeManifest(dir, {
+      schemaVersion: 1,
+      workspace: "jihuanshe",
+      issues: [{
+        operation: "update",
+        identifier: "DATA-606",
+        comments: [{ body: "legacy" }],
+      }],
+    })
+    const runner = fakeRunner((args) =>
+      args[1] === "comment"
+        ? { code: 0, stdout: '{"comment":{"id":"c1"}}', stderr: "" }
+        : args[1] === "view"
+        ? viewResult({ comments: { nodes: [{ id: "c1" }] } })
+        : undefined
+    )
+    const loaded = await loadManifest(path)
+    await applyManifest({ loaded, runner })
+    const checkpoint = JSON.parse(await Deno.readTextFile(checkpointPath(path)))
+    for (const item of Object.values(checkpoint.items)) {
+      delete (item as { receipt?: unknown }).receipt
+    }
+    await Deno.writeTextFile(checkpointPath(path), JSON.stringify(checkpoint))
+    const resumed = await applyManifest({ loaded, runner })
+    assertEquals(resumed.status, "completed")
+    assertEquals(resumed.verification[0].scope, "issue")
+    assertStringIncludes(formatApply(resumed), "Legacy checkpoint")
+    assertEquals(runner.calls.filter((args) => args[1] === "comment").length, 1)
+  } finally {
+    await Deno.remove(dir, { recursive: true })
+  }
+})
+
+Deno.test("missing mutation receipt stays unknown and cannot auto-resume", async () => {
+  const dir = await Deno.makeTempDir()
+  try {
+    const path = await writeManifest(dir, {
+      schemaVersion: 1,
+      workspace: "jihuanshe",
+      issues: [{
+        operation: "update",
+        identifier: "DATA-606",
+        comments: [{ body: "proof" }],
+      }],
+    })
+    const runner = fakeRunner(() => undefined)
+    const loaded = await loadManifest(path)
+    const first = await applyManifest({ loaded, runner })
+    assertEquals(first.status, "stopped-on-unknown")
+    assertStringIncludes(first.items[0].detail ?? "", "object ID")
+    await assertRejects(
+      () => applyManifest({ loaded, runner }),
+      ValidationError,
+      "unresolved unknown",
+    )
+    assertEquals(runner.calls.filter((args) => args[1] === "comment").length, 1)
+  } finally {
+    await Deno.remove(dir, { recursive: true })
+  }
+})
+
+Deno.test("read-back deadline cancels only the read and preserves applied state", async () => {
+  const dir = await Deno.makeTempDir()
+  try {
+    const path = await writeManifest(dir, {
+      schemaVersion: 1,
+      workspace: "jihuanshe",
+      issues: [{
+        operation: "update",
+        identifier: "DATA-606",
+        set: { title: "New title" },
+        base: { title: "Old title" },
+      }],
+    })
+    let mutation = false
+    let aborted = false
+    const runner: CommandRunner = {
+      run(args, options) {
+        if (args[0] === "auth") {
+          return Promise.resolve({
+            code: 0,
+            stdout: '{"organization":{"urlKey":"jihuanshe"}}',
+            stderr: "",
+          })
+        }
+        if (args[1] === "update") {
+          mutation = true
+          assertEquals(options?.signal, undefined)
+          return Promise.resolve({ code: 0, stdout: "{}", stderr: "" })
+        }
+        if (!mutation) return Promise.resolve(viewResult())
+        return new Promise((_resolve, reject) =>
+          options?.signal?.addEventListener("abort", () => {
+            aborted = true
+            reject(new Error("aborted"))
+          }, { once: true })
+        )
+      },
+    }
+    const loaded = await loadManifest(path)
+    const first = await applyManifest({
+      loaded,
+      runner,
+      verificationTimeoutMs: 10,
+    })
+    assertEquals(aborted, true)
+    assertEquals(first.status, "applied-unverified")
+    assertEquals(first.items[0].status, "applied")
+    assertStringIncludes(first.verification[0].detail ?? "", "timed out")
+    const resumedRunner = fakeRunner((args) =>
+      args[1] === "view" ? viewResult({ title: "New title" }) : undefined
+    )
+    const resumed = await applyManifest({ loaded, runner: resumedRunner })
+    assertEquals(resumed.status, "completed")
+    assertEquals(resumedRunner.calls.every((args) => args[1] === "view"), true)
+  } finally {
+    await Deno.remove(dir, { recursive: true })
+  }
+})
+
+Deno.test("a successful field write remains unverified until the desired value is visible", async () => {
+  const dir = await Deno.makeTempDir()
+  try {
+    const path = await writeManifest(dir, {
+      schemaVersion: 1,
+      workspace: "jihuanshe",
+      issues: [{
+        operation: "update",
+        identifier: "DATA-606",
+        set: { title: "New title" },
+        base: { title: "Old title" },
+      }],
+    })
+    let visible = false
+    const runner = fakeRunner((args) =>
+      args[1] === "view"
+        ? viewResult({ title: visible ? "New title" : "Old title" })
+        : undefined
+    )
+    const loaded = await loadManifest(path)
+    const first = await applyManifest({
+      loaded,
+      runner,
+      verificationDelay: () => Promise.resolve(),
+    })
+    assertEquals(first.status, "applied-unverified")
+    assertEquals(first.items[0].status, "applied")
+    assertStringIncludes(first.verification[0].detail ?? "", "field title")
+    visible = true
+    const resumed = await applyManifest({ loaded, runner })
+    assertEquals(resumed.status, "completed")
+    assertEquals(runner.calls.filter((args) => args[1] === "update").length, 1)
+  } finally {
+    await Deno.remove(dir, { recursive: true })
+  }
+})
+
+for (
+  const [changed, detail] of [
+    [
+      { trashed: true, archivedAt: "2026-09-08T12:15:48Z" },
+      "issue is in the trash",
+    ],
+    [{ archivedAt: "2026-09-08T12:15:48Z" }, "issue is archived"],
+  ] as const
+) {
+  Deno.test(`resume cannot verify an inactive issue: ${detail}`, async () => {
+    const dir = await Deno.makeTempDir()
+    try {
+      const path = await writeManifest(dir, {
+        schemaVersion: 1,
+        workspace: "jihuanshe",
+        issues: [{
+          operation: "create",
+          team: "DATA",
+          set: { title: "Title" },
+        }],
+      })
+      let inactive = false
+      const runner = fakeRunner((args) => {
+        if (args[1] === "create") {
+          return {
+            code: 0,
+            stdout: '{"issue":{"identifier":"DATA-700"}}',
+            stderr: "",
+          }
+        }
+        if (args[1] === "view") {
+          return viewResult({
+            identifier: "DATA-700",
+            title: "Title",
+            ...(inactive ? changed : {}),
+          })
+        }
+        return undefined
+      })
+      const loaded = await loadManifest(path)
+      assertEquals(
+        (await applyManifest({ loaded, runner })).status,
+        "completed",
+      )
+      inactive = true
+      const before = runner.calls.length
+      const resumed = await applyManifest({ loaded, runner })
+      assertEquals(resumed.status, "applied-unverified")
+      assertEquals(resumed.items[0].status, "skipped")
+      assertEquals(resumed.verification[0].status, "failed")
+      assertStringIncludes(resumed.verification[0].detail ?? "", detail)
+      assertEquals(runner.calls.slice(before).map((args) => args[1]), ["view"])
+      const checkpoint = JSON.parse(
+        await Deno.readTextFile(checkpointPath(path)),
+      )
+      assertEquals(
+        Object.values(checkpoint.items).map((item) =>
+          (item as { status: string }).status
+        ),
+        ["applied"],
+      )
+    } finally {
+      await Deno.remove(dir, { recursive: true })
+    }
+  })
+}
+
+for (const operation of ["create", "update"] as const) {
+  for (const input of ["self", "@me", "ALEX@EXAMPLE.TEST", "aLeX"]) {
+    Deno.test(`delivery verifies resolved assignee ${operation}: ${input}`, async () => {
+      const dir = await Deno.makeTempDir()
+      try {
+        const path = await writeManifest(dir, {
+          schemaVersion: 1,
+          workspace: "jihuanshe",
+          issues: [
+            operation === "create"
+              ? {
+                operation,
+                team: "DATA",
+                set: { title: "Title", assignee: input, labels: ["bug"] },
+              }
+              : {
+                operation,
+                identifier: "DATA-606",
+                set: { assignee: input, labels: ["bug"] },
+                base: { assignee: null, labels: ["bug"] },
+              },
+          ],
+        })
+        let written = false
+        const runner = fakeRunner((args) => {
+          if (args[1] === "create" || args[1] === "update") written = true
+          if (args[1] === "create") {
+            return {
+              code: 0,
+              stdout: '{"issue":{"identifier":"DATA-700"}}',
+              stderr: "",
+            }
+          }
+          if (args[0] === "api") {
+            assertEquals(args.includes("--workspace"), true)
+            const users = {
+              nodes: [{
+                id: USER_C,
+                name: "Alex Other",
+                displayName: "other",
+                email: "other@example.test",
+              }, {
+                id: USER_A,
+                name: "Alex",
+                displayName: "alex",
+                email: "alex@example.test",
+              }],
+            }
+            return {
+              code: 0,
+              stdout: JSON.stringify({
+                data: args[1].includes("GetViewerId")
+                  ? { viewer: { id: USER_A } }
+                  : { users },
+              }),
+              stderr: "",
+            }
+          }
+          if (args[1] === "view") {
+            return viewResult({
+              identifier: args[2],
+              title: "Title",
+              assignee: written
+                ? { id: USER_A, name: "Alex", displayName: "alex" }
+                : null,
+              labels: {
+                nodes: [{ name: written ? "Bug" : "bug" }],
+                pageInfo: { hasNextPage: false },
+              },
+            })
+          }
+          return undefined
+        })
+        const loaded = await loadManifest(path)
+        const first = await applyManifest({
+          loaded,
+          runner,
+          verificationDelay: () => Promise.resolve(),
+        })
+        assertEquals(first.status, "completed")
+        const resumed = await applyManifest({ loaded, runner })
+        assertEquals(resumed.status, "completed")
+        assertEquals(resumed.summary.applied, 0)
+        assertEquals(
+          runner.calls.filter((args) =>
+            args[1] === "create" || args[1] === "update"
+          ).length,
+          1,
+        )
+        assertEquals(runner.calls.filter((args) => args[0] === "api").length, 2)
+      } finally {
+        await Deno.remove(dir, { recursive: true })
+      }
+    })
+  }
+}
+
+Deno.test("resolved assignee verification does not accept a different matching name", async () => {
+  const dir = await Deno.makeTempDir()
+  try {
+    const path = await writeManifest(dir, {
+      schemaVersion: 1,
+      workspace: "jihuanshe",
+      issues: [{
+        operation: "create",
+        team: "DATA",
+        set: { title: "Title", assignee: "alex@example.test" },
+      }],
+    })
+    const runner = fakeRunner((args) => {
+      if (args[1] === "create") {
+        return {
+          code: 0,
+          stdout: '{"issue":{"identifier":"DATA-700"}}',
+          stderr: "",
+        }
+      }
+      if (args[0] === "api") {
+        return {
+          code: 0,
+          stdout: JSON.stringify({
+            data: {
+              users: {
+                nodes: [{
+                  id: USER_A,
+                  name: "Alex",
+                  displayName: "alex",
+                  email: "alex@example.test",
+                }],
+              },
+            },
+          }),
+          stderr: "",
+        }
+      }
+      if (args[1] === "view") {
+        return viewResult({
+          identifier: "DATA-700",
+          title: "Title",
+          assignee: { id: USER_B, name: "Alex", displayName: "alex" },
+        })
+      }
+      return undefined
+    })
+    const result = await applyManifest({
+      loaded: await loadManifest(path),
+      runner,
+      verificationDelay: () => Promise.resolve(),
+    })
+    assertEquals(result.status, "applied-unverified")
+    assertStringIncludes(result.verification[0].detail ?? "", "field assignee")
+  } finally {
+    await Deno.remove(dir, { recursive: true })
+  }
+})
+
+for (
+  const invalidKind of ["fields", "comment", "attachment", "relation"] as const
+) {
+  Deno.test(`resume rejects a receipt mismatching its ${invalidKind} execution item`, async () => {
+    const dir = await Deno.makeTempDir()
+    try {
+      const path = await writeManifest(dir, {
+        schemaVersion: 1,
+        workspace: "jihuanshe",
+        issues: [{
+          operation: "create",
+          team: "DATA",
+          set: { title: "Title" },
+          comments: [{ body: "Proof" }],
+          attachments: [{ kind: "url", url: "https://example.com/proof" }],
+          relations: [{ type: "related", issue: "DATA-1" }],
+        }],
+      })
+      const runner = fakeRunner((args) => {
+        if (args[1] === "create") {
+          return {
+            code: 0,
+            stdout: '{"issue":{"identifier":"DATA-700"}}',
+            stderr: "",
+          }
+        }
+        if (args[1] === "comment") {
+          return {
+            code: 0,
+            stdout: '{"comment":{"id":"comment-1"}}',
+            stderr: "",
+          }
+        }
+        if (args[1] === "link") {
+          return {
+            code: 0,
+            stdout: '{"attachment":{"id":"attachment-1"}}',
+            stderr: "",
+          }
+        }
+        if (args[1] === "view") {
+          return viewResult({
+            identifier: "DATA-700",
+            title: "Title",
+            comments: { nodes: [{ id: "comment-1" }] },
+            attachments: { nodes: [{ id: "attachment-1" }] },
+          })
+        }
+        return undefined
+      })
+      const loaded = await loadManifest(path)
+      const first = await applyManifest({ loaded, runner })
+      assertEquals(first.status, "completed")
+      const key = first.items.find((item) => item.kind === invalidKind)!.key
+      const checkpoint = JSON.parse(
+        await Deno.readTextFile(checkpointPath(path)),
+      )
+      checkpoint.items[key].receipt = invalidKind === "comment"
+        ? { kind: "attachment", id: "attachment-1" }
+        : { kind: "comment", id: "comment-1" }
+      await Deno.writeTextFile(checkpointPath(path), JSON.stringify(checkpoint))
+      const before = runner.calls.length
+      await assertRejects(
+        () => applyManifest({ loaded, runner }),
+        ValidationError,
+        "receipt does not match execution item",
+      )
+      assertEquals(runner.calls.length, before)
+    } finally {
+      await Deno.remove(dir, { recursive: true })
+    }
+  })
+}

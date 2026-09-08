@@ -57,11 +57,11 @@ export function formatApply(outcome: ApplyOutcome): string {
     for (const result of outcome.verification) {
       lines.push(
         `  ${result.status} ${result.target}${
-          result.url != null
-            ? ` — ${result.url}`
-            : result.detail == null
+          result.detail != null
+            ? ` — ${result.detail}`
+            : result.url == null
             ? ""
-            : ` — ${result.detail}`
+            : ` — ${result.url}`
         }`,
       )
     }

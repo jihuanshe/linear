@@ -397,7 +397,17 @@ Deno.test("issue apply JSON preserves progress on stderr and one stdout document
       queryName: "AuthStatus",
       response: { data: { viewer: { organization: { urlKey: "jihuanshe" } } } },
     },
-    detailResponse({ ...issue, comments: empty, attachments: empty }),
+    detailResponse({
+      ...issue,
+      comments: {
+        nodes: [{ ...comment("created"), resolvedAt: "2026-09-08T00:00:00Z" }],
+        pageInfo: terminalPage,
+      },
+      attachments: {
+        nodes: [attachment("linked"), attachment("uploaded")],
+        pageInfo: terminalPage,
+      },
+    }),
     {
       queryName: "GetIssueId",
       response: { data: { issue: { id: "issue-id" } } },
@@ -499,6 +509,93 @@ Deno.test("issue apply JSON preserves progress on stderr and one stdout document
         query.includes("mutation AddComment")
       ).length,
       1,
+    )
+  } finally {
+    await server.stop()
+    await Deno.remove(directory, { recursive: true })
+  }
+})
+
+Deno.test("issue apply resolves self through the same CLI API credentials on resume", async () => {
+  const directory = await Deno.makeTempDir({ prefix: "linear-assignee-alias-" })
+  const userId = "abcdef01-2345-4678-9abc-def012345678"
+  const server = new MockLinearServer([
+    {
+      queryName: "AuthStatus",
+      response: { data: { viewer: { organization: { urlKey: "jihuanshe" } } } },
+    },
+    {
+      queryName: "GetViewerId",
+      response: { data: { viewer: { id: userId } } },
+    },
+    detailResponse({
+      ...issue,
+      assignee: { id: userId, name: "Alex", displayName: "alex" },
+      comments: empty,
+      attachments: empty,
+    }),
+    {
+      queryName: "UpdateIssue",
+      variables: { id: "TEST-123", input: { assigneeId: userId } },
+      response: {
+        data: {
+          issueUpdate: {
+            success: true,
+            issue: {
+              id: "issue-id",
+              identifier: "TEST-123",
+              title: "Read all evidence",
+              url: issue.url,
+            },
+          },
+        },
+      },
+    },
+  ])
+  await server.start()
+  try {
+    const path = join(directory, "delivery.json")
+    await Deno.writeTextFile(
+      path,
+      JSON.stringify({
+        schemaVersion: 1,
+        workspace: "jihuanshe",
+        issues: [{
+          operation: "update",
+          identifier: "TEST-123",
+          set: { assignee: "self" },
+          base: { assignee: userId },
+        }],
+      }),
+    )
+    const args = [
+      "issue",
+      "apply",
+      "--file",
+      path,
+      "--confirm-workspace",
+      "jihuanshe",
+      "--json",
+    ]
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const result = await runCli(server, args, directory)
+      assertEquals(result.code, 0, result.stderr)
+      const outcome = JSON.parse(result.stdout)
+      assertEquals(outcome.status, "completed")
+      assertEquals(outcome.verification[0].status, "verified")
+      if (attempt === 1) assertEquals(outcome.summary.skipped, 1)
+    }
+    assertEquals(
+      server.graphqlRequests.filter((x) =>
+        x.query.includes("mutation UpdateIssue")
+      ).length,
+      1,
+    )
+    assertEquals(
+      server.graphqlRequests.filter((x) =>
+        x.query.includes("query GetViewerId")
+      ).length,
+      3,
     )
   } finally {
     await server.stop()

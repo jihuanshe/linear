@@ -150,3 +150,40 @@ await snapshotTest({
     }
   },
 })
+
+await snapshotTest({
+  name: "Issue Link Command - JSON preserves attachment receipt",
+  meta: import.meta,
+  colors: false,
+  args: ["ENG-123", "https://example.com/proof", "--json"],
+  denoArgs: commonDenoArgs,
+  async fn() {
+    const { cleanup } = await setupMockLinearServer([
+      {
+        queryName: "GetIssueId",
+        variables: { id: "ENG-123" },
+        response: { data: { issue: { id: "issue-uuid-123" } } },
+      },
+      {
+        queryName: "AttachmentLinkURL",
+        response: {
+          data: {
+            attachmentLinkURL: {
+              success: true,
+              attachment: {
+                id: "attachment-receipt",
+                title: "Proof",
+                url: "https://example.com/proof",
+              },
+            },
+          },
+        },
+      },
+    ])
+    try {
+      await linkCommand.parse()
+    } finally {
+      await cleanup()
+    }
+  },
+})
