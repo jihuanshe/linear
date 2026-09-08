@@ -102,13 +102,13 @@ test "$code" -eq 0 &&
   jq -e '.status == "completed" and ([.verification[].status] | all(. == "verified"))' apply.json >/dev/null
 ```
 
-`verified` 仅证明目标成功读回，不能证明字段达到期望。`readBack` 按 identifier 保存 `issue view --json` 响应，用它核对实际内容；补读规则见 [automation](automation.md)。
+`verified` 且 `scope: "fields-and-objects"` 表示目标身份、清单声明的字段，以及本次评论和 Attachment 的返回 ID 均已读回匹配；不验证关系、文件字节或页面渲染。缺失字段或对象时，最多读回 3 次，间隔 1 秒、2 秒；每个 Issue 的读回总时限为 30 秒，只取消读回，不取消写入。读取错误直接报告，恢复后可重跑同一清单。`readBack` 按 identifier 保存 `issue view --json` 响应，用它核对实际内容；补读规则见 [automation](automation.md)。
 
 ## Checkpoint 与恢复
 
 `<manifest>.checkpoint.json` 与 manifest 及引用文件一起交接。执行项 key 绑定位置、内容哈希、workspace、operation、identifier 和 team；续跑跳过已成功项。
 
-checkpoint 包含 `schemaVersion: 1`、`items` 和 `createdIdentifiers`。`items[key].status` 只能为 applied/failed/unknown，可另附 `note`；unattempted/skipped 只属于单次输出。`createdIdentifiers` 按 `issues[]` 的零起始下标记录新 Issue，如 `{"0":"ENG-700"}`，没有时仍保留 `{}`。
+checkpoint 包含 `schemaVersion: 1`、`items` 和 `createdIdentifiers`。`items[key].status` 只能为 applied/failed/unknown，可另附 `note` 和 `receipt: {kind, id}`；评论与 Attachment 写入保存返回的对象 ID，不按正文或 URL 猜测对象。旧 checkpoint 缺少 receipt 时仍跳过写入，`verification.scope` 为 `issue` 并明确仅核对身份与声明字段，不能据此宣称对象已核验；unattempted/skipped 只属于单次输出。`createdIdentifiers` 按 `issues[]` 的零起始下标记录新 Issue，如 `{"0":"ENG-700"}`，没有时仍保留 `{}`。
 
 | 结果                             | 恢复动作                                                                   |
 | -------------------------------- | -------------------------------------------------------------------------- |
@@ -116,7 +116,7 @@ checkpoint 包含 `schemaVersion: 1`、`items` 和 `createdIdentifiers`。`items
 | `applied-unverified`             | 修复读取问题后重跑，补读回而不重复写入                                     |
 | `unknown` / `stopped-on-unknown` | 先核对远端结果及部分副作用；所有续跑均被阻止，包括 `--continue-on-failure` |
 
-写入子命令启动前先记录 unknown；非零退出或异常不能证明未写入。对账后，确认成功的项改为 applied；确认未执行的项才可改为 failed 或移除记录后重试。部分成功时先修订清单，避免重放已发生的副作用。unknown create 若已成功，还须在 `createdIdentifiers` 补上原条目下标与 identifier。
+写入子命令启动前先记录 unknown；非零退出或异常不能证明未写入。对账后，确认成功的项改为 applied；确认未执行的项才可改为 failed 或移除记录后重试。部分成功时先修订清单，避免重放已发生的副作用。评论或 Attachment 成功但缺少有效返回 ID 时也记为 unknown，不自动重发。对账确认对象后，应在 applied 项补上 `receipt`（`kind` 为 `comment` 或 `attachment`，`id` 为核实的对象 ID）。unknown create 若已成功，还须在 `createdIdentifiers` 补上原条目下标与 identifier。
 
 已有 applied key 必须继续匹配计划。保留成功项的内容、位置和目标，只原位修复失败项或末尾追加；旧版本 key 不匹配时也须先对账。确需重组时，核对远端后从新清单排除已完成内容，再重建 checkpoint，不能删除记录后重放原清单。
 

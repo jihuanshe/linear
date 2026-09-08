@@ -397,7 +397,14 @@ Deno.test("issue apply JSON preserves progress on stderr and one stdout document
       queryName: "AuthStatus",
       response: { data: { viewer: { organization: { urlKey: "jihuanshe" } } } },
     },
-    detailResponse({ ...issue, comments: empty, attachments: empty }),
+    detailResponse({
+      ...issue,
+      comments: { nodes: [comment("created")], pageInfo: terminalPage },
+      attachments: {
+        nodes: [attachment("linked"), attachment("uploaded")],
+        pageInfo: terminalPage,
+      },
+    }),
     {
       queryName: "GetIssueId",
       response: { data: { issue: { id: "issue-id" } } },

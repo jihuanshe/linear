@@ -8,6 +8,10 @@ import { ValidationError } from "../utils/errors.ts"
 const checkpointItemSchema = v.strictObject({
   status: v.picklist(["applied", "failed", "unknown"]),
   note: v.optional(v.string()),
+  receipt: v.optional(v.strictObject({
+    kind: v.picklist(["comment", "attachment"]),
+    id: v.pipe(v.string(), v.minLength(1)),
+  })),
 })
 
 const checkpointSchema = v.pipe(
@@ -26,6 +30,10 @@ const checkpointSchema = v.pipe(
     items,
   })),
 )
+
+export type DeliveryReceipt = NonNullable<
+  v.InferOutput<typeof checkpointItemSchema>["receipt"]
+>
 
 export type Checkpoint = v.InferOutput<typeof checkpointSchema>
 
