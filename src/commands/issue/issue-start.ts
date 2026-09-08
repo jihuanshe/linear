@@ -40,7 +40,7 @@ export const startCommand = withUsageMetadata(new Command(), {
   .action(async ({ allAssignees, unassigned, fromRef, branch }, issueId) => {
     try {
       const teamId = getTeamKey()
-      if (!teamId && !issueId) {
+      if (!teamId) {
         throw new ValidationError("Could not determine team ID")
       }
 
@@ -54,13 +54,7 @@ export const startCommand = withUsageMetadata(new Command(), {
       // Only resolve the provided issueId, don't infer from VCS
       // (start should pick from a list, not continue on current issue)
       let resolvedId = issueId ? await getIssueIdentifier(issueId) : undefined
-      if (issueId && !resolvedId) {
-        throw new ValidationError(
-          "Could not resolve the provided issue identifier",
-        )
-      }
       if (!resolvedId) {
-        if (!teamId) throw new ValidationError("Could not determine team ID")
         const result = await fetchIssuesForState(
           teamId,
           ["unstarted"],
@@ -93,7 +87,7 @@ export const startCommand = withUsageMetadata(new Command(), {
       if (!resolvedId) {
         throw new ValidationError("No issue ID resolved")
       }
-      await startIssue(resolvedId, fromRef, branch)
+      await startIssue(resolvedId, teamId, fromRef, branch)
     } catch (error) {
       handleError(error, "Failed to start issue")
     }

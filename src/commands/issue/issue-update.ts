@@ -47,7 +47,7 @@ export const updateCommand = withUsageMetadata(new Command(), { writes: true })
   )
   .option(
     "--parent <parent:string>",
-    "Parent issue UUID or full identifier (e.g. ENG-123)",
+    "Parent issue (if any) as a team_number code",
   )
   .option(
     "-p, --priority <priority:number>",
@@ -69,17 +69,17 @@ export const updateCommand = withUsageMetadata(new Command(), { writes: true })
   )
   .option(
     "-l, --label <label:string>",
-    "Replace all issue labels by UUID or name. May be repeated.",
+    "Replace all issue labels. May be repeated.",
     { collect: true },
   )
   .option(
     "--add-label <label:string>",
-    "Add a label by UUID or name without replacing existing labels. May be repeated.",
+    "Add an issue label without replacing existing labels. May be repeated.",
     { collect: true },
   )
   .option(
     "--remove-label <label:string>",
-    "Remove a label by UUID or name without replacing other labels. May be repeated.",
+    "Remove an issue label without replacing other labels. May be repeated.",
     { collect: true },
   )
   .option(
@@ -92,7 +92,7 @@ export const updateCommand = withUsageMetadata(new Command(), { writes: true })
   )
   .option(
     "-s, --state <state:string>",
-    "Workflow state for the issue (UUID, name, or type)",
+    "Workflow state for the issue (by name or type)",
   )
   .option(
     "--milestone <milestone:string>",
@@ -231,11 +231,9 @@ export const updateCommand = withUsageMetadata(new Command(), { writes: true })
         const spinner = shouldShowSpinner() && !json ? new Spinner() : null
         spinner?.start()
 
-        // Resolve team-scoped inputs against the current issue, since a previous
-        // identifier can still resolve after moving between teams.
-        const needsCurrentTeam = project != null || state != null ||
-          replacesLabels || addsLabels || removesLabels || cycle != null
-        const currentTeam = needsCurrentTeam && team == null
+        // A previous identifier may still resolve after a team move. Project
+        // validation must use the current team, not that historical prefix.
+        const currentTeam = project != null && team == null
           ? await getIssueTeam(issueId)
           : undefined
         let teamKey = team ?? currentTeam?.key

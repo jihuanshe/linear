@@ -1433,7 +1433,7 @@ Run \`linear guide markdown\` for mentions, collapsible sections and rewrite ris
               variadic: false,
             },
           ],
-          description: "Parent issue UUID or full identifier (e.g. ENG-123)",
+          description: "Parent issue (if any) as a team_number code",
           flags: [
             "--parent",
           ],
@@ -1525,7 +1525,7 @@ Run \`linear guide markdown\` for mentions, collapsible sections and rewrite ris
               variadic: false,
             },
           ],
-          description: "Issue label UUID or name. May be repeated.",
+          description: "Issue label associated with the issue. May be repeated.",
           flags: [
             "-l",
             "--label",
@@ -1580,7 +1580,7 @@ Run \`linear guide markdown\` for mentions, collapsible sections and rewrite ris
               variadic: false,
             },
           ],
-          description: "Workflow state for the issue (UUID, name, or type)",
+          description: "Workflow state for the issue (by name or type)",
           flags: [
             "-s",
             "--state",
@@ -1783,7 +1783,7 @@ Run \`linear guide markdown\` for mentions, collapsible sections and rewrite ris
               variadic: false,
             },
           ],
-          description: "Parent issue UUID or full identifier (e.g. ENG-123)",
+          description: "Parent issue (if any) as a team_number code",
           flags: [
             "--parent",
           ],
@@ -1875,7 +1875,7 @@ Run \`linear guide markdown\` for mentions, collapsible sections and rewrite ris
               variadic: false,
             },
           ],
-          description: "Replace all issue labels by UUID or name. May be repeated.",
+          description: "Replace all issue labels. May be repeated.",
           flags: [
             "-l",
             "--label",
@@ -1894,7 +1894,7 @@ Run \`linear guide markdown\` for mentions, collapsible sections and rewrite ris
               variadic: false,
             },
           ],
-          description: "Add a label by UUID or name without replacing existing labels. May be repeated.",
+          description: "Add an issue label without replacing existing labels. May be repeated.",
           flags: [
             "--add-label",
           ],
@@ -1912,7 +1912,7 @@ Run \`linear guide markdown\` for mentions, collapsible sections and rewrite ris
               variadic: false,
             },
           ],
-          description: "Remove a label by UUID or name without replacing other labels. May be repeated.",
+          description: "Remove an issue label without replacing other labels. May be repeated.",
           flags: [
             "--remove-label",
           ],
@@ -1966,7 +1966,7 @@ Run \`linear guide markdown\` for mentions, collapsible sections and rewrite ris
               variadic: false,
             },
           ],
-          description: "Workflow state for the issue (UUID, name, or type)",
+          description: "Workflow state for the issue (by name or type)",
           flags: [
             "-s",
             "--state",

@@ -121,10 +121,8 @@ export interface RemoteFields {
   priority?: number | null
   state?: string
   stateAliases?: string[]
-  stateId?: string
   assignee?: { id?: string; name?: string; displayName?: string } | null
   labels?: string[]
-  labelIds?: Array<string | undefined>
   labelsComplete?: boolean
   project?: string | null
   projectAliases?: string[]
@@ -155,13 +153,9 @@ export function extractRemoteFields(view: unknown): RemoteFields {
       : (data.priority ?? null) as number | null,
     state: stateAliases[0],
     stateAliases,
-    stateId: nested(data.state, "id") as string | undefined,
     assignee: (data.assignee ?? null) as RemoteFields["assignee"],
     labels: Array.isArray(labelsNode)
       ? labelsNode.map((node) => nested(node, "name") as string)
-      : undefined,
-    labelIds: Array.isArray(labelsNode)
-      ? labelsNode.map((node) => nested(node, "id") as string | undefined)
       : undefined,
     labelsComplete: labelsPageInfo == null
       ? undefined
@@ -232,27 +226,20 @@ function fieldEquals(
           },
         )
       }
-      const desired = [
+      const a = [
         ...new Set(
           (manifestValue as string[] ?? []).map((label) => label.toLowerCase()),
         ),
-      ]
-      const names = remoteValue as string[] ?? []
-      const matches = (input: string, index: number) =>
-        isLinearUuid(input)
-          ? input === remote.labelIds?.[index]?.toLowerCase()
-          : input === names[index].toLowerCase()
-      return desired.every((input) =>
-        names.some((_, index) => matches(input, index))
-      ) &&
-        names.every((_, index) =>
-          desired.some((input) => matches(input, index))
-        )
+      ].sort()
+      const b = [
+        ...new Set(
+          (remoteValue as string[] ?? []).map((label) => label.toLowerCase()),
+        ),
+      ].sort()
+      return a.length === b.length &&
+        a.every((label, index) => label === b[index])
     }
     case "state":
-      if (typeof manifestValue === "string" && isLinearUuid(manifestValue)) {
-        return manifestValue.toLowerCase() === remote.stateId?.toLowerCase()
-      }
       return typeof manifestValue === "string" &&
         (remote.stateAliases ??
           (typeof remoteValue === "string" ? [remoteValue] : [])).some((

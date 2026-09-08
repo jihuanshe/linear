@@ -1,4 +1,3 @@
-import { getTeamKeyFromIssueIdentifier } from "./issue-identifier.ts"
 import { open } from "@opensrc/deno-open"
 import {
   fetchIssueDetails,
@@ -83,25 +82,22 @@ export async function openTeamAssigneeView(options: { app?: boolean } = {}) {
 
 export async function startWorkOnIssue(
   issueId: string,
+  teamId: string,
   gitSourceRef?: string,
   customBranchName?: string,
 ) {
-  const issue = await fetchIssueDetails(
+  const { branchName: defaultBranchName } = await fetchIssueDetails(
     issueId,
     true,
   )
-  const teamKey = getTeamKeyFromIssueIdentifier(issue.identifier)
-  if (!teamKey) {
-    throw new CliError("Issue returned an invalid current identifier")
-  }
-  const branchName = customBranchName || issue.branchName
+  const branchName = customBranchName || defaultBranchName
 
   // Start VCS work (git or jj)
-  await startVcsWork(issue.identifier, branchName, gitSourceRef)
+  await startVcsWork(issueId, branchName, gitSourceRef)
 
   // Update issue state
   try {
-    const state = await getStartedState(teamKey)
+    const state = await getStartedState(teamId)
     if (!issueId) {
       console.error("No issue ID resolved")
       Deno.exit(1)

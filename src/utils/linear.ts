@@ -327,29 +327,13 @@ export function getTeamKey(): string | undefined {
 }
 
 /**
- * Accept a native UUID, full identifier, or existing numeric/VCS shorthand.
- * UUIDs resolve to the current human identifier so text/VCS consumers do not
- * accidentally treat a UUID as an issue number.
+ * based on loose inputs, returns a linear issue identifier like ABC-123
  *
  * formats the provided identifier, adds the team id prefix, or finds one from VCS state
  */
 export async function getIssueIdentifier(
   providedId?: string,
 ): Promise<string | undefined> {
-  if (providedId && isLinearUuid(providedId)) {
-    const query = gql(`query GetIssueIdentifierById($id: String!) {
-      issue(id: $id) { identifier }
-    }`)
-    const data = await getGraphQLClient().request(query, {
-      id: providedId.toLowerCase(),
-    })
-    if (data.issue == null) throw new NotFoundError("Issue", providedId)
-    const identifier = normalizeIssueIdentifier(data.issue.identifier)
-    if (!identifier) {
-      throw new CliError("Issue lookup returned an invalid identifier")
-    }
-    return identifier
-  }
   if (providedId) {
     const normalizedIdentifier = normalizeIssueIdentifier(providedId)
     if (normalizedIdentifier) {
@@ -434,7 +418,7 @@ export async function getStartedState(
 }
 
 /**
- * Resolve a workflow state from an already-fetched team list by UUID or name
+ * Resolve a workflow state from an already-fetched list by name
  * (case-insensitive) or by type. Duplicate types resolve to the first matching
  * state in the input order — callers pass the position-sorted list from
  * `getWorkflowStates`, so that is the lowest-position state of that type.
@@ -443,11 +427,6 @@ export function resolveWorkflowState(
   states: readonly WorkflowState[],
   nameOrType: string,
 ): WorkflowState | undefined {
-  if (isLinearUuid(nameOrType)) {
-    return states.find((state) =>
-      state.id.toLowerCase() === nameOrType.toLowerCase()
-    )
-  }
   const nameMatch = states.find(
     (s) => s.name.toLowerCase() === nameOrType.toLowerCase(),
   )
@@ -503,7 +482,6 @@ export async function updateIssueState(
 const issueDetailsWithCommentsQuery = gql(/* GraphQL */ `
   query GetIssueDetailsWithComments($id: String!) {
     issue(id: $id) {
-      id
       identifier
       archivedAt
       trashed
@@ -512,7 +490,6 @@ const issueDetailsWithCommentsQuery = gql(/* GraphQL */ `
       url
       branchName
       state {
-        id
         name
         type
         color
@@ -691,7 +668,6 @@ async function fetchAllIssueCommentBodies(issueId: string): Promise<string[]> {
 const issueDetailsQuery = gql(/* GraphQL */ `
   query GetIssueDetails($id: String!) {
     issue(id: $id) {
-      id
       identifier
       archivedAt
       trashed
@@ -700,7 +676,6 @@ const issueDetailsQuery = gql(/* GraphQL */ `
       url
       branchName
       state {
-        id
         name
         type
         color
@@ -2448,18 +2423,6 @@ export async function getIssueLabelIdByNameForTeam(
   teamKey: string,
 ): Promise<string | undefined> {
   const client = getGraphQLClient()
-  if (isLinearUuid(name)) {
-    const query = gql(
-      `query GetIssueLabelIdForTeam($id: ID!, $teamKey: String!) {
-      issueLabels(filter: {id: {eq: $id}, or: [{team: {key: {eq: $teamKey}}}, {team: {null: true}}]}) { nodes { id } }
-    }`,
-    )
-    const data = await client.request(query, {
-      id: name.toLowerCase(),
-      teamKey,
-    })
-    return data.issueLabels.nodes[0]?.id
-  }
   const query = gql(/* GraphQL */ `
     query GetIssueLabelIdByNameForTeam($name: String!, $teamKey: String!) {
       issueLabels(
