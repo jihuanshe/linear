@@ -1,7 +1,8 @@
 import type { ProjectTeamsQuery } from "../__codegen__/graphql.ts"
 import { gql } from "../__codegen__/gql.ts"
 import { getGraphQLClient } from "./graphql.ts"
-import { CliError, NotFoundError, ValidationError } from "./errors.ts"
+import { NotFoundError, ValidationError } from "./errors.ts"
+import { completeConnection } from "./pagination.ts"
 
 const ProjectTeams = gql(`
   query ProjectTeams($id: String!, $after: String) {
@@ -18,31 +19,21 @@ const ProjectTeams = gql(`
 
 export async function getProjectTeams(projectId: string) {
   const client = getGraphQLClient()
-  const nodes: Array<{ id: string; key: string; name: string }> = []
-  const cursors = new Set<string>()
-  let after: string | null = null
-  while (true) {
+  const fetchProject = async (after: string | null) => {
     const result: ProjectTeamsQuery = await client.request(ProjectTeams, {
       id: projectId,
       after,
     })
     const project: ProjectTeamsQuery["project"] = result.project
     if (project == null) throw new NotFoundError("Project", projectId)
-    nodes.push(...project.teams.nodes)
-    const hasNextPage: boolean = project.teams.pageInfo.hasNextPage
-    const endCursor: string | null | undefined =
-      project.teams.pageInfo.endCursor
-    if (!hasNextPage) {
-      return { ...project, teams: { nodes, pageInfo: project.teams.pageInfo } }
-    }
-    if (!endCursor || cursors.has(endCursor)) {
-      throw new CliError(
-        "Project teams returned an empty or repeated pagination cursor",
-      )
-    }
-    cursors.add(endCursor)
-    after = endCursor
+    return project
   }
+  let project = await fetchProject(null)
+  const teams = await completeConnection(project.teams, async (after) => {
+    project = await fetchProject(after)
+    return project.teams
+  }, `teams for project ${projectId}`)
+  return { ...project, teams }
 }
 
 /** Share the same complete connection guard with dedicated commands and delivery. */

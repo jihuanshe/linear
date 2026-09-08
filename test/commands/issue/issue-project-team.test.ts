@@ -106,7 +106,7 @@ for (const operation of ["create", "update", "move"] as const) {
               ? "Team ENG does not belong"
               : scenario === "read-failure"
               ? "Project unavailable"
-              : "pagination cursor",
+              : "pagination: empty or repeated cursor",
           )
         }
         const mutations = server.graphqlRequests.filter((request) =>
