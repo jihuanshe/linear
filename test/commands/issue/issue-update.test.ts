@@ -438,6 +438,12 @@ await snapshotTest({
   denoArgs: commonDenoArgs,
   async fn() {
     const { cleanup } = await setupMockLinearServer([
+      {
+        queryName: "GetIssueTeam",
+        response: {
+          data: { issue: { team: { id: "team-eng-id", key: "ENG" } } },
+        },
+      },
       // Mock response for getTeamIdByKey() - converting team key to ID
       {
         queryName: "GetTeamIdByKey",
@@ -571,6 +577,12 @@ await snapshotTest({
   denoArgs: commonDenoArgs,
   async fn() {
     const { cleanup } = await setupMockLinearServer([
+      {
+        queryName: "GetIssueTeam",
+        response: {
+          data: { issue: { team: { id: "team-eng-id", key: "ENG" } } },
+        },
+      },
       // Mock response for getTeamIdByKey()
       {
         queryName: "GetTeamIdByKey",
@@ -760,6 +772,12 @@ await snapshotTest({
   canFail: true,
   async fn() {
     const { cleanup } = await setupMockLinearServer([
+      {
+        queryName: "GetIssueTeam",
+        response: {
+          data: { issue: { team: { id: "team-eng-id", key: "ENG" } } },
+        },
+      },
       {
         queryName: "GetTeamIdByKey",
         variables: { team: "ENG" },
@@ -1030,6 +1048,12 @@ await snapshotTest({
   async fn() {
     const { cleanup } = await setupMockLinearServer([
       {
+        queryName: "GetIssueTeam",
+        response: {
+          data: { issue: { team: { id: "team-eng-id", key: "ENG" } } },
+        },
+      },
+      {
         queryName: "GetTeamIdByKey",
         variables: { team: "ENG" },
         response: { data: { teams: { nodes: [{ id: "team-eng-id" }] } } },
@@ -1118,6 +1142,12 @@ await snapshotTest({
   denoArgs: commonDenoArgs,
   async fn() {
     const { cleanup } = await setupMockLinearServer([
+      {
+        queryName: "GetIssueTeam",
+        response: {
+          data: { issue: { team: { id: "team-eng-id", key: "ENG" } } },
+        },
+      },
       {
         queryName: "GetTeamIdByKey",
         variables: { team: "ENG" },
@@ -1223,6 +1253,12 @@ Deno.test("Issue Update Command - relative cycle offset requires an active cycle
   const { stub } = await import("@std/testing/mock")
   const { cleanup } = await setupMockLinearServer([
     {
+      queryName: "GetIssueTeam",
+      response: {
+        data: { issue: { team: { id: "team-eng-id", key: "ENG" } } },
+      },
+    },
+    {
       queryName: "GetTeamIdByKey",
       variables: { team: "ENG" },
       response: { data: { teams: { nodes: [{ id: "team-eng-id" }] } } },
@@ -1287,6 +1323,12 @@ await snapshotTest({
   denoArgs: commonDenoArgs,
   async fn() {
     const { cleanup } = await setupMockLinearServer([
+      {
+        queryName: "GetIssueTeam",
+        response: {
+          data: { issue: { team: { id: "team-eng-id", key: "ENG" } } },
+        },
+      },
       {
         queryName: "GetTeamIdByKey",
         variables: { team: "ENG" },
@@ -1379,6 +1421,12 @@ Deno.test("Issue Update Command - --cycle errors when team has cycles disabled",
   const { stub } = await import("@std/testing/mock")
   const { cleanup } = await setupMockLinearServer([
     {
+      queryName: "GetIssueTeam",
+      response: {
+        data: { issue: { team: { id: "team-eng-id", key: "ENG" } } },
+      },
+    },
+    {
       queryName: "GetTeamIdByKey",
       variables: { team: "ENG" },
       response: { data: { teams: { nodes: [{ id: "team-eng-id" }] } } },
@@ -1429,6 +1477,12 @@ Deno.test("Issue Update Command - --cycle now errors helpfully when no cycle is 
   const { assertEquals } = await import("@std/assert")
   const { stub } = await import("@std/testing/mock")
   const { cleanup } = await setupMockLinearServer([
+    {
+      queryName: "GetIssueTeam",
+      response: {
+        data: { issue: { team: { id: "team-eng-id", key: "ENG" } } },
+      },
+    },
     {
       queryName: "GetTeamIdByKey",
       variables: { team: "ENG" },
@@ -1608,6 +1662,12 @@ Deno.test("Issue Update Command - teamId is sent only for an explicit team move"
 Deno.test("Issue Update Command - label additions and removals stay incremental", async () => {
   const { cleanup } = await setupMockLinearServer([
     {
+      queryName: "GetIssueTeam",
+      response: {
+        data: { issue: { team: { id: "team-eng-id", key: "ENG" } } },
+      },
+    },
+    {
       queryName: "GetIssueLabelIdByNameForTeam",
       variables: { name: "frontend", teamKey: "ENG" },
       response: {
@@ -1724,15 +1784,23 @@ Deno.test("Issue Update Command - replacement and incremental labels conflict", 
 })
 
 Deno.test("Issue Update Command - cannot add and remove the same label", async () => {
-  const { cleanup } = await setupMockLinearServer([{
-    queryName: "GetIssueLabelIdByNameForTeam",
-    variables: { name: "frontend", teamKey: "ENG" },
-    response: {
-      data: {
-        issueLabels: { nodes: [{ id: "label-frontend", name: "frontend" }] },
+  const { cleanup } = await setupMockLinearServer([
+    {
+      queryName: "GetIssueTeam",
+      response: {
+        data: { issue: { team: { id: "team-eng-id", key: "ENG" } } },
       },
     },
-  }])
+    {
+      queryName: "GetIssueLabelIdByNameForTeam",
+      variables: { name: "frontend", teamKey: "ENG" },
+      response: {
+        data: {
+          issueLabels: { nodes: [{ id: "label-frontend", name: "frontend" }] },
+        },
+      },
+    },
+  ])
   const errorLogs: string[] = []
   const errorStub = stub(console, "error", (...args: unknown[]) => {
     errorLogs.push(args.map(String).join(" "))

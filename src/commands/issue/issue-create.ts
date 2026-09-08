@@ -615,7 +615,7 @@ export const createCommand = withUsageMetadata(new Command(), {
   )
   .option(
     "--parent <parent:string>",
-    "Parent issue (if any) as a team_number code",
+    "Parent issue UUID or full identifier (e.g. ENG-123)",
   )
   .option(
     "-p, --priority <priority:number>",
@@ -635,7 +635,7 @@ export const createCommand = withUsageMetadata(new Command(), {
   )
   .option(
     "-l, --label <label:string>",
-    "Issue label associated with the issue. May be repeated.",
+    "Issue label UUID or name. May be repeated.",
     { collect: true },
   )
   .option(
@@ -648,7 +648,7 @@ export const createCommand = withUsageMetadata(new Command(), {
   )
   .option(
     "-s, --state <state:string>",
-    "Workflow state for the issue (by name or type)",
+    "Workflow state for the issue (UUID, name, or type)",
   )
   .option(
     "--milestone <milestone:string>",
@@ -791,11 +791,7 @@ export const createCommand = withUsageMetadata(new Command(), {
           console.log(issue.url)
 
           if (interactiveData.start) {
-            const teamKey = issue.team.key
-            const teamIdForStartWork = await getTeamIdByKey(teamKey)
-            if (teamIdForStartWork) {
-              await startWorkOnIssue(issueId, teamIdForStartWork)
-            }
+            await startWorkOnIssue(issueId)
           }
           return
         } catch (error) {
@@ -891,7 +887,7 @@ export const createCommand = withUsageMetadata(new Command(), {
           // sequential in case of questions
           for (const label of labels) {
             let labelId = await getIssueLabelIdByNameForTeam(label, team)
-            if (!labelId && interactive) {
+            if (!labelId && interactive && !isLinearUuid(label)) {
               const labelIds = await getIssueLabelOptionsByNameForTeam(
                 label,
                 team,
@@ -999,7 +995,7 @@ export const createCommand = withUsageMetadata(new Command(), {
         }
 
         if (start) {
-          await startWorkOnIssue(issueId, issue.team.key)
+          await startWorkOnIssue(issueId)
         }
       } catch (error) {
         spinner?.stop()

@@ -23,17 +23,17 @@ Options:
   -a, --assignee      <assignee>     - Assignee (user UUID, username, name, email, 'self', or '@me')                                                  
   --unassign                         - Clear the issue's assignee (cannot be combined with --assignee)                                                
   --due-date          <dueDate>      - Due date of the issue                                                                                          
-  --parent            <parent>       - Parent issue (if any) as a team_number code                                                                    
+  --parent            <parent>       - Parent issue UUID or full identifier (e.g. ENG-123)                                                            
   -p, --priority      <priority>     - Priority of the issue (1-4, descending priority)                                                               
   --estimate          <estimate>     - Points estimate of the issue                                                                                   
   -d, --description   <description>  - Description of the issue (empty string clears it)                                                              
   --description-file  <path>         - Read description from a file (preferred for markdown content)                                                  
-  -l, --label         <label>        - Replace all issue labels. May be repeated.                                                                     
-  --add-label         <label>        - Add an issue label without replacing existing labels. May be repeated.                                         
-  --remove-label      <label>        - Remove an issue label without replacing other labels. May be repeated.                                         
+  -l, --label         <label>        - Replace all issue labels by UUID or name. May be repeated.                                                     
+  --add-label         <label>        - Add a label by UUID or name without replacing existing labels. May be repeated.                                
+  --remove-label      <label>        - Remove a label by UUID or name without replacing other labels. May be repeated.                                
   --team              <team>         - Team associated with the issue (if not your default team)                                                      
   --project           <project>      - Project to assign the issue to (UUID, slug ID, or name)                                                        
-  -s, --state         <state>        - Workflow state for the issue (by name or type)                                                                 
+  -s, --state         <state>        - Workflow state for the issue (UUID, name, or type)                                                             
   --milestone         <milestone>    - Project milestone (UUID, or name when --project is set or the issue already has a project)                     
   --cycle             <cycle>        - Cycle name, number, 'active'/'now', 'next', 'previous', or a relative offset like +1 (use --cycle=-1 for       
                                        negatives). Use --clear-cycle to remove the issue from its cycle                                               

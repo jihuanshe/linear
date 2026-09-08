@@ -2484,3 +2484,89 @@ for (
     }
   })
 }
+
+Deno.test("delivery verifies state and label UUIDs instead of comparing them with names", async () => {
+  const dir = await Deno.makeTempDir()
+  const state = "abcdef01-2345-4678-9abc-def012345678",
+    label = "abcdef02-2345-4678-9abc-def012345678"
+  try {
+    const path = await writeManifest(dir, {
+      schemaVersion: 1,
+      workspace: "jihuanshe",
+      issues: [{
+        operation: "update",
+        identifier: "DATA-606",
+        set: { state, labels: [label] },
+        base: { state: "Todo", labels: ["bug"] },
+      }],
+    })
+    let written = false
+    const runner = fakeRunner((args) => {
+      if (args[1] === "update") written = true
+      if (args[1] === "view") {
+        return viewResult({
+          state: written
+            ? { id: state, name: "Working", type: "started" }
+            : { id: USER_C, name: "Todo", type: "unstarted" },
+          labels: {
+            nodes: [{
+              id: written ? label : USER_C,
+              name: written ? "Review" : "bug",
+            }],
+            pageInfo: { hasNextPage: false },
+          },
+        })
+      }
+      return undefined
+    })
+    const loaded = await loadManifest(path)
+    const first = await applyManifest({ loaded, runner })
+    assertEquals(first.status, "completed")
+    assertEquals((await applyManifest({ loaded, runner })).status, "completed")
+    assertEquals(runner.calls.filter((args) => args[1] === "update").length, 1)
+  } finally {
+    await Deno.remove(dir, { recursive: true })
+  }
+})
+
+Deno.test("delivery does not confuse UUID-shaped state or label names with identity", async () => {
+  const dir = await Deno.makeTempDir()
+  const state = "abcdef01-2345-4678-9abc-def012345678",
+    label = "abcdef02-2345-4678-9abc-def012345678"
+  try {
+    const path = await writeManifest(dir, {
+      schemaVersion: 1,
+      workspace: "jihuanshe",
+      issues: [{
+        operation: "create",
+        team: "DATA",
+        set: { title: "Title", state, labels: [label] },
+      }],
+    })
+    const runner = fakeRunner((args) =>
+      args[1] === "create"
+        ? { code: 0, stdout: '{"issue":{"identifier":"DATA-700"}}', stderr: "" }
+        : args[1] === "view"
+        ? viewResult({
+          identifier: "DATA-700",
+          title: "Title",
+          state: { id: USER_C, name: state, type: "started" },
+          labels: {
+            nodes: [{ id: USER_C, name: label }],
+            pageInfo: { hasNextPage: false },
+          },
+        })
+        : undefined
+    )
+    const result = await applyManifest({
+      loaded: await loadManifest(path),
+      runner,
+      verificationDelay: () => Promise.resolve(),
+    })
+    assertEquals(result.status, "applied-unverified")
+    assertStringIncludes(result.verification[0].detail ?? "", "field state")
+    assertStringIncludes(result.verification[0].detail ?? "", "field labels")
+  } finally {
+    await Deno.remove(dir, { recursive: true })
+  }
+})
