@@ -124,6 +124,122 @@ async function runCli(server: MockLinearServer, args: string[], cwd?: string) {
   }
 }
 
+for (const mode of ["query", "search", "mine"]) {
+  Deno.test(`issue ${mode} rejects a nonadjacent cursor cycle without partial stdout`, async () => {
+    const queryName = mode === "search" ? "SearchIssues" : "GetIssuesForQuery"
+    const field = mode === "search" ? "searchIssues" : "issues"
+    const server = new MockLinearServer(
+      [
+        { after: "a", endCursor: "b" },
+        { after: "b", endCursor: "a" },
+        { after: undefined, endCursor: "a" },
+      ].map(({ after, endCursor }) => ({
+        queryName,
+        variables: after == null ? {} : { after },
+        response: {
+          data: {
+            [field]: {
+              nodes: [{
+                ...issue,
+                id: "issue-1",
+                updatedAt: "2026-09-06T00:00:00Z",
+              }],
+              totalCount: 3,
+              pageInfo: { hasNextPage: true, endCursor },
+            },
+          },
+        },
+      })),
+    )
+    await server.start()
+    try {
+      const result = await runCli(server, [
+        "issue",
+        mode === "mine" ? "mine" : "query",
+        "--team",
+        "TEST",
+        "--limit",
+        "0",
+        ...(mode === "mine" ? ["--no-pager"] : ["--json"]),
+        ...(mode === "search" ? ["--search", "evidence"] : []),
+      ])
+      assertEquals(result.code, 1)
+      assertEquals(result.stdout, "")
+      assertStringIncludes(result.stderr, "empty or repeated cursor")
+      assertEquals(server.graphqlRequests.length, 3)
+      if (mode === "mine") {
+        assertEquals(server.graphqlRequests[0].variables.filter, {
+          team: { key: { eq: "TEST" } },
+          state: { type: { in: ["unstarted"] } },
+          assignee: { isMe: { eq: true } },
+        })
+      }
+    } finally {
+      await server.stop()
+    }
+  })
+}
+
+for (const search of [false, true]) {
+  Deno.test(`issue query search=${search} requests only the remaining limit and retains the cursor`, async () => {
+    const queryName = search ? "SearchIssues" : "GetIssuesForQuery"
+    const field = search ? "searchIssues" : "issues"
+    const continuation = { hasNextPage: true, endCursor: "more" }
+    const server = new MockLinearServer([
+      {
+        queryName,
+        variables: { after: "next", first: 1 },
+        response: {
+          data: {
+            [field]: {
+              nodes: [{ id: "late" }],
+              totalCount: 200,
+              pageInfo: continuation,
+            },
+          },
+        },
+      },
+      {
+        queryName,
+        variables: { first: 100 },
+        response: {
+          data: {
+            [field]: {
+              nodes: Array.from(
+                { length: 100 },
+                (_, id) => ({ id: String(id) }),
+              ),
+              totalCount: 200,
+              pageInfo: { hasNextPage: true, endCursor: "next" },
+            },
+          },
+        },
+      },
+    ])
+    await server.start()
+    try {
+      const result = await runCli(server, [
+        "issue",
+        "query",
+        "--all-teams",
+        "--limit",
+        "101",
+        "--json",
+        ...(search ? ["--search", "evidence"] : []),
+      ])
+      assertEquals(result.code, 0, result.stderr)
+      const data = JSON.parse(result.stdout)
+      assertEquals(data.nodes.length, 101)
+      assertEquals(data.nodes.at(-1), { id: "late" })
+      assertEquals(data.pageInfo, continuation)
+      if (search) assertEquals(data.totalCount, 200)
+      assertEquals(server.graphqlRequests.length, 2)
+    } finally {
+      await server.stop()
+    }
+  })
+}
+
 for (const json of [true, false]) {
   Deno.test(`issue view ${json ? "JSON" : "human"} includes late comments and PR attachments`, async () => {
     const server = new MockLinearServer([

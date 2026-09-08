@@ -5,16 +5,33 @@ import { startCommand } from "../../../src/commands/issue/issue-start.ts"
 import { setupMockLinearServer } from "../../utils/test-helpers.ts"
 
 // `issue start` with no issue id lists unstarted issues via the shared
-// fetchIssuesForState helper without passing a sort, so it relies on that
-// helper defaulting to priority.
+// query helper with the configured sort, defaulting to priority.
 Deno.test("Issue Start Command - Does Not Require Sort Config", async () => {
   // Return no issues so the command stops at its empty-list check instead of
   // opening the interactive prompt. Reaching that check confirms the request
   // went out with the default priority sort.
-  const { cleanup } = await setupMockLinearServer([
+  const { server, cleanup } = await setupMockLinearServer([
     {
-      queryName: "GetIssuesForState",
+      queryName: "GetIssuesForQuery",
+      variables: { after: "next" },
+      response: {
+        data: {
+          issues: {
+            nodes: [],
+            pageInfo: { hasNextPage: false, endCursor: null },
+          },
+        },
+      },
+    },
+    {
+      queryName: "GetIssuesForQuery",
       variables: {
+        filter: {
+          team: { key: { eq: "ENG" } },
+          state: { type: { in: ["unstarted"] } },
+          assignee: { isMe: { eq: true } },
+        },
+        first: 100,
         sort: [
           { workflowState: { order: "Descending" } },
           { priority: { nulls: "last", order: "Descending" } },
@@ -25,7 +42,7 @@ Deno.test("Issue Start Command - Does Not Require Sort Config", async () => {
         data: {
           issues: {
             nodes: [],
-            pageInfo: { hasNextPage: false, endCursor: null },
+            pageInfo: { hasNextPage: true, endCursor: "next" },
           },
         },
       },
@@ -53,6 +70,7 @@ Deno.test("Issue Start Command - Does Not Require Sort Config", async () => {
   const output = errorLogs.join("\n")
   assertEquals(output.includes("Sort must be provided"), false)
   assertEquals(output.includes("Unstarted issues not found"), true)
+  assertEquals(server.graphqlRequests.length, 2)
 })
 
 Deno.test("Issue Start Command - reports partial VCS success when state update fails", async () => {

@@ -1,7 +1,6 @@
 import { Command } from "@cliffy/command"
-import { fetchIssueDetails, getIssueIdentifier } from "../../utils/linear.ts"
+import { fetchIssueDetailsRaw, getIssueIdentifier } from "../../utils/linear.ts"
 import { formatIssueDescription } from "../../utils/jj.ts"
-import { shouldShowSpinner } from "../../utils/hyperlink.ts"
 import { handleError, ValidationError } from "../../utils/errors.ts"
 
 export const describeCommand = new Command()
@@ -22,10 +21,7 @@ export const describeCommand = new Command()
         )
       }
 
-      const { title, url } = await fetchIssueDetails(
-        resolvedId,
-        shouldShowSpinner(),
-      )
+      const { title, url } = await fetchIssueDetailsRaw(resolvedId)
 
       const magicWord = options.references ? "References" : "Fixes"
       console.log(formatIssueDescription(resolvedId, title, url, magicWord))

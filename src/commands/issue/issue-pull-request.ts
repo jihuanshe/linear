@@ -1,7 +1,6 @@
 import { Command } from "@cliffy/command"
 import { withUsageMetadata } from "../usage.ts"
-import { fetchIssueDetails, getIssueIdentifier } from "../../utils/linear.ts"
-import { shouldShowSpinner } from "../../utils/hyperlink.ts"
+import { fetchIssueDetailsRaw, getIssueIdentifier } from "../../utils/linear.ts"
 import { CliError, handleError, ValidationError } from "../../utils/errors.ts"
 
 export const pullRequestCommand = withUsageMetadata(new Command(), {
@@ -40,10 +39,7 @@ export const pullRequestCommand = withUsageMetadata(new Command(), {
           { suggestion: "Please provide an issue identifier like 'ENG-123'." },
         )
       }
-      const { title, url } = await fetchIssueDetails(
-        resolvedId,
-        shouldShowSpinner(),
-      )
+      const { title, url } = await fetchIssueDetailsRaw(resolvedId)
 
       const process = new Deno.Command("gh", {
         args: [

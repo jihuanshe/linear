@@ -1,9 +1,10 @@
 import { Command } from "@cliffy/command"
 import { withUsageMetadata } from "../usage.ts"
 import { Select } from "../../utils/prompt.ts"
+import { resolveIssueSort } from "../../config.ts"
 import { getPriorityDisplay } from "../../utils/display.ts"
 import {
-  fetchIssuesForState,
+  fetchIssuesForQuery,
   getIssueIdentifier,
   getTeamKey,
 } from "../../utils/linear.ts"
@@ -55,14 +56,15 @@ export const startCommand = withUsageMetadata(new Command(), {
       // (start should pick from a list, not continue on current issue)
       let resolvedId = issueId ? await getIssueIdentifier(issueId) : undefined
       if (!resolvedId) {
-        const result = await fetchIssuesForState(
-          teamId,
-          ["unstarted"],
-          undefined,
+        const result = await fetchIssuesForQuery({
+          teamKeys: [teamId],
+          state: ["unstarted"],
+          assigneeIsMe: !unassigned && !allAssignees,
           unassigned,
-          allAssignees,
-        )
-        const issues = result.issues?.nodes || []
+          sort: resolveIssueSort(),
+          limit: 0,
+        })
+        const issues = result.nodes
 
         if (issues.length === 0) {
           throw new NotFoundError("Unstarted issues", teamId)

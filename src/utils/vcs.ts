@@ -3,7 +3,7 @@ import { getOption } from "../config.ts"
 import { CliError } from "./errors.ts"
 import { getCurrentBranch } from "./git.ts"
 import { findIssueIdentifierInText } from "./issue-identifier.ts"
-import { fetchIssueDetails } from "./linear.ts"
+import { fetchIssueDetailsRaw } from "./linear.ts"
 import {
   formatIssueDescription,
   getJjLinearIssue,
@@ -157,7 +157,7 @@ export async function startVcsWork(
       await prepareJjWorkingState()
 
       // Fetch issue details to format the description
-      const { title, url } = await fetchIssueDetails(issueId, false)
+      const { title, url } = await fetchIssueDetailsRaw(issueId)
       const description = formatIssueDescription(issueId, title, url)
       await setJjDescription(description)
 

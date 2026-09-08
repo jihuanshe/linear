@@ -13,7 +13,7 @@ import {
   truncateText,
 } from "../../utils/display.ts"
 import {
-  fetchIssuesForState,
+  fetchIssuesForQuery,
   getCycleIdByNameOrNumber,
   getProjectIdByName,
   getProjectOptionsByName,
@@ -270,13 +270,11 @@ export const mineCommand = withUsageMetadata(new Command(), {
         const spinner = showSpinner ? new Spinner() : null
         spinner?.start()
 
-        const result = await fetchIssuesForState(
-          teamKey,
-          allStates ? undefined : stateArray,
-          undefined, // assignee — always self
-          false, // unassigned
-          false, // allAssignees
-          limit === 0 ? undefined : limit,
+        const result = await fetchIssuesForQuery({
+          teamKeys: [teamKey],
+          state: allStates ? undefined : stateArray,
+          assigneeIsMe: true,
+          limit,
           projectId,
           sort,
           cycleId,
@@ -285,9 +283,9 @@ export const mineCommand = withUsageMetadata(new Command(), {
           labelNames,
           createdAfter,
           updatedAfter,
-        )
+        })
         spinner?.stop()
-        const issues = result.issues?.nodes || []
+        const issues = result.nodes
 
         if (issues.length === 0) {
           console.log("No issues found.")

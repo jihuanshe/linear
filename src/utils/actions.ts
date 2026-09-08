@@ -1,6 +1,6 @@
 import { open } from "@opensrc/deno-open"
 import {
-  fetchIssueDetails,
+  fetchIssueDetailsRaw,
   getIssueIdentifier,
   getStartedState,
   getTeamKey,
@@ -86,10 +86,7 @@ export async function startWorkOnIssue(
   gitSourceRef?: string,
   customBranchName?: string,
 ) {
-  const { branchName: defaultBranchName } = await fetchIssueDetails(
-    issueId,
-    true,
-  )
+  const { branchName: defaultBranchName } = await fetchIssueDetailsRaw(issueId)
   const branchName = customBranchName || defaultBranchName
 
   // Start VCS work (git or jj)

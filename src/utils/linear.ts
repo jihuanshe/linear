@@ -6,7 +6,6 @@ import type {
   GetIssueDetailsQuery,
   GetIssueDetailsWithCommentsQuery,
   GetIssuesForQueryQuery,
-  GetIssuesForStateQuery,
   GetOrganizationMembersQuery,
   GetProjectIdOptionsByNameQuery,
   GetProjectsForTeamQuery,
@@ -18,7 +17,7 @@ import type {
   SearchIssuesQuery,
 } from "../__codegen__/graphql.ts"
 import { Select } from "./prompt.ts"
-import { getOption, resolveIssueSort } from "../config.ts"
+import { getOption } from "../config.ts"
 import {
   CliError,
   handleNotFound,
@@ -934,78 +933,6 @@ export type FetchedIssueComment = IssueDetailsWithComments["comments"]["nodes"][
   number
 ]
 
-export type FetchedIssueDetailsWithComments =
-  & Omit<
-    IssueDetailsWithComments,
-    "children" | "comments" | "attachments" | "documents"
-  >
-  & {
-    children: IssueDetailsWithComments["children"]["nodes"]
-    comments: IssueDetailsWithComments["comments"]["nodes"]
-    attachments: IssueDetailsWithComments["attachments"]["nodes"]
-    documents: IssueDetailsWithComments["documents"]["nodes"]
-  }
-
-export type FetchedIssueDetailsWithoutComments =
-  & Omit<
-    IssueDetailsWithoutComments,
-    "children" | "attachments" | "documents"
-  >
-  & {
-    children: IssueDetailsWithoutComments["children"]["nodes"]
-    attachments: IssueDetailsWithoutComments["attachments"]["nodes"]
-    documents: IssueDetailsWithoutComments["documents"]["nodes"]
-  }
-
-export type FetchedIssueDetails =
-  | FetchedIssueDetailsWithComments
-  | FetchedIssueDetailsWithoutComments
-
-export async function fetchIssueDetails(
-  issueId: string,
-  _showSpinner = false,
-  includeComments = false,
-  completeCommentsAndAttachments = false,
-): Promise<FetchedIssueDetails> {
-  const { Spinner } = await import("@std/cli/unstable-spinner")
-  const { shouldShowSpinner } = await import("./hyperlink.ts")
-  const spinner = shouldShowSpinner() ? new Spinner() : null
-  spinner?.start()
-  try {
-    if (includeComments) {
-      const data = await fetchIssueDetailsRaw(
-        issueId,
-        true,
-        completeCommentsAndAttachments,
-      )
-      spinner?.stop()
-      return {
-        ...data,
-        children: data.children?.nodes || [],
-        comments: data.comments?.nodes || [],
-        attachments: data.attachments?.nodes || [],
-        documents: data.documents?.nodes || [],
-      }
-    }
-
-    const data = await fetchIssueDetailsRaw(
-      issueId,
-      false,
-      completeCommentsAndAttachments,
-    )
-    spinner?.stop()
-    return {
-      ...data,
-      children: data.children?.nodes || [],
-      attachments: data.attachments?.nodes || [],
-      documents: data.documents?.nodes || [],
-    }
-  } catch (error) {
-    spinner?.stop()
-    throw error
-  }
-}
-
 export async function fetchParentIssueTitle(
   parentId: string,
 ): Promise<string | null> {
@@ -1056,202 +983,6 @@ export async function fetchParentIssueData(parentId: string): Promise<
   } catch {
     // Silently fail for optional parent lookup - caller handles display
     return null
-  }
-}
-
-export async function fetchIssuesForState(
-  teamKey: string,
-  state: string[] | undefined,
-  assignee?: string,
-  unassigned = false,
-  allAssignees = false,
-  limit?: number,
-  projectId?: string,
-  sortParam?: "manual" | "priority",
-  cycleId?: string,
-  milestoneId?: string,
-  projectLabel?: string,
-  labelNames?: string[],
-  createdAfter?: string,
-  updatedAfter?: string,
-) {
-  const sort = resolveIssueSort(sortParam)
-
-  const filter: IssueFilter = {
-    team: { key: { eq: teamKey } },
-  }
-
-  if (state) {
-    filter.state = { type: { in: state } }
-  }
-
-  if (unassigned) {
-    filter.assignee = { null: true }
-  } else if (allAssignees) {
-    // No assignee filter means all assignees
-  } else if (assignee) {
-    const userId = await lookupUserId(assignee)
-    if (!userId) {
-      throw new NotFoundError("User", assignee)
-    }
-    filter.assignee = { id: { eq: userId } }
-  } else {
-    filter.assignee = { isMe: { eq: true } }
-  }
-
-  if (projectId) {
-    filter.project = { id: { eq: projectId } }
-  } else if (projectLabel) {
-    filter.project = { labels: { name: { eqIgnoreCase: projectLabel } } }
-  }
-
-  if (cycleId) {
-    filter.cycle = { id: { eq: cycleId } }
-  }
-
-  if (milestoneId) {
-    filter.projectMilestone = { id: { eq: milestoneId } }
-  }
-
-  if (labelNames && labelNames.length > 0) {
-    if (labelNames.length === 1) {
-      filter.labels = { some: { name: { eqIgnoreCase: labelNames[0] } } }
-    } else {
-      filter.labels = {
-        and: labelNames.map((name) => ({
-          some: { name: { eqIgnoreCase: name } },
-        })),
-      }
-    }
-  }
-
-  if (createdAfter) {
-    filter.createdAt = { gte: parseDateFilter(createdAfter, "--created-after") }
-  }
-
-  if (updatedAfter) {
-    filter.updatedAt = { gte: parseDateFilter(updatedAfter, "--updated-after") }
-  }
-
-  const query = gql(/* GraphQL */ `
-    query GetIssuesForState($sort: [IssueSortInput!], $filter: IssueFilter!, $first: Int, $after: String) {
-      issues(filter: $filter, sort: $sort, first: $first, after: $after) {
-        nodes {
-          id
-          identifier
-          title
-          priority
-          estimate
-          assignee {
-            initials
-          }
-          state {
-            id
-            name
-            color
-            type
-          }
-          cycle {
-            id
-            number
-            name
-            isActive
-            isNext
-            isPrevious
-            isFuture
-            isPast
-          }
-          team {
-            id
-            key
-            cyclesEnabled
-            activeCycle {
-              number
-            }
-          }
-          labels {
-            nodes {
-              id
-              name
-              color
-            }
-          }
-          inverseRelations(first: 100) {
-            nodes {
-              id
-              type
-              issue {
-                id
-                identifier
-                state {
-                  type
-                }
-              }
-            }
-          }
-          updatedAt
-        }
-        pageInfo {
-          hasNextPage
-          endCursor
-        }
-      }
-    }
-  `)
-
-  let sortPayload: Array<IssueSortInput>
-  switch (sort) {
-    case "manual":
-      sortPayload = [
-        { workflowState: { order: "Descending" } },
-        { manual: { nulls: "last" as const, order: "Ascending" as const } },
-      ]
-      break
-    case "priority":
-      sortPayload = [
-        { workflowState: { order: "Descending" } },
-        { priority: { nulls: "last" as const, order: "Descending" as const } },
-        { manual: { nulls: "last" as const, order: "Ascending" as const } },
-      ]
-      break
-    default:
-      throw new ValidationError(`Unknown sort type: ${sort}`, {
-        suggestion: "Use 'manual' or 'priority'",
-      })
-  }
-
-  const client = getGraphQLClient()
-
-  const pageSize = limit !== undefined ? Math.min(limit, 100) : 50
-  const fetchAll = limit === undefined || limit === 0
-
-  const allIssues = []
-  let hasNextPage = true
-  let after: string | null | undefined = undefined
-
-  while (hasNextPage) {
-    const result: GetIssuesForStateQuery = await client.request(query, {
-      sort: sortPayload,
-      filter,
-      first: pageSize,
-      after,
-    })
-
-    const issues = result.issues?.nodes || []
-    allIssues.push(...issues)
-
-    if (!fetchAll && allIssues.length >= limit!) {
-      break
-    }
-
-    hasNextPage = result.issues?.pageInfo?.hasNextPage || false
-    after = result.issues?.pageInfo?.endCursor
-  }
-
-  return {
-    issues: {
-      nodes: allIssues.slice(0, limit),
-    },
   }
 }
 
@@ -1515,6 +1246,8 @@ export interface FetchIssuesForQueryOptions {
   exactUrl?: string
   /** Resolved once by batch callers to avoid repeating user lookup requests. */
   assigneeId?: string
+  /** Use Linear's current-principal filter without a separate viewer lookup. */
+  assigneeIsMe?: boolean
 }
 
 interface LinearIssueUrlReference {
@@ -1722,6 +1455,8 @@ export async function fetchIssuesForQuery(
 
   if (options.unassigned) {
     filter.assignee = { null: true }
+  } else if (options.assigneeIsMe) {
+    filter.assignee = { isMe: { eq: true } }
   } else if (options.assignee != null || options.assigneeId != null) {
     const userId = options.assigneeId ?? await lookupUserId(options.assignee!)
     if (!userId) {
@@ -1805,44 +1540,26 @@ export async function fetchIssuesForQuery(
   const limit = options.limit ?? 50
   const pageSize = fetchAll ? 100 : Math.min(limit, 100)
 
-  const allNodes: QueryIssuesPayload["nodes"] = []
-  let hasNextPage = true
-  let after: string | null | undefined = undefined
-  let lastPageInfo: QueryIssuesPayload["pageInfo"] = {
-    hasNextPage: false,
-    endCursor: null,
+  const fetchPage = async (after?: string, first = pageSize) => {
+    const result = await client.request(queryIssuesQuery, {
+      sort: sortPayload,
+      filter: Object.keys(filter).length > 0 ? filter : undefined,
+      first,
+      after,
+      includeArchived: options.includeArchived,
+      includeProjectTeamMetadata: options.includeProjectTeamMetadata === true,
+      includeEstimationMetadata: options.includeEstimationMetadata === true,
+      includeDescription: options.exactUrl != null,
+      includeComments: options.exactUrl != null && exactIssueReference == null,
+    })
+    return result.issues
   }
-
-  while (hasNextPage) {
-    const result: GetIssuesForQueryQuery = await client.request(
-      queryIssuesQuery,
-      {
-        sort: sortPayload,
-        filter: Object.keys(filter).length > 0 ? filter : undefined,
-        first: pageSize,
-        after,
-        includeArchived: options.includeArchived,
-        includeProjectTeamMetadata: options.includeProjectTeamMetadata === true,
-        includeEstimationMetadata: options.includeEstimationMetadata === true,
-        includeDescription: options.exactUrl != null,
-        includeComments: options.exactUrl != null &&
-          exactIssueReference == null,
-      },
-    )
-
-    allNodes.push(...result.issues.nodes)
-    lastPageInfo = result.issues.pageInfo
-    hasNextPage = result.issues.pageInfo.hasNextPage
-
-    if (!fetchAll && allNodes.length >= limit) {
-      break
-    }
-    const next = result.issues.pageInfo.endCursor
-    if (hasNextPage && (next == null || next === after)) {
-      throw new CliError("Incomplete issue pagination")
-    }
-    after = next
-  }
+  const { nodes: allNodes, pageInfo: lastPageInfo } = await completeConnection(
+    await fetchPage(),
+    fetchPage,
+    "issue",
+    fetchAll ? 0 : limit,
+  )
 
   const completedNodes = options.includeProjectTeamMetadata === true
     ? await completeDoctorProjectTeams(allNodes, options.includeArchived)
@@ -2075,53 +1792,37 @@ export async function searchIssuesByTerm(
   }
 
   const client = getGraphQLClient()
-  const fetchUnlimited = options.limit === 0
-  const allNodes: SearchIssuesPayload["nodes"] = []
   let totalCount = 0
-  let hasNextPage = true
-  let after: string | null | undefined = undefined
-  let lastPageInfo: SearchIssuesPayload["pageInfo"] = {
-    hasNextPage: false,
-    endCursor: null,
-  }
-
-  while (hasNextPage) {
-    const remaining = fetchUnlimited
-      ? 100
-      : (options.limit == null
-        ? undefined
-        : Math.min(options.limit - allNodes.length, 100))
-    if (!fetchUnlimited && remaining != null && remaining <= 0) {
-      break
-    }
-
-    const result: SearchIssuesQuery = await client.request(searchIssuesQuery, {
+  const first = options.limit === 0
+    ? 100
+    : options.limit == null
+    ? undefined
+    : Math.min(options.limit, 100)
+  const fetchPage = async (after?: string, pageSize = first) => {
+    const result = await client.request(searchIssuesQuery, {
       term,
       filter: Object.keys(filter).length > 0 ? filter : undefined,
-      first: remaining,
+      first: pageSize,
       after,
       includeArchived: options.includeArchived,
       includeComments: options.includeComments,
       orderBy: options.orderBy,
     })
-
     totalCount = result.searchIssues.totalCount
-    allNodes.push(...result.searchIssues.nodes)
-    lastPageInfo = result.searchIssues.pageInfo
-    hasNextPage = result.searchIssues.pageInfo.hasNextPage
-    after = result.searchIssues.pageInfo.endCursor
-
-    if (
-      options.limit == null ||
-      (!fetchUnlimited && allNodes.length >= options.limit)
-    ) {
-      break
-    }
+    return result.searchIssues
   }
-
+  const initial = await fetchPage()
+  // An omitted limit deliberately returns Linear's default first page. Only
+  // an explicit zero asks this helper to accumulate the complete connection.
+  const connection = options.limit == null ? initial : await completeConnection(
+    initial,
+    fetchPage,
+    "issue search",
+    options.limit,
+  )
   return {
-    nodes: allNodes,
-    pageInfo: lastPageInfo,
+    nodes: connection.nodes,
+    pageInfo: connection.pageInfo,
     totalCount,
   }
 }
