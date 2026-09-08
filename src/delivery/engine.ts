@@ -3,6 +3,10 @@ import { getTeamKeyFromIssueIdentifier } from "../utils/issue-identifier.ts"
 import { encodeHex } from "@std/encoding/hex"
 import { fromFileUrl } from "@std/path"
 import { print } from "graphql"
+import remarkGfm from "remark-gfm"
+import remarkParse from "remark-parse"
+import { unified } from "unified"
+import { visit } from "unist-util-visit"
 import { CliError, ValidationError } from "../utils/errors.ts"
 import {
   EMPTY_ISSUE_RELATION_SNAPSHOT,
@@ -84,13 +88,30 @@ export function selfExecRunner(): CommandRunner {
  * flipped `_x_` → `*x*`; task checkboxes capitalized `[x]` → `[X]`.
  * Comparing normalized text keeps these rewrites from reading as remote
  * drift; anything this normalization cannot reconcile is shown as a
- * difference for the caller to judge, never silently "fixed".
+ * difference for the caller to judge, never silently "fixed". Preserve source
+ * lines containing code, raw HTML, or hard breaks: their literal characters
+ * and whitespace must not authorize an overwrite or a successful read-back.
  */
 export function normalizeMarkdown(text: string): string {
-  return text
-    .replaceAll("\r\n", "\n")
+  const source = text.replaceAll("\r\n", "\n")
+  const protectedLines = new Set<number>()
+  visit(unified().use(remarkParse).use(remarkGfm).parse(source), (node) => {
+    if (
+      node.type !== "code" && node.type !== "inlineCode" &&
+      node.type !== "html" && node.type !== "break"
+    ) return
+    const position = node.position
+    if (position == null) return
+    // Protect the whole line rather than trying to normalize Markdown around
+    // a literal span. The parser owns fences, indentation and nested contexts.
+    for (let line = position.start.line; line <= position.end.line; line++) {
+      protectedLines.add(line - 1)
+    }
+  })
+  const lines = source
     .split("\n")
-    .map((line) => {
+    .map((line, index) => {
+      if (protectedLines.has(index)) return line
       const trimmed = line
         .replace(/[ \t]+$/, "")
         .replace(/^(\s*)\* /, "$1- ")
@@ -107,8 +128,11 @@ export function normalizeMarkdown(text: string): string {
       }
       return trimmed
     })
-    .join("\n")
-    .replace(/\n+$/, "")
+  // Unclosed fences may own the final empty lines. Do not trim code bytes.
+  while (
+    lines.at(-1) === "" && !protectedLines.has(lines.length - 1)
+  ) lines.pop()
+  return lines.join("\n")
 }
 
 /** Comparable field values extracted from `issue view --json`. */
@@ -851,6 +875,24 @@ export async function applyManifest(
   let failedSeen = false
   const continueOnFailure = context.continueOnFailure === true
 
+  async function recordUnknown(
+    item: DeliveryItem,
+    note: string,
+    detail = note,
+  ): Promise<void> {
+    checkpoint.items[item.key] = { status: "unknown", note }
+    await saveCheckpoint(manifestPath, checkpoint)
+    results.push({
+      key: item.key,
+      kind: item.kind,
+      describe: item.describe,
+      status: "unknown",
+      detail,
+    })
+    unknownSeen = true
+    halted = true
+  }
+
   for (const [issueIndex, issue] of manifest.issues.entries()) {
     const items = expansions[issueIndex]
 
@@ -1101,20 +1143,7 @@ export async function applyManifest(
       try {
         result = await runner.run(command.args)
       } catch (error) {
-        checkpoint.items[item.key] = {
-          status: "unknown",
-          note: (error as Error).message,
-        }
-        await saveCheckpoint(manifestPath, checkpoint)
-        results.push({
-          key: item.key,
-          kind: item.kind,
-          describe: item.describe,
-          status: "unknown",
-          detail: (error as Error).message,
-        })
-        unknownSeen = true
-        halted = true
+        await recordUnknown(item, (error as Error).message)
         continue
       } finally {
         await command.cleanup?.()
@@ -1127,20 +1156,11 @@ export async function applyManifest(
           }
           const createdIdentifier = created.issue?.identifier
           if (createdIdentifier == null) {
-            checkpoint.items[item.key] = {
-              status: "unknown",
-              note: "create succeeded but no identifier in output",
-            }
-            await saveCheckpoint(manifestPath, checkpoint)
-            results.push({
-              key: item.key,
-              kind: item.kind,
-              describe: item.describe,
-              status: "unknown",
-              detail: "create output had no identifier",
-            })
-            unknownSeen = true
-            halted = true
+            await recordUnknown(
+              item,
+              "create succeeded but no identifier in output",
+              "create output had no identifier",
+            )
             continue
           }
           identifier = createdIdentifier
@@ -1156,21 +1176,11 @@ export async function applyManifest(
             }
             receipt = { kind: item.kind, id }
           } catch {
-            checkpoint.items[item.key] = {
-              status: "unknown",
-              note: "write succeeded but its object ID was not returned",
-            }
-            await saveCheckpoint(manifestPath, checkpoint)
-            results.push({
-              key: item.key,
-              kind: item.kind,
-              describe: item.describe,
-              status: "unknown",
-              detail:
-                "write succeeded but its object ID was not returned; reconcile before resuming",
-            })
-            unknownSeen = true
-            halted = true
+            await recordUnknown(
+              item,
+              "write succeeded but its object ID was not returned",
+              "write succeeded but its object ID was not returned; reconcile before resuming",
+            )
             continue
           }
         }
@@ -1193,21 +1203,7 @@ export async function applyManifest(
       }
 
       // A launched child may have written before failing; stderr cannot prove otherwise.
-      const status = "unknown"
-      checkpoint.items[item.key] = {
-        status,
-        note: result.stderr.trim().split("\n")[0],
-      }
-      await saveCheckpoint(manifestPath, checkpoint)
-      results.push({
-        key: item.key,
-        kind: item.kind,
-        describe: item.describe,
-        status,
-        detail: result.stderr.trim().split("\n")[0],
-      })
-      unknownSeen = true
-      halted = true
+      await recordUnknown(item, result.stderr.trim().split("\n")[0])
     }
 
     if (issueNeedsVerification && identifier != null) {

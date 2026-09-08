@@ -1461,6 +1461,159 @@ Deno.test("a launched mutation is checkpointed before its result", async () => {
   }
 })
 
+Deno.test("unknown outcomes retain their reasons and always stop mutations", async (t) => {
+  const scenarios = [
+    {
+      name: "exception",
+      error: "runner rejected",
+      note: "runner rejected",
+      detail: "runner rejected",
+    },
+    {
+      name: "nonzero",
+      result: { code: 1, stdout: "", stderr: "child failed\nmore details" },
+      note: "child failed",
+      detail: "child failed",
+    },
+    {
+      name: "create nonzero without stderr",
+      create: true,
+      result: { code: 1, stdout: "", stderr: "" },
+      note: "",
+      detail: "",
+    },
+    {
+      name: "missing create identifier",
+      create: true,
+      note: "create succeeded but no identifier in output",
+      detail: "create output had no identifier",
+    },
+    {
+      name: "missing receipt",
+      note: "write succeeded but its object ID was not returned",
+      detail:
+        "write succeeded but its object ID was not returned; reconcile before resuming",
+    },
+  ]
+  for (const scenario of scenarios) {
+    await t.step(scenario.name, async () => {
+      const dir = await Deno.makeTempDir()
+      try {
+        const path = await writeManifest(dir, {
+          schemaVersion: 1,
+          workspace: "jihuanshe",
+          issues: [{
+            ...(scenario.create
+              ? { operation: "create", team: "DATA", set: { title: "New" } }
+              : { operation: "update", identifier: "DATA-606" }),
+            comments: [{ body: "Evidence" }, { body: "Do not send" }],
+          }, {
+            operation: "create",
+            team: "DATA",
+            set: { title: "Do not create" },
+          }],
+        })
+        let bodyFile: string | undefined
+        const runner = fakeRunner((args) => {
+          if (args[1] !== "create" && args[1] !== "comment") return undefined
+          if (args[1] === "comment") {
+            bodyFile = args[args.indexOf("--body-file") + 1]
+          }
+          const saved = JSON.parse(Deno.readTextFileSync(checkpointPath(path)))
+          assertEquals(Object.values(saved.items), [{
+            status: "unknown",
+            note: "in flight: launched but result not recorded",
+          }])
+          if (scenario.error != null) throw new Error(scenario.error)
+          return scenario.result ?? { code: 0, stdout: "{}", stderr: "" }
+        })
+        const context = {
+          loaded: await loadManifest(path),
+          runner,
+          continueOnFailure: true,
+        }
+        const result = await applyManifest(context)
+        assertEquals(result.status, "stopped-on-unknown")
+        assertEquals(result.items[0].status, "unknown")
+        assertEquals(result.items[0].detail, scenario.detail)
+        assertEquals(
+          result.items.slice(1).every((item) => item.status === "unattempted"),
+          true,
+        )
+        const checkpoint = JSON.parse(
+          await Deno.readTextFile(checkpointPath(path)),
+        )
+        assertEquals(Object.values(checkpoint.items), [{
+          status: "unknown",
+          note: scenario.note,
+        }])
+        await assertRejects(
+          async () =>
+            await applyManifest({
+              ...context,
+              loaded: await loadManifest(path),
+            }),
+          ValidationError,
+          "unresolved unknown",
+        )
+        assertEquals(
+          runner.calls.filter((args) =>
+            args[1] === "create" || args[1] === "comment"
+          ).length,
+          1,
+        )
+        if (bodyFile != null) {
+          const temporaryBody = bodyFile
+          await assertRejects(
+            () => Deno.stat(temporaryBody),
+            Deno.errors.NotFound,
+          )
+        }
+      } finally {
+        await Deno.remove(dir, { recursive: true })
+      }
+    })
+  }
+})
+
+Deno.test("checkpoint save failure stops execution and still cleans up comment bodies", async () => {
+  const dir = await Deno.makeTempDir()
+  try {
+    const path = await writeManifest(dir, {
+      schemaVersion: 1,
+      workspace: "jihuanshe",
+      issues: [{
+        operation: "update",
+        identifier: "DATA-606",
+        comments: [{ body: "Evidence" }, { body: "Do not send" }],
+      }],
+    })
+    let bodyFile = ""
+    const runner = fakeRunner((args) => {
+      if (args[1] !== "comment") return undefined
+      bodyFile = args[args.indexOf("--body-file") + 1]
+      // The write-ahead rename has finished. Make only the subsequent result
+      // save fail, without mocking the production checkpoint implementation.
+      Deno.mkdirSync(`${checkpointPath(path)}.tmp`)
+      throw new Error("runner rejected")
+    })
+    const loaded = await loadManifest(path)
+    await assertRejects(
+      () => applyManifest({ loaded, runner }),
+      Deno.errors.IsADirectory,
+    )
+    assertEquals(runner.calls.filter((args) => args[1] === "comment").length, 1)
+    await assertRejects(() => Deno.stat(bodyFile), Deno.errors.NotFound)
+    const saved = JSON.parse(await Deno.readTextFile(checkpointPath(path)))
+    assertEquals(Object.values(saved.items), [{
+      status: "unknown",
+      note: "in flight: launched but result not recorded",
+    }])
+  } finally {
+    await Deno.remove(dir, { recursive: true })
+  }
+})
+
 Deno.test("plan reads comment-only update targets", async () => {
   const dir = await Deno.makeTempDir()
   try {
@@ -1485,48 +1638,6 @@ Deno.test("plan reads comment-only update targets", async () => {
     assertEquals(runner.calls.some((call) => call[1] === "view"), true)
     assertEquals(plan.status, "conflict")
     assertStringIncludes(plan.issues[0].drift ?? "", "archived")
-  } finally {
-    await Deno.remove(dir, { recursive: true })
-  }
-})
-
-Deno.test("an unknown outcome blocks further runs until reconciled", async () => {
-  const dir = await Deno.makeTempDir()
-  try {
-    const manifestPath = await writeManifest(dir, {
-      schemaVersion: 1,
-      workspace: "jihuanshe",
-      issues: [{
-        operation: "create",
-        team: "DATA",
-        set: { title: "New issue" },
-      }],
-    })
-    const runner = fakeRunner((args) =>
-      args[1] === "create" ? { code: 1, stdout: "", stderr: "" } : undefined
-    )
-    const loaded = await loadManifest(manifestPath)
-    const outcome = await applyManifest({ loaded, runner })
-
-    assertEquals(outcome.status, "stopped-on-unknown")
-    assertEquals(outcome.items[0].status, "unknown")
-
-    await assertRejects(
-      async () =>
-        await applyManifest({
-          loaded: await loadManifest(manifestPath),
-          runner,
-        }),
-      ValidationError,
-      "unresolved unknown",
-    )
-    const checkpoint = JSON.parse(
-      await Deno.readTextFile(checkpointPath(manifestPath)),
-    )
-    const statuses = Object.values(
-      checkpoint.items as Record<string, { status: string }>,
-    )
-    assertEquals(statuses[0].status, "unknown")
   } finally {
     await Deno.remove(dir, { recursive: true })
   }
@@ -1826,10 +1937,15 @@ Deno.test("markdown normalization absorbs Linear's equivalent rewrites only", ()
     normalizeMarkdown("[evidence.yrp](https://example.com/a)"),
     normalizeMarkdown("[evidence.yrp](<https://example.com/a>)"),
   )
-  // Real round-trip samples from the markdown torture issue (ENG-54).
+  // Syntax rewrites observed in the markdown torture issue (ENG-54), with a
+  // synthetic parent list so the nested bullet is a list, not indented code.
   assertEquals(
-    normalizeMarkdown("      - 嵌套无序\n_斜体_ 与 ~~删除线~~\n- [x] 已完成"),
-    normalizeMarkdown("      * 嵌套无序\n*斜体* 与 ~~删除线~~\n- [X] 已完成"),
+    normalizeMarkdown(
+      "1. 父级\n   - 嵌套无序\n\n_斜体_ 与 ~~删除线~~\n- [x] 已完成",
+    ),
+    normalizeMarkdown(
+      "1. 父级\n   * 嵌套无序\n\n*斜体* 与 ~~删除线~~\n- [X] 已完成",
+    ),
   )
   assertEquals(
     normalizeMarkdown("| :--- | :---: | ---: |"),
@@ -1857,6 +1973,136 @@ Deno.test("markdown normalization absorbs Linear's equivalent rewrites only", ()
     normalizeMarkdown("| a | b |") === normalizeMarkdown("| a | c |"),
     false,
   )
+})
+
+const literalMarkdownDifferences = [
+  ["fenced code", "```text\n* literal\n```", "```text\n- literal\n```"],
+  [
+    "longer outer fence",
+    "````text\n```\n* literal\n```\n````",
+    "````text\n```\n- literal\n```\n````",
+  ],
+  [
+    "tilde fence with backticks",
+    "~~~text\n```\n* literal\n~~~",
+    "~~~text\n```\n- literal\n~~~",
+  ],
+  [
+    "blockquote fence",
+    "> ```text\n> [x](<https://example.com>)\n> ```",
+    "> ```text\n> [x](https://example.com)\n> ```",
+  ],
+  [
+    "list fence",
+    "- Parent\n\n  ```text\n  * literal\n  ```",
+    "- Parent\n\n  ```text\n  - literal\n  ```",
+  ],
+  ["indented code", "    * literal", "    - literal"],
+  ["tab-indented code", "\t* literal", "\t- literal"],
+  [
+    "inline code",
+    "`[x](<https://example.com>)`",
+    "`[x](https://example.com)`",
+  ],
+  [
+    "inline code containing backticks",
+    "``a `[x](<https://example.com>)` b``",
+    "``a `[x](https://example.com)` b``",
+  ],
+  [
+    "multiline inline code",
+    "``first\n[x](<https://example.com>)\nlast``",
+    "``first\n[x](https://example.com)\nlast``",
+  ],
+  ["code trailing spaces", "```\nliteral  \n```", "```\nliteral\n```"],
+  ["unclosed code trailing lines", "```\nliteral\n\n", "```\nliteral\n"],
+  ["hard line break", "first  \nsecond", "first\nsecond"],
+  ["nested hard line break", "> first  \n> second", "> first\n> second"],
+  ["raw HTML", "<pre>\n* literal\n</pre>", "<pre>\n- literal\n</pre>"],
+] as const
+
+Deno.test("markdown normalization preserves code and hard breaks", () => {
+  for (const [name, base, changed] of literalMarkdownDifferences) {
+    assertEquals(
+      normalizeMarkdown(base) === normalizeMarkdown(changed),
+      false,
+      name,
+    )
+  }
+  assertEquals(
+    normalizeMarkdown(
+      "* outside\n\n```text\n* code\n```\n\n[x](<https://example.com>)\n",
+    ),
+    normalizeMarkdown(
+      "- outside\n\n```text\n* code\n```\n\n[x](https://example.com)",
+    ),
+  )
+})
+
+Deno.test("plan and apply never treat changed code or hard breaks as equal", async (t) => {
+  for (const [name, original, changed] of literalMarkdownDifferences) {
+    await t.step(name, async () => {
+      const dir = await Deno.makeTempDir()
+      try {
+        const path = await writeManifest(dir, {
+          schemaVersion: 1,
+          workspace: "jihuanshe",
+          issues: [{
+            operation: "update",
+            identifier: "DATA-606",
+            base: { description: original },
+            set: { description: "Replacement" },
+          }],
+        })
+        const runner = fakeRunner((args) =>
+          args[1] === "view" ? viewResult({ description: changed }) : undefined
+        )
+        const loaded = await loadManifest(path)
+        const plan = await planManifest({ loaded, runner })
+        assertEquals(plan.issues[0].fields[0].verdict, "conflict")
+        const refused = await applyManifest({ loaded, runner })
+        assertEquals(refused.status, "conflict")
+        assertEquals(runner.calls.some((args) => args[1] === "update"), false)
+
+        // A matching base permits the write, but an unchanged remote must not
+        // count as idempotent beforehand or verified after a reported success.
+        await writeManifest(dir, {
+          schemaVersion: 1,
+          workspace: "jihuanshe",
+          issues: [{
+            operation: "update",
+            identifier: "DATA-606",
+            base: { description: changed },
+            set: { description: original },
+          }],
+        })
+        const writable = await loadManifest(path)
+        const writePlan = await planManifest({ loaded: writable, runner })
+        assertEquals(writePlan.issues[0].fields[0].verdict, "write")
+        const context = {
+          loaded: writable,
+          runner,
+          verificationDelay: () => Promise.resolve(),
+        }
+        const applied = await applyManifest(context)
+        assertEquals(applied.status, "applied-unverified")
+        assertEquals(applied.items[0].status, "applied")
+        assertStringIncludes(
+          applied.verification[0].detail ?? "",
+          "field description",
+        )
+        const resumed = await applyManifest(context)
+        assertEquals(resumed.status, "applied-unverified")
+        assertEquals(resumed.items[0].status, "skipped")
+        assertEquals(
+          runner.calls.filter((args) => args[1] === "update").length,
+          1,
+        )
+      } finally {
+        await Deno.remove(dir, { recursive: true })
+      }
+    })
+  }
 })
 
 Deno.test("checkpoint keys reject a retargeted workspace", async () => {
@@ -2058,34 +2304,6 @@ Deno.test("legacy object checkpoint reports limited verification without replay"
     assertEquals(resumed.status, "completed")
     assertEquals(resumed.verification[0].scope, "issue")
     assertStringIncludes(formatApply(resumed), "Legacy checkpoint")
-    assertEquals(runner.calls.filter((args) => args[1] === "comment").length, 1)
-  } finally {
-    await Deno.remove(dir, { recursive: true })
-  }
-})
-
-Deno.test("missing mutation receipt stays unknown and cannot auto-resume", async () => {
-  const dir = await Deno.makeTempDir()
-  try {
-    const path = await writeManifest(dir, {
-      schemaVersion: 1,
-      workspace: "jihuanshe",
-      issues: [{
-        operation: "update",
-        identifier: "DATA-606",
-        comments: [{ body: "proof" }],
-      }],
-    })
-    const runner = fakeRunner(() => undefined)
-    const loaded = await loadManifest(path)
-    const first = await applyManifest({ loaded, runner })
-    assertEquals(first.status, "stopped-on-unknown")
-    assertStringIncludes(first.items[0].detail ?? "", "object ID")
-    await assertRejects(
-      () => applyManifest({ loaded, runner }),
-      ValidationError,
-      "unresolved unknown",
-    )
     assertEquals(runner.calls.filter((args) => args[1] === "comment").length, 1)
   } finally {
     await Deno.remove(dir, { recursive: true })
