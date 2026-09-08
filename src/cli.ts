@@ -18,6 +18,7 @@ import { configCommand } from "./commands/config.ts"
 import { schemaCommand } from "./commands/schema.ts"
 import { apiCommand } from "./commands/api.ts"
 import { updateCommand } from "./commands/update.ts"
+import { downloadCommand } from "./commands/download.ts"
 import { uploadCommand } from "./commands/upload.ts"
 import { versionCommand } from "./commands/version.ts"
 import { doctorCommand } from "./commands/doctor.ts"
@@ -86,6 +87,7 @@ Environment Variables:
   .command("schema", schemaCommand)
   .command("api", apiCommand)
   .command("upload", uploadCommand)
+  .command("download", downloadCommand)
   .command("update", updateCommand)
   .command("version", versionCommand)
   .command("doctor", doctorCommand)

@@ -13,6 +13,7 @@ commands:
   - issue plan
   - issue apply
   - upload
+  - download
 ---
 
 # 编写可独立交接的 Issue
@@ -45,3 +46,13 @@ commands:
 代码中的临时处理用绝对 URL 引用 Issue，调查与证据留在 Issue。Done 只触发复查，不能替代删除条件的现场验证。
 
 跟进回复依据最新正文和评论，写清已解决项、未决问题与下一步；只复测未验证或已变化的验收项。
+
+## 下载与字节校验
+
+`issue view --json` 只返回记录和附件元数据，不下载文件。需要验证上传的原始字节时，使用返回的 `uploads.linear.app` URL：
+
+```bash
+linear download "$asset_url" --output ./evidence.mp4 --sha256 "$expected_sha256" --json
+```
+
+输出包含 `assetUrl`、绝对 `path`、字节数 `size` 与 `sha256`；省略 `--sha256` 时仍计算并返回实际哈希。每次重新下载，沿用 CLI 的 workspace 凭据解析，不需要导出 token。目标父目录必须存在，目标文件必须不存在；校验不符、HTTP 或传输失败均非零退出，且不留下目标文件。重复验证使用新的输出路径，不把已有缓存当作远端校验。只接受 HTTPS `uploads.linear.app` 入口，重定向仅允许 HTTPS，且不转发凭据。
