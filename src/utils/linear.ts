@@ -2740,6 +2740,15 @@ export async function getOrganizationMembers(
   return { nodes, pageInfo }
 }
 
+export async function getIssueTeam(issueIdentifier: string) {
+  const query = gql(`query GetIssueTeam($id: String!) {
+    issue(id: $id) { team { id key } }
+  }`)
+  const data = await getGraphQLClient().request(query, { id: issueIdentifier })
+  if (data.issue == null) throw new NotFoundError("Issue", issueIdentifier)
+  return data.issue.team
+}
+
 export async function getIssueProjectId(
   issueIdentifier: string,
 ): Promise<string | undefined> {

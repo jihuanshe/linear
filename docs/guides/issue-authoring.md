@@ -2,6 +2,7 @@
 name: issue-authoring
 description: Issue 的责任归属、持久证据、验收依据与后续交接
 commands:
+  - project teams
   - issue create
   - issue update
   - issue view
@@ -23,6 +24,10 @@ commands:
 ## 责任归属
 
 发现问题的系统不自动承担修复。日志或分析证明现象，修复与验收落在拥有权威事实的系统。团队和标签依据已有归属、用户规则或 workspace 约定；未确定的归属保留待查，不靠猜测填满字段。需要确认的边界见 [core](core.md)。
+
+接手已有 Issue 前，读取当前负责人、Project、状态以及最近的评论与历史。沿用最新明确决定；改派须有新证据或明确要求，写清转交原因、未完成范围与接手人。转交落实前，当前负责人继续推进，不能用「请别人处理」代替交接。
+
+指定 Project 前，可用 `linear project teams <项目 UUID、slug 或完整名称> --json` 查看完整团队范围。create、update 及 manifest 的 plan/apply 都会检查团队兼容性；移动 Issue 时也检查保留的 Project。使用历史编号改项目时，以远端工单的当前团队校验，不以旧编号前缀推断。读取失败或不兼容会在写入前停止，不自动修改 Project 的团队。先确认责任归属，再选择兼容的 Project 或明确调整 Issue 团队。
 
 ## 持久证据
 

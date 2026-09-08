@@ -1,3 +1,5 @@
+import { assertProjectTeam } from "../utils/project-teams.ts"
+import { getTeamKeyFromIssueIdentifier } from "../utils/issue-identifier.ts"
 import { encodeHex } from "@std/encoding/hex"
 import { fromFileUrl } from "@std/path"
 import { print } from "graphql"
@@ -920,6 +922,25 @@ export async function applyManifest(
       }
     }
 
+    const pendingFields = items.some((item) =>
+      item.kind === "fields" && checkpoint.items[item.key]?.status !== "applied"
+    )
+    if (!issueHalted && pendingFields) {
+      try {
+        await checkDeliveryProject(runner, issue, workspaceFlags)
+      } catch (error) {
+        results.push({
+          key: String(issueIndex) + ":fields:0:project",
+          kind: "fields",
+          describe: "check project team compatibility",
+          status: "failed",
+          detail: (error as Error).message,
+        })
+        failedSeen = true
+        halted = !continueOnFailure
+        issueHalted = true
+      }
+    }
     const relationPlans = new Map<number, IssueRelationPlan>()
     if (!issueHalted) {
       const pendingRelationItems = items.filter((item) =>
@@ -1414,6 +1435,55 @@ function summarizeIssue(
   }
 }
 
+async function checkDeliveryProject(
+  runner: CommandRunner,
+  issue: DeliveryIssue,
+  workspaceFlags: string[],
+): Promise<void> {
+  let project = issue.set?.project
+  if (
+    project == null && issue.operation === "create" && issue.set?.parent != null
+  ) {
+    const parent = await runner.run([
+      "issue",
+      "view",
+      issue.set.parent,
+      ...workspaceFlags,
+      "--json",
+    ])
+    if (parent.code !== 0) {
+      throw new CliError(parent.stderr.trim() || "Failed to read parent issue")
+    }
+    const data = JSON.parse(parent.stdout) as {
+      project?: { id?: unknown } | null
+    }
+    if (data.project === null) return
+    if (typeof data.project?.id !== "string" || !data.project.id) {
+      throw new CliError("Parent issue returned no project identity")
+    }
+    project = data.project.id
+  }
+  if (project == null) return
+  const team = issue.team ??
+    getTeamKeyFromIssueIdentifier(issue.identifier ?? "")
+  if (!team) {
+    throw new ValidationError(
+      "Cannot determine issue team for project validation",
+    )
+  }
+  const result = await runner.run([
+    "project",
+    "teams",
+    project,
+    ...workspaceFlags,
+    "--json",
+  ])
+  if (result.code !== 0) {
+    throw new CliError(result.stderr.trim() || "Failed to read project teams")
+  }
+  assertProjectTeam(JSON.parse(result.stdout), team)
+}
+
 /**
  * The zero-write preview: read-only resolution of every update target plus
  * the full local file inventory. Optional by design — apply performs the same
@@ -1471,6 +1541,14 @@ export async function planManifest(
               : set.description,
         )
         if (fields.some((plan) => plan.verdict === "conflict")) conflict = true
+      }
+    }
+    if (drift == null) {
+      try {
+        await checkDeliveryProject(runner, issue, workspaceFlags)
+      } catch (error) {
+        drift = (error as Error).message
+        conflict = true
       }
     }
     const relations = planIssueRelations(

@@ -1,3 +1,4 @@
+import { teamsCommand } from "./project-teams.ts"
 import { Command } from "@cliffy/command"
 import { createUsageAction } from "../usage.ts"
 import { listCommand } from "./project-list.ts"
@@ -11,6 +12,7 @@ export const projectCommand = new Command()
   .action(createUsageAction(true))
   .command("list", listCommand)
   .command("view", viewCommand)
+  .command("teams", teamsCommand)
   .command("create", createCommand)
   .command("update", updateCommand)
   .command("delete", deleteCommand)

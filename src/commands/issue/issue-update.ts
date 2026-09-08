@@ -1,3 +1,4 @@
+import { requireProjectTeam } from "../../utils/project-teams.ts"
 import { Command } from "@cliffy/command"
 import { withUsageMetadata } from "../usage.ts"
 import { withMarkdownHint } from "../../utils/markdown-help.ts"
@@ -11,6 +12,7 @@ import {
   getIssueIdentifier,
   getIssueLabelIdByNameForTeam,
   getIssueProjectId,
+  getIssueTeam,
   getProjectIdByName,
   getTeamIdByKey,
   getWorkflowStates,
@@ -229,8 +231,12 @@ export const updateCommand = withUsageMetadata(new Command(), { writes: true })
         const spinner = shouldShowSpinner() && !json ? new Spinner() : null
         spinner?.start()
 
-        // Extract team from issue ID if not provided
-        let teamKey = team
+        // A previous identifier may still resolve after a team move. Project
+        // validation must use the current team, not that historical prefix.
+        const currentTeam = project != null && team == null
+          ? await getIssueTeam(issueId)
+          : undefined
+        let teamKey = team ?? currentTeam?.key
         if (!teamKey) {
           teamKey = getTeamKeyFromIssueIdentifier(issueId)
         }
@@ -306,6 +312,16 @@ export const updateCommand = withUsageMetadata(new Command(), { writes: true })
                 "Pass a project UUID, slug ID (from `linear project list`), or exact project name.",
             })
           }
+        }
+
+        const targetProjectId = projectId ??
+          (team != null ? await getIssueProjectId(issueId) : undefined)
+        if (targetProjectId != null) {
+          await requireProjectTeam(
+            targetProjectId,
+            currentTeam?.id ?? teamId ?? teamKey,
+            teamKey,
+          )
         }
 
         let projectMilestoneId: string | undefined

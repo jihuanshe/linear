@@ -1,3 +1,4 @@
+import { requireProjectTeam } from "../../utils/project-teams.ts"
 import { Command } from "@cliffy/command"
 import { withUsageMetadata } from "../usage.ts"
 import { withMarkdownHint } from "../../utils/markdown-help.ts"
@@ -388,6 +389,7 @@ async function promptInteractiveIssueCreation(
 ): Promise<{
   title: string
   teamId: string
+  teamKey: string
   assigneeId?: string
   priority?: number
   estimate?: number
@@ -580,6 +582,7 @@ async function promptInteractiveIssueCreation(
   return {
     title,
     teamId,
+    teamKey,
     assigneeId,
     priority,
     estimate,
@@ -735,6 +738,14 @@ export const createCommand = withUsageMetadata(new Command(), {
             parentId,
             parentData,
           )
+
+          if (interactiveData.projectId != null) {
+            await requireProjectTeam(
+              interactiveData.projectId,
+              interactiveData.teamId,
+              interactiveData.teamKey,
+            )
+          }
 
           console.log(`Creating issue...`)
           console.log()
@@ -931,6 +942,11 @@ export const createCommand = withUsageMetadata(new Command(), {
         const { parentId, parentData } = await resolveParentIssueForCreate(
           parentIdentifier,
         )
+
+        const targetProjectId = projectId ?? parentData?.projectId
+        if (targetProjectId != null) {
+          await requireProjectTeam(targetProjectId, teamId, team)
+        }
 
         const input = {
           title,

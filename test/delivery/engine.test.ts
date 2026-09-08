@@ -63,6 +63,20 @@ function fakeRunner(
       calls.push(args)
       const result = handler(args)
       if (result != null) return Promise.resolve(result)
+      if (args[0] === "project" && args[1] === "teams") {
+        return Promise.resolve({
+          code: 0,
+          stdout: JSON.stringify({
+            id: "p1",
+            name: "Project",
+            teams: {
+              nodes: [{ id: "team-data", key: "DATA" }],
+              pageInfo: { hasNextPage: false },
+            },
+          }),
+          stderr: "",
+        })
+      }
       if (args[0] === "issue" && args[1] === "view") {
         return Promise.resolve(viewResult({ identifier: args[2] }))
       }

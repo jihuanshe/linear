@@ -433,6 +433,21 @@ await snapshotTest({
   denoArgs: commonDenoArgs,
   async fn() {
     const { cleanup } = await setupMockLinearServer([
+      {
+        queryName: "ProjectTeams",
+        response: {
+          data: {
+            project: {
+              id: "project-id",
+              name: "Project",
+              teams: {
+                nodes: [{ id: "team-eng-id", key: "ENG", name: "Engineering" }],
+                pageInfo: { hasNextPage: false, endCursor: null },
+              },
+            },
+          },
+        },
+      },
       // Mock response for getTeamIdByKey()
       {
         queryName: "GetTeamIdByKey",
@@ -764,6 +779,21 @@ await snapshotTest({
 Deno.test("Issue Create Command - Explicit Project Still Uses Interactive Mode", async () => {
   const { cleanup } = await setupMockLinearServer([
     {
+      queryName: "ProjectTeams",
+      response: {
+        data: {
+          project: {
+            id: "project-id",
+            name: "Project",
+            teams: {
+              nodes: [{ id: "team-eng-id", key: "ENG", name: "Engineering" }],
+              pageInfo: { hasNextPage: false, endCursor: null },
+            },
+          },
+        },
+      },
+    },
+    {
       queryName: "GetUserSettings",
       response: {
         data: {
@@ -902,6 +932,21 @@ Deno.test("Issue Create Command - Explicit Project Still Uses Interactive Mode",
 
 Deno.test("Issue Create Command - Interactive Project Prompt Uses Team Projects", async () => {
   const { cleanup } = await setupMockLinearServer([
+    {
+      queryName: "ProjectTeams",
+      response: {
+        data: {
+          project: {
+            id: "project-id",
+            name: "Project",
+            teams: {
+              nodes: [{ id: "team-eng-id", key: "ENG", name: "Engineering" }],
+              pageInfo: { hasNextPage: false, endCursor: null },
+            },
+          },
+        },
+      },
+    },
     {
       queryName: "GetUserSettings",
       response: {
@@ -1044,6 +1089,21 @@ Deno.test("Issue Create Command - Interactive Project Prompt Uses Team Projects"
 
 Deno.test("Issue Create Command - Additional Fields Can Set Project", async () => {
   const { cleanup } = await setupMockLinearServer([
+    {
+      queryName: "ProjectTeams",
+      response: {
+        data: {
+          project: {
+            id: "project-id",
+            name: "Project",
+            teams: {
+              nodes: [{ id: "team-eng-id", key: "ENG", name: "Engineering" }],
+              pageInfo: { hasNextPage: false, endCursor: null },
+            },
+          },
+        },
+      },
+    },
     {
       queryName: "GetUserSettings",
       response: {
@@ -1195,6 +1255,21 @@ Deno.test("Issue Create Command - Additional Fields Can Set Project", async () =
 Deno.test("Issue Create Command - Inherits Parent Project When Project Not Set", async () => {
   const { cleanup } = await setupMockLinearServer([
     {
+      queryName: "ProjectTeams",
+      response: {
+        data: {
+          project: {
+            id: "project-id",
+            name: "Project",
+            teams: {
+              nodes: [{ id: "team-eng-id", key: "ENG", name: "Engineering" }],
+              pageInfo: { hasNextPage: false, endCursor: null },
+            },
+          },
+        },
+      },
+    },
+    {
       queryName: "GetTeamIdByKey",
       variables: { team: "ENG" },
       response: {
@@ -1278,6 +1353,21 @@ Deno.test("Issue Create Command - Inherits Parent Project When Project Not Set",
 
 Deno.test("Issue Create Command - Explicit Project Overrides Parent Project", async () => {
   const { cleanup } = await setupMockLinearServer([
+    {
+      queryName: "ProjectTeams",
+      response: {
+        data: {
+          project: {
+            id: "project-id",
+            name: "Project",
+            teams: {
+              nodes: [{ id: "team-eng-id", key: "ENG", name: "Engineering" }],
+              pageInfo: { hasNextPage: false, endCursor: null },
+            },
+          },
+        },
+      },
+    },
     {
       queryName: "GetTeamIdByKey",
       variables: { team: "ENG" },
@@ -1376,6 +1466,21 @@ Deno.test("Issue Create Command - Explicit Project Overrides Parent Project", as
 
 Deno.test("Issue Create Command - Invalid Parent Project Combination Surfaces Backend Error", async () => {
   const { cleanup } = await setupMockLinearServer([
+    {
+      queryName: "ProjectTeams",
+      response: {
+        data: {
+          project: {
+            id: "project-id",
+            name: "Project",
+            teams: {
+              nodes: [{ id: "team-eng-id", key: "ENG", name: "Engineering" }],
+              pageInfo: { hasNextPage: false, endCursor: null },
+            },
+          },
+        },
+      },
+    },
     {
       queryName: "GetTeamIdByKey",
       variables: { team: "ENG" },
