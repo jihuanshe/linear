@@ -1,3 +1,4 @@
+import { requireProjectTeam } from "../../utils/project-teams.ts"
 import { Command } from "@cliffy/command"
 import { withUsageMetadata } from "../usage.ts"
 import { withMarkdownHint } from "../../utils/markdown-help.ts"
@@ -306,6 +307,12 @@ export const updateCommand = withUsageMetadata(new Command(), { writes: true })
                 "Pass a project UUID, slug ID (from `linear project list`), or exact project name.",
             })
           }
+        }
+
+        const targetProjectId = projectId ??
+          (team != null ? await getIssueProjectId(issueId) : undefined)
+        if (targetProjectId != null) {
+          await requireProjectTeam(targetProjectId, teamKey)
         }
 
         let projectMilestoneId: string | undefined

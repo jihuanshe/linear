@@ -75,6 +75,8 @@ plan 和 apply 比较 base、目标值和远端值：
 
 冲突可在授权内合并时，将 base 更新为远端值，set 改为保留同事修改的合并结果；决定冲突时请用户裁决。目标已归档、进回收站，或 identifier 解析到其他 Issue 时拒绝写入。
 
+指定 `set.project` 时，plan 和 apply 在该 Issue 的首笔写入前检查目标团队属于 Project；检查失败只阻止该 Issue，`--continue-on-failure` 可继续其他条目。全部已成功的条目续跑只读回，不重新检查写入条件。兼容检查不会修改 Project 团队，交接规则见 [issue-authoring](issue-authoring.md)。
+
 base 是写前乐观校验，不是服务端锁；读取与写入之间仍有竞态窗口。
 
 ## 预览与执行

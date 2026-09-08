@@ -336,6 +336,21 @@ await snapshotTest({
   denoArgs: commonDenoArgs,
   async fn() {
     const { cleanup } = await setupMockLinearServer([
+      {
+        queryName: "ProjectTeams",
+        response: {
+          data: {
+            project: {
+              id: "project-id",
+              name: "Project",
+              teams: {
+                nodes: [{ id: "team-eng-id", key: "ENG", name: "Engineering" }],
+                pageInfo: { hasNextPage: false, endCursor: null },
+              },
+            },
+          },
+        },
+      },
       // Mock response for getTeamIdByKey()
       {
         queryName: "GetTeamIdByKey",
@@ -637,6 +652,21 @@ await snapshotTest({
   denoArgs: commonDenoArgs,
   async fn() {
     const { cleanup } = await setupMockLinearServer([
+      {
+        queryName: "ProjectTeams",
+        response: {
+          data: {
+            project: {
+              id: "project-id",
+              name: "Project",
+              teams: {
+                nodes: [{ id: "team-eng-id", key: "ENG", name: "Engineering" }],
+                pageInfo: { hasNextPage: false, endCursor: null },
+              },
+            },
+          },
+        },
+      },
       {
         queryName: "GetTeamIdByKey",
         variables: { team: "ENG" },
@@ -1519,6 +1549,10 @@ Deno.test("Issue Update Command - JSON output includes resulting priority", asyn
 
 Deno.test("Issue Update Command - teamId is sent only for an explicit team move", async () => {
   const { cleanup } = await setupMockLinearServer([
+    {
+      queryName: "GetIssueProjectId",
+      response: { data: { issue: { project: null } } },
+    },
     {
       queryName: "GetTeamIdByKey",
       variables: { team: "OPS" },
