@@ -69,7 +69,7 @@ plan 和 apply 比较 base、目标值和远端值：
 | `write`      | 远端仍等于 base，写入  |
 | `conflict`   | 两者都不是，拒绝覆盖   |
 
-负责人可在 `base.assignee` 与 `set.assignee` 中使用用户 UUID，按 ID 比较，不受改名影响；当前负责人的 ID 从 `issue view --json` 的 `assignee.id` 读取。标签按名称忽略大小写比较完整集合；Markdown 比较会统一 CRLF 换行，并在普通文本行兼容保存后的行尾空格和列表符号等改写。代码、原始 HTML 和硬换行涉及的源行保留原文，不对这些行做内容规范化，包括同行的普通文本。追加评论、附件、关系不需要字段 base，但关系仍检查冲突。
+负责人可在 `base.assignee` 与 `set.assignee` 中使用用户 UUID，按 ID 比较，不受改名影响；当前负责人的 ID 从 `issue view --json` 的 `assignee.id` 读取。标签按名称忽略大小写比较完整集合；Markdown 比较会统一 CRLF 换行，并兼容保存后的行尾空格；列表符号、任务复选框与表格分隔行只在解析器确认的对应结构中规范化。斜体分隔符只对独立且首尾为字母或数字的纯文本斜体统一；标点边缘、嵌套、相邻或正文含分隔符的复杂斜体保守保留，可能报告差异。代码、原始 HTML 和硬换行涉及的源行保留原文，不对这些行做内容规范化，包括同行的普通文本。追加评论、附件、关系不需要字段 base，但关系仍检查冲突。
 
 描述的 `idempotent` 只表示规范化后的 API Markdown 相等，不证明富文本节点等价，也不保证原样重新提交能保留提及。服务端将成员 URL 改写为 `@name` 等形式后，同一清单写入成功再 plan 仍可能报冲突；先核对实际目标和正文，不通过强制重提或扩大文本替换来消除差异。导出与重写风险见 [markdown](markdown.md)。
 
@@ -106,7 +106,7 @@ test "$code" -eq 0 &&
 
 负责人别名在读回核验时复用单命令的解析规则，按解析后的用户 ID 比较；读取失败保留 applied，可恢复后再核验。
 
-`verified` 且 `scope: "fields-and-objects"` 表示目标身份、清单声明的字段，以及本次评论和 Attachment 的返回 ID 均已读回匹配；不验证关系、文件字节或页面渲染。目标已归档或进入回收站时核验失败，保留成功记录，不重建工单。缺失字段或对象时，最多读回 3 次，间隔 1 秒、2 秒；每个 Issue 的读回总时限为 30 秒，只取消读回，不取消写入。读取错误直接报告，恢复后可重跑同一清单。`readBack` 按 identifier 保存 `issue view --json` 响应，用它核对实际内容；补读规则见 [automation](automation.md)。
+`verified` 且 `scope: "fields-and-objects"` 表示目标身份、已 applied 执行项声明的字段、关系类型与方向，以及评论和 Attachment 的返回 ID 均已读回匹配；不验证文件字节或页面渲染。关系缺失、被替换或关系快照不完整时报告 applied-unverified，保留 checkpoint，不自动补写。目标已归档或进入回收站时核验失败，保留成功记录，不重建工单。缺失字段或对象时，最多读回 3 次，间隔 1 秒、2 秒；每个 Issue 的读回总时限为 30 秒，只取消读回，不取消写入。读取错误直接报告，恢复后可重跑同一清单。`readBack` 按 identifier 保存 `issue view --json` 响应，用它核对实际内容；补读规则见 [automation](automation.md)。
 
 ## Checkpoint 与恢复
 
