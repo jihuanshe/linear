@@ -1,5 +1,4 @@
 import { Command, EnumType } from "@cliffy/command"
-import { withUsageMetadata } from "./usage.ts"
 import { gql } from "../__codegen__/gql.ts"
 import {
   fetchIssuesForQuery,
@@ -109,9 +108,7 @@ function normalizeRules(ruleFlags: string[] | undefined): DoctorRuleId[] {
   return rules as DoctorRuleId[]
 }
 
-export const doctorCommand = withUsageMetadata(new Command(), {
-  outputModes: ["human", "json"],
-})
+export const doctorCommand = new Command()
   .name("doctor")
   .description("检查 Linear 任务和项目中的常见问题（只读）")
   .type("scope", ScopeType)

@@ -23,9 +23,8 @@ stdout:
 "
 Usage: add [issueId]
 
-Writes: true            
-Interactive: true       
-Output modes: human,json
+Writes: true     
+Interactive: true
 
 Description:
 

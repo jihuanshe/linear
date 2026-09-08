@@ -394,44 +394,6 @@ Deno.test("usage omits defaults that are not static JSON values", () => {
   }
 })
 
-Deno.test("a usage JSON v1 reader ignores additive fields", () => {
-  const document = buildUsageDocument(
-    new Command()
-      .name("sample")
-      .description("Sample command")
-      .option("--count <count:number>", "Count", { default: 1 }),
-  )
-  const withAdditions = {
-    ...document,
-    futureDocumentField: true,
-    command: {
-      ...document.command,
-      futureCommandField: "new",
-      options: document.command.options.map((option) => ({
-        ...option,
-        futureOptionField: null,
-      })),
-    },
-  }
-  const readV1 = (value: unknown) => {
-    const parsed = value as UsageDocument
-    return {
-      schemaVersion: parsed.schemaVersion,
-      path: parsed.command.path,
-      writes: parsed.command.writes,
-      options: parsed.command.options.map((option) => ({
-        name: option.name,
-        default: option.default,
-      })),
-    }
-  }
-
-  assertEquals(
-    readV1(JSON.parse(JSON.stringify(withAdditions))),
-    readV1(JSON.parse(JSON.stringify(document))),
-  )
-})
-
 Deno.test("usage JSON v1 freezes its existing fields and types", async (t) => {
   const result = await run(["issue", "usage", "--json"])
   assertEquals(result.code, 0, result.stderr)

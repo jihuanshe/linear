@@ -18,7 +18,6 @@ import { CliError, handleError, ValidationError } from "../../utils/errors.ts"
 export const commentAddCommand = withUsageMetadata(new Command(), {
   writes: true,
   interactive: true,
-  outputModes: ["human", "json"],
 })
   .name("add")
   .description(

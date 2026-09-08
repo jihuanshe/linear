@@ -9,7 +9,6 @@ import { CliError, handleError, ValidationError } from "../../utils/errors.ts"
 export const commentUpdateCommand = withUsageMetadata(new Command(), {
   writes: true,
   interactive: true,
-  outputModes: ["human", "json"],
 })
   .name("update")
   .description(withMarkdownHint("Update an existing comment"))
