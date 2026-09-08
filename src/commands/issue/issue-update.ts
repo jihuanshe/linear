@@ -12,6 +12,7 @@ import {
   getIssueIdentifier,
   getIssueLabelIdByNameForTeam,
   getIssueProjectId,
+  getIssueTeam,
   getProjectIdByName,
   getTeamIdByKey,
   getWorkflowStates,
@@ -230,8 +231,12 @@ export const updateCommand = withUsageMetadata(new Command(), { writes: true })
         const spinner = shouldShowSpinner() && !json ? new Spinner() : null
         spinner?.start()
 
-        // Extract team from issue ID if not provided
-        let teamKey = team
+        // A previous identifier may still resolve after a team move. Project
+        // validation must use the current team, not that historical prefix.
+        const currentTeam = project != null && team == null
+          ? await getIssueTeam(issueId)
+          : undefined
+        let teamKey = team ?? currentTeam?.key
         if (!teamKey) {
           teamKey = getTeamKeyFromIssueIdentifier(issueId)
         }
@@ -312,7 +317,11 @@ export const updateCommand = withUsageMetadata(new Command(), { writes: true })
         const targetProjectId = projectId ??
           (team != null ? await getIssueProjectId(issueId) : undefined)
         if (targetProjectId != null) {
-          await requireProjectTeam(targetProjectId, teamKey)
+          await requireProjectTeam(
+            targetProjectId,
+            currentTeam?.id ?? teamId ?? teamKey,
+            teamKey,
+          )
         }
 
         let projectMilestoneId: string | undefined

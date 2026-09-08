@@ -337,6 +337,12 @@ await snapshotTest({
   async fn() {
     const { cleanup } = await setupMockLinearServer([
       {
+        queryName: "GetIssueTeam",
+        response: {
+          data: { issue: { team: { id: "team-eng-id", key: "ENG" } } },
+        },
+      },
+      {
         queryName: "ProjectTeams",
         response: {
           data: {
@@ -652,6 +658,12 @@ await snapshotTest({
   denoArgs: commonDenoArgs,
   async fn() {
     const { cleanup } = await setupMockLinearServer([
+      {
+        queryName: "GetIssueTeam",
+        response: {
+          data: { issue: { team: { id: "team-eng-id", key: "ENG" } } },
+        },
+      },
       {
         queryName: "ProjectTeams",
         response: {

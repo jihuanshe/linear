@@ -131,3 +131,100 @@ for (const operation of ["create", "update"] as const) {
     })
   }
 }
+
+for (
+  const mode of [
+    "compatible",
+    "incompatible",
+    "no-project",
+    "read-failure",
+  ] as const
+) {
+  Deno.test(`delivery checks an inherited parent project: ${mode}`, async () => {
+    const dir = await Deno.makeTempDir()
+    try {
+      const path = await writeManifest(dir, {
+        schemaVersion: 1,
+        workspace: "jihuanshe",
+        issues: [{
+          operation: "create",
+          team: "DATA",
+          set: { title: "Child", parent: "OPS-1" },
+        }],
+      })
+      const runner = fakeRunner((args) => {
+        if (args[1] === "view" && args[2] === "OPS-1") {
+          return mode === "read-failure"
+            ? { code: 1, stdout: "", stderr: "Parent unavailable" }
+            : {
+              code: 0,
+              stdout: JSON.stringify({
+                identifier: "OPS-1",
+                project: mode === "no-project"
+                  ? null
+                  : { id: "parent-project" },
+              }),
+              stderr: "",
+            }
+        }
+        if (args[0] === "project") {
+          return {
+            code: 0,
+            stdout: JSON.stringify({
+              id: "parent-project",
+              name: "Parent project",
+              teams: {
+                nodes: [{ key: mode === "compatible" ? "DATA" : "OPS" }],
+                pageInfo: { hasNextPage: false },
+              },
+            }),
+            stderr: "",
+          }
+        }
+        if (args[1] === "create") {
+          return {
+            code: 0,
+            stdout: '{"issue":{"identifier":"DATA-700"}}',
+            stderr: "",
+          }
+        }
+        if (args[1] === "view") {
+          return {
+            code: 0,
+            stdout: JSON.stringify({
+              identifier: "DATA-700",
+              title: "Child",
+              parent: { identifier: "OPS-1" },
+              project: null,
+            }),
+            stderr: "",
+          }
+        }
+        return undefined
+      })
+      const loaded = await loadManifest(path)
+      const blocked = mode === "incompatible" || mode === "read-failure"
+      assertEquals(
+        (await planManifest({ loaded, runner })).status,
+        blocked ? "conflict" : "ready",
+      )
+      const result = await applyManifest({ loaded, runner })
+      assertEquals(result.status, blocked ? "stopped-on-failure" : "completed")
+      assertEquals(result.summary.unknown, 0)
+      assertEquals(
+        runner.calls.filter((args) => args[1] === "create").length,
+        blocked ? 0 : 1,
+      )
+      if (blocked) {
+        const resumed = await applyManifest({ loaded, runner })
+        assertEquals(resumed.status, "stopped-on-failure")
+        assertEquals(resumed.summary.unknown, 0)
+      }
+      if (mode === "no-project") {
+        assertEquals(runner.calls.some((args) => args[0] === "project"), false)
+      }
+    } finally {
+      await Deno.remove(dir, { recursive: true })
+    }
+  })
+}

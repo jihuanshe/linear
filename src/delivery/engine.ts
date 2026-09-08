@@ -1243,7 +1243,30 @@ async function checkDeliveryProject(
   issue: DeliveryIssue,
   workspaceFlags: string[],
 ): Promise<void> {
-  if (issue.set?.project == null) return
+  let project = issue.set?.project
+  if (
+    project == null && issue.operation === "create" && issue.set?.parent != null
+  ) {
+    const parent = await runner.run([
+      "issue",
+      "view",
+      issue.set.parent,
+      ...workspaceFlags,
+      "--json",
+    ])
+    if (parent.code !== 0) {
+      throw new CliError(parent.stderr.trim() || "Failed to read parent issue")
+    }
+    const data = JSON.parse(parent.stdout) as {
+      project?: { id?: unknown } | null
+    }
+    if (data.project === null) return
+    if (typeof data.project?.id !== "string" || !data.project.id) {
+      throw new CliError("Parent issue returned no project identity")
+    }
+    project = data.project.id
+  }
+  if (project == null) return
   const team = issue.team ??
     getTeamKeyFromIssueIdentifier(issue.identifier ?? "")
   if (!team) {
@@ -1254,7 +1277,7 @@ async function checkDeliveryProject(
   const result = await runner.run([
     "project",
     "teams",
-    issue.set.project,
+    project,
     ...workspaceFlags,
     "--json",
   ])

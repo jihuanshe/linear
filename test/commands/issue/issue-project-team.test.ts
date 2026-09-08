@@ -20,6 +20,10 @@ for (const operation of ["create", "update", "move"] as const) {
     Deno.test(`project preflight ${operation}: ${scenario}`, async () => {
       const { server, cleanup } = await setupMockLinearServer([
         {
+          queryName: "GetIssueTeam",
+          response: { data: { issue: { team: eligibleTeam } } },
+        },
+        {
           queryName: "GetTeamIdByKey",
           response: { data: { teams: { nodes: [eligibleTeam] } } },
         },
@@ -183,3 +187,87 @@ Deno.test("project teams command reads every page and preserves the connection",
     await cleanup()
   }
 })
+
+for (const supportsCurrentTeam of [true, false]) {
+  Deno.test(`project update resolves a moved issue's current team: compatible=${supportsCurrentTeam}`, async () => {
+    const { server, cleanup } = await setupMockLinearServer([
+      {
+        queryName: "GetIssueTeam",
+        variables: { id: "OLD-123" },
+        response: {
+          data: { issue: { team: { id: "new-team-id", key: "NEW" } } },
+        },
+      },
+      {
+        queryName: "ProjectTeams",
+        response: {
+          data: {
+            project: {
+              id: projectId,
+              name: "Release",
+              teams: {
+                nodes: [{
+                  id: supportsCurrentTeam ? "new-team-id" : "old-team-id",
+                  key: supportsCurrentTeam ? "NEW" : "OLD",
+                  name: "Team",
+                }],
+                pageInfo: { hasNextPage: false, endCursor: null },
+              },
+            },
+          },
+        },
+      },
+      {
+        queryName: "UpdateIssue",
+        response: {
+          data: {
+            issueUpdate: {
+              success: true,
+              issue: {
+                id: "issue-id",
+                identifier: "NEW-456",
+                title: "Title",
+                url: "https://example.com/issue",
+              },
+            },
+          },
+        },
+      },
+    ])
+    const errors: string[] = []
+    const logs = stub(console, "log", () => {})
+    const stderr = stub(
+      console,
+      "error",
+      (...args: unknown[]) => errors.push(args.join(" ")),
+    )
+    const exit = stub(Deno, "exit", () => {
+      throw Error("EXIT")
+    })
+    try {
+      const run = () =>
+        updateCommand.parse(["OLD-123", "--project", projectId, "--json"])
+      if (supportsCurrentTeam) await run()
+      else {
+        await assertRejects(run, Error, "EXIT")
+        assertStringIncludes(errors.join("\n"), "Team NEW does not belong")
+      }
+      assertEquals(
+        server.graphqlRequests.filter((x) => x.query.includes("mutation "))
+          .length,
+        supportsCurrentTeam ? 1 : 0,
+      )
+      assertEquals(
+        server.graphqlRequests.filter((x) =>
+          x.query.includes("query GetIssueTeam")
+        ).length,
+        1,
+      )
+    } finally {
+      logs.restore()
+      stderr.restore()
+      exit.restore()
+      await cleanup()
+    }
+  })
+}
