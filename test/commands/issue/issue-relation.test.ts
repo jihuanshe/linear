@@ -2,12 +2,132 @@ import { snapshotTest } from "@cliffy/testing"
 import { assertEquals, assertStringIncludes } from "@std/assert"
 import { fromFileUrl } from "@std/path"
 import { relationCommand } from "../../../src/commands/issue/issue-relation.ts"
+import { stripIgnoredCharacters } from "graphql"
 import {
   commonDenoArgs,
   setupMockLinearServer,
 } from "../../utils/test-helpers.ts"
 
 const main = fromFileUrl(new URL("../../../src/main.ts", import.meta.url))
+
+for (
+  const scenario of [
+    "second-page",
+    "reverse-related",
+    "blocks",
+    "blocked-by",
+    "duplicate",
+    "empty-cursor",
+    "repeated-cursor",
+    "read-failure",
+  ] as const
+) {
+  Deno.test(`Issue Relation Delete Command - ${scenario}`, async () => {
+    const type = scenario === "blocks" || scenario === "blocked-by" ||
+        scenario === "duplicate"
+      ? scenario
+      : "related"
+    const source = type === "blocked-by" ? "b" : "a"
+    const target = source === "a" ? "b" : "a"
+    const fails = scenario === "empty-cursor" ||
+      scenario === "repeated-cursor" || scenario === "read-failure"
+    const absent = scenario === "blocks" || scenario === "duplicate"
+    const firstPageEmpty = scenario === "second-page" ||
+      scenario === "reverse-related" || fails || absent
+    const edge = {
+      id: "edge-id",
+      type: type === "blocked-by" ? "blocks" : type,
+      relatedIssue: { id: target },
+    }
+    const page = (
+      nodes: typeof edge[],
+      hasNextPage = false,
+      endCursor: string | null = null,
+    ) => ({
+      data: {
+        issue: { relations: { nodes, pageInfo: { hasNextPage, endCursor } } },
+      },
+    })
+    const { server, cleanup } = await setupMockLinearServer([
+      {
+        queryName: "GetIssueId",
+        variables: { id: "ENG-123" },
+        response: { data: { issue: { id: "a" } } },
+      },
+      {
+        queryName: "GetIssueId",
+        variables: { id: "ENG-456" },
+        response: { data: { issue: { id: "b" } } },
+      },
+      {
+        queryName: "FindIssueRelation",
+        variables: { issueId: source, first: 100, after: "page-2" },
+        response: scenario === "read-failure"
+          ? { errors: [{ message: "Relation inventory unavailable" }] }
+          : page([edge], scenario === "repeated-cursor", "page-2"),
+      },
+      {
+        queryName: "FindIssueRelation",
+        variables: { issueId: source, first: 100 },
+        response: page(
+          firstPageEmpty ? [] : [edge],
+          scenario === "second-page" || fails,
+          scenario === "empty-cursor" ? null : "page-2",
+        ),
+      },
+      {
+        queryName: "FindIssueRelation",
+        variables: { issueId: target, first: 100 },
+        response: page([{ ...edge, relatedIssue: { id: source } }]),
+      },
+      {
+        queryName: "DeleteIssueRelation",
+        variables: { id: "edge-id" },
+        response: { data: { issueRelationDelete: { success: true } } },
+      },
+    ])
+    try {
+      const result = await runRelation(["delete", "ENG-123", type, "ENG-456"])
+      assertEquals(result.code, fails || absent ? 1 : 0)
+      const mutations = server.graphqlRequests.filter((r) =>
+        r.query.includes("mutation ")
+      )
+      assertEquals(mutations.length, fails || absent ? 0 : 1)
+      if (mutations.length) {
+        assertEquals(mutations[0].variables, { id: "edge-id" })
+      }
+      const reads = server.graphqlRequests.filter((r) =>
+        r.query.includes("query FindIssueRelation")
+      )
+      assertEquals(
+        reads.map((r) => r.variables.issueId),
+        scenario === "reverse-related"
+          ? [source, target]
+          : scenario === "second-page" || scenario === "repeated-cursor" ||
+              scenario === "read-failure"
+          ? [source, source]
+          : [source],
+      )
+      assertStringIncludes(
+        stripIgnoredCharacters(reads[0].query),
+        "relations(first:$first after:$after)",
+      )
+      assertStringIncludes(
+        stripIgnoredCharacters(reads[0].query),
+        "pageInfo{hasNextPage endCursor}",
+      )
+      if (scenario === "empty-cursor" || scenario === "repeated-cursor") {
+        assertStringIncludes(result.stderr, "empty or repeated cursor")
+      } else if (scenario === "read-failure") {
+        assertStringIncludes(result.stderr, "Relation inventory unavailable")
+      } else if (absent) {
+        assertStringIncludes(result.stderr, "Relation not found")
+      }
+    } finally {
+      await cleanup()
+    }
+  })
+}
 
 async function runRelation(args: string[]) {
   const result = await new Deno.Command(Deno.execPath(), {

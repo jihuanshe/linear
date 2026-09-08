@@ -15,6 +15,7 @@ import {
   ValidationError,
 } from "../../utils/errors.ts"
 import { withUsageMetadata } from "../usage.ts"
+import { completeConnection } from "../../utils/pagination.ts"
 
 const RELATION_TYPES = ["blocks", "blocked-by", "related", "duplicate"] as const
 type RelationType = (typeof RELATION_TYPES)[number]
@@ -245,28 +246,44 @@ const deleteRelationCommand = withUsageMetadata(new Command(), { writes: true })
         : [issueId, relatedIssueId]
 
       const findRelationQuery = gql(`
-        query FindIssueRelation($issueId: String!) {
+        query FindIssueRelation($issueId: String!, $first: Int!, $after: String) {
           issue(id: $issueId) {
-            relations {
+            relations(first: $first, after: $after) {
               nodes {
                 id
                 type
                 relatedIssue { id }
               }
+              pageInfo { hasNextPage endCursor }
             }
           }
         }
       `)
 
       const client = getGraphQLClient()
-      const findData = await client.request(findRelationQuery, {
-        issueId: fromId,
-      })
-
-      const relation = findData.issue?.relations.nodes.find(
-        (r: { type: string; relatedIssue: { id: string } }) =>
-          r.type === apiType && r.relatedIssue.id === toId,
-      )
+      const findRelation = async (sourceId: string, targetId: string) => {
+        const fetchPage = async (after?: string, first = 100) => {
+          const data = await client.request(findRelationQuery, {
+            issueId: sourceId,
+            first,
+            after,
+          })
+          if (data.issue == null) throw new NotFoundError("Issue", sourceId)
+          return data.issue.relations
+        }
+        const relations = await completeConnection(
+          await fetchPage(),
+          fetchPage,
+          "issue relations",
+        )
+        return relations.nodes.find((relation) =>
+          relation.type === apiType && relation.relatedIssue.id === targetId
+        )
+      }
+      const relation = await findRelation(fromId, toId) ??
+        (relationType === "related"
+          ? await findRelation(toId, fromId)
+          : undefined)
 
       if (!relation) {
         spinner?.stop()
