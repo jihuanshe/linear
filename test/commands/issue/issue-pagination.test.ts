@@ -399,7 +399,10 @@ Deno.test("issue apply JSON preserves progress on stderr and one stdout document
     },
     detailResponse({
       ...issue,
-      comments: { nodes: [comment("created")], pageInfo: terminalPage },
+      comments: {
+        nodes: [{ ...comment("created"), resolvedAt: "2026-09-08T00:00:00Z" }],
+        pageInfo: terminalPage,
+      },
       attachments: {
         nodes: [attachment("linked"), attachment("uploaded")],
         pageInfo: terminalPage,

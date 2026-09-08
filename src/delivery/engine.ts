@@ -609,7 +609,6 @@ async function readBackIssue(
       identifier,
       ...workspaceFlags,
       "--json",
-      "--show-resolved-threads",
     ], { signal })
     if (view.code !== 0) {
       return failed(

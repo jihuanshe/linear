@@ -1999,12 +1999,6 @@ for (const eventuallyVisible of [true, false]) {
         1,
       )
       assertEquals(runner.calls.filter((args) => args[1] === "link").length, 1)
-      assertEquals(
-        runner.calls.filter((args) => args[1] === "view").slice(1).every((
-          args,
-        ) => args.includes("--show-resolved-threads")),
-        true,
-      )
     } finally {
       await Deno.remove(dir, { recursive: true })
     }
