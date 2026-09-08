@@ -22,6 +22,7 @@ commands:
   schema [options]                   Print the GraphQL schema to stdout [json]
   api [query] [options]              Make a raw GraphQL API request [writes; json]
   upload <files...> [options]        Upload files to Linear storage and print their asset URLs for embedding in Markdown [writes; json]
+  download <asset-url> [options]     Download a Linear asset and verify its SHA-256 [json]
   update [options]                   Update the Linear CLI [writes]
   version [options]                  Show build identity and protocol capabilities [json]
   doctor <scope> [target] [options]  检查 Linear 任务和项目中的常见问题（只读） [json]
