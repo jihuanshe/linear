@@ -1,11 +1,13 @@
 import { encodeHex } from "@std/encoding/hex"
 import { fromFileUrl } from "@std/path"
+import { print } from "graphql"
 import { CliError, ValidationError } from "../utils/errors.ts"
 import {
   EMPTY_ISSUE_RELATION_SNAPSHOT,
   extractIssueRelationSnapshot,
   isLinearUuid,
   type IssueRelationPlan,
+  lookupUserId,
   planIssueRelations,
 } from "../utils/linear.ts"
 import type {
@@ -222,8 +224,16 @@ function fieldEquals(
           },
         )
       }
-      const a = [...(manifestValue as string[] ?? [])].sort()
-      const b = [...(remoteValue as string[] ?? [])].sort()
+      const a = [
+        ...new Set(
+          (manifestValue as string[] ?? []).map((label) => label.toLowerCase()),
+        ),
+      ].sort()
+      const b = [
+        ...new Set(
+          (remoteValue as string[] ?? []).map((label) => label.toLowerCase()),
+        ),
+      ].sort()
       return a.length === b.length &&
         a.every((label, index) => label === b[index])
     }
@@ -603,6 +613,37 @@ async function readBackIssue(
 
   try {
     signal.throwIfAborted()
+    if (desired.assignee != null && !isLinearUuid(desired.assignee)) {
+      const id = await lookupUserId(
+        desired.assignee,
+        async (document, variables) => {
+          const result = await runner.run([
+            "api",
+            print(document),
+            ...workspaceFlags,
+            "--variables-json",
+            JSON.stringify(variables),
+          ], { signal })
+          if (result.code !== 0) {
+            throw new CliError(
+              result.stderr.trim() ||
+                "Failed to resolve assignee for verification",
+            )
+          }
+          const response = JSON.parse(result.stdout)
+          if (
+            response.data == null || response.errors?.length
+          ) throw new CliError("Assignee lookup returned no usable data")
+          return response.data
+        },
+      )
+      if (typeof id !== "string" || !id) {
+        throw new ValidationError(
+          "Cannot resolve the requested assignee for verification",
+        )
+      }
+      desired.assignee = id
+    }
     const view = await runner.run([
       "issue",
       "view",
@@ -800,7 +841,7 @@ export async function applyManifest(
 
   const checkpoint = await prepareCheckpoint(
     manifestPath,
-    expansions.flat().map((item) => item.key),
+    expansions.flat(),
   )
 
   const results: ItemResult[] = []

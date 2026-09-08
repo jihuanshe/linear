@@ -69,7 +69,7 @@ plan 和 apply 比较 base、目标值和远端值：
 | `write`      | 远端仍等于 base，写入  |
 | `conflict`   | 两者都不是，拒绝覆盖   |
 
-负责人可在 `base.assignee` 与 `set.assignee` 中使用用户 UUID，按 ID 比较，不受改名影响；当前负责人的 ID 从 `issue view --json` 的 `assignee.id` 读取。标签比较完整集合；Markdown 比较会规范化换行、行尾空格和列表符号。追加评论、附件、关系不需要字段 base，但关系仍检查冲突。
+负责人可在 `base.assignee` 与 `set.assignee` 中使用用户 UUID，按 ID 比较，不受改名影响；当前负责人的 ID 从 `issue view --json` 的 `assignee.id` 读取。标签按名称忽略大小写比较完整集合；Markdown 比较会规范化换行、行尾空格和列表符号。追加评论、附件、关系不需要字段 base，但关系仍检查冲突。
 
 描述的 `idempotent` 只表示规范化后的 API Markdown 相等，不证明富文本节点等价，也不保证原样重新提交能保留提及。服务端将成员 URL 改写为 `@name` 等形式后，同一清单写入成功再 plan 仍可能报冲突；先核对实际目标和正文，不通过强制重提或扩大文本替换来消除差异。导出与重写风险见 [markdown](markdown.md)。
 
@@ -102,13 +102,15 @@ test "$code" -eq 0 &&
   jq -e '.status == "completed" and ([.verification[].status] | all(. == "verified"))' apply.json >/dev/null
 ```
 
+负责人别名在读回核验时复用单命令的解析规则，按解析后的用户 ID 比较；读取失败保留 applied，可恢复后再核验。
+
 `verified` 且 `scope: "fields-and-objects"` 表示目标身份、清单声明的字段，以及本次评论和 Attachment 的返回 ID 均已读回匹配；不验证关系、文件字节或页面渲染。目标已归档或进入回收站时核验失败，保留成功记录，不重建工单。缺失字段或对象时，最多读回 3 次，间隔 1 秒、2 秒；每个 Issue 的读回总时限为 30 秒，只取消读回，不取消写入。读取错误直接报告，恢复后可重跑同一清单。`readBack` 按 identifier 保存 `issue view --json` 响应，用它核对实际内容；补读规则见 [automation](automation.md)。
 
 ## Checkpoint 与恢复
 
 `<manifest>.checkpoint.json` 与 manifest 及引用文件一起交接。执行项 key 绑定位置、内容哈希、workspace、operation、identifier 和 team；续跑跳过已成功项。
 
-checkpoint 包含 `schemaVersion: 1`、`items` 和 `createdIdentifiers`。`items[key].status` 只能为 applied/failed/unknown，可另附 `note` 和 `receipt: {kind, id}`；评论与 Attachment 写入保存返回的对象 ID，不按正文或 URL 猜测对象。旧 checkpoint 缺少 receipt 时仍跳过写入，`verification.scope` 为 `issue` 并明确仅核对身份与声明字段，不能据此宣称对象已核验；unattempted/skipped 只属于单次输出。`createdIdentifiers` 按 `issues[]` 的零起始下标记录新 Issue，如 `{"0":"ENG-700"}`，没有时仍保留 `{}`。
+checkpoint 包含 `schemaVersion: 1`、`items` 和 `createdIdentifiers`。`items[key].status` 只能为 applied/failed/unknown，可另附 `note` 和 `receipt: {kind, id}`；评论与 Attachment 写入保存返回的对象 ID，不按正文或 URL 猜测对象。receipt 只允许属于已 applied 的评论或 Attachment，kind 必须与原执行项一致；不匹配时拒绝续跑。旧 checkpoint 缺少 receipt 时仍跳过写入，`verification.scope` 为 `issue` 并明确仅核对身份与声明字段，不能据此宣称对象已核验；unattempted/skipped 只属于单次输出。`createdIdentifiers` 按 `issues[]` 的零起始下标记录新 Issue，如 `{"0":"ENG-700"}`，没有时仍保留 `{}`。
 
 | 结果                             | 恢复动作                                                                   |
 | -------------------------------- | -------------------------------------------------------------------------- |

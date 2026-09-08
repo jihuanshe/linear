@@ -126,3 +126,21 @@ Deno.test("checkpoint retains object receipts and rejects malformed receipts", a
     })
   }
 })
+
+Deno.test("checkpoint receipts require a successful item", async () => {
+  for (const status of ["failed", "unknown"]) {
+    await withCheckpoint({
+      schemaVersion: 1,
+      createdIdentifiers: {},
+      items: {
+        item: { status, receipt: { kind: "comment", id: "comment-1" } },
+      },
+    }, async (path) => {
+      await assertRejects(
+        () => loadCheckpoint(path),
+        ValidationError,
+        "Object receipts require an applied item",
+      )
+    })
+  }
+})
