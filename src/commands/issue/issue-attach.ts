@@ -3,18 +3,11 @@ import { withUsageMetadata } from "../usage.ts"
 import { gql } from "../../__codegen__/gql.ts"
 import type { AttachmentCreateInput } from "../../__codegen__/graphql.ts"
 import { getGraphQLClient } from "../../utils/graphql.ts"
-import { getIssueId, getIssueIdentifier } from "../../utils/linear.ts"
+import { getIssueIdentifier, requireIssueId } from "../../utils/linear.ts"
 import { uploadFile, validateFilePath } from "../../utils/upload.ts"
 import { basename } from "@std/path"
 import { shouldShowSpinner } from "../../utils/hyperlink.ts"
-import {
-  CliError,
-  handleError,
-  isClientError,
-  isNotFoundError,
-  NotFoundError,
-  ValidationError,
-} from "../../utils/errors.ts"
+import { CliError, handleError, ValidationError } from "../../utils/errors.ts"
 
 /** Quote a value for safe copy-paste into a shell command. */
 function quoteForShell(value: string): string {
@@ -54,18 +47,7 @@ export const attachCommand = withUsageMetadata(new Command(), { writes: true })
       await validateFilePath(filepath)
 
       // Get the issue UUID (attachmentCreate needs UUID, not identifier)
-      let issueUuid: string | undefined
-      try {
-        issueUuid = await getIssueId(resolvedIdentifier)
-      } catch (error) {
-        if (isClientError(error) && isNotFoundError(error)) {
-          throw new NotFoundError("Issue", resolvedIdentifier)
-        }
-        throw error
-      }
-      if (!issueUuid) {
-        throw new NotFoundError("Issue", resolvedIdentifier)
-      }
+      const issueUuid = await requireIssueId(resolvedIdentifier)
 
       // Upload the file
       const uploadResult = await uploadFile(filepath, {

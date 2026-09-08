@@ -3,9 +3,9 @@ import { gql } from "../../__codegen__/gql.ts"
 import { getGraphQLClient } from "../../utils/graphql.ts"
 import {
   extractIssueRelationSnapshot,
-  getIssueId,
   getIssueIdentifier,
   planIssueRelations,
+  requireIssueId,
 } from "../../utils/linear.ts"
 import {
   handleError,
@@ -80,34 +80,14 @@ const addRelationCommand = withUsageMetadata(new Command(), { writes: true })
       spinner?.start()
 
       // Get issue IDs
-      let issueId: string | undefined
+      let issueId: string
+      let relatedIssueId: string
       try {
-        issueId = await getIssueId(issueIdentifier)
+        issueId = await requireIssueId(issueIdentifier)
+        relatedIssueId = await requireIssueId(relatedIssueIdentifier)
       } catch (error) {
         spinner?.stop()
-        if (isClientError(error) && isNotFoundError(error)) {
-          throw new NotFoundError("Issue", issueIdentifier)
-        }
         throw error
-      }
-      if (!issueId) {
-        spinner?.stop()
-        throw new NotFoundError("Issue", issueIdentifier)
-      }
-
-      let relatedIssueId: string | undefined
-      try {
-        relatedIssueId = await getIssueId(relatedIssueIdentifier)
-      } catch (error) {
-        spinner?.stop()
-        if (isClientError(error) && isNotFoundError(error)) {
-          throw new NotFoundError("Issue", relatedIssueIdentifier)
-        }
-        throw error
-      }
-      if (!relatedIssueId) {
-        spinner?.stop()
-        throw new NotFoundError("Issue", relatedIssueIdentifier)
       }
 
       // For "blocked-by", we swap the issues so the relation is correct
@@ -248,34 +228,14 @@ const deleteRelationCommand = withUsageMetadata(new Command(), { writes: true })
       spinner?.start()
 
       // Get issue IDs
-      let issueId: string | undefined
+      let issueId: string
+      let relatedIssueId: string
       try {
-        issueId = await getIssueId(issueIdentifier)
+        issueId = await requireIssueId(issueIdentifier)
+        relatedIssueId = await requireIssueId(relatedIssueIdentifier)
       } catch (error) {
         spinner?.stop()
-        if (isClientError(error) && isNotFoundError(error)) {
-          throw new NotFoundError("Issue", issueIdentifier)
-        }
         throw error
-      }
-      if (!issueId) {
-        spinner?.stop()
-        throw new NotFoundError("Issue", issueIdentifier)
-      }
-
-      let relatedIssueId: string | undefined
-      try {
-        relatedIssueId = await getIssueId(relatedIssueIdentifier)
-      } catch (error) {
-        spinner?.stop()
-        if (isClientError(error) && isNotFoundError(error)) {
-          throw new NotFoundError("Issue", relatedIssueIdentifier)
-        }
-        throw error
-      }
-      if (!relatedIssueId) {
-        spinner?.stop()
-        throw new NotFoundError("Issue", relatedIssueIdentifier)
       }
 
       // Find the relation

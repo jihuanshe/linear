@@ -2,15 +2,8 @@ import { Command } from "@cliffy/command"
 import { withUsageMetadata } from "../usage.ts"
 import { gql } from "../../__codegen__/gql.ts"
 import { getGraphQLClient } from "../../utils/graphql.ts"
-import { getIssueId, getIssueIdentifier } from "../../utils/linear.ts"
-import {
-  CliError,
-  handleError,
-  isClientError,
-  isNotFoundError,
-  NotFoundError,
-  ValidationError,
-} from "../../utils/errors.ts"
+import { getIssueIdentifier, requireIssueId } from "../../utils/linear.ts"
+import { CliError, handleError, ValidationError } from "../../utils/errors.ts"
 
 function looksLikeUrl(value: string): boolean {
   return value.startsWith("http://") || value.startsWith("https://")
@@ -75,18 +68,7 @@ export const linkCommand = withUsageMetadata(new Command(), { writes: true })
       }
 
       // attachmentLinkURL needs a UUID
-      let issueUuid: string | undefined
-      try {
-        issueUuid = await getIssueId(resolvedIdentifier)
-      } catch (error) {
-        if (isClientError(error) && isNotFoundError(error)) {
-          throw new NotFoundError("Issue", resolvedIdentifier)
-        }
-        throw error
-      }
-      if (!issueUuid) {
-        throw new NotFoundError("Issue", resolvedIdentifier)
-      }
+      const issueUuid = await requireIssueId(resolvedIdentifier)
 
       const mutation = gql(`
         mutation AttachmentLinkURL($issueId: String!, $url: String!, $title: String) {

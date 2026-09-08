@@ -1,11 +1,9 @@
 import { Command } from "@cliffy/command"
-import { getIssueId, getIssueIdentifier } from "../../utils/linear.ts"
+import { getIssueIdentifier, requireIssueId } from "../../utils/linear.ts"
 import { getVcs } from "../../utils/vcs.ts"
 import {
   CliError,
   handleError,
-  isClientError,
-  isNotFoundError,
   NotFoundError,
   ValidationError,
 } from "../../utils/errors.ts"
@@ -34,18 +32,7 @@ export const commitsCommand = new Command()
       }
 
       // Verify the issue exists in Linear
-      let linearIssueId: string | undefined
-      try {
-        linearIssueId = await getIssueId(resolvedId)
-      } catch (error) {
-        if (isClientError(error) && isNotFoundError(error)) {
-          throw new NotFoundError("Issue", resolvedId)
-        }
-        throw error
-      }
-      if (!linearIssueId) {
-        throw new NotFoundError("Issue", resolvedId)
-      }
+      await requireIssueId(resolvedId)
 
       // Match a whole identifier, not FXA-10 or OTHERFXA-1 when asking for FXA-1.
       // JSON escaping preserves the regex backslashes through jj's string parser.

@@ -746,12 +746,6 @@ async function readBackIssue(
   }
 }
 
-function classifyFailure(result: CommandResult): "failed" | "unknown" {
-  // A launched child may have produced a remote side effect before returning
-  // an error; stderr formatting cannot prove that it did not.
-  return result.code === 0 ? "failed" : "unknown"
-}
-
 export interface ApplyContext {
   loaded: LoadedManifest
   runner: CommandRunner
@@ -765,8 +759,7 @@ export interface ApplyContext {
    */
   envAuthenticated?: boolean
   /**
-   * Keep executing after a confirmed `failed` item (one the CLI reported as a
-   * handled error, so no remote effect landed). An `unknown` outcome always
+   * Keep executing after a confirmed failure before launching a mutation. An `unknown` outcome always
    * stops regardless of this flag — nothing may run past an unverified
    * mutation.
    */
@@ -1199,7 +1192,8 @@ export async function applyManifest(
         continue
       }
 
-      const status = classifyFailure(result)
+      // A launched child may have written before failing; stderr cannot prove otherwise.
+      const status = "unknown"
       checkpoint.items[item.key] = {
         status,
         note: result.stderr.trim().split("\n")[0],
@@ -1212,13 +1206,8 @@ export async function applyManifest(
         status,
         detail: result.stderr.trim().split("\n")[0],
       })
-      if (status === "unknown") {
-        unknownSeen = true
-        halted = true
-      } else {
-        failedSeen = true
-        halted = !continueOnFailure
-      }
+      unknownSeen = true
+      halted = true
     }
 
     if (issueNeedsVerification && identifier != null) {

@@ -19,7 +19,12 @@ import type {
 } from "../__codegen__/graphql.ts"
 import { Select } from "./prompt.ts"
 import { getOption, resolveIssueSort } from "../config.ts"
-import { CliError, NotFoundError, ValidationError } from "./errors.ts"
+import {
+  CliError,
+  handleNotFound,
+  NotFoundError,
+  ValidationError,
+} from "./errors.ts"
 import { getGraphQLClient } from "./graphql.ts"
 import { completeConnection } from "./pagination.ts"
 import { normalizeIssueIdentifier } from "./issue-identifier.ts"
@@ -373,6 +378,15 @@ export async function getIssueId(
   const client = getGraphQLClient()
   const data = await client.request(query, { id: identifier })
   return data.issue?.id
+}
+
+/** Resolve a required Issue UUID using the shared not-found error contract. */
+export async function requireIssueId(identifier: string): Promise<string> {
+  const id = await getIssueId(identifier).catch(
+    handleNotFound("Issue", identifier),
+  )
+  if (!id) throw new NotFoundError("Issue", identifier)
+  return id
 }
 
 export async function getWorkflowStates(
