@@ -2,6 +2,12 @@ import { assertEquals, assertStringIncludes } from "@std/assert"
 import { fromFileUrl, join } from "@std/path"
 
 const main = fromFileUrl(new URL("../../src/main.ts", import.meta.url))
+const { denoDir } = JSON.parse(new TextDecoder().decode(
+  (await new Deno.Command(Deno.execPath(), {
+    args: ["info", "--json"],
+    stdout: "piped",
+  }).output()).stdout,
+)) as { denoDir: string }
 
 // Runs without credentials on purpose: every failure asserted here must come
 // from local validation, which the command performs for the complete file set
@@ -18,6 +24,7 @@ async function run(args: string[], cwd?: string) {
       env: {
         HOME: root,
         XDG_CONFIG_HOME: root,
+        DENO_DIR: denoDir,
         NO_COLOR: "1",
       },
     }).output()

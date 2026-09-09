@@ -3,6 +3,11 @@ import { fromFileUrl, join } from "@std/path"
 import { MockLinearServer } from "../../utils/mock_linear_server.ts"
 
 const main = fromFileUrl(new URL("../../../src/main.ts", import.meta.url))
+const organization = {
+  id: "99999999-9999-4999-8999-999999999999",
+  urlKey: "jihuanshe",
+}
+const issueId = "11111111-1111-4111-8111-000000000123"
 const terminalPage = { hasNextPage: false, endCursor: "last" }
 const empty = { nodes: [], pageInfo: { hasNextPage: false, endCursor: null } }
 
@@ -35,6 +40,7 @@ function attachment(id: string) {
 }
 
 const issue = {
+  id: issueId,
   identifier: "TEST-123",
   title: "Read all evidence",
   description: "Issue body",
@@ -42,13 +48,25 @@ const issue = {
   archivedAt: null,
   trashed: false,
   branchName: "test-123",
-  state: { name: "Todo", type: "unstarted", color: "#000000" },
+  state: {
+    id: "33333333-3333-4333-8333-333333333333",
+    name: "Todo",
+    type: "unstarted",
+    color: "#000000",
+  },
   priority: 0,
+  estimate: null,
+  dueDate: null,
   assignee: null,
   project: null,
   projectMilestone: null,
   cycle: null,
   parent: null,
+  team: {
+    id: "22222222-2222-4222-8222-222222222222",
+    key: "TEST",
+    activeCycle: null,
+  },
   children: empty,
   documents: empty,
   labels: empty,
@@ -67,7 +85,7 @@ const issue = {
 function detailResponse(value: Record<string, unknown>, withComments = true) {
   return {
     queryName: withComments ? "GetIssueDetailsWithComments" : "GetIssueDetails",
-    response: { data: { issue: value } },
+    response: { data: { organization, issue: value } },
   }
 }
 
@@ -124,6 +142,26 @@ async function runCli(server: MockLinearServer, args: string[], cwd?: string) {
   }
 }
 
+function assertReadFailure(
+  result: { code: number; stdout: string; stderr: string },
+  message: string,
+  json = true,
+) {
+  assertEquals(result.code, 1)
+  if (!json) {
+    assertEquals(result.stdout, "")
+    assertStringIncludes(result.stderr, message)
+    return
+  }
+  // Parsing the whole stdout also rejects a partial page before/after the error.
+  const error = JSON.parse(result.stdout)
+  assertEquals(Object.keys(error).sort(), ["effect", "error", "ok"])
+  assertEquals(error.ok, false)
+  assertEquals(error.effect, "none")
+  assertStringIncludes(error.error.message, message)
+  assertEquals(result.stderr, "")
+}
+
 for (const mode of ["query", "search", "mine"]) {
   Deno.test(`issue ${mode} rejects a nonadjacent cursor cycle without partial stdout`, async () => {
     const queryName = mode === "search" ? "SearchIssues" : "GetIssuesForQuery"
@@ -163,9 +201,7 @@ for (const mode of ["query", "search", "mine"]) {
         ...(mode === "mine" ? ["--no-pager"] : ["--json"]),
         ...(mode === "search" ? ["--search", "evidence"] : []),
       ])
-      assertEquals(result.code, 1)
-      assertEquals(result.stdout, "")
-      assertStringIncludes(result.stderr, "empty or repeated cursor")
+      assertReadFailure(result, "empty or repeated cursor", mode !== "mine")
       assertEquals(server.graphqlRequests.length, 3)
       if (mode === "mine") {
         assertEquals(server.graphqlRequests[0].variables.filter, {
@@ -259,7 +295,7 @@ for (const json of [true, false]) {
       assertEquals(result.code, 0, result.stderr)
       assertEquals(result.stderr, "")
       if (json) {
-        const data = JSON.parse(result.stdout)
+        const data = JSON.parse(result.stdout).issue
         assertEquals(data.comments.nodes.length, 51)
         assertEquals(data.comments.nodes.at(-1).parent.id, "0")
         assertEquals(data.attachments.nodes.at(-1), attachment("999"))
@@ -273,6 +309,12 @@ for (const json of [true, false]) {
         )
       }
       assertEquals(server.graphqlRequests.length, 3)
+      assertEquals(
+        server.graphqlRequests.slice(1).every(({ variables }) =>
+          variables.id === issueId
+        ),
+        true,
+      )
     } finally {
       await server.stop()
     }
@@ -281,7 +323,20 @@ for (const json of [true, false]) {
 
 for (const command of ["title", "url", "describe"]) {
   Deno.test(`issue ${command} does not depend on attachment pagination`, async () => {
-    const server = new MockLinearServer([detailResponse(issue, false)])
+    const server = new MockLinearServer([{
+      queryName: "GetIssueHeader",
+      variables: { id: "TEST-123" },
+      response: {
+        data: {
+          issue: {
+            id: issue.id,
+            identifier: issue.identifier,
+            title: issue.title,
+            url: issue.url,
+          },
+        },
+      },
+    }])
     await server.start()
     try {
       const result = await runCli(server, ["issue", command, "TEST-123"])
@@ -291,6 +346,12 @@ for (const command of ["title", "url", "describe"]) {
         command === "url" ? issue.url : issue.title,
       )
       assertEquals(server.graphqlRequests.length, 1)
+      assertEquals(
+        /attachments\(|comments\(|description/.test(
+          server.graphqlRequests[0].query,
+        ),
+        false,
+      )
     } finally {
       await server.stop()
     }
@@ -313,10 +374,11 @@ Deno.test("issue view --no-comments paginates attachments without requesting com
       "--json",
     ])
     assertEquals(result.code, 0, result.stderr)
-    const data = JSON.parse(result.stdout)
+    const data = JSON.parse(result.stdout).issue
     assertEquals(data.comments, undefined)
     assertEquals(data.attachments.nodes.length, 51)
     assertEquals(server.graphqlRequests.length, 2)
+    assertEquals(server.graphqlRequests[1].variables.id, issueId)
     assertEquals(
       server.graphqlRequests.some(({ query }) => query.includes("comments(")),
       false,
@@ -326,7 +388,12 @@ Deno.test("issue view --no-comments paginates attachments without requesting com
   }
 })
 
-for (const field of ["comments", "attachments"] as const) {
+for (const field of ["comments", "attachments", "labels"] as const) {
+  const queryName = {
+    comments: "GetIssueComments",
+    attachments: "GetIssueAttachments",
+    labels: "GetIssueLabelsForWrite",
+  }[field]
   for (const failure of ["missing", "empty", "cycle", "later-error"]) {
     Deno.test(`issue view rejects ${field} ${failure} pagination without partial stdout`, async () => {
       const pageInfo = failure === "missing" ? undefined : {
@@ -341,9 +408,7 @@ for (const field of ["comments", "attachments"] as const) {
           [field]: { nodes: [], pageInfo },
         }),
         {
-          queryName: field === "comments"
-            ? "GetIssueComments"
-            : "GetIssueAttachments",
+          queryName,
           variables: { after: "a" },
           response: failure === "later-error"
             ? { errors: [{ message: "Later page failed" }] }
@@ -359,9 +424,7 @@ for (const field of ["comments", "attachments"] as const) {
             },
         },
         {
-          queryName: field === "comments"
-            ? "GetIssueComments"
-            : "GetIssueAttachments",
+          queryName,
           variables: { after: "b" },
           response: {
             data: {
@@ -383,10 +446,8 @@ for (const field of ["comments", "attachments"] as const) {
           "TEST-123",
           "--json",
         ])
-        assertEquals(result.code, 1)
-        assertEquals(result.stdout, "")
-        assertStringIncludes(
-          result.stderr,
+        assertReadFailure(
+          result,
           failure === "later-error"
             ? "Later page failed"
             : `Incomplete ${field}`,
@@ -462,10 +523,8 @@ for (const limit of ["-1", "1.5"]) {
         "--json",
         `--limit=${limit}`,
       ])
-      assertEquals(result.code, 1)
-      assertEquals(result.stdout, "")
-      assertStringIncludes(
-        result.stderr,
+      assertReadFailure(
+        result,
         "--limit must be a non-negative integer",
       )
       assertEquals(server.graphqlRequests.length, 0)
@@ -491,10 +550,8 @@ Deno.test("comment list --limit 0 rejects repeated cursors without partial stdou
       "--limit",
       "0",
     ])
-    assertEquals(result.code, 1)
-    assertEquals(result.stdout, "")
-    assertStringIncludes(
-      result.stderr,
+    assertReadFailure(
+      result,
       "Incomplete comments for TEST-123 pagination",
     )
     assertEquals(server.graphqlRequests.length, 2)
@@ -510,23 +567,17 @@ Deno.test("issue apply JSON preserves progress on stderr and one stdout document
   const assetUrl = "https://uploads.linear.app/fake/private-evidence.txt"
   const server = new MockLinearServer([
     {
-      queryName: "AuthStatus",
-      response: { data: { viewer: { organization: { urlKey: "jihuanshe" } } } },
+      queryName: "GetDeliveryOrganization",
+      response: { data: { organization } },
     },
-    detailResponse({
-      ...issue,
-      comments: {
-        nodes: [{ ...comment("created"), resolvedAt: "2026-09-08T00:00:00Z" }],
-        pageInfo: terminalPage,
-      },
-      attachments: {
-        nodes: [attachment("linked"), attachment("uploaded")],
-        pageInfo: terminalPage,
-      },
-    }),
     {
-      queryName: "GetIssueId",
-      response: { data: { issue: { id: "issue-id" } } },
+      queryName: "GetIssueForWrite",
+      response: {
+        data: {
+          organization,
+          issue: { ...issue, comments: empty, attachments: empty },
+        },
+      },
     },
     {
       queryName: "AddComment",
@@ -564,6 +615,18 @@ Deno.test("issue apply JSON preserves progress on stderr and one stdout document
         },
       },
     },
+    {
+      queryName: "GetDeliveryCommentReceipt",
+      variables: { id: "created" },
+      response: {
+        data: { comment: { id: "created", issue: { id: issueId } } },
+      },
+    },
+    ...["linked", "uploaded"].map((id) => ({
+      queryName: "GetDeliveryAttachmentReceipt",
+      variables: { id },
+      response: { data: { attachment: { id, issue: { id: issueId } } } },
+    })),
   ])
   await server.start()
   server.addResponse({
@@ -587,11 +650,11 @@ Deno.test("issue apply JSON preserves progress on stderr and one stdout document
     await Deno.writeTextFile(
       path,
       JSON.stringify({
-        schemaVersion: 1,
-        workspace: "jihuanshe",
+        schemaVersion: 2,
+        workspace: organization.urlKey,
         issues: [{
           operation: "update",
-          identifier: "TEST-123",
+          identifier: issue.identifier,
           comments: [{ body: "progress test" }],
           attachments: [{ kind: "url", url: signedUrl }, {
             kind: "file",
@@ -606,19 +669,38 @@ Deno.test("issue apply JSON preserves progress on stderr and one stdout document
       "--file",
       path,
       "--confirm-workspace",
-      "jihuanshe",
+      organization.urlKey,
       "--json",
     ], directory)
-    assertEquals(result.code, 0, result.stderr)
+    assertEquals(result.code, 0, result.stderr + result.stdout)
     assertEquals(
-      result.stderr,
-      "→ issue 1/1: comment 1\n→ issue 1/1: attachment 1\n→ issue 1/1: attachment 2\n",
+      result.stderr.trim().split("\n"),
+      Array.from({ length: 5 }, (_, index) => "Processing item " + (index + 1)),
     )
-    const outcome = JSON.parse(result.stdout)
+    assertEquals(
+      result.stderr.includes(signedUrl),
+      false,
+      "signed URL belongs in the JSON result, not progress logs",
+    )
+    assertEquals(
+      result.stderr.includes(filePath),
+      false,
+      "private file path belongs in the JSON result, not progress logs",
+    )
+    assertEquals(result.stderr.includes("private evidence"), false)
+    const document = JSON.parse(result.stdout)
+    assertEquals(document.ok, true)
+    assertEquals(document.effect, "applied")
+    const outcome = document.data
     assertEquals(outcome.status, "completed")
-    assertEquals(outcome.summary.applied, 3)
-    assertEquals(outcome.items[1].describe, `link ${signedUrl}`)
-    assertEquals(outcome.items[2].describe, `attach ${filePath}`)
+    assertEquals(outcome.summary.applied, 4)
+    assertEquals(outcome.summary.skipped, 1)
+    assertEquals(
+      outcome.items.filter((item: { kind: string }) =>
+        item.kind === "attachment"
+      ).map((item: { describe: string }) => item.describe),
+      ["link " + signedUrl, "attach " + filePath],
+    )
     assertEquals(outcome.verification[0].status, "verified")
     assertEquals(
       server.graphqlRequests.filter(({ query }) =>
@@ -626,6 +708,7 @@ Deno.test("issue apply JSON preserves progress on stderr and one stdout document
       ).length,
       1,
     )
+    assertEquals(server.uploadRequests.length, 1)
   } finally {
     await server.stop()
     await Deno.remove(directory, { recursive: true })
@@ -635,52 +718,96 @@ Deno.test("issue apply JSON preserves progress on stderr and one stdout document
 Deno.test("issue apply resolves self through the same CLI API credentials on resume", async () => {
   const directory = await Deno.makeTempDir({ prefix: "linear-assignee-alias-" })
   const userId = "abcdef01-2345-4678-9abc-def012345678"
+  let assigned = false
   const server = new MockLinearServer([
     {
-      queryName: "AuthStatus",
-      response: { data: { viewer: { organization: { urlKey: "jihuanshe" } } } },
+      queryName: "GetDeliveryOrganization",
+      response: { data: { organization } },
     },
     {
       queryName: "GetViewerId",
       response: { data: { viewer: { id: userId } } },
     },
-    detailResponse({
-      ...issue,
-      assignee: { id: userId, name: "Alex", displayName: "alex" },
-      comments: empty,
-      attachments: empty,
-    }),
     {
-      queryName: "UpdateIssue",
-      variables: { id: "TEST-123", input: { assigneeId: userId } },
-      response: {
+      queryName: "GetIssueForWrite",
+      response: () => ({
         data: {
-          issueUpdate: {
-            success: true,
-            issue: {
-              id: "issue-id",
-              identifier: "TEST-123",
-              title: "Read all evidence",
-              url: issue.url,
-            },
+          organization,
+          issue: {
+            ...issue,
+            assignee: assigned
+              ? { id: userId, name: "Alex", displayName: "alex" }
+              : null,
+            comments: empty,
+            attachments: empty,
           },
         },
+      }),
+    },
+    {
+      queryName: "UpdateIssue",
+      variables: { id: issueId, input: { assigneeId: userId } },
+      response: () => {
+        assigned = true
+        return {
+          data: {
+            issueUpdate: {
+              success: true,
+              issue: {
+                id: issueId,
+                identifier: issue.identifier,
+                title: issue.title,
+                url: issue.url,
+              },
+            },
+          },
+        }
       },
     },
   ])
   await server.start()
+  const upstream = server.getEndpoint()
+  const observedCredentials: Array<
+    { operation: string; authorization: string | null }
+  > = []
+  const proxy = Deno.serve({
+    hostname: "127.0.0.1",
+    port: 0,
+    onListen: () => {},
+  }, async (request) => {
+    const body = await request.text()
+    const query = JSON.parse(body).query as string
+    observedCredentials.push({
+      operation: query.match(/(?:query|mutation)\s+(\w+)/)?.[1] ?? "unknown",
+      authorization: request.headers.get("authorization"),
+    })
+    return await fetch(upstream, {
+      method: "POST",
+      headers: request.headers,
+      body,
+    })
+  })
+  server.getEndpoint = () => "http://127.0.0.1:" + proxy.addr.port + "/graphql"
   try {
     const path = join(directory, "delivery.json")
     await Deno.writeTextFile(
       path,
       JSON.stringify({
-        schemaVersion: 1,
-        workspace: "jihuanshe",
+        schemaVersion: 2,
+        workspace: organization.urlKey,
         issues: [{
           operation: "update",
-          identifier: "TEST-123",
+          identifier: issue.identifier,
           set: { assignee: "self" },
-          base: { assignee: userId },
+          base: {
+            organization,
+            issue: {
+              ...issue,
+              assignee: null,
+              comments: empty,
+              attachments: empty,
+            },
+          },
         }],
       }),
     )
@@ -690,31 +817,93 @@ Deno.test("issue apply resolves self through the same CLI API credentials on res
       "--file",
       path,
       "--confirm-workspace",
-      "jihuanshe",
+      organization.urlKey,
       "--json",
     ]
     for (let attempt = 0; attempt < 2; attempt++) {
       const result = await runCli(server, args, directory)
-      assertEquals(result.code, 0, result.stderr)
-      const outcome = JSON.parse(result.stdout)
-      assertEquals(outcome.status, "completed")
-      assertEquals(outcome.verification[0].status, "verified")
-      if (attempt === 1) assertEquals(outcome.summary.skipped, 1)
+      assertEquals(result.code, 0, result.stderr + result.stdout)
+      const document = JSON.parse(result.stdout)
+      assertEquals(document.ok, true)
+      assertEquals(document.data.status, "completed")
+      assertEquals(document.data.verification[0].status, "verified")
+      if (attempt === 1) {
+        assertEquals(document.effect, "none")
+        assertEquals(document.data.summary.skipped, 1)
+      }
     }
     assertEquals(
-      server.graphqlRequests.filter((x) =>
-        x.query.includes("mutation UpdateIssue")
+      server.graphqlRequests.filter(({ query }) =>
+        query.includes("mutation UpdateIssue")
       ).length,
       1,
     )
     assertEquals(
-      server.graphqlRequests.filter((x) =>
-        x.query.includes("query GetViewerId")
+      server.graphqlRequests.filter(({ query }) =>
+        query.includes("query GetViewerId")
       ).length,
-      3,
+      1,
+    )
+    assertEquals(
+      observedCredentials.filter((request) =>
+        request.operation === "GetViewerId"
+      ).map((request) => request.authorization),
+      ["Bearer test-token"],
+    )
+    assertEquals(
+      observedCredentials.every((request) =>
+        request.authorization === "Bearer test-token"
+      ),
+      true,
     )
   } finally {
+    await proxy.shutdown()
     await server.stop()
     await Deno.remove(directory, { recursive: true })
+  }
+})
+
+Deno.test("issue view completes labels with the stable UUID before publishing its basis", async () => {
+  const label = { id: "label-1", name: "Bug", color: "#123456" }
+  const server = new MockLinearServer([
+    detailResponse({
+      ...issue,
+      comments: empty,
+      attachments: empty,
+      labels: {
+        nodes: [label],
+        pageInfo: { hasNextPage: true, endCursor: "labels-next" },
+      },
+    }),
+    {
+      queryName: "GetIssueLabelsForWrite",
+      variables: { id: issueId, first: 100, after: "labels-next" },
+      response: {
+        data: {
+          issue: {
+            labels: {
+              nodes: [{ ...label, id: "label-2", name: "Priority" }],
+              pageInfo: terminalPage,
+            },
+          },
+        },
+      },
+    },
+  ])
+  await server.start()
+  try {
+    const result = await runCli(server, ["issue", "view", "TEST-123", "--json"])
+    assertEquals(result.code, 0, result.stdout + result.stderr)
+    const data = JSON.parse(result.stdout)
+    assertEquals(data.organization, organization)
+    assertEquals(data.issue.id, issueId)
+    assertEquals(
+      data.issue.labels.nodes.map((node: { id: string }) => node.id),
+      ["label-1", "label-2"],
+    )
+    assertEquals(data.issue.labels.pageInfo, terminalPage)
+    assertEquals(server.graphqlRequests.length, 2)
+  } finally {
+    await server.stop()
   }
 })

@@ -1,5 +1,6 @@
 import { Command } from "@cliffy/command"
-import { fetchIssueDetailsRaw, getIssueIdentifier } from "../../utils/linear.ts"
+import { getIssueIdentifier } from "../../utils/linear.ts"
+import { readIssueHeader } from "../../utils/issue-read.ts"
 import { formatIssueDescription } from "../../utils/jj.ts"
 import { handleError, ValidationError } from "../../utils/errors.ts"
 
@@ -21,10 +22,10 @@ export const describeCommand = new Command()
         )
       }
 
-      const { title, url } = await fetchIssueDetailsRaw(resolvedId)
+      const { identifier, title, url } = await readIssueHeader(resolvedId)
 
       const magicWord = options.references ? "References" : "Fixes"
-      console.log(formatIssueDescription(resolvedId, title, url, magicWord))
+      console.log(formatIssueDescription(identifier, title, url, magicWord))
     } catch (error) {
       handleError(error, "Failed to get issue description")
     }

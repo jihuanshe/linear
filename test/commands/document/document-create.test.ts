@@ -83,14 +83,24 @@ await snapshotTest({
       // Shared project resolver tries name first, then slugId
       {
         queryName: "GetProjectIdByName",
-        response: { data: { projects: { nodes: [] } } },
+        response: {
+          data: {
+            projects: {
+              pageInfo: { hasNextPage: false, endCursor: null },
+              nodes: [],
+            },
+          },
+        },
       },
       {
         queryName: "GetProjectIdBySlugId",
         variables: { slugId: "tinycloud-sdk" },
         response: {
           data: {
-            projects: { nodes: [{ id: "project-uuid-123" }] },
+            projects: {
+              pageInfo: { hasNextPage: false, endCursor: null },
+              nodes: [{ id: "project-uuid-123" }],
+            },
           },
         },
       },

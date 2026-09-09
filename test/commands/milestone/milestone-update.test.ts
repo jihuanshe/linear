@@ -1,7 +1,28 @@
 import { snapshotTest as cliffySnapshotTest } from "@cliffy/testing"
 import { updateCommand } from "../../../src/commands/milestone/milestone-update.ts"
 import { commonDenoArgs } from "../../utils/test-helpers.ts"
-import { MockLinearServer } from "../../utils/mock_linear_server.ts"
+import {
+  type MockGraphQLRequest,
+  MockLinearServer,
+} from "../../utils/mock_linear_server.ts"
+
+const originalMilestone = {
+  queryName: "ReadMilestone",
+  response: ({ variables }: MockGraphQLRequest) => ({
+    data: {
+      organization: { id: "workspace-1", urlKey: "test" },
+      projectMilestone: {
+        id: variables.id,
+        name: "Original milestone",
+        description: "Original description",
+        targetDate: null,
+        sortOrder: 10,
+        archivedAt: null,
+        project: { id: "project-123", name: "Test Project" },
+      },
+    },
+  }),
+}
 
 // Test help output
 await cliffySnapshotTest({
@@ -21,35 +42,29 @@ await cliffySnapshotTest({
   name: "Milestone Update Command - Update Name",
   meta: import.meta,
   colors: false,
-  args: [
-    "milestone-123",
-    "--name",
-    "Updated Milestone Name",
-  ],
+  args: ["--unprotected", "milestone-123", "--name", "Updated Milestone Name"],
   denoArgs: commonDenoArgs,
   async fn() {
-    const server = new MockLinearServer([
-      {
-        queryName: "UpdateProjectMilestone",
-        response: {
-          data: {
-            projectMilestoneUpdate: {
-              success: true,
-              projectMilestone: {
-                id: "milestone-123",
-                name: "Updated Milestone Name",
-                targetDate: "2026-03-31",
-                sortOrder: 0,
-                project: {
-                  id: "project-123",
-                  name: "Test Project",
-                },
+    const server = new MockLinearServer([originalMilestone, {
+      queryName: "UpdateProjectMilestone",
+      response: {
+        data: {
+          projectMilestoneUpdate: {
+            success: true,
+            projectMilestone: {
+              id: "milestone-123",
+              name: "Updated Milestone Name",
+              targetDate: "2026-03-31",
+              sortOrder: 0,
+              project: {
+                id: "project-123",
+                name: "Test Project",
               },
             },
           },
         },
       },
-    ])
+    }])
 
     try {
       await server.start()
@@ -71,6 +86,7 @@ await cliffySnapshotTest({
   meta: import.meta,
   colors: false,
   args: [
+    "--unprotected",
     "milestone-456",
     "--name",
     "Q2 Goals",
@@ -81,28 +97,26 @@ await cliffySnapshotTest({
   ],
   denoArgs: commonDenoArgs,
   async fn() {
-    const server = new MockLinearServer([
-      {
-        queryName: "UpdateProjectMilestone",
-        response: {
-          data: {
-            projectMilestoneUpdate: {
-              success: true,
-              projectMilestone: {
-                id: "milestone-456",
-                name: "Q2 Goals",
-                targetDate: "2026-06-30",
-                sortOrder: 1,
-                project: {
-                  id: "project-789",
-                  name: "Another Project",
-                },
+    const server = new MockLinearServer([originalMilestone, {
+      queryName: "UpdateProjectMilestone",
+      response: {
+        data: {
+          projectMilestoneUpdate: {
+            success: true,
+            projectMilestone: {
+              id: "milestone-456",
+              name: "Q2 Goals",
+              targetDate: "2026-06-30",
+              sortOrder: 1,
+              project: {
+                id: "project-789",
+                name: "Another Project",
               },
             },
           },
         },
       },
-    ])
+    }])
 
     try {
       await server.start()
@@ -123,35 +137,29 @@ await cliffySnapshotTest({
   name: "Milestone Update Command - Update Sort Order",
   meta: import.meta,
   colors: false,
-  args: [
-    "milestone-sort",
-    "--sort-order",
-    "5",
-  ],
+  args: ["--unprotected", "milestone-sort", "--sort-order", "5"],
   denoArgs: commonDenoArgs,
   async fn() {
-    const server = new MockLinearServer([
-      {
-        queryName: "UpdateProjectMilestone",
-        response: {
-          data: {
-            projectMilestoneUpdate: {
-              success: true,
-              projectMilestone: {
-                id: "milestone-sort",
-                name: "Sorted Milestone",
-                targetDate: "2026-06-15",
-                sortOrder: 5,
-                project: {
-                  id: "project-123",
-                  name: "Test Project",
-                },
+    const server = new MockLinearServer([originalMilestone, {
+      queryName: "UpdateProjectMilestone",
+      response: {
+        data: {
+          projectMilestoneUpdate: {
+            success: true,
+            projectMilestone: {
+              id: "milestone-sort",
+              name: "Sorted Milestone",
+              targetDate: "2026-06-15",
+              sortOrder: 5,
+              project: {
+                id: "project-123",
+                name: "Test Project",
               },
             },
           },
         },
       },
-    ])
+    }])
 
     try {
       await server.start()
@@ -172,35 +180,29 @@ await cliffySnapshotTest({
   name: "Milestone Update Command - Update Sort Order Zero",
   meta: import.meta,
   colors: false,
-  args: [
-    "milestone-zero",
-    "--sort-order",
-    "0",
-  ],
+  args: ["--unprotected", "milestone-zero", "--sort-order", "0"],
   denoArgs: commonDenoArgs,
   async fn() {
-    const server = new MockLinearServer([
-      {
-        queryName: "UpdateProjectMilestone",
-        response: {
-          data: {
-            projectMilestoneUpdate: {
-              success: true,
-              projectMilestone: {
-                id: "milestone-zero",
-                name: "First Milestone",
-                targetDate: "2026-01-15",
-                sortOrder: 0,
-                project: {
-                  id: "project-123",
-                  name: "Test Project",
-                },
+    const server = new MockLinearServer([originalMilestone, {
+      queryName: "UpdateProjectMilestone",
+      response: {
+        data: {
+          projectMilestoneUpdate: {
+            success: true,
+            projectMilestone: {
+              id: "milestone-zero",
+              name: "First Milestone",
+              targetDate: "2026-01-15",
+              sortOrder: 0,
+              project: {
+                id: "project-123",
+                name: "Test Project",
               },
             },
           },
         },
       },
-    ])
+    }])
 
     try {
       await server.start()
@@ -221,35 +223,29 @@ await cliffySnapshotTest({
   name: "Milestone Update Command - Update Target Date",
   meta: import.meta,
   colors: false,
-  args: [
-    "milestone-789",
-    "--target-date",
-    "2026-12-31",
-  ],
+  args: ["--unprotected", "milestone-789", "--target-date", "2026-12-31"],
   denoArgs: commonDenoArgs,
   async fn() {
-    const server = new MockLinearServer([
-      {
-        queryName: "UpdateProjectMilestone",
-        response: {
-          data: {
-            projectMilestoneUpdate: {
-              success: true,
-              projectMilestone: {
-                id: "milestone-789",
-                name: "Existing Milestone",
-                targetDate: "2026-12-31",
-                sortOrder: 2,
-                project: {
-                  id: "project-999",
-                  name: "Final Project",
-                },
+    const server = new MockLinearServer([originalMilestone, {
+      queryName: "UpdateProjectMilestone",
+      response: {
+        data: {
+          projectMilestoneUpdate: {
+            success: true,
+            projectMilestone: {
+              id: "milestone-789",
+              name: "Existing Milestone",
+              targetDate: "2026-12-31",
+              sortOrder: 2,
+              project: {
+                id: "project-999",
+                name: "Final Project",
               },
             },
           },
         },
       },
-    ])
+    }])
 
     try {
       await server.start()

@@ -1,12 +1,17 @@
+import {
+  issueWriteBasis,
+  issueWriteId,
+  setupIssueWriteServer as setupMockLinearServer,
+  teamWriteIds,
+} from "../../utils/issue-write-fixtures.ts"
 import { assertEquals, assertRejects, assertStringIncludes } from "@std/assert"
 import { stub } from "@std/testing/mock"
 import { createCommand } from "../../../src/commands/issue/issue-create.ts"
 import { updateCommand } from "../../../src/commands/issue/issue-update.ts"
 import { teamsCommand } from "../../../src/commands/project/project-teams.ts"
-import { setupMockLinearServer } from "../../utils/test-helpers.ts"
 
 const projectId = "abcdef01-2345-4678-9abc-def012345678"
-const eligibleTeam = { id: "team-eng-id", key: "ENG", name: "Engineering" }
+const eligibleTeam = { id: teamWriteIds.ENG, key: "ENG", name: "Engineering" }
 
 for (const operation of ["create", "update", "move"] as const) {
   for (
@@ -19,6 +24,28 @@ for (const operation of ["create", "update", "move"] as const) {
   ) {
     Deno.test(`project preflight ${operation}: ${scenario}`, async () => {
       const { server, cleanup } = await setupMockLinearServer([
+        {
+          queryName: "GetIssueForWrite",
+          response: {
+            data: {
+              ...issueWriteBasis(
+                operation === "move" ? "OPS-123" : "ENG-123",
+                operation === "move"
+                  ? { id: teamWriteIds.OPS, key: "OPS" }
+                  : eligibleTeam,
+              ),
+              issue: {
+                ...issueWriteBasis(
+                  operation === "move" ? "OPS-123" : "ENG-123",
+                  operation === "move"
+                    ? { id: teamWriteIds.OPS, key: "OPS" }
+                    : eligibleTeam,
+                ).issue,
+                project: operation === "move" ? { id: projectId } : null,
+              },
+            },
+          },
+        },
         {
           queryName: "GetIssueTeam",
           response: { data: { issue: { team: eligibleTeam } } },
@@ -62,7 +89,7 @@ for (const operation of ["create", "update", "move"] as const) {
               [operation === "create" ? "issueCreate" : "issueUpdate"]: {
                 success: true,
                 issue: {
-                  id: "issue-id",
+                  id: issueWriteId,
                   identifier: "ENG-123",
                   title: "Title",
                   url: "https://linear.app/test/issue/ENG-123",
@@ -95,8 +122,8 @@ for (const operation of ["create", "update", "move"] as const) {
             "--json",
           ]
           : operation === "move"
-          ? ["OPS-123", "--team", "ENG", "--json"]
-          : ["ENG-123", "--project", projectId, "--json"]
+          ? ["--unprotected", "OPS-123", "--team", "ENG", "--json"]
+          : ["--unprotected", "ENG-123", "--project", projectId, "--json"]
         const run = () =>
           operation === "create"
             ? createCommand.parse(args)
@@ -195,7 +222,7 @@ for (const supportsCurrentTeam of [true, false]) {
         queryName: "GetIssueTeam",
         variables: { id: "OLD-123" },
         response: {
-          data: { issue: { team: { id: "new-team-id", key: "NEW" } } },
+          data: { issue: { team: { id: teamWriteIds.NEW, key: "NEW" } } },
         },
       },
       {
@@ -207,7 +234,7 @@ for (const supportsCurrentTeam of [true, false]) {
               name: "Release",
               teams: {
                 nodes: [{
-                  id: supportsCurrentTeam ? "new-team-id" : "old-team-id",
+                  id: supportsCurrentTeam ? teamWriteIds.NEW : teamWriteIds.OLD,
                   key: supportsCurrentTeam ? "NEW" : "OLD",
                   name: "Team",
                 }],
@@ -224,7 +251,7 @@ for (const supportsCurrentTeam of [true, false]) {
             issueUpdate: {
               success: true,
               issue: {
-                id: "issue-id",
+                id: issueWriteId,
                 identifier: "NEW-456",
                 title: "Title",
                 url: "https://example.com/issue",
@@ -246,7 +273,13 @@ for (const supportsCurrentTeam of [true, false]) {
     })
     try {
       const run = () =>
-        updateCommand.parse(["OLD-123", "--project", projectId, "--json"])
+        updateCommand.parse([
+          "--unprotected",
+          "OLD-123",
+          "--project",
+          projectId,
+          "--json",
+        ])
       if (supportsCurrentTeam) await run()
       else {
         await assertRejects(run, Error, "EXIT")
@@ -259,9 +292,9 @@ for (const supportsCurrentTeam of [true, false]) {
       )
       assertEquals(
         server.graphqlRequests.filter((x) =>
-          x.query.includes("query GetIssueTeam")
+          x.query.includes("query GetIssueForWrite")
         ).length,
-        1,
+        supportsCurrentTeam ? 2 : 1,
       )
     } finally {
       logs.restore()

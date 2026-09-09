@@ -34,6 +34,7 @@ await snapshotTest({
         variables: { id: "project-123", includeContent: false },
         response: {
           data: {
+            organization: { id: "workspace-1", urlKey: "test" },
             project: {
               id: "project-123",
               name: "Authentication System Redesign",
@@ -66,6 +67,7 @@ await snapshotTest({
               createdAt: "2024-01-10T10:00:00Z",
               url: "https://linear.app/acme/project/auth-redesign-2024",
               teams: {
+                pageInfo: { hasNextPage: false, endCursor: null },
                 nodes: [
                   {
                     id: "team-1",
@@ -78,6 +80,10 @@ await snapshotTest({
                     name: "Security Team",
                   },
                 ],
+              },
+              labels: {
+                nodes: [],
+                pageInfo: { hasNextPage: false, endCursor: null },
               },
               issues: {
                 nodes: [
@@ -164,6 +170,7 @@ await snapshotTest({
         variables: { id: "minimal-project", includeContent: false },
         response: {
           data: {
+            organization: { id: "workspace-1", urlKey: "test" },
             project: {
               id: "minimal-project",
               name: "Simple Project",
@@ -189,7 +196,12 @@ await snapshotTest({
               createdAt: "2024-01-20T12:00:00Z",
               url: "https://linear.app/acme/project/simple",
               teams: {
+                pageInfo: { hasNextPage: false, endCursor: null },
                 nodes: [],
+              },
+              labels: {
+                nodes: [],
+                pageInfo: { hasNextPage: false, endCursor: null },
               },
               issues: {
                 nodes: [],
@@ -222,6 +234,7 @@ Deno.test("Project View includes project content on request", async () => {
       variables: { id: "project-with-content", includeContent: true },
       response: {
         data: {
+          organization: { id: "workspace-1", urlKey: "test" },
           project: {
             id: "project-with-content",
             name: "Selling",
@@ -243,7 +256,14 @@ Deno.test("Project View includes project content on request", async () => {
             updatedAt: "2024-01-20T12:00:00Z",
             createdAt: "2024-01-20T12:00:00Z",
             url: "https://linear.app/acme/project/selling",
-            teams: { nodes: [] },
+            teams: {
+              nodes: [],
+              pageInfo: { hasNextPage: false, endCursor: null },
+            },
+            labels: {
+              nodes: [],
+              pageInfo: { hasNextPage: false, endCursor: null },
+            },
             issues: { nodes: [] },
             lastUpdate: null,
           },
@@ -266,7 +286,7 @@ Deno.test("Project View includes project content on request", async () => {
       "--json",
     ])
     assertEquals(
-      JSON.parse(logs[0]).content,
+      JSON.parse(logs[0]).project.content,
       "# Project plan\n\nLaunch the new product page.",
     )
   } finally {

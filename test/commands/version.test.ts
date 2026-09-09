@@ -61,7 +61,7 @@ Deno.test("version reports deterministic build identity offline without authenti
     result.stdout,
     "distribution: jihuanshe/linear\n" +
       "version: 0.0.0-dev\n" +
-      "capabilities: usage-v1, guide-v1, delivery-v1\n",
+      "capabilities: usage-v1, guide-v1, delivery-v2\n",
   )
 })
 
@@ -74,7 +74,7 @@ Deno.test("version --json reports the stable build identity contract offline", a
     schemaVersion: 1,
     distribution: "jihuanshe/linear",
     version: "0.0.0-dev",
-    capabilities: ["usage-v1", "guide-v1", "delivery-v1"],
+    capabilities: ["usage-v1", "guide-v1", "delivery-v2"],
   })
 })
 

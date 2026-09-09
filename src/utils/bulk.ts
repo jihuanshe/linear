@@ -2,11 +2,12 @@
  * Bulk operation utilities for Linear CLI
  *
  * Provides common infrastructure for --bulk, --bulk-file, and --bulk-stdin flags
- * across multiple commands (initiative archive/delete, issue archive/delete, label delete, etc.)
+ * across initiative archive/delete, issue delete and document delete.
  */
 
 import { shouldShowSpinner } from "./hyperlink.ts"
-import { NotFoundError } from "./errors.ts"
+import { errorResult, NotFoundError, WriteError } from "./errors.ts"
+import type { WriteEffect } from "./write-result.ts"
 
 /**
  * Result of a single bulk operation
@@ -15,7 +16,10 @@ export interface BulkOperationResult {
   id: string
   name?: string
   success: boolean
+  effect: WriteEffect
   error?: string
+  data?: unknown
+  receipts?: unknown
 }
 
 /**
@@ -25,6 +29,8 @@ export interface BulkOperationSummary {
   total: number
   succeeded: number
   failed: number
+  effect: WriteEffect
+  unattempted: string[]
   results: BulkOperationResult[]
 }
 
@@ -36,10 +42,6 @@ export interface BulkExecutionOptions {
   showProgress?: boolean
   /** Enable colored output */
   colorEnabled?: boolean
-  /** Skip confirmation prompt */
-  force?: boolean
-  /** Concurrency limit (default: 5) */
-  concurrency?: number
 }
 
 /**
@@ -144,18 +146,11 @@ export async function executeBulkOperations<T extends BulkOperationResult>(
   const {
     showProgress = true,
     colorEnabled = true,
-    concurrency = 5,
   } = options
 
-  const results: T[] = []
+  const results: BulkOperationResult[] = []
   let completed = 0
   const total = ids.length
-
-  // Process in batches for controlled concurrency
-  const batches: string[][] = []
-  for (let i = 0; i < ids.length; i += concurrency) {
-    batches.push(ids.slice(i, i + concurrency))
-  }
 
   const spinnerEnabled = shouldShowSpinner()
 
@@ -168,36 +163,36 @@ export async function executeBulkOperations<T extends BulkOperationResult>(
       const status = colorEnabled
         ? `\r⏳ Processing: ${completed}/${total} (${percent}%) - ✓ ${succeeded} ✗ ${failed}`
         : `\rProcessing: ${completed}/${total} (${percent}%) - OK: ${succeeded} Failed: ${failed}`
-      Deno.stdout.writeSync(new TextEncoder().encode(status))
+      Deno.stderr.writeSync(new TextEncoder().encode(status))
     }
   }
 
-  // Process batches
-  for (const batch of batches) {
-    const batchResults = await Promise.all(
-      batch.map(async (id) => {
-        try {
-          const result = await operation(id)
-          completed++
-          updateProgress()
-          return result
-        } catch (error) {
-          completed++
-          updateProgress()
-          return {
-            id,
-            success: false,
-            error: error instanceof Error ? error.message : String(error),
-          } as T
-        }
-      }),
-    )
-    results.push(...batchResults)
+  // Start one write at a time so an unknown outcome stops later writes.
+  for (const id of ids) {
+    let result: BulkOperationResult
+    try {
+      result = await operation(id)
+    } catch (error) {
+      const failure = errorResult(error)
+      result = {
+        id,
+        success: false,
+        effect: failure.effect,
+        error: failure.error.message,
+        ...(error instanceof WriteError
+          ? { data: error.data, receipts: error.receipts }
+          : {}),
+      }
+    }
+    results.push(result)
+    completed++
+    updateProgress()
+    if (result.effect === "unknown") break
   }
 
   // Clear progress line
   if (showProgress && spinnerEnabled) {
-    Deno.stdout.writeSync(
+    Deno.stderr.writeSync(
       new TextEncoder().encode("\r" + " ".repeat(80) + "\r"),
     )
   }
@@ -207,7 +202,13 @@ export async function executeBulkOperations<T extends BulkOperationResult>(
   return {
     total,
     succeeded,
-    failed: total - succeeded,
+    failed: results.length - succeeded,
+    effect: results.some((result) => result.effect === "unknown")
+      ? "unknown"
+      : results.some((result) => result.effect === "applied")
+      ? "applied"
+      : "none",
+    unattempted: ids.slice(results.length),
     results,
   }
 }
@@ -235,7 +236,7 @@ export function printBulkSummary(
         summary.succeeded !== 1 ? "s" : ""
       }`
     console.log(colorEnabled ? msg : msg.replace("✓", "OK:"))
-  } else if (summary.succeeded === 0) {
+  } else if (summary.succeeded === 0 && summary.unattempted.length === 0) {
     const msg = `✗ Failed to ${
       operationName.replace(/ed$/, "")
     } all ${summary.total} ${entityName}${summary.total !== 1 ? "s" : ""}`
@@ -248,6 +249,12 @@ export function printBulkSummary(
     )
     console.log(`  ✓ Succeeded: ${summary.succeeded}`)
     console.log(`  ✗ Failed: ${summary.failed}`)
+  }
+
+  if (summary.unattempted.length > 0) {
+    console.log(
+      `  Not attempted after unknown outcome: ${summary.unattempted.length}`,
+    )
   }
 
   // Show details for failures

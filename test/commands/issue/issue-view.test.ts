@@ -11,6 +11,45 @@ import { setupMockLinearServer } from "../../utils/test-helpers.ts"
 // Common Deno args for permissions
 const denoArgs = ["--allow-all", "--quiet"]
 
+// Fields selected by IssueFields that these display cases leave empty.
+const emptyIssueFields = {
+  archivedAt: null,
+  trashed: false,
+  priority: 0,
+  estimate: null,
+  dueDate: null,
+  assignee: null,
+  project: null,
+  projectMilestone: null,
+  cycle: null,
+  parent: null,
+  labels: {
+    nodes: [],
+    pageInfo: {
+      hasNextPage: false,
+      endCursor: null,
+    },
+  },
+  children: {
+    nodes: [],
+  },
+  relations: {
+    nodes: [],
+    pageInfo: {
+      hasNextPage: false,
+    },
+  },
+  inverseRelations: {
+    nodes: [],
+    pageInfo: {
+      hasNextPage: false,
+    },
+  },
+  documents: {
+    nodes: [],
+  },
+}
+
 for (const comments of [true, false]) {
   Deno.test(`Issue View Command - JSON includes assignee ID with comments ${comments}`, async () => {
     const assignee = {
@@ -23,13 +62,54 @@ for (const comments of [true, false]) {
       variables: { id: "ENG-123" },
       response: {
         data: {
+          organization: {
+            id: "99999999-9999-4999-8999-999999999999",
+            urlKey: "test-team",
+          },
           issue: {
+            id: "11111111-1111-4111-8111-000000000123",
             identifier: "ENG-123",
+            title: "Assignee identity",
+            description: null,
+            url: "https://linear.app/test-team/issue/ENG-123",
+            branchName: "eng-123",
+            archivedAt: null,
+            trashed: false,
+            priority: 0,
+            estimate: null,
+            dueDate: null,
+            state: {
+              id: "33333333-3333-4333-8333-333333333333",
+              name: "Todo",
+              type: "unstarted",
+              color: "#000000",
+            },
             assignee,
-            comments: {
+            project: null,
+            projectMilestone: null,
+            cycle: null,
+            parent: null,
+            team: {
+              id: "22222222-2222-4222-8222-222222222222",
+              key: "ENG",
+              activeCycle: null,
+            },
+            children: { nodes: [] },
+            documents: { nodes: [] },
+            relations: { nodes: [], pageInfo: { hasNextPage: false } },
+            inverseRelations: { nodes: [], pageInfo: { hasNextPage: false } },
+            labels: {
               nodes: [],
               pageInfo: { hasNextPage: false, endCursor: null },
             },
+            ...(comments
+              ? {
+                comments: {
+                  nodes: [],
+                  pageInfo: { hasNextPage: false, endCursor: null },
+                },
+              }
+              : {}),
             attachments: {
               nodes: [],
               pageInfo: { hasNextPage: false, endCursor: null },
@@ -46,7 +126,11 @@ for (const comments of [true, false]) {
         "--json",
         ...(comments ? [] : ["--no-comments"]),
       ])
-      assertEquals(JSON.parse(output.join("\n")).assignee, assignee)
+      assertEquals(JSON.parse(output.join("\n")).issue.assignee, assignee)
+      assertEquals(JSON.parse(output.join("\n")).organization, {
+        id: "99999999-9999-4999-8999-999999999999",
+        urlKey: "test-team",
+      })
       assertEquals(server.graphqlRequests.length, 1)
       assertMatch(server.graphqlRequests[0].query, /assignee\s*\{\s*id\b/)
     } finally {
@@ -88,7 +172,25 @@ await snapshotTest({
         variables: { id: "TEST-123" },
         response: {
           data: {
+            organization: {
+              id: "99999999-9999-4999-8999-999999999999",
+              urlKey: "test-team",
+            },
             issue: {
+              ...emptyIssueFields,
+              id: "11111111-1111-4111-8111-000000000123",
+              team: {
+                id: "22222222-2222-4222-8222-222222222222",
+                key: "TEST",
+                activeCycle: null,
+              },
+              labels: {
+                pageInfo: {
+                  hasNextPage: false,
+                  endCursor: null,
+                },
+                nodes: [],
+              },
               identifier: "TEST-123",
               title: "Fix authentication bug in login flow",
               description:
@@ -97,26 +199,23 @@ await snapshotTest({
                 "https://linear.app/test-team/issue/TEST-123/fix-authentication-bug-in-login-flow",
               branchName: "fix/test-123-auth-bug",
               state: {
+                id: "33333333-3333-4333-8333-333333333333",
+                type: "started",
                 name: "In Progress",
                 color: "#f87462",
               },
-              assignee: null,
-              priority: 0,
-              project: null,
-              projectMilestone: null,
-              parent: null,
-              children: {
-                nodes: [],
-              },
               comments: {
-                pageInfo: { hasNextPage: false, endCursor: null },
+                pageInfo: {
+                  hasNextPage: false,
+                  endCursor: null,
+                },
                 nodes: [],
               },
               attachments: {
-                pageInfo: { hasNextPage: false, endCursor: null },
-                nodes: [],
-              },
-              labels: {
+                pageInfo: {
+                  hasNextPage: false,
+                  endCursor: null,
+                },
                 nodes: [],
               },
             },
@@ -153,7 +252,31 @@ await snapshotTest({
         variables: { id: "TEST-123" },
         response: {
           data: {
+            organization: {
+              id: "99999999-9999-4999-8999-999999999999",
+              urlKey: "test-team",
+            },
             issue: {
+              ...emptyIssueFields,
+              id: "11111111-1111-4111-8111-000000000123",
+              priority: 2,
+              assignee: {
+                id: "44444444-4444-4444-8444-444444444444",
+                name: "jane.smith",
+                displayName: "Jane Smith",
+              },
+              team: {
+                id: "22222222-2222-4222-8222-222222222222",
+                key: "TEST",
+                activeCycle: null,
+              },
+              labels: {
+                pageInfo: {
+                  hasNextPage: false,
+                  endCursor: null,
+                },
+                nodes: [],
+              },
               identifier: "TEST-123",
               title: "Fix authentication bug in login flow",
               description:
@@ -162,25 +285,16 @@ await snapshotTest({
                 "https://linear.app/test-team/issue/TEST-123/fix-authentication-bug-in-login-flow",
               branchName: "fix/test-123-auth-bug",
               state: {
+                id: "33333333-3333-4333-8333-333333333333",
+                type: "started",
                 name: "In Progress",
                 color: "#f87462",
               },
-              assignee: {
-                name: "jane.smith",
-                displayName: "Jane Smith",
-              },
-              priority: 2,
-              project: null,
-              projectMilestone: null,
-              parent: null,
-              children: {
-                nodes: [],
-              },
               attachments: {
-                pageInfo: { hasNextPage: false, endCursor: null },
-                nodes: [],
-              },
-              labels: {
+                pageInfo: {
+                  hasNextPage: false,
+                  endCursor: null,
+                },
                 nodes: [],
               },
             },
@@ -217,7 +331,31 @@ await snapshotTest({
         variables: { id: "TEST-123" },
         response: {
           data: {
+            organization: {
+              id: "99999999-9999-4999-8999-999999999999",
+              urlKey: "test-team",
+            },
             issue: {
+              ...emptyIssueFields,
+              id: "11111111-1111-4111-8111-000000000123",
+              priority: 1,
+              assignee: {
+                id: "44444444-4444-4444-8444-444444444444",
+                name: "john.doe",
+                displayName: "John Doe",
+              },
+              team: {
+                id: "22222222-2222-4222-8222-222222222222",
+                key: "TEST",
+                activeCycle: null,
+              },
+              labels: {
+                pageInfo: {
+                  hasNextPage: false,
+                  endCursor: null,
+                },
+                nodes: [],
+              },
               identifier: "TEST-123",
               title: "Fix authentication bug in login flow",
               description:
@@ -226,24 +364,23 @@ await snapshotTest({
                 "https://linear.app/test-team/issue/TEST-123/fix-authentication-bug-in-login-flow",
               branchName: "fix/test-123-auth-bug",
               state: {
+                id: "33333333-3333-4333-8333-333333333333",
+                type: "started",
                 name: "In Progress",
                 color: "#f87462",
               },
-              assignee: {
-                name: "john.doe",
-                displayName: "John Doe",
-              },
-              priority: 1,
-              project: null,
-              projectMilestone: null,
-              parent: null,
-              children: {
-                nodes: [],
-              },
               comments: {
-                pageInfo: { hasNextPage: false, endCursor: null },
+                pageInfo: {
+                  hasNextPage: false,
+                  endCursor: null,
+                },
                 nodes: [
                   {
+                    updatedAt: "2024-01-15T10:30:00Z",
+                    url: "https://linear.app/issue/TEST-123#comment-1",
+                    resolvedAt: null,
+                    resolvingCommentId: null,
+                    resolvingUser: null,
                     id: "comment-1",
                     body:
                       "I've reproduced this issue on staging. The session timeout seems to be too aggressive.",
@@ -256,6 +393,11 @@ await snapshotTest({
                     parent: null,
                   },
                   {
+                    updatedAt: "2024-01-15T14:22:00Z",
+                    url: "https://linear.app/issue/TEST-123#comment-2",
+                    resolvedAt: null,
+                    resolvingCommentId: null,
+                    resolvingUser: null,
                     id: "comment-2",
                     body:
                       "Working on a fix. Will increase the session timeout and add proper error handling.",
@@ -270,6 +412,11 @@ await snapshotTest({
                     },
                   },
                   {
+                    updatedAt: "2024-01-15T15:10:00Z",
+                    url: "https://linear.app/issue/TEST-123#comment-3",
+                    resolvedAt: null,
+                    resolvingCommentId: null,
+                    resolvingUser: null,
                     id: "comment-3",
                     body:
                       "Sounds good! Also, we should add better error messaging for expired sessions.",
@@ -284,6 +431,11 @@ await snapshotTest({
                     },
                   },
                   {
+                    updatedAt: "2024-01-15T16:00:00Z",
+                    url: "https://linear.app/issue/TEST-123#comment-4",
+                    resolvedAt: null,
+                    resolvingCommentId: null,
+                    resolvingUser: null,
                     id: "comment-4",
                     body:
                       "Should we also consider implementing automatic session refresh?",
@@ -298,7 +450,10 @@ await snapshotTest({
                 ],
               },
               attachments: {
-                pageInfo: { hasNextPage: false, endCursor: null },
+                pageInfo: {
+                  hasNextPage: false,
+                  endCursor: null,
+                },
                 nodes: [],
               },
             },
@@ -336,65 +491,60 @@ await snapshotTest({
         variables: { id: "TEST-246" },
         response: {
           data: {
+            organization: {
+              id: "99999999-9999-4999-8999-999999999999",
+              urlKey: "test-team",
+            },
             issue: {
-              identifier: "TEST-246",
-              title: "Audit issue resource output",
-              description:
-                "Ensure issue view shows both attachments and documents.",
-              url:
-                "https://linear.app/test-team/issue/TEST-246/audit-issue-resource-output",
-              branchName: "test-246-issue-resource-output",
-              state: {
-                name: "In Progress",
-                color: "#f87462",
-              },
+              ...emptyIssueFields,
+              id: "11111111-1111-4111-8111-000000000246",
+              priority: 2,
               assignee: {
+                id: "44444444-4444-4444-8444-444444444444",
                 name: "jane.smith",
                 displayName: "Jane Smith",
               },
-              priority: 2,
-              project: null,
-              projectMilestone: null,
-              cycle: null,
-              parent: null,
-              children: {
+              team: {
+                id: "22222222-2222-4222-8222-222222222222",
+                key: "TEST",
+                activeCycle: null,
+              },
+              labels: {
+                pageInfo: {
+                  hasNextPage: false,
+                  endCursor: null,
+                },
                 nodes: [],
               },
-              attachments: {
-                pageInfo: { hasNextPage: false, endCursor: null },
+              relations: {
                 nodes: [
                   {
-                    id: "attachment-1",
-                    title: "Design mock",
-                    url: "https://example.com/design-mock",
-                    subtitle: "Figma file",
-                    sourceType: "figma",
-                    metadata: {},
-                    createdAt: "2024-01-15T10:30:00Z",
+                    id: "relation-outgoing",
+                    type: "blocks",
+                    relatedIssue: {
+                      identifier: "TEST-247",
+                      title: "Blocked follow-up",
+                    },
                   },
                 ],
-              },
-              relations: {
-                nodes: [{
-                  id: "relation-outgoing",
-                  type: "blocks",
-                  relatedIssue: {
-                    identifier: "TEST-247",
-                    title: "Blocked follow-up",
-                  },
-                }],
-                pageInfo: { hasNextPage: false },
+                pageInfo: {
+                  hasNextPage: false,
+                },
               },
               inverseRelations: {
-                nodes: [{
-                  id: "relation-incoming",
-                  type: "related",
-                  issue: {
-                    identifier: "TEST-245",
-                    title: "Related investigation",
+                nodes: [
+                  {
+                    id: "relation-incoming",
+                    type: "related",
+                    issue: {
+                      identifier: "TEST-245",
+                      title: "Related investigation",
+                    },
                   },
-                }],
-                pageInfo: { hasNextPage: false },
+                ],
+                pageInfo: {
+                  hasNextPage: false,
+                },
               },
               documents: {
                 nodes: [
@@ -415,6 +565,36 @@ await snapshotTest({
                       "https://linear.app/test-team/document/qa-checklist-qa-checklist-456",
                     createdAt: "2024-01-15T09:00:00Z",
                     updatedAt: "2024-01-15T09:15:00Z",
+                  },
+                ],
+              },
+              identifier: "TEST-246",
+              title: "Audit issue resource output",
+              description:
+                "Ensure issue view shows both attachments and documents.",
+              url:
+                "https://linear.app/test-team/issue/TEST-246/audit-issue-resource-output",
+              branchName: "test-246-issue-resource-output",
+              state: {
+                id: "33333333-3333-4333-8333-333333333333",
+                type: "started",
+                name: "In Progress",
+                color: "#f87462",
+              },
+              attachments: {
+                pageInfo: {
+                  hasNextPage: false,
+                  endCursor: null,
+                },
+                nodes: [
+                  {
+                    id: "attachment-1",
+                    title: "Design mock",
+                    url: "https://example.com/design-mock",
+                    subtitle: "Figma file",
+                    sourceType: "figma",
+                    metadata: {},
+                    createdAt: "2024-01-15T10:30:00Z",
                   },
                 ],
               },
@@ -488,7 +668,26 @@ await snapshotTest({
         variables: { id: "TEST-123" },
         response: {
           data: {
+            organization: {
+              id: "99999999-9999-4999-8999-999999999999",
+              urlKey: "test-team",
+            },
             issue: {
+              ...emptyIssueFields,
+              id: "11111111-1111-4111-8111-000000000123",
+              priority: 3,
+              team: {
+                id: "22222222-2222-4222-8222-222222222222",
+                key: "TEST",
+                activeCycle: null,
+              },
+              labels: {
+                pageInfo: {
+                  hasNextPage: false,
+                  endCursor: null,
+                },
+                nodes: [],
+              },
               identifier: "TEST-123",
               title: "Fix authentication bug in login flow",
               description:
@@ -497,17 +696,16 @@ await snapshotTest({
                 "https://linear.app/test-team/issue/TEST-123/fix-authentication-bug-in-login-flow",
               branchName: "fix/test-123-auth-bug",
               state: {
+                id: "33333333-3333-4333-8333-333333333333",
+                type: "started",
                 name: "In Progress",
                 color: "#f87462",
               },
-              assignee: null,
-              priority: 3,
-              parent: null,
-              children: {
-                nodes: [],
-              },
               attachments: {
-                pageInfo: { hasNextPage: false, endCursor: null },
+                pageInfo: {
+                  hasNextPage: false,
+                  endCursor: null,
+                },
                 nodes: [],
               },
             },
@@ -544,27 +742,23 @@ await snapshotTest({
         variables: { id: "TEST-123" },
         response: {
           data: {
+            organization: {
+              id: "99999999-9999-4999-8999-999999999999",
+              urlKey: "test-team",
+            },
             issue: {
-              identifier: "TEST-123",
-              title: "Fix authentication bug in login flow",
-              description:
-                "Users are experiencing issues logging in when their session expires.",
-              url:
-                "https://linear.app/test-team/issue/TEST-123/fix-authentication-bug-in-login-flow",
-              branchName: "fix/test-123-auth-bug",
-              state: {
-                name: "In Progress",
-                color: "#f87462",
-              },
-              parent: null,
-              children: {
-                nodes: [],
-              },
-              attachments: {
-                pageInfo: { hasNextPage: false, endCursor: null },
-                nodes: [],
+              ...emptyIssueFields,
+              id: "11111111-1111-4111-8111-000000000123",
+              team: {
+                id: "22222222-2222-4222-8222-222222222222",
+                key: "TEST",
+                activeCycle: null,
               },
               labels: {
+                pageInfo: {
+                  hasNextPage: false,
+                  endCursor: null,
+                },
                 nodes: [
                   {
                     id: "label-1",
@@ -577,6 +771,26 @@ await snapshotTest({
                     color: "#f5a524",
                   },
                 ],
+              },
+              identifier: "TEST-123",
+              title: "Fix authentication bug in login flow",
+              description:
+                "Users are experiencing issues logging in when their session expires.",
+              url:
+                "https://linear.app/test-team/issue/TEST-123/fix-authentication-bug-in-login-flow",
+              branchName: "fix/test-123-auth-bug",
+              state: {
+                id: "33333333-3333-4333-8333-333333333333",
+                type: "started",
+                name: "In Progress",
+                color: "#f87462",
+              },
+              attachments: {
+                pageInfo: {
+                  hasNextPage: false,
+                  endCursor: null,
+                },
+                nodes: [],
               },
             },
           },
@@ -612,7 +826,31 @@ await snapshotTest({
         variables: { id: "TEST-123" },
         response: {
           data: {
+            organization: {
+              id: "99999999-9999-4999-8999-999999999999",
+              urlKey: "test-team",
+            },
             issue: {
+              ...emptyIssueFields,
+              id: "11111111-1111-4111-8111-000000000123",
+              priority: 2,
+              assignee: {
+                id: "44444444-4444-4444-8444-444444444444",
+                name: "jane.smith",
+                displayName: "Jane Smith",
+              },
+              team: {
+                id: "22222222-2222-4222-8222-222222222222",
+                key: "TEST",
+                activeCycle: null,
+              },
+              labels: {
+                pageInfo: {
+                  hasNextPage: false,
+                  endCursor: null,
+                },
+                nodes: [],
+              },
               identifier: "TEST-123",
               title: "Fix authentication bug in login flow",
               description:
@@ -621,24 +859,23 @@ await snapshotTest({
                 "https://linear.app/test-team/issue/TEST-123/fix-authentication-bug-in-login-flow",
               branchName: "fix/test-123-auth-bug",
               state: {
+                id: "33333333-3333-4333-8333-333333333333",
+                type: "started",
                 name: "In Progress",
                 color: "#f87462",
               },
-              assignee: {
-                name: "jane.smith",
-                displayName: "Jane Smith",
-              },
-              priority: 2,
-              project: null,
-              projectMilestone: null,
-              parent: null,
-              children: {
-                nodes: [],
-              },
               comments: {
-                pageInfo: { hasNextPage: false, endCursor: null },
+                pageInfo: {
+                  hasNextPage: false,
+                  endCursor: null,
+                },
                 nodes: [
                   {
+                    updatedAt: "2024-01-15T10:30:00Z",
+                    url: "https://linear.app/issue/TEST-123#comment-1",
+                    resolvedAt: null,
+                    resolvingCommentId: null,
+                    resolvingUser: null,
                     id: "comment-1",
                     body:
                       "I've reproduced this issue on staging. The session timeout seems to be too aggressive.",
@@ -651,6 +888,11 @@ await snapshotTest({
                     parent: null,
                   },
                   {
+                    updatedAt: "2024-01-15T14:22:00Z",
+                    url: "https://linear.app/issue/TEST-123#comment-2",
+                    resolvedAt: null,
+                    resolvingCommentId: null,
+                    resolvingUser: null,
                     id: "comment-2",
                     body:
                       "Working on a fix. Will increase the session timeout and add proper error handling.",
@@ -667,7 +909,10 @@ await snapshotTest({
                 ],
               },
               attachments: {
-                pageInfo: { hasNextPage: false, endCursor: null },
+                pageInfo: {
+                  hasNextPage: false,
+                  endCursor: null,
+                },
                 nodes: [],
               },
             },
@@ -705,65 +950,60 @@ await snapshotTest({
         variables: { id: "TEST-246" },
         response: {
           data: {
+            organization: {
+              id: "99999999-9999-4999-8999-999999999999",
+              urlKey: "test-team",
+            },
             issue: {
-              identifier: "TEST-246",
-              title: "Audit issue resource output",
-              description:
-                "Ensure issue view shows both attachments and documents.",
-              url:
-                "https://linear.app/test-team/issue/TEST-246/audit-issue-resource-output",
-              branchName: "test-246-issue-resource-output",
-              state: {
-                name: "In Progress",
-                color: "#f87462",
-              },
+              ...emptyIssueFields,
+              id: "11111111-1111-4111-8111-000000000246",
+              priority: 2,
               assignee: {
+                id: "44444444-4444-4444-8444-444444444444",
                 name: "jane.smith",
                 displayName: "Jane Smith",
               },
-              priority: 2,
-              project: null,
-              projectMilestone: null,
-              cycle: null,
-              parent: null,
-              children: {
+              team: {
+                id: "22222222-2222-4222-8222-222222222222",
+                key: "TEST",
+                activeCycle: null,
+              },
+              labels: {
+                pageInfo: {
+                  hasNextPage: false,
+                  endCursor: null,
+                },
                 nodes: [],
               },
-              attachments: {
-                pageInfo: { hasNextPage: false, endCursor: null },
+              relations: {
                 nodes: [
                   {
-                    id: "attachment-1",
-                    title: "Design mock",
-                    url: "https://example.com/design-mock",
-                    subtitle: "Figma file",
-                    sourceType: "figma",
-                    metadata: {},
-                    createdAt: "2024-01-15T10:30:00Z",
+                    id: "relation-outgoing",
+                    type: "blocks",
+                    relatedIssue: {
+                      identifier: "TEST-247",
+                      title: "Blocked follow-up",
+                    },
                   },
                 ],
-              },
-              relations: {
-                nodes: [{
-                  id: "relation-outgoing",
-                  type: "blocks",
-                  relatedIssue: {
-                    identifier: "TEST-247",
-                    title: "Blocked follow-up",
-                  },
-                }],
-                pageInfo: { hasNextPage: false },
+                pageInfo: {
+                  hasNextPage: false,
+                },
               },
               inverseRelations: {
-                nodes: [{
-                  id: "relation-incoming",
-                  type: "related",
-                  issue: {
-                    identifier: "TEST-245",
-                    title: "Related investigation",
+                nodes: [
+                  {
+                    id: "relation-incoming",
+                    type: "related",
+                    issue: {
+                      identifier: "TEST-245",
+                      title: "Related investigation",
+                    },
                   },
-                }],
-                pageInfo: { hasNextPage: false },
+                ],
+                pageInfo: {
+                  hasNextPage: false,
+                },
               },
               documents: {
                 nodes: [
@@ -784,6 +1024,36 @@ await snapshotTest({
                       "https://linear.app/test-team/document/qa-checklist-qa-checklist-456",
                     createdAt: "2024-01-15T09:00:00Z",
                     updatedAt: "2024-01-15T09:15:00Z",
+                  },
+                ],
+              },
+              identifier: "TEST-246",
+              title: "Audit issue resource output",
+              description:
+                "Ensure issue view shows both attachments and documents.",
+              url:
+                "https://linear.app/test-team/issue/TEST-246/audit-issue-resource-output",
+              branchName: "test-246-issue-resource-output",
+              state: {
+                id: "33333333-3333-4333-8333-333333333333",
+                type: "started",
+                name: "In Progress",
+                color: "#f87462",
+              },
+              attachments: {
+                pageInfo: {
+                  hasNextPage: false,
+                  endCursor: null,
+                },
+                nodes: [
+                  {
+                    id: "attachment-1",
+                    title: "Design mock",
+                    url: "https://example.com/design-mock",
+                    subtitle: "Figma file",
+                    sourceType: "figma",
+                    metadata: {},
+                    createdAt: "2024-01-15T10:30:00Z",
                   },
                 ],
               },
@@ -821,31 +1091,39 @@ await snapshotTest({
         variables: { id: "TEST-456" },
         response: {
           data: {
+            organization: {
+              id: "99999999-9999-4999-8999-999999999999",
+              urlKey: "test-team",
+            },
             issue: {
-              identifier: "TEST-456",
-              title: "Implement user authentication",
-              description: "Add user authentication to the application.",
-              url:
-                "https://linear.app/test-team/issue/TEST-456/implement-user-authentication",
-              branchName: "feat/test-456-auth",
-              state: {
-                name: "In Progress",
-                color: "#f87462",
-              },
+              ...emptyIssueFields,
+              id: "11111111-1111-4111-8111-000000000456",
+              priority: 2,
               assignee: {
+                id: "44444444-4444-4444-8444-444444444444",
                 name: "alice.dev",
                 displayName: "Alice Developer",
               },
-              priority: 2,
-              project: null,
-              projectMilestone: null,
               parent: {
+                id: "11111111-1111-4111-8111-000000000100",
                 identifier: "TEST-100",
                 title: "Epic: Security Improvements",
                 state: {
                   name: "In Progress",
                   color: "#f87462",
                 },
+              },
+              team: {
+                id: "22222222-2222-4222-8222-222222222222",
+                key: "TEST",
+                activeCycle: null,
+              },
+              labels: {
+                pageInfo: {
+                  hasNextPage: false,
+                  endCursor: null,
+                },
+                nodes: [],
               },
               children: {
                 nodes: [
@@ -875,8 +1153,23 @@ await snapshotTest({
                   },
                 ],
               },
+              identifier: "TEST-456",
+              title: "Implement user authentication",
+              description: "Add user authentication to the application.",
+              url:
+                "https://linear.app/test-team/issue/TEST-456/implement-user-authentication",
+              branchName: "feat/test-456-auth",
+              state: {
+                id: "33333333-3333-4333-8333-333333333333",
+                type: "started",
+                name: "In Progress",
+                color: "#f87462",
+              },
               attachments: {
-                pageInfo: { hasNextPage: false, endCursor: null },
+                pageInfo: {
+                  hasNextPage: false,
+                  endCursor: null,
+                },
                 nodes: [],
               },
             },
@@ -913,7 +1206,40 @@ await snapshotTest({
         variables: { id: "TEST-789" },
         response: {
           data: {
+            organization: {
+              id: "99999999-9999-4999-8999-999999999999",
+              urlKey: "test-team",
+            },
             issue: {
+              ...emptyIssueFields,
+              id: "11111111-1111-4111-8111-000000000789",
+              priority: 3,
+              assignee: {
+                id: "44444444-4444-4444-8444-444444444444",
+                name: "bob.senior",
+                displayName: "Bob Senior",
+              },
+              project: {
+                id: "55555555-5555-4555-8555-555555555555",
+                slugId: "project-slug",
+                name: "Platform Infrastructure Q1",
+              },
+              projectMilestone: {
+                id: "66666666-6666-4666-8666-666666666666",
+                name: "Phase 2: Observability",
+              },
+              team: {
+                id: "22222222-2222-4222-8222-222222222222",
+                key: "TEST",
+                activeCycle: null,
+              },
+              labels: {
+                pageInfo: {
+                  hasNextPage: false,
+                  endCursor: null,
+                },
+                nodes: [],
+              },
               identifier: "TEST-789",
               title: "Add monitoring dashboards",
               description: "Set up Datadog dashboards for the new service.",
@@ -921,26 +1247,16 @@ await snapshotTest({
                 "https://linear.app/test-team/issue/TEST-789/add-monitoring-dashboards",
               branchName: "feat/test-789-monitoring",
               state: {
+                id: "33333333-3333-4333-8333-333333333333",
+                type: "started",
                 name: "In Progress",
                 color: "#f87462",
               },
-              assignee: {
-                name: "bob.senior",
-                displayName: "Bob Senior",
-              },
-              priority: 3,
-              project: {
-                name: "Platform Infrastructure Q1",
-              },
-              projectMilestone: {
-                name: "Phase 2: Observability",
-              },
-              parent: null,
-              children: {
-                nodes: [],
-              },
               attachments: {
-                pageInfo: { hasNextPage: false, endCursor: null },
+                pageInfo: {
+                  hasNextPage: false,
+                  endCursor: null,
+                },
                 nodes: [],
               },
             },
@@ -977,23 +1293,19 @@ await snapshotTest({
         variables: { id: "TEST-890" },
         response: {
           data: {
+            organization: {
+              id: "99999999-9999-4999-8999-999999999999",
+              urlKey: "test-team",
+            },
             issue: {
-              identifier: "TEST-890",
-              title: "Implement rate limiting",
-              description: "Add rate limiting to the API gateway.",
-              url:
-                "https://linear.app/test-team/issue/TEST-890/implement-rate-limiting",
-              branchName: "feat/test-890-rate-limiting",
-              state: {
-                name: "Todo",
-                color: "#e2e2e2",
-              },
-              assignee: null,
+              ...emptyIssueFields,
+              id: "11111111-1111-4111-8111-000000000890",
               priority: 4,
               project: {
+                id: "55555555-5555-4555-8555-555555555555",
+                slugId: "project-slug",
                 name: "API Gateway v2",
               },
-              projectMilestone: null,
               cycle: {
                 id: "cycle-7",
                 name: "Sprint 7",
@@ -1005,14 +1317,36 @@ await snapshotTest({
                 isPast: false,
               },
               team: {
-                activeCycle: { number: 7 },
+                id: "22222222-2222-4222-8222-222222222222",
+                key: "TEST",
+                activeCycle: {
+                  number: 7,
+                },
               },
-              parent: null,
-              children: {
+              labels: {
+                pageInfo: {
+                  hasNextPage: false,
+                  endCursor: null,
+                },
                 nodes: [],
               },
+              identifier: "TEST-890",
+              title: "Implement rate limiting",
+              description: "Add rate limiting to the API gateway.",
+              url:
+                "https://linear.app/test-team/issue/TEST-890/implement-rate-limiting",
+              branchName: "feat/test-890-rate-limiting",
+              state: {
+                id: "33333333-3333-4333-8333-333333333333",
+                type: "unstarted",
+                name: "Todo",
+                color: "#e2e2e2",
+              },
               attachments: {
-                pageInfo: { hasNextPage: false, endCursor: null },
+                pageInfo: {
+                  hasNextPage: false,
+                  endCursor: null,
+                },
                 nodes: [],
               },
             },
@@ -1048,21 +1382,14 @@ await snapshotTest({
         variables: { id: "TEST-891" },
         response: {
           data: {
+            organization: {
+              id: "99999999-9999-4999-8999-999999999999",
+              urlKey: "test-team",
+            },
             issue: {
-              identifier: "TEST-891",
-              title: "Tune rate limit thresholds",
-              description: "Follow-up tuning work.",
-              url:
-                "https://linear.app/test-team/issue/TEST-891/tune-rate-limit-thresholds",
-              branchName: "feat/test-891-tune-thresholds",
-              state: {
-                name: "Todo",
-                color: "#e2e2e2",
-              },
-              assignee: null,
+              ...emptyIssueFields,
+              id: "11111111-1111-4111-8111-000000000891",
               priority: 4,
-              project: null,
-              projectMilestone: null,
               cycle: {
                 id: "cycle-8",
                 name: null,
@@ -1074,14 +1401,34 @@ await snapshotTest({
                 isPast: false,
               },
               team: {
+                id: "22222222-2222-4222-8222-222222222222",
+                key: "TEST",
                 activeCycle: null,
               },
-              parent: null,
-              children: {
+              labels: {
+                pageInfo: {
+                  hasNextPage: false,
+                  endCursor: null,
+                },
                 nodes: [],
               },
+              identifier: "TEST-891",
+              title: "Tune rate limit thresholds",
+              description: "Follow-up tuning work.",
+              url:
+                "https://linear.app/test-team/issue/TEST-891/tune-rate-limit-thresholds",
+              branchName: "feat/test-891-tune-thresholds",
+              state: {
+                id: "33333333-3333-4333-8333-333333333333",
+                type: "unstarted",
+                name: "Todo",
+                color: "#e2e2e2",
+              },
               attachments: {
-                pageInfo: { hasNextPage: false, endCursor: null },
+                pageInfo: {
+                  hasNextPage: false,
+                  endCursor: null,
+                },
                 nodes: [],
               },
             },
@@ -1117,7 +1464,26 @@ await snapshotTest({
         variables: { id: "TEST-321" },
         response: {
           data: {
+            organization: {
+              id: "99999999-9999-4999-8999-999999999999",
+              urlKey: "test-team",
+            },
             issue: {
+              ...emptyIssueFields,
+              id: "11111111-1111-4111-8111-000000000321",
+              priority: 2,
+              team: {
+                id: "22222222-2222-4222-8222-222222222222",
+                key: "TEST",
+                activeCycle: null,
+              },
+              labels: {
+                pageInfo: {
+                  hasNextPage: false,
+                  endCursor: null,
+                },
+                nodes: [],
+              },
               identifier: "TEST-321",
               title: "Audit resolved comment thread output",
               description:
@@ -1126,28 +1492,26 @@ await snapshotTest({
                 "https://linear.app/test-team/issue/TEST-321/audit-resolved-comment-thread-output",
               branchName: "test-321-resolved-thread-output",
               state: {
+                id: "33333333-3333-4333-8333-333333333333",
+                type: "started",
                 name: "In Progress",
                 color: "#f87462",
               },
-              assignee: null,
-              priority: 2,
-              project: null,
-              projectMilestone: null,
-              parent: null,
-              children: {
-                nodes: [],
-              },
               comments: {
-                pageInfo: { hasNextPage: false, endCursor: null },
+                pageInfo: {
+                  hasNextPage: false,
+                  endCursor: null,
+                },
                 nodes: [
                   {
-                    id: "comment-root-open",
-                    body: "Open thread root comment.",
-                    createdAt: "2024-01-15T10:30:00Z",
+                    updatedAt: "2024-01-15T10:30:00Z",
                     url: "https://linear.app/issue/TEST-321#comment-root-open",
                     resolvedAt: null,
                     resolvingCommentId: null,
                     resolvingUser: null,
+                    id: "comment-root-open",
+                    body: "Open thread root comment.",
+                    createdAt: "2024-01-15T10:30:00Z",
                     user: {
                       name: "john.doe",
                       displayName: "John Doe",
@@ -1156,13 +1520,14 @@ await snapshotTest({
                     parent: null,
                   },
                   {
-                    id: "comment-reply-open",
-                    body: "Reply on the open thread.",
-                    createdAt: "2024-01-15T11:00:00Z",
+                    updatedAt: "2024-01-15T11:00:00Z",
                     url: "https://linear.app/issue/TEST-321#comment-reply-open",
                     resolvedAt: null,
                     resolvingCommentId: null,
                     resolvingUser: null,
+                    id: "comment-reply-open",
+                    body: "Reply on the open thread.",
+                    createdAt: "2024-01-15T11:00:00Z",
                     user: {
                       name: "jane.smith",
                       displayName: "Jane Smith",
@@ -1173,9 +1538,7 @@ await snapshotTest({
                     },
                   },
                   {
-                    id: "comment-root-resolved",
-                    body: "Resolved thread root comment.",
-                    createdAt: "2024-01-15T12:00:00Z",
+                    updatedAt: "2024-01-15T12:00:00Z",
                     url:
                       "https://linear.app/issue/TEST-321#comment-root-resolved",
                     resolvedAt: "2024-01-15T12:30:00Z",
@@ -1184,6 +1547,9 @@ await snapshotTest({
                       name: "alice.dev",
                       displayName: "Alice Developer",
                     },
+                    id: "comment-root-resolved",
+                    body: "Resolved thread root comment.",
+                    createdAt: "2024-01-15T12:00:00Z",
                     user: {
                       name: "alice.dev",
                       displayName: "Alice Developer",
@@ -1194,7 +1560,10 @@ await snapshotTest({
                 ],
               },
               attachments: {
-                pageInfo: { hasNextPage: false, endCursor: null },
+                pageInfo: {
+                  hasNextPage: false,
+                  endCursor: null,
+                },
                 nodes: [],
               },
             },
@@ -1230,7 +1599,26 @@ await snapshotTest({
         variables: { id: "TEST-321" },
         response: {
           data: {
+            organization: {
+              id: "99999999-9999-4999-8999-999999999999",
+              urlKey: "test-team",
+            },
             issue: {
+              ...emptyIssueFields,
+              id: "11111111-1111-4111-8111-000000000321",
+              priority: 2,
+              team: {
+                id: "22222222-2222-4222-8222-222222222222",
+                key: "TEST",
+                activeCycle: null,
+              },
+              labels: {
+                pageInfo: {
+                  hasNextPage: false,
+                  endCursor: null,
+                },
+                nodes: [],
+              },
               identifier: "TEST-321",
               title: "Audit resolved comment thread output",
               description:
@@ -1239,28 +1627,26 @@ await snapshotTest({
                 "https://linear.app/test-team/issue/TEST-321/audit-resolved-comment-thread-output",
               branchName: "test-321-resolved-thread-output",
               state: {
+                id: "33333333-3333-4333-8333-333333333333",
+                type: "started",
                 name: "In Progress",
                 color: "#f87462",
               },
-              assignee: null,
-              priority: 2,
-              project: null,
-              projectMilestone: null,
-              parent: null,
-              children: {
-                nodes: [],
-              },
               comments: {
-                pageInfo: { hasNextPage: false, endCursor: null },
+                pageInfo: {
+                  hasNextPage: false,
+                  endCursor: null,
+                },
                 nodes: [
                   {
-                    id: "comment-root-open",
-                    body: "Open thread root comment.",
-                    createdAt: "2024-01-15T10:30:00Z",
+                    updatedAt: "2024-01-15T10:30:00Z",
                     url: "https://linear.app/issue/TEST-321#comment-root-open",
                     resolvedAt: null,
                     resolvingCommentId: null,
                     resolvingUser: null,
+                    id: "comment-root-open",
+                    body: "Open thread root comment.",
+                    createdAt: "2024-01-15T10:30:00Z",
                     user: {
                       name: "john.doe",
                       displayName: "John Doe",
@@ -1269,13 +1655,14 @@ await snapshotTest({
                     parent: null,
                   },
                   {
-                    id: "comment-reply-open",
-                    body: "Reply on the open thread.",
-                    createdAt: "2024-01-15T11:00:00Z",
+                    updatedAt: "2024-01-15T11:00:00Z",
                     url: "https://linear.app/issue/TEST-321#comment-reply-open",
                     resolvedAt: null,
                     resolvingCommentId: null,
                     resolvingUser: null,
+                    id: "comment-reply-open",
+                    body: "Reply on the open thread.",
+                    createdAt: "2024-01-15T11:00:00Z",
                     user: {
                       name: "jane.smith",
                       displayName: "Jane Smith",
@@ -1286,9 +1673,7 @@ await snapshotTest({
                     },
                   },
                   {
-                    id: "comment-root-resolved",
-                    body: "Resolved thread root comment.",
-                    createdAt: "2024-01-15T12:00:00Z",
+                    updatedAt: "2024-01-15T12:00:00Z",
                     url:
                       "https://linear.app/issue/TEST-321#comment-root-resolved",
                     resolvedAt: "2024-01-15T12:30:00Z",
@@ -1297,6 +1682,9 @@ await snapshotTest({
                       name: "alice.dev",
                       displayName: "Alice Developer",
                     },
+                    id: "comment-root-resolved",
+                    body: "Resolved thread root comment.",
+                    createdAt: "2024-01-15T12:00:00Z",
                     user: {
                       name: "alice.dev",
                       displayName: "Alice Developer",
@@ -1307,7 +1695,10 @@ await snapshotTest({
                 ],
               },
               attachments: {
-                pageInfo: { hasNextPage: false, endCursor: null },
+                pageInfo: {
+                  hasNextPage: false,
+                  endCursor: null,
+                },
                 nodes: [],
               },
             },
@@ -1365,7 +1756,25 @@ await snapshotTest({
         variables: { id: "TEST-654" },
         response: {
           data: {
+            organization: {
+              id: "99999999-9999-4999-8999-999999999999",
+              urlKey: "test-team",
+            },
             issue: {
+              ...emptyIssueFields,
+              id: "11111111-1111-4111-8111-000000000654",
+              team: {
+                id: "22222222-2222-4222-8222-222222222222",
+                key: "TEST",
+                activeCycle: null,
+              },
+              labels: {
+                pageInfo: {
+                  hasNextPage: false,
+                  endCursor: null,
+                },
+                nodes: [],
+              },
               identifier: "TEST-654",
               title: "Expose resolved thread metadata",
               description: "Test JSON output for resolved thread data.",
@@ -1373,25 +1782,19 @@ await snapshotTest({
                 "https://linear.app/test-team/issue/TEST-654/expose-resolved-thread-metadata",
               branchName: "test-654-resolved-thread-json",
               state: {
+                id: "33333333-3333-4333-8333-333333333333",
+                type: "backlog",
                 name: "Backlog",
                 color: "#bec2c8",
               },
-              assignee: null,
-              priority: 0,
-              project: null,
-              projectMilestone: null,
-              cycle: null,
-              parent: null,
-              children: {
-                nodes: [],
-              },
               comments: {
-                pageInfo: { hasNextPage: false, endCursor: null },
+                pageInfo: {
+                  hasNextPage: false,
+                  endCursor: null,
+                },
                 nodes: [
                   {
-                    id: "comment-root-json",
-                    body: "Resolved root comment.",
-                    createdAt: "2024-01-15T10:30:00Z",
+                    updatedAt: "2024-01-15T10:30:00Z",
                     url: "https://linear.app/issue/TEST-654#comment-root-json",
                     resolvedAt: "2024-01-15T11:00:00Z",
                     resolvingCommentId: null,
@@ -1399,6 +1802,9 @@ await snapshotTest({
                       name: "john.doe",
                       displayName: "John Doe",
                     },
+                    id: "comment-root-json",
+                    body: "Resolved root comment.",
+                    createdAt: "2024-01-15T10:30:00Z",
                     user: {
                       name: "john.doe",
                       displayName: "John Doe",
@@ -1407,13 +1813,14 @@ await snapshotTest({
                     parent: null,
                   },
                   {
-                    id: "comment-reply-json",
-                    body: "Reply under the resolved thread.",
-                    createdAt: "2024-01-15T10:45:00Z",
+                    updatedAt: "2024-01-15T10:45:00Z",
                     url: "https://linear.app/issue/TEST-654#comment-reply-json",
                     resolvedAt: null,
                     resolvingCommentId: null,
                     resolvingUser: null,
+                    id: "comment-reply-json",
+                    body: "Reply under the resolved thread.",
+                    createdAt: "2024-01-15T10:45:00Z",
                     user: {
                       name: "jane.smith",
                       displayName: "Jane Smith",
@@ -1426,7 +1833,10 @@ await snapshotTest({
                 ],
               },
               attachments: {
-                pageInfo: { hasNextPage: false, endCursor: null },
+                pageInfo: {
+                  hasNextPage: false,
+                  endCursor: null,
+                },
                 nodes: [],
               },
             },
@@ -1465,30 +1875,29 @@ await snapshotTest({
         variables: { id: "TEST-123" },
         response: {
           data: {
+            organization: {
+              id: "99999999-9999-4999-8999-999999999999",
+              urlKey: "test-team",
+            },
             issue: {
-              identifier: "TEST-123",
-              title: "Fix authentication bug in login flow",
-              description:
-                "Users are experiencing issues logging in when their session expires.",
-              url:
-                "https://linear.app/test-team/issue/TEST-123/fix-authentication-bug-in-login-flow",
-              branchName: "fix/test-123-auth-bug",
-              state: {
-                name: "In Progress",
-                color: "#f87462",
-              },
+              ...emptyIssueFields,
+              id: "11111111-1111-4111-8111-000000000123",
+              priority: 2,
               assignee: {
+                id: "44444444-4444-4444-8444-444444444444",
                 name: "jane.smith",
                 displayName: "Jane Smith",
               },
-              priority: 2,
-              project: null,
-              projectMilestone: null,
-              parent: null,
-              children: {
-                nodes: [],
+              team: {
+                id: "22222222-2222-4222-8222-222222222222",
+                key: "TEST",
+                activeCycle: null,
               },
               labels: {
+                pageInfo: {
+                  hasNextPage: false,
+                  endCursor: null,
+                },
                 nodes: [
                   {
                     id: "label-1",
@@ -1502,10 +1911,31 @@ await snapshotTest({
                   },
                 ],
               },
+              identifier: "TEST-123",
+              title: "Fix authentication bug in login flow",
+              description:
+                "Users are experiencing issues logging in when their session expires.",
+              url:
+                "https://linear.app/test-team/issue/TEST-123/fix-authentication-bug-in-login-flow",
+              branchName: "fix/test-123-auth-bug",
+              state: {
+                id: "33333333-3333-4333-8333-333333333333",
+                type: "started",
+                name: "In Progress",
+                color: "#f87462",
+              },
               comments: {
-                pageInfo: { hasNextPage: false, endCursor: null },
+                pageInfo: {
+                  hasNextPage: false,
+                  endCursor: null,
+                },
                 nodes: [
                   {
+                    updatedAt: "2024-01-15T10:30:00Z",
+                    url: "https://linear.app/issue/TEST-123#comment-1",
+                    resolvedAt: null,
+                    resolvingCommentId: null,
+                    resolvingUser: null,
                     id: "comment-1",
                     body: "Reproduced on staging.",
                     createdAt: "2024-01-15T10:30:00Z",
@@ -1519,7 +1949,10 @@ await snapshotTest({
                 ],
               },
               attachments: {
-                pageInfo: { hasNextPage: false, endCursor: null },
+                pageInfo: {
+                  hasNextPage: false,
+                  endCursor: null,
+                },
                 nodes: [],
               },
             },

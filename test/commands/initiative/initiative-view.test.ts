@@ -16,6 +16,7 @@ await cliffySnapshotTest({
         variables: { id: "550e8400-e29b-41d4-a716-446655440000" },
         response: {
           data: {
+            organization: { id: "workspace-1", urlKey: "test" },
             initiative: {
               id: "550e8400-e29b-41d4-a716-446655440000",
               slugId: "alpha",
@@ -36,6 +37,7 @@ await cliffySnapshotTest({
                 displayName: "Alex Active",
               },
               projects: {
+                pageInfo: { hasNextPage: false, endCursor: null },
                 nodes: [
                   {
                     id: "project-1",

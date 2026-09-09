@@ -1,198 +1,14 @@
+import {
+  setupIssueWriteServer as setupMockLinearServer,
+  teamWriteIds,
+} from "../../utils/issue-write-fixtures.ts"
 import { snapshotTest } from "@cliffy/testing"
 import { assertEquals, assertRejects, assertStringIncludes } from "@std/assert"
-import { fromFileUrl, join } from "@std/path"
 import { Checkbox, Input, Select } from "@cliffy/prompt"
 import { stub } from "@std/testing/mock"
 import { stripIgnoredCharacters } from "graphql"
 import { createCommand } from "../../../src/commands/issue/issue-create.ts"
-import {
-  commonDenoArgs,
-  setupMockLinearServer,
-} from "../../utils/test-helpers.ts"
-
-const main = fromFileUrl(new URL("../../../src/main.ts", import.meta.url))
-
-for (
-  const { assignee, allowed } of [
-    { assignee: "self", allowed: true },
-    { assignee: "@me", allowed: true },
-    { assignee: "jane", allowed: false },
-    { assignee: "abcdef01-2345-4678-9abc-def012345678", allowed: false },
-  ]
-) {
-  Deno.test(`Issue Create Command - --start assignee ${assignee}`, async () => {
-    const viewerId = "abcdef01-2345-4678-9abc-def012345678"
-    const issueId = "12345678-1234-4678-9abc-def012345678"
-    const branchName = "eng-123-start-alias"
-    const { server, cleanup } = await setupMockLinearServer([
-      {
-        queryName: "GetTeamIdByKey",
-        variables: { team: "ENG" },
-        response: { data: { teams: { nodes: [{ id: "team-eng-id" }] } } },
-      },
-      {
-        queryName: "GetViewerId",
-        response: { data: { viewer: { id: viewerId } } },
-      },
-      {
-        queryName: "CreateIssue",
-        response: {
-          data: {
-            issueCreate: {
-              success: true,
-              issue: {
-                id: issueId,
-                identifier: "ENG-123",
-                url: "https://linear.app/test/issue/ENG-123/start-alias",
-                team: { key: "ENG" },
-              },
-            },
-          },
-        },
-      },
-      {
-        queryName: "GetIssueDetails",
-        variables: { id: issueId },
-        response: { data: { issue: { identifier: "ENG-123", branchName } } },
-      },
-      {
-        queryName: "GetWorkflowStates",
-        variables: { teamKey: "ENG" },
-        response: {
-          data: {
-            team: {
-              states: {
-                nodes: [{
-                  id: "state-started",
-                  name: "In Progress",
-                  type: "started",
-                  position: 1,
-                }],
-              },
-            },
-          },
-        },
-      },
-      {
-        queryName: "UpdateIssueState",
-        variables: { issueId, stateId: "state-started" },
-        response: { data: { issueUpdate: { success: true } } },
-      },
-    ])
-    const tempDir = await Deno.makeTempDir()
-
-    try {
-      // Keep the real startWorkOnIssue/VCS path inside a disposable repository.
-      for (
-        const args of [
-          ["init", "-b", "main"],
-          ["config", "user.name", "Linear Test"],
-          ["config", "user.email", "linear-test@example.com"],
-          [
-            "-c",
-            "commit.gpgsign=false",
-            "commit",
-            "--allow-empty",
-            "-m",
-            "initial",
-          ],
-        ]
-      ) {
-        const result = await new Deno.Command("git", {
-          args,
-          cwd: tempDir,
-          stdout: "null",
-          stderr: "piped",
-        }).output()
-        assertEquals(result.success, true)
-      }
-      const denoJsonPath = fromFileUrl(
-        new URL("../../../deno.json", import.meta.url),
-      )
-      const denoDir = Deno.env.get("DENO_DIR") ??
-        join(Deno.env.get("HOME") ?? tempDir, ".cache", "deno")
-      const result = await new Deno.Command(Deno.execPath(), {
-        args: [
-          "run",
-          "--allow-all",
-          "--quiet",
-          `--config=${denoJsonPath}`,
-          main,
-          "issue",
-          "create",
-          "--title",
-          "Start with viewer alias",
-          "--team",
-          "ENG",
-          "--start",
-          "--assignee",
-          assignee,
-          "--no-interactive",
-        ],
-        cwd: tempDir,
-        clearEnv: true,
-        env: {
-          PATH: Deno.env.get("PATH") ?? "",
-          HOME: tempDir,
-          DENO_DIR: denoDir,
-          LINEAR_API_KEY: "Bearer test-token",
-          LINEAR_GRAPHQL_ENDPOINT: server.getEndpoint(),
-          LINEAR_PROMPT_DISABLED: "1",
-          LINEAR_ISSUE_CREATE_ASSIGN_SELF: "never",
-          LINEAR_VCS: "git",
-          NO_COLOR: "1",
-        },
-        stdout: "piped",
-        stderr: "piped",
-      }).output()
-      const stdout = new TextDecoder().decode(result.stdout)
-      const stderr = new TextDecoder().decode(result.stderr)
-      assertEquals(result.code, allowed ? 0 : 1, stderr)
-      const requests = server.graphqlRequests
-      assertEquals(
-        requests.map((request) =>
-          request.query.match(/(?:query|mutation)\s+(\w+)/)?.[1]
-        ),
-        allowed
-          ? [
-            "GetTeamIdByKey",
-            "GetViewerId",
-            "CreateIssue",
-            "GetIssueDetails",
-            "GetWorkflowStates",
-            "UpdateIssueState",
-          ]
-          : ["GetTeamIdByKey"],
-      )
-      if (allowed) {
-        assertEquals(
-          (requests[2].variables.input as { assigneeId: string }).assigneeId,
-          viewerId,
-        )
-        assertStringIncludes(stdout, "Issue state updated to 'In Progress'")
-      } else {
-        assertStringIncludes(
-          stderr,
-          "Cannot use --start and a non-self --assignee",
-        )
-      }
-      const branch = await new Deno.Command("git", {
-        args: ["branch", "--show-current"],
-        cwd: tempDir,
-        stdout: "piped",
-        stderr: "piped",
-      }).output()
-      assertEquals(branch.success, true)
-      assertEquals(
-        new TextDecoder().decode(branch.stdout).trim(),
-        allowed ? branchName : "main",
-      )
-    } finally {
-      await Deno.remove(tempDir, { recursive: true })
-      await cleanup()
-    }
-  })
-}
+import { commonDenoArgs } from "../../utils/test-helpers.ts"
 
 for (const outcome of ["found", "missing", "error"] as const) {
   Deno.test(`Issue Create Command - UUID assignee ${outcome} overrides default self only after lookup`, async () => {
@@ -201,7 +17,7 @@ for (const outcome of ["found", "missing", "error"] as const) {
       {
         queryName: "GetTeamIdByKey",
         variables: { team: "ENG" },
-        response: { data: { teams: { nodes: [{ id: "team-eng-id" }] } } },
+        response: { data: { teams: { nodes: [{ id: teamWriteIds.ENG }] } } },
       },
       {
         queryName: "GetViewerId",
@@ -256,8 +72,13 @@ for (const outcome of ["found", "missing", "error"] as const) {
         "--no-interactive",
         "--json",
       ]
-      if (outcome === "found") await createCommand.parse(args)
-      else {
+      if (outcome === "found") {
+        try {
+          await createCommand.parse(args)
+        } catch (cause) {
+          throw new Error(logs.join("\n"), { cause })
+        }
+      } else {
         await assertRejects(() => createCommand.parse(args), Error, "EXIT")
         assertStringIncludes(
           logs.join("\n"),
@@ -270,7 +91,7 @@ for (const outcome of ["found", "missing", "error"] as const) {
       assertEquals(lookup?.variables, { id: userId })
       assertStringIncludes(
         stripIgnoredCharacters(lookup?.query ?? ""),
-        "users(filter:{id:{eq:$id}})",
+        "filter:{id:{eq:$id}}",
       )
       assertEquals(
         server.graphqlRequests.some((request) =>
@@ -296,33 +117,6 @@ for (const outcome of ["found", "missing", "error"] as const) {
     }
   })
 }
-
-Deno.test("issue create rejects --json with --start through the standard error boundary", async () => {
-  const result = await new Deno.Command(Deno.execPath(), {
-    args: [
-      "run",
-      "--allow-all",
-      "--quiet",
-      main,
-      "issue",
-      "create",
-      "--json",
-      "--start",
-    ],
-    stdout: "piped",
-    stderr: "piped",
-  }).output()
-  const stdout = new TextDecoder().decode(result.stdout)
-  const stderr = new TextDecoder().decode(result.stderr)
-
-  assertEquals(result.code, 1)
-  assertEquals(stdout, "")
-  assertStringIncludes(
-    stderr,
-    "✗ Failed to create issue: Cannot combine --json with --start",
-  )
-  assertEquals(stderr.includes("Uncaught"), false)
-})
 
 // Test help output
 await snapshotTest({
@@ -367,7 +161,7 @@ await snapshotTest({
         response: {
           data: {
             teams: {
-              nodes: [{ id: "team-eng-id" }],
+              nodes: [{ id: teamWriteIds.ENG }],
             },
           },
         },
@@ -441,7 +235,11 @@ await snapshotTest({
               id: "project-id",
               name: "Project",
               teams: {
-                nodes: [{ id: "team-eng-id", key: "ENG", name: "Engineering" }],
+                nodes: [{
+                  id: teamWriteIds.ENG,
+                  key: "ENG",
+                  name: "Engineering",
+                }],
                 pageInfo: { hasNextPage: false, endCursor: null },
               },
             },
@@ -455,7 +253,7 @@ await snapshotTest({
         response: {
           data: {
             teams: {
-              nodes: [{ id: "team-eng-id" }],
+              nodes: [{ id: teamWriteIds.ENG }],
             },
           },
         },
@@ -545,7 +343,7 @@ await snapshotTest({
         response: {
           data: {
             teams: {
-              nodes: [{ id: "team-eng-id" }],
+              nodes: [{ id: teamWriteIds.ENG }],
             },
           },
         },
@@ -553,7 +351,7 @@ await snapshotTest({
       // Mock response for getIssueLabelIdByNameForTeam("BUG", "ENG") - case insensitive
       {
         queryName: "GetIssueLabelIdByNameForTeam",
-        variables: { name: "BUG", teamKey: "ENG" },
+        variables: { name: "BUG", team: { id: { eq: teamWriteIds.ENG } } },
         response: {
           data: {
             issueLabels: {
@@ -621,7 +419,7 @@ await snapshotTest({
         response: {
           data: {
             teams: {
-              nodes: [{ id: "team-eng-id" }],
+              nodes: [{ id: teamWriteIds.ENG }],
             },
           },
         },
@@ -706,7 +504,7 @@ await snapshotTest({
         response: {
           data: {
             teams: {
-              nodes: [{ id: "team-eng-id" }],
+              nodes: [{ id: teamWriteIds.ENG }],
             },
           },
         },
@@ -714,7 +512,7 @@ await snapshotTest({
       // Mock response for getCycleIdByNameOrNumber("active")
       {
         queryName: "GetTeamCyclesForLookup",
-        variables: { teamId: "team-eng-id" },
+        variables: { teamId: teamWriteIds.ENG },
         response: {
           data: {
             team: {
@@ -786,7 +584,11 @@ Deno.test("Issue Create Command - Explicit Project Still Uses Interactive Mode",
             id: "project-id",
             name: "Project",
             teams: {
-              nodes: [{ id: "team-eng-id", key: "ENG", name: "Engineering" }],
+              nodes: [{
+                id: teamWriteIds.ENG,
+                key: "ENG",
+                name: "Engineering",
+              }],
               pageInfo: { hasNextPage: false, endCursor: null },
             },
           },
@@ -820,13 +622,14 @@ Deno.test("Issue Create Command - Explicit Project Still Uses Interactive Mode",
       response: {
         data: {
           teams: {
-            nodes: [{ id: "team-eng-id" }],
+            nodes: [{ id: teamWriteIds.ENG }],
           },
         },
       },
     },
     {
       queryName: "GetWorkflowStates",
+      variables: { teamKey: teamWriteIds.ENG },
       response: {
         data: {
           team: {
@@ -855,7 +658,7 @@ Deno.test("Issue Create Command - Explicit Project Still Uses Interactive Mode",
         input: {
           title: "Create dashboard issue",
           labelIds: [],
-          teamId: "team-eng-id",
+          teamId: teamWriteIds.ENG,
           projectId: "project-123",
           useDefaultTemplate: true,
         },
@@ -909,18 +712,12 @@ Deno.test("Issue Create Command - Explicit Project Still Uses Interactive Mode",
     if (options.message === "What's next?") {
       return Promise.resolve("submit")
     }
-    if (
-      options.message ===
-        "Start working on this issue now? (creates branch and updates status)"
-    ) {
-      return Promise.resolve(false)
-    }
     throw new Error(`Unexpected Select.prompt call: ${options.message}`)
   })
 
   try {
     await createCommand.parse(["--project", "Dashboard"])
-    assertEquals(selectCallCount, 2)
+    assertEquals(selectCallCount, 1)
   } finally {
     selectStub.restore()
     inputStub.restore()
@@ -940,7 +737,11 @@ Deno.test("Issue Create Command - Interactive Project Prompt Uses Team Projects"
             id: "project-id",
             name: "Project",
             teams: {
-              nodes: [{ id: "team-eng-id", key: "ENG", name: "Engineering" }],
+              nodes: [{
+                id: teamWriteIds.ENG,
+                key: "ENG",
+                name: "Engineering",
+              }],
               pageInfo: { hasNextPage: false, endCursor: null },
             },
           },
@@ -963,7 +764,7 @@ Deno.test("Issue Create Command - Interactive Project Prompt Uses Team Projects"
       response: {
         data: {
           teams: {
-            nodes: [{ id: "team-eng-id" }],
+            nodes: [{ id: teamWriteIds.ENG }],
           },
         },
       },
@@ -981,6 +782,7 @@ Deno.test("Issue Create Command - Interactive Project Prompt Uses Team Projects"
     },
     {
       queryName: "GetWorkflowStates",
+      variables: { teamKey: teamWriteIds.ENG },
       response: {
         data: {
           team: {
@@ -1009,7 +811,7 @@ Deno.test("Issue Create Command - Interactive Project Prompt Uses Team Projects"
         input: {
           title: "Issue with prompted project",
           labelIds: [],
-          teamId: "team-eng-id",
+          teamId: teamWriteIds.ENG,
           projectId: "project-456",
           useDefaultTemplate: true,
         },
@@ -1097,7 +899,11 @@ Deno.test("Issue Create Command - Additional Fields Can Set Project", async () =
             id: "project-id",
             name: "Project",
             teams: {
-              nodes: [{ id: "team-eng-id", key: "ENG", name: "Engineering" }],
+              nodes: [{
+                id: teamWriteIds.ENG,
+                key: "ENG",
+                name: "Engineering",
+              }],
               pageInfo: { hasNextPage: false, endCursor: null },
             },
           },
@@ -1120,13 +926,14 @@ Deno.test("Issue Create Command - Additional Fields Can Set Project", async () =
       response: {
         data: {
           teams: {
-            nodes: [{ id: "team-eng-id" }],
+            nodes: [{ id: teamWriteIds.ENG }],
           },
         },
       },
     },
     {
       queryName: "GetWorkflowStates",
+      variables: { teamKey: teamWriteIds.ENG },
       response: {
         data: {
           team: {
@@ -1166,7 +973,7 @@ Deno.test("Issue Create Command - Additional Fields Can Set Project", async () =
         input: {
           title: "Issue from more fields",
           labelIds: [],
-          teamId: "team-eng-id",
+          teamId: teamWriteIds.ENG,
           projectId: "project-789",
           useDefaultTemplate: true,
         },
@@ -1258,7 +1065,7 @@ for (const mode of ["flags", "interactive"] as const) {
       {
         queryName: "GetTeamIdByKey",
         response: {
-          data: { teams: { nodes: [{ id: "team-eng-id" }] } },
+          data: { teams: { nodes: [{ id: teamWriteIds.ENG }] } },
         },
       },
       {
@@ -1328,7 +1135,11 @@ Deno.test("Issue Create Command - Inherits Parent Project When Project Not Set",
             id: "project-id",
             name: "Project",
             teams: {
-              nodes: [{ id: "team-eng-id", key: "ENG", name: "Engineering" }],
+              nodes: [{
+                id: teamWriteIds.ENG,
+                key: "ENG",
+                name: "Engineering",
+              }],
               pageInfo: { hasNextPage: false, endCursor: null },
             },
           },
@@ -1341,7 +1152,7 @@ Deno.test("Issue Create Command - Inherits Parent Project When Project Not Set",
       response: {
         data: {
           teams: {
-            nodes: [{ id: "team-eng-id" }],
+            nodes: [{ id: teamWriteIds.ENG }],
           },
         },
       },
@@ -1379,7 +1190,7 @@ Deno.test("Issue Create Command - Inherits Parent Project When Project Not Set",
           title: "Child issue",
           parentId: "parent-1",
           labelIds: [],
-          teamId: "team-eng-id",
+          teamId: teamWriteIds.ENG,
           projectId: "project-parent",
           useDefaultTemplate: true,
         },
@@ -1427,7 +1238,11 @@ Deno.test("Issue Create Command - Explicit Project Overrides Parent Project", as
             id: "project-id",
             name: "Project",
             teams: {
-              nodes: [{ id: "team-eng-id", key: "ENG", name: "Engineering" }],
+              nodes: [{
+                id: teamWriteIds.ENG,
+                key: "ENG",
+                name: "Engineering",
+              }],
               pageInfo: { hasNextPage: false, endCursor: null },
             },
           },
@@ -1440,7 +1255,7 @@ Deno.test("Issue Create Command - Explicit Project Overrides Parent Project", as
       response: {
         data: {
           teams: {
-            nodes: [{ id: "team-eng-id" }],
+            nodes: [{ id: teamWriteIds.ENG }],
           },
         },
       },
@@ -1489,7 +1304,7 @@ Deno.test("Issue Create Command - Explicit Project Overrides Parent Project", as
           title: "Child issue override",
           parentId: "parent-1",
           labelIds: [],
-          teamId: "team-eng-id",
+          teamId: teamWriteIds.ENG,
           projectId: "project-dashboard",
           useDefaultTemplate: true,
         },
@@ -1540,7 +1355,11 @@ Deno.test("Issue Create Command - Invalid Parent Project Combination Surfaces Ba
             id: "project-id",
             name: "Project",
             teams: {
-              nodes: [{ id: "team-eng-id", key: "ENG", name: "Engineering" }],
+              nodes: [{
+                id: teamWriteIds.ENG,
+                key: "ENG",
+                name: "Engineering",
+              }],
               pageInfo: { hasNextPage: false, endCursor: null },
             },
           },
@@ -1553,7 +1372,7 @@ Deno.test("Issue Create Command - Invalid Parent Project Combination Surfaces Ba
       response: {
         data: {
           teams: {
-            nodes: [{ id: "team-eng-id" }],
+            nodes: [{ id: teamWriteIds.ENG }],
           },
         },
       },
@@ -1651,7 +1470,7 @@ Deno.test("Issue Create Command - Config Can Assign Self By Default", async () =
       response: {
         data: {
           teams: {
-            nodes: [{ id: "team-eng-id" }],
+            nodes: [{ id: teamWriteIds.ENG }],
           },
         },
       },
@@ -1673,7 +1492,7 @@ Deno.test("Issue Create Command - Config Can Assign Self By Default", async () =
           title: "Assigned to self",
           assigneeId: "user-self-123",
           labelIds: [],
-          teamId: "team-eng-id",
+          teamId: teamWriteIds.ENG,
           useDefaultTemplate: true,
         },
       },
@@ -1730,13 +1549,14 @@ Deno.test("Issue Create Command - Auto Assign Mode Respects Linear User Setting 
       response: {
         data: {
           teams: {
-            nodes: [{ id: "team-eng-id" }],
+            nodes: [{ id: teamWriteIds.ENG }],
           },
         },
       },
     },
     {
       queryName: "GetWorkflowStates",
+      variables: { teamKey: teamWriteIds.ENG },
       response: {
         data: {
           team: {
@@ -1845,7 +1665,7 @@ Deno.test("Issue Create Command - Explicit Assignee Overrides Config Self Assign
       response: {
         data: {
           teams: {
-            nodes: [{ id: "team-eng-id" }],
+            nodes: [{ id: teamWriteIds.ENG }],
           },
         },
       },
@@ -1883,7 +1703,7 @@ Deno.test("Issue Create Command - Explicit Assignee Overrides Config Self Assign
           title: "Assigned explicitly",
           assigneeId: "user-jane-456",
           labelIds: [],
-          teamId: "team-eng-id",
+          teamId: teamWriteIds.ENG,
           useDefaultTemplate: true,
         },
       },
@@ -1932,13 +1752,14 @@ Deno.test("Issue Create Command - Interactive Assignee Can Override Config Self 
       response: {
         data: {
           teams: {
-            nodes: [{ id: "team-eng-id" }],
+            nodes: [{ id: teamWriteIds.ENG }],
           },
         },
       },
     },
     {
       queryName: "GetWorkflowStates",
+      variables: { teamKey: teamWriteIds.ENG },
       response: {
         data: {
           team: {
@@ -2079,10 +1900,11 @@ await snapshotTest({
       {
         queryName: "GetTeamIdByKey",
         variables: { team: "ENG" },
-        response: { data: { teams: { nodes: [{ id: "team-eng-id" }] } } },
+        response: { data: { teams: { nodes: [{ id: teamWriteIds.ENG }] } } },
       },
       {
         queryName: "GetWorkflowStates",
+        variables: { teamKey: teamWriteIds.ENG },
         response: {
           data: {
             team: {

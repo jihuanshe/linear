@@ -1,10 +1,25 @@
 import { Command } from "@cliffy/command"
 import { withUsageMetadata } from "../usage.ts"
 import { gql } from "../../__codegen__/gql.ts"
+import type { ProjectMilestoneUpdateInput } from "../../__codegen__/graphql.ts"
 import { getGraphQLClient } from "../../utils/graphql.ts"
 import { resolveProjectId } from "../../utils/linear.ts"
 import { shouldShowSpinner } from "../../utils/hyperlink.ts"
-import { CliError, handleError, ValidationError } from "../../utils/errors.ts"
+import {
+  assertMutationReceipt,
+  assertMutationSuccess,
+  handleError,
+  ValidationError,
+} from "../../utils/errors.ts"
+import {
+  loadBasisFile,
+  prepareReplacement,
+  referenceField,
+  scalarField,
+  validateReplacementOptions,
+} from "../../utils/replacement.ts"
+import { readMilestone } from "./milestone-read.ts"
+import { printWriteResult } from "../../utils/write-result.ts"
 
 const UpdateProjectMilestone = gql(`
   mutation UpdateProjectMilestone($id: String!, $input: ProjectMilestoneUpdateInput!) {
@@ -13,6 +28,7 @@ const UpdateProjectMilestone = gql(`
       projectMilestone {
         id
         name
+        description
         targetDate
         sortOrder
         project {
@@ -29,7 +45,11 @@ export const updateCommand = withUsageMetadata(new Command(), { writes: true })
   .description("Update an existing project milestone")
   .arguments("<id:string>")
   .option("--name <name:string>", "Milestone name")
-  .option("--description <description:string>", "Milestone description")
+  .option(
+    "--description <description:string>",
+    "Milestone description; empty string clears it",
+    { preserveEmpty: true },
+  )
   .option("--target-date <date:string>", "Target date (YYYY-MM-DD)")
   .option(
     "--sort-order <value:number>",
@@ -39,35 +59,67 @@ export const updateCommand = withUsageMetadata(new Command(), { writes: true })
     "--project <project:string>",
     "Move to a different project (UUID, slug ID, or name)",
   )
+  .option("-j, --json", "Output the write result as JSON")
+  .option(
+    "--base-file <path:string>",
+    "Original view --json output, saved before preparing the update",
+  )
+  .option(
+    "--unprotected",
+    "Explicitly skip original-value comparison; domain checks still apply",
+  )
+  .option(
+    "--expect-field <field:string>",
+    "Also require this API field to match the original basis",
+    { collect: true },
+  )
   .action(
     async (
-      { name, description, targetDate, sortOrder, project: projectIdOrSlug },
+      {
+        name,
+        description,
+        targetDate,
+        sortOrder,
+        project: projectIdOrSlug,
+        json,
+        baseFile,
+        unprotected,
+        expectField,
+      },
       id,
     ) => {
-      if (
-        !name && !description && !targetDate && sortOrder == null &&
-        !projectIdOrSlug
-      ) {
-        throw new ValidationError(
-          "At least one update option must be provided",
-          {
-            suggestion:
-              "Use --name, --description, --target-date, --sort-order, or --project",
-          },
-        )
-      }
-
       const { Spinner } = await import("@std/cli/unstable-spinner")
-      const showSpinner = shouldShowSpinner()
+      const showSpinner = shouldShowSpinner() && !json
       const spinner = showSpinner ? new Spinner() : null
       spinner?.start()
 
       try {
+        if (
+          !name && description == null && !targetDate && sortOrder == null &&
+          !projectIdOrSlug
+        ) {
+          throw new ValidationError(
+            "At least one update option must be provided",
+            {
+              suggestion:
+                "Use --name, --description, --target-date, --sort-order, or --project",
+            },
+          )
+        }
+        if (targetDate && !/^\d{4}-\d{2}-\d{2}$/.test(targetDate)) {
+          throw new ValidationError("Target date must be in YYYY-MM-DD format")
+        }
+        const original = baseFile ? await loadBasisFile(baseFile) : undefined
+        validateReplacementOptions({
+          original,
+          unprotected,
+          expectFields: expectField,
+        })
         const client = getGraphQLClient()
-        const input: Record<string, unknown> = {}
+        const input: ProjectMilestoneUpdateInput = {}
 
         if (name) input.name = name
-        if (description) input.description = description
+        if (description != null) input.description = description
         if (targetDate) input.targetDate = targetDate
         if (sortOrder != null) input.sortOrder = sortOrder
         if (projectIdOrSlug) {
@@ -75,25 +127,55 @@ export const updateCommand = withUsageMetadata(new Command(), { writes: true })
           input.projectId = await resolveProjectId(projectIdOrSlug)
         }
 
+        const current = await readMilestone(client, id)
+        const resolvedId = current.projectMilestone!.id
+        const plan = prepareReplacement({
+          objectKey: "projectMilestone",
+          targetId: resolvedId,
+          original,
+          current,
+          desired: input,
+          fields: {
+            name: scalarField("name"),
+            description: scalarField("description"),
+            targetDate: scalarField("targetDate"),
+            sortOrder: scalarField("sortOrder"),
+            projectId: referenceField("project"),
+          },
+          unprotected,
+          expectFields: expectField,
+        })
+        if (Object.keys(plan.input).length === 0) {
+          spinner?.stop()
+          if (json) {
+            printWriteResult({ projectMilestone: current.projectMilestone }, {
+              effect: "none",
+              fields: plan.fields,
+            })
+          } else console.log("No changes needed")
+          return
+        }
         const result = await client.request(UpdateProjectMilestone, {
-          id,
-          input,
+          id: resolvedId,
+          input: plan.input,
         })
         spinner?.stop()
 
-        if (result.projectMilestoneUpdate.success) {
-          const milestone = result.projectMilestoneUpdate.projectMilestone
-          if (milestone) {
-            console.log(`✓ Updated milestone: ${milestone.name}`)
-            console.log(`  ID: ${milestone.id}`)
-            if (milestone.targetDate) {
-              console.log(`  Target Date: ${milestone.targetDate}`)
-            }
-            console.log(`  Sort Order: ${milestone.sortOrder}`)
-            console.log(`  Project: ${milestone.project.name}`)
-          }
+        assertMutationSuccess(result.projectMilestoneUpdate, result)
+        const milestone = result.projectMilestoneUpdate.projectMilestone
+        assertMutationReceipt(milestone, result, resolvedId)
+        if (json) {
+          printWriteResult({ projectMilestone: milestone }, {
+            fields: plan.fields,
+          })
         } else {
-          throw new CliError("Failed to update milestone")
+          console.log(`✓ Updated milestone: ${milestone.name}`)
+          console.log(`  ID: ${milestone.id}`)
+          if (milestone.targetDate) {
+            console.log(`  Target Date: ${milestone.targetDate}`)
+          }
+          console.log(`  Sort Order: ${milestone.sortOrder}`)
+          console.log(`  Project: ${milestone.project.name}`)
         }
       } catch (error) {
         spinner?.stop()

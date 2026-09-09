@@ -128,26 +128,69 @@ stderr:
 snapshot[`Issue View Command - JSON Output No Comments 1`] = `
 stdout:
 '{
-  "identifier": "TEST-123",
-  "title": "Fix authentication bug in login flow",
-  "description": "Users are experiencing issues logging in when their session expires.",
-  "url": "https://linear.app/test-team/issue/TEST-123/fix-authentication-bug-in-login-flow",
-  "branchName": "fix/test-123-auth-bug",
-  "state": {
-    "name": "In Progress",
-    "color": "#f87462"
+  "organization": {
+    "id": "99999999-9999-4999-8999-999999999999",
+    "urlKey": "test-team"
   },
-  "assignee": null,
-  "priority": 3,
-  "parent": null,
-  "children": {
-    "nodes": []
-  },
-  "attachments": {
-    "nodes": [],
-    "pageInfo": {
-      "hasNextPage": false,
-      "endCursor": null
+  "issue": {
+    "archivedAt": null,
+    "trashed": false,
+    "priority": 3,
+    "estimate": null,
+    "dueDate": null,
+    "assignee": null,
+    "project": null,
+    "projectMilestone": null,
+    "cycle": null,
+    "parent": null,
+    "labels": {
+      "nodes": [],
+      "pageInfo": {
+        "hasNextPage": false,
+        "endCursor": null
+      }
+    },
+    "children": {
+      "nodes": []
+    },
+    "relations": {
+      "nodes": [],
+      "pageInfo": {
+        "hasNextPage": false
+      }
+    },
+    "inverseRelations": {
+      "nodes": [],
+      "pageInfo": {
+        "hasNextPage": false
+      }
+    },
+    "documents": {
+      "nodes": []
+    },
+    "id": "11111111-1111-4111-8111-000000000123",
+    "team": {
+      "id": "22222222-2222-4222-8222-222222222222",
+      "key": "TEST",
+      "activeCycle": null
+    },
+    "identifier": "TEST-123",
+    "title": "Fix authentication bug in login flow",
+    "description": "Users are experiencing issues logging in when their session expires.",
+    "url": "https://linear.app/test-team/issue/TEST-123/fix-authentication-bug-in-login-flow",
+    "branchName": "fix/test-123-auth-bug",
+    "state": {
+      "id": "33333333-3333-4333-8333-333333333333",
+      "type": "started",
+      "name": "In Progress",
+      "color": "#f87462"
+    },
+    "attachments": {
+      "nodes": [],
+      "pageInfo": {
+        "hasNextPage": false,
+        "endCursor": null
+      }
     }
   }
 }
@@ -159,39 +202,81 @@ stderr:
 snapshot[`Issue View Command - JSON Output With Labels 1`] = `
 stdout:
 '{
-  "identifier": "TEST-123",
-  "title": "Fix authentication bug in login flow",
-  "description": "Users are experiencing issues logging in when their session expires.",
-  "url": "https://linear.app/test-team/issue/TEST-123/fix-authentication-bug-in-login-flow",
-  "branchName": "fix/test-123-auth-bug",
-  "state": {
-    "name": "In Progress",
-    "color": "#f87462"
+  "organization": {
+    "id": "99999999-9999-4999-8999-999999999999",
+    "urlKey": "test-team"
   },
-  "parent": null,
-  "children": {
-    "nodes": []
-  },
-  "attachments": {
-    "nodes": [],
-    "pageInfo": {
-      "hasNextPage": false,
-      "endCursor": null
-    }
-  },
-  "labels": {
-    "nodes": [
-      {
-        "id": "label-1",
-        "name": "bug",
-        "color": "#e5484d"
-      },
-      {
-        "id": "label-2",
-        "name": "priority:high",
-        "color": "#f5a524"
+  "issue": {
+    "archivedAt": null,
+    "trashed": false,
+    "priority": 0,
+    "estimate": null,
+    "dueDate": null,
+    "assignee": null,
+    "project": null,
+    "projectMilestone": null,
+    "cycle": null,
+    "parent": null,
+    "labels": {
+      "nodes": [
+        {
+          "id": "label-1",
+          "name": "bug",
+          "color": "#e5484d"
+        },
+        {
+          "id": "label-2",
+          "name": "priority:high",
+          "color": "#f5a524"
+        }
+      ],
+      "pageInfo": {
+        "hasNextPage": false,
+        "endCursor": null
       }
-    ]
+    },
+    "children": {
+      "nodes": []
+    },
+    "relations": {
+      "nodes": [],
+      "pageInfo": {
+        "hasNextPage": false
+      }
+    },
+    "inverseRelations": {
+      "nodes": [],
+      "pageInfo": {
+        "hasNextPage": false
+      }
+    },
+    "documents": {
+      "nodes": []
+    },
+    "id": "11111111-1111-4111-8111-000000000123",
+    "team": {
+      "id": "22222222-2222-4222-8222-222222222222",
+      "key": "TEST",
+      "activeCycle": null
+    },
+    "identifier": "TEST-123",
+    "title": "Fix authentication bug in login flow",
+    "description": "Users are experiencing issues logging in when their session expires.",
+    "url": "https://linear.app/test-team/issue/TEST-123/fix-authentication-bug-in-login-flow",
+    "branchName": "fix/test-123-auth-bug",
+    "state": {
+      "id": "33333333-3333-4333-8333-333333333333",
+      "type": "started",
+      "name": "In Progress",
+      "color": "#f87462"
+    },
+    "attachments": {
+      "nodes": [],
+      "pageInfo": {
+        "hasNextPage": false,
+        "endCursor": null
+      }
+    }
   }
 }
 '
@@ -202,63 +287,115 @@ stderr:
 snapshot[`Issue View Command - JSON Output With Comments 1`] = `
 stdout:
 \`{
-  "identifier": "TEST-123",
-  "title": "Fix authentication bug in login flow",
-  "description": "Users are experiencing issues logging in when their session expires.",
-  "url": "https://linear.app/test-team/issue/TEST-123/fix-authentication-bug-in-login-flow",
-  "branchName": "fix/test-123-auth-bug",
-  "state": {
-    "name": "In Progress",
-    "color": "#f87462"
+  "organization": {
+    "id": "99999999-9999-4999-8999-999999999999",
+    "urlKey": "test-team"
   },
-  "assignee": {
-    "name": "jane.smith",
-    "displayName": "Jane Smith"
-  },
-  "priority": 2,
-  "project": null,
-  "projectMilestone": null,
-  "parent": null,
-  "children": {
-    "nodes": []
-  },
-  "comments": {
-    "nodes": [
-      {
-        "id": "comment-1",
-        "body": "I've reproduced this issue on staging. The session timeout seems to be too aggressive.",
-        "createdAt": "2024-01-15T10:30:00Z",
-        "user": {
-          "name": "john.doe",
-          "displayName": "John Doe"
-        },
-        "externalUser": null,
-        "parent": null
-      },
-      {
-        "id": "comment-2",
-        "body": "Working on a fix. Will increase the session timeout and add proper error handling.",
-        "createdAt": "2024-01-15T14:22:00Z",
-        "user": {
-          "name": "jane.smith",
-          "displayName": "Jane Smith"
-        },
-        "externalUser": null,
-        "parent": {
-          "id": "comment-1"
-        }
+  "issue": {
+    "archivedAt": null,
+    "trashed": false,
+    "priority": 2,
+    "estimate": null,
+    "dueDate": null,
+    "assignee": {
+      "id": "44444444-4444-4444-8444-444444444444",
+      "name": "jane.smith",
+      "displayName": "Jane Smith"
+    },
+    "project": null,
+    "projectMilestone": null,
+    "cycle": null,
+    "parent": null,
+    "labels": {
+      "nodes": [],
+      "pageInfo": {
+        "hasNextPage": false,
+        "endCursor": null
       }
-    ],
-    "pageInfo": {
-      "hasNextPage": false,
-      "endCursor": null
-    }
-  },
-  "attachments": {
-    "nodes": [],
-    "pageInfo": {
-      "hasNextPage": false,
-      "endCursor": null
+    },
+    "children": {
+      "nodes": []
+    },
+    "relations": {
+      "nodes": [],
+      "pageInfo": {
+        "hasNextPage": false
+      }
+    },
+    "inverseRelations": {
+      "nodes": [],
+      "pageInfo": {
+        "hasNextPage": false
+      }
+    },
+    "documents": {
+      "nodes": []
+    },
+    "id": "11111111-1111-4111-8111-000000000123",
+    "team": {
+      "id": "22222222-2222-4222-8222-222222222222",
+      "key": "TEST",
+      "activeCycle": null
+    },
+    "identifier": "TEST-123",
+    "title": "Fix authentication bug in login flow",
+    "description": "Users are experiencing issues logging in when their session expires.",
+    "url": "https://linear.app/test-team/issue/TEST-123/fix-authentication-bug-in-login-flow",
+    "branchName": "fix/test-123-auth-bug",
+    "state": {
+      "id": "33333333-3333-4333-8333-333333333333",
+      "type": "started",
+      "name": "In Progress",
+      "color": "#f87462"
+    },
+    "comments": {
+      "nodes": [
+        {
+          "updatedAt": "2024-01-15T10:30:00Z",
+          "url": "https://linear.app/issue/TEST-123#comment-1",
+          "resolvedAt": null,
+          "resolvingCommentId": null,
+          "resolvingUser": null,
+          "id": "comment-1",
+          "body": "I've reproduced this issue on staging. The session timeout seems to be too aggressive.",
+          "createdAt": "2024-01-15T10:30:00Z",
+          "user": {
+            "name": "john.doe",
+            "displayName": "John Doe"
+          },
+          "externalUser": null,
+          "parent": null
+        },
+        {
+          "updatedAt": "2024-01-15T14:22:00Z",
+          "url": "https://linear.app/issue/TEST-123#comment-2",
+          "resolvedAt": null,
+          "resolvingCommentId": null,
+          "resolvingUser": null,
+          "id": "comment-2",
+          "body": "Working on a fix. Will increase the session timeout and add proper error handling.",
+          "createdAt": "2024-01-15T14:22:00Z",
+          "user": {
+            "name": "jane.smith",
+            "displayName": "Jane Smith"
+          },
+          "externalUser": null,
+          "parent": {
+            "id": "comment-1"
+          }
+        }
+      ],
+      "pageInfo": {
+        "hasNextPage": false,
+        "endCursor": null
+      }
+    },
+    "attachments": {
+      "nodes": [],
+      "pageInfo": {
+        "hasNextPage": false,
+        "endCursor": null
+      }
     }
   }
 }
@@ -270,93 +407,119 @@ stderr:
 snapshot[`Issue View Command - JSON Output With Documents And Attachments 1`] = `
 stdout:
 '{
-  "identifier": "TEST-246",
-  "title": "Audit issue resource output",
-  "description": "Ensure issue view shows both attachments and documents.",
-  "url": "https://linear.app/test-team/issue/TEST-246/audit-issue-resource-output",
-  "branchName": "test-246-issue-resource-output",
-  "state": {
-    "name": "In Progress",
-    "color": "#f87462"
+  "organization": {
+    "id": "99999999-9999-4999-8999-999999999999",
+    "urlKey": "test-team"
   },
-  "assignee": {
-    "name": "jane.smith",
-    "displayName": "Jane Smith"
-  },
-  "priority": 2,
-  "project": null,
-  "projectMilestone": null,
-  "cycle": null,
-  "parent": null,
-  "children": {
-    "nodes": []
-  },
-  "attachments": {
-    "nodes": [
-      {
-        "id": "attachment-1",
-        "title": "Design mock",
-        "url": "https://example.com/design-mock",
-        "subtitle": "Figma file",
-        "sourceType": "figma",
-        "metadata": {},
-        "createdAt": "2024-01-15T10:30:00Z"
+  "issue": {
+    "archivedAt": null,
+    "trashed": false,
+    "priority": 2,
+    "estimate": null,
+    "dueDate": null,
+    "assignee": {
+      "id": "44444444-4444-4444-8444-444444444444",
+      "name": "jane.smith",
+      "displayName": "Jane Smith"
+    },
+    "project": null,
+    "projectMilestone": null,
+    "cycle": null,
+    "parent": null,
+    "labels": {
+      "nodes": [],
+      "pageInfo": {
+        "hasNextPage": false,
+        "endCursor": null
       }
-    ],
-    "pageInfo": {
-      "hasNextPage": false,
-      "endCursor": null
-    }
-  },
-  "relations": {
-    "nodes": [
-      {
-        "id": "relation-outgoing",
-        "type": "blocks",
-        "relatedIssue": {
-          "identifier": "TEST-247",
-          "title": "Blocked follow-up"
+    },
+    "children": {
+      "nodes": []
+    },
+    "relations": {
+      "nodes": [
+        {
+          "id": "relation-outgoing",
+          "type": "blocks",
+          "relatedIssue": {
+            "identifier": "TEST-247",
+            "title": "Blocked follow-up"
+          }
         }
+      ],
+      "pageInfo": {
+        "hasNextPage": false
       }
-    ],
-    "pageInfo": {
-      "hasNextPage": false
-    }
-  },
-  "inverseRelations": {
-    "nodes": [
-      {
-        "id": "relation-incoming",
-        "type": "related",
-        "issue": {
-          "identifier": "TEST-245",
-          "title": "Related investigation"
+    },
+    "inverseRelations": {
+      "nodes": [
+        {
+          "id": "relation-incoming",
+          "type": "related",
+          "issue": {
+            "identifier": "TEST-245",
+            "title": "Related investigation"
+          }
         }
+      ],
+      "pageInfo": {
+        "hasNextPage": false
       }
-    ],
-    "pageInfo": {
-      "hasNextPage": false
+    },
+    "documents": {
+      "nodes": [
+        {
+          "id": "document-1",
+          "title": "Implementation plan",
+          "slugId": "impl-plan-123",
+          "url": "https://linear.app/test-team/document/implementation-plan-impl-plan-123",
+          "createdAt": "2024-01-15T09:30:00Z",
+          "updatedAt": "2024-01-15T09:45:00Z"
+        },
+        {
+          "id": "document-2",
+          "title": "QA checklist",
+          "slugId": "qa-checklist-456",
+          "url": "https://linear.app/test-team/document/qa-checklist-qa-checklist-456",
+          "createdAt": "2024-01-15T09:00:00Z",
+          "updatedAt": "2024-01-15T09:15:00Z"
+        }
+      ]
+    },
+    "id": "11111111-1111-4111-8111-000000000246",
+    "team": {
+      "id": "22222222-2222-4222-8222-222222222222",
+      "key": "TEST",
+      "activeCycle": null
+    },
+    "identifier": "TEST-246",
+    "title": "Audit issue resource output",
+    "description": "Ensure issue view shows both attachments and documents.",
+    "url": "https://linear.app/test-team/issue/TEST-246/audit-issue-resource-output",
+    "branchName": "test-246-issue-resource-output",
+    "state": {
+      "id": "33333333-3333-4333-8333-333333333333",
+      "type": "started",
+      "name": "In Progress",
+      "color": "#f87462"
+    },
+    "attachments": {
+      "nodes": [
+        {
+          "id": "attachment-1",
+          "title": "Design mock",
+          "url": "https://example.com/design-mock",
+          "subtitle": "Figma file",
+          "sourceType": "figma",
+          "metadata": {},
+          "createdAt": "2024-01-15T10:30:00Z"
+        }
+      ],
+      "pageInfo": {
+        "hasNextPage": false,
+        "endCursor": null
+      }
     }
-  },
-  "documents": {
-    "nodes": [
-      {
-        "id": "document-1",
-        "title": "Implementation plan",
-        "slugId": "impl-plan-123",
-        "url": "https://linear.app/test-team/document/implementation-plan-impl-plan-123",
-        "createdAt": "2024-01-15T09:30:00Z",
-        "updatedAt": "2024-01-15T09:45:00Z"
-      },
-      {
-        "id": "document-2",
-        "title": "QA checklist",
-        "slugId": "qa-checklist-456",
-        "url": "https://linear.app/test-team/document/qa-checklist-qa-checklist-456",
-        "createdAt": "2024-01-15T09:00:00Z",
-        "updatedAt": "2024-01-15T09:15:00Z"
-      }
-    ]
   }
 }
 '
@@ -481,72 +644,114 @@ stderr:
 snapshot[`Issue View Command - JSON Output With Resolved Thread Metadata 1`] = `
 stdout:
 '{
-  "identifier": "TEST-654",
-  "title": "Expose resolved thread metadata",
-  "description": "Test JSON output for resolved thread data.",
-  "url": "https://linear.app/test-team/issue/TEST-654/expose-resolved-thread-metadata",
-  "branchName": "test-654-resolved-thread-json",
-  "state": {
-    "name": "Backlog",
-    "color": "#bec2c8"
+  "organization": {
+    "id": "99999999-9999-4999-8999-999999999999",
+    "urlKey": "test-team"
   },
-  "assignee": null,
-  "priority": 0,
-  "project": null,
-  "projectMilestone": null,
-  "cycle": null,
-  "parent": null,
-  "children": {
-    "nodes": []
-  },
-  "comments": {
-    "nodes": [
-      {
-        "id": "comment-root-json",
-        "body": "Resolved root comment.",
-        "createdAt": "2024-01-15T10:30:00Z",
-        "url": "https://linear.app/issue/TEST-654#comment-root-json",
-        "resolvedAt": "2024-01-15T11:00:00Z",
-        "resolvingCommentId": null,
-        "resolvingUser": {
-          "name": "john.doe",
-          "displayName": "John Doe"
-        },
-        "user": {
-          "name": "john.doe",
-          "displayName": "John Doe"
-        },
-        "externalUser": null,
-        "parent": null
-      },
-      {
-        "id": "comment-reply-json",
-        "body": "Reply under the resolved thread.",
-        "createdAt": "2024-01-15T10:45:00Z",
-        "url": "https://linear.app/issue/TEST-654#comment-reply-json",
-        "resolvedAt": null,
-        "resolvingCommentId": null,
-        "resolvingUser": null,
-        "user": {
-          "name": "jane.smith",
-          "displayName": "Jane Smith"
-        },
-        "externalUser": null,
-        "parent": {
-          "id": "comment-root-json"
-        }
+  "issue": {
+    "archivedAt": null,
+    "trashed": false,
+    "priority": 0,
+    "estimate": null,
+    "dueDate": null,
+    "assignee": null,
+    "project": null,
+    "projectMilestone": null,
+    "cycle": null,
+    "parent": null,
+    "labels": {
+      "nodes": [],
+      "pageInfo": {
+        "hasNextPage": false,
+        "endCursor": null
       }
-    ],
-    "pageInfo": {
-      "hasNextPage": false,
-      "endCursor": null
-    }
-  },
-  "attachments": {
-    "nodes": [],
-    "pageInfo": {
-      "hasNextPage": false,
-      "endCursor": null
+    },
+    "children": {
+      "nodes": []
+    },
+    "relations": {
+      "nodes": [],
+      "pageInfo": {
+        "hasNextPage": false
+      }
+    },
+    "inverseRelations": {
+      "nodes": [],
+      "pageInfo": {
+        "hasNextPage": false
+      }
+    },
+    "documents": {
+      "nodes": []
+    },
+    "id": "11111111-1111-4111-8111-000000000654",
+    "team": {
+      "id": "22222222-2222-4222-8222-222222222222",
+      "key": "TEST",
+      "activeCycle": null
+    },
+    "identifier": "TEST-654",
+    "title": "Expose resolved thread metadata",
+    "description": "Test JSON output for resolved thread data.",
+    "url": "https://linear.app/test-team/issue/TEST-654/expose-resolved-thread-metadata",
+    "branchName": "test-654-resolved-thread-json",
+    "state": {
+      "id": "33333333-3333-4333-8333-333333333333",
+      "type": "backlog",
+      "name": "Backlog",
+      "color": "#bec2c8"
+    },
+    "comments": {
+      "nodes": [
+        {
+          "updatedAt": "2024-01-15T10:30:00Z",
+          "url": "https://linear.app/issue/TEST-654#comment-root-json",
+          "resolvedAt": "2024-01-15T11:00:00Z",
+          "resolvingCommentId": null,
+          "resolvingUser": {
+            "name": "john.doe",
+            "displayName": "John Doe"
+          },
+          "id": "comment-root-json",
+          "body": "Resolved root comment.",
+          "createdAt": "2024-01-15T10:30:00Z",
+          "user": {
+            "name": "john.doe",
+            "displayName": "John Doe"
+          },
+          "externalUser": null,
+          "parent": null
+        },
+        {
+          "updatedAt": "2024-01-15T10:45:00Z",
+          "url": "https://linear.app/issue/TEST-654#comment-reply-json",
+          "resolvedAt": null,
+          "resolvingCommentId": null,
+          "resolvingUser": null,
+          "id": "comment-reply-json",
+          "body": "Reply under the resolved thread.",
+          "createdAt": "2024-01-15T10:45:00Z",
+          "user": {
+            "name": "jane.smith",
+            "displayName": "Jane Smith"
+          },
+          "externalUser": null,
+          "parent": {
+            "id": "comment-root-json"
+          }
+        }
+      ],
+      "pageInfo": {
+        "hasNextPage": false,
+        "endCursor": null
+      }
+    },
+    "attachments": {
+      "nodes": [],
+      "pageInfo": {
+        "hasNextPage": false,
+        "endCursor": null
+      }
     }
   }
 }
@@ -558,64 +763,108 @@ stderr:
 snapshot[`Issue View Command - JSON Output With Labels And Comments 1`] = `
 stdout:
 '{
-  "identifier": "TEST-123",
-  "title": "Fix authentication bug in login flow",
-  "description": "Users are experiencing issues logging in when their session expires.",
-  "url": "https://linear.app/test-team/issue/TEST-123/fix-authentication-bug-in-login-flow",
-  "branchName": "fix/test-123-auth-bug",
-  "state": {
-    "name": "In Progress",
-    "color": "#f87462"
+  "organization": {
+    "id": "99999999-9999-4999-8999-999999999999",
+    "urlKey": "test-team"
   },
-  "assignee": {
-    "name": "jane.smith",
-    "displayName": "Jane Smith"
-  },
-  "priority": 2,
-  "project": null,
-  "projectMilestone": null,
-  "parent": null,
-  "children": {
-    "nodes": []
-  },
-  "labels": {
-    "nodes": [
-      {
-        "id": "label-1",
-        "name": "bug",
-        "color": "#e5484d"
-      },
-      {
-        "id": "label-2",
-        "name": "priority:high",
-        "color": "#f5a524"
-      }
-    ]
-  },
-  "comments": {
-    "nodes": [
-      {
-        "id": "comment-1",
-        "body": "Reproduced on staging.",
-        "createdAt": "2024-01-15T10:30:00Z",
-        "user": {
-          "name": "john.doe",
-          "displayName": "John Doe"
+  "issue": {
+    "archivedAt": null,
+    "trashed": false,
+    "priority": 2,
+    "estimate": null,
+    "dueDate": null,
+    "assignee": {
+      "id": "44444444-4444-4444-8444-444444444444",
+      "name": "jane.smith",
+      "displayName": "Jane Smith"
+    },
+    "project": null,
+    "projectMilestone": null,
+    "cycle": null,
+    "parent": null,
+    "labels": {
+      "nodes": [
+        {
+          "id": "label-1",
+          "name": "bug",
+          "color": "#e5484d"
         },
-        "externalUser": null,
-        "parent": null
+        {
+          "id": "label-2",
+          "name": "priority:high",
+          "color": "#f5a524"
+        }
+      ],
+      "pageInfo": {
+        "hasNextPage": false,
+        "endCursor": null
       }
-    ],
-    "pageInfo": {
-      "hasNextPage": false,
-      "endCursor": null
-    }
-  },
-  "attachments": {
-    "nodes": [],
-    "pageInfo": {
-      "hasNextPage": false,
-      "endCursor": null
+    },
+    "children": {
+      "nodes": []
+    },
+    "relations": {
+      "nodes": [],
+      "pageInfo": {
+        "hasNextPage": false
+      }
+    },
+    "inverseRelations": {
+      "nodes": [],
+      "pageInfo": {
+        "hasNextPage": false
+      }
+    },
+    "documents": {
+      "nodes": []
+    },
+    "id": "11111111-1111-4111-8111-000000000123",
+    "team": {
+      "id": "22222222-2222-4222-8222-222222222222",
+      "key": "TEST",
+      "activeCycle": null
+    },
+    "identifier": "TEST-123",
+    "title": "Fix authentication bug in login flow",
+    "description": "Users are experiencing issues logging in when their session expires.",
+    "url": "https://linear.app/test-team/issue/TEST-123/fix-authentication-bug-in-login-flow",
+    "branchName": "fix/test-123-auth-bug",
+    "state": {
+      "id": "33333333-3333-4333-8333-333333333333",
+      "type": "started",
+      "name": "In Progress",
+      "color": "#f87462"
+    },
+    "comments": {
+      "nodes": [
+        {
+          "updatedAt": "2024-01-15T10:30:00Z",
+          "url": "https://linear.app/issue/TEST-123#comment-1",
+          "resolvedAt": null,
+          "resolvingCommentId": null,
+          "resolvingUser": null,
+          "id": "comment-1",
+          "body": "Reproduced on staging.",
+          "createdAt": "2024-01-15T10:30:00Z",
+          "user": {
+            "name": "john.doe",
+            "displayName": "John Doe"
+          },
+          "externalUser": null,
+          "parent": null
+        }
+      ],
+      "pageInfo": {
+        "hasNextPage": false,
+        "endCursor": null
+      }
+    },
+    "attachments": {
+      "nodes": [],
+      "pageInfo": {
+        "hasNextPage": false,
+        "endCursor": null
+      }
     }
   }
 }

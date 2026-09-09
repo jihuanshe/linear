@@ -1,3 +1,4 @@
+import { resolveInitiativeId } from "./initiative-resolve.ts"
 import { Command } from "@cliffy/command"
 import { withUsageMetadata } from "../usage.ts"
 import { Confirm } from "../../utils/prompt.ts"
@@ -11,11 +12,14 @@ import {
   printBulkSummary,
 } from "../../utils/bulk.ts"
 import { shouldShowSpinner } from "../../utils/hyperlink.ts"
+import { printWriteResult, setMachineOutput } from "../../utils/write-result.ts"
 import {
-  CliError,
+  assertMutationSuccess,
+  errorResult,
   handleError,
   NotFoundError,
   ValidationError,
+  WriteError,
 } from "../../utils/errors.ts"
 
 interface InitiativeArchiveResult extends BulkOperationResult {
@@ -26,8 +30,10 @@ export const archiveCommand = withUsageMetadata(new Command(), {
   writes: true,
   interactive: true,
   confirmationRequiredUnless: "--force",
+  outputModes: ["human", "json"],
 })
   .name("archive")
+  .option("--json", "Output a JSON write result")
   .description("Archive a Linear initiative")
   .arguments("[initiativeId:string]")
   .option("-y, --force", "Skip confirmation prompt")
@@ -42,9 +48,10 @@ export const archiveCommand = withUsageMetadata(new Command(), {
   .option("--bulk-stdin", "Read initiative IDs from stdin")
   .action(
     async (
-      { force, bulk, bulkFile, bulkStdin },
+      { force, bulk, bulkFile, bulkStdin, json },
       initiativeId,
     ) => {
+      setMachineOutput(json ?? false)
       const client = getGraphQLClient()
 
       // Check if bulk mode
@@ -54,6 +61,7 @@ export const archiveCommand = withUsageMetadata(new Command(), {
           bulkFile,
           bulkStdin,
           force,
+          json,
         })
         return
       }
@@ -65,16 +73,16 @@ export const archiveCommand = withUsageMetadata(new Command(), {
         )
       }
 
-      await handleSingleArchive(client, initiativeId, { force })
+      await handleSingleArchive(client, initiativeId, { force, json })
     },
   )
 
 async function handleSingleArchive(
   client: ReturnType<typeof getGraphQLClient>,
   initiativeId: string,
-  options: { force?: boolean },
+  options: { force?: boolean; json?: boolean },
 ): Promise<void> {
-  const { force } = options
+  const { force, json } = options
 
   // Resolve initiative ID
   const resolvedId = await resolveInitiativeId(client, initiativeId)
@@ -109,13 +117,17 @@ async function handleSingleArchive(
 
   // Check if already archived
   if (initiative.archivedAt) {
+    if (json) {
+      printWriteResult(initiative, { effect: "none" })
+      return
+    }
     console.log(`Initiative "${initiative.name}" is already archived.`)
     return
   }
 
   // Confirm archival
   if (!force) {
-    if (!Deno.stdin.isTerminal()) {
+    if (json || !Deno.stdin.isTerminal()) {
       throw new ValidationError(
         "Interactive confirmation required. Use --force to skip.",
       )
@@ -132,7 +144,7 @@ async function handleSingleArchive(
   }
 
   const { Spinner } = await import("@std/cli/unstable-spinner")
-  const showSpinner = shouldShowSpinner()
+  const showSpinner = !json && shouldShowSpinner()
   const spinner = showSpinner ? new Spinner() : null
   spinner?.start()
 
@@ -147,11 +159,23 @@ async function handleSingleArchive(
 
   try {
     const result = await client.request(archiveMutation, { id: resolvedId })
+      .catch((error) => {
+        throw new WriteError(errorResult(error).error.message, {
+          effect: error instanceof WriteError ? error.effect : "unknown",
+          data: { id: resolvedId },
+          cause: error,
+        })
+      })
 
     spinner?.stop()
 
-    if (!result.initiativeArchive.success) {
-      throw new CliError("Failed to archive initiative")
+    assertMutationSuccess(result?.initiativeArchive, {
+      id: resolvedId,
+      result: result?.initiativeArchive,
+    })
+    if (json) {
+      printWriteResult({ id: resolvedId, success: true })
+      return
     }
 
     console.log(`✓ Archived initiative: ${initiative.name}`)
@@ -168,9 +192,10 @@ async function handleBulkArchive(
     bulkFile?: string
     bulkStdin?: boolean
     force?: boolean
+    json?: boolean
   },
 ): Promise<void> {
-  const { force } = options
+  const { force, json } = options
 
   // Collect all IDs
   const ids = await collectBulkIds({
@@ -183,11 +208,11 @@ async function handleBulkArchive(
     throw new ValidationError("No initiative IDs provided for bulk archive.")
   }
 
-  console.log(`Found ${ids.length} initiative(s) to archive.`)
+  if (!json) console.log(`Found ${ids.length} initiative(s) to archive.`)
 
   // Confirm bulk operation
   if (!force) {
-    if (!Deno.stdin.isTerminal()) {
+    if (json || !Deno.stdin.isTerminal()) {
       throw new ValidationError(
         "Interactive confirmation required. Use --force to skip.",
       )
@@ -214,6 +239,7 @@ async function handleBulkArchive(
         id: idOrSlugOrName,
         name: idOrSlugOrName,
         success: false,
+        effect: "none",
         error: "Initiative not found",
       }
     }
@@ -232,15 +258,12 @@ async function handleBulkArchive(
     let name = idOrSlugOrName
     let alreadyArchived = false
 
-    try {
-      const details = await client.request(detailsQuery, { id: resolvedId })
-      if (details?.initiative) {
-        name = details.initiative.name
-        alreadyArchived = Boolean(details.initiative.archivedAt)
-      }
-    } catch {
-      // Continue with default name
+    const details = await client.request(detailsQuery, { id: resolvedId })
+    if (!details.initiative?.id) {
+      throw new NotFoundError("Initiative", idOrSlugOrName)
     }
+    name = details.initiative.name
+    alreadyArchived = Boolean(details.initiative.archivedAt)
 
     // Skip if already archived
     if (alreadyArchived) {
@@ -248,6 +271,7 @@ async function handleBulkArchive(
         id: resolvedId,
         name,
         success: true,
+        effect: "none",
         error: undefined,
       }
     }
@@ -262,95 +286,52 @@ async function handleBulkArchive(
     `)
 
     const result = await client.request(archiveMutation, { id: resolvedId })
+      .catch((error) => {
+        throw new WriteError(errorResult(error).error.message, {
+          effect: error instanceof WriteError ? error.effect : "unknown",
+          data: { id: resolvedId },
+          cause: error,
+        })
+      })
 
-    if (!result.initiativeArchive.success) {
-      return {
-        id: resolvedId,
-        name,
-        success: false,
-        error: "Archive operation failed",
-      }
-    }
+    assertMutationSuccess(result?.initiativeArchive, {
+      id: resolvedId,
+      result: result?.initiativeArchive,
+    })
 
     return {
       id: resolvedId,
       name,
       success: true,
+      effect: "applied",
     }
   }
 
   // Execute bulk operation
   const summary = await executeBulkOperations(ids, archiveOperation, {
-    showProgress: true,
+    showProgress: !json,
   })
 
   // Print summary
-  printBulkSummary(summary, {
-    entityName: "initiative",
-    operationName: "archived",
-    showDetails: true,
-  })
+  if (!json) {
+    printBulkSummary(summary, {
+      entityName: "initiative",
+      operationName: "archived",
+      showDetails: true,
+    })
+  }
 
   // Exit with error code if any failed
   if (summary.failed > 0) {
-    Deno.exit(1)
+    throw new WriteError("Bulk archive did not complete successfully", {
+      effect: summary.effect,
+      data: summary,
+      receipts: summary.results,
+    })
   }
-}
-
-async function resolveInitiativeId(
-  client: ReturnType<typeof getGraphQLClient>,
-  idOrSlugOrName: string,
-): Promise<string | undefined> {
-  // Try as UUID first
-  if (
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
-      idOrSlugOrName,
-    )
-  ) {
-    return idOrSlugOrName
+  if (json) {
+    printWriteResult(summary, {
+      effect: summary.effect === "applied" ? "applied" : "none",
+    })
   }
-
-  // Try as slug
-  const slugQuery = gql(`
-    query GetInitiativeBySlugForArchive($slugId: String!) {
-      initiatives(filter: { slugId: { eq: $slugId } }) {
-        nodes {
-          id
-          slugId
-        }
-      }
-    }
-  `)
-
-  try {
-    const result = await client.request(slugQuery, { slugId: idOrSlugOrName })
-    if (result.initiatives?.nodes?.length > 0) {
-      return result.initiatives.nodes[0].id
-    }
-  } catch {
-    // Continue to name lookup
-  }
-
-  // Try as name
-  const nameQuery = gql(`
-    query GetInitiativeByNameForArchive($name: String!) {
-      initiatives(filter: { name: { eqIgnoreCase: $name } }) {
-        nodes {
-          id
-          name
-        }
-      }
-    }
-  `)
-
-  try {
-    const result = await client.request(nameQuery, { name: idOrSlugOrName })
-    if (result.initiatives?.nodes?.length > 0) {
-      return result.initiatives.nodes[0].id
-    }
-  } catch {
-    // Not found
-  }
-
-  return undefined
 }

@@ -5,8 +5,9 @@ stdout:
 "
 Usage: create
 
-Writes: true     
-Interactive: true
+Writes: true            
+Interactive: true       
+Output modes: human,json
 
 Description:
 
@@ -21,6 +22,7 @@ Description:
 Options:
 
   -h, --help                     - Show this help.                             
+  --json                         - Output a JSON write result                  
   -t, --title         <title>    - Document title (required)                   
   -c, --content       <content>  - Markdown content (inline)                   
   -f, --content-file  <path>     - Read content from file                      

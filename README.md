@@ -1,9 +1,9 @@
 # Linear CLI
 
-面向人类、AI Agent 和无人值守自动化的 [Linear](https://linear.app/) CLI。它提供可发现的专用命令、机器可读输出、Git／Jujutsu 上下文，以及带冲突保护和 checkpoint 的 Issue 交付协议。
+面向人类、AI Agent 和无人值守自动化的 [Linear](https://linear.app/) CLI。它提供可发现的专用命令、可保存的读取与受保护更新，以及共用这些操作的 Issue plan/apply。
 
 > [!IMPORTANT]
-> [`jihuanshe/linear`](https://github.com/jihuanshe/linear) 是 [`schpet/linear-cli`](https://github.com/schpet/linear-cli) 的下游 fork。它保留上游的终端工作流，并有意强化自动化、输出和 mutation 安全契约。两个发行版的命令面并不等价。
+> [`jihuanshe/linear`](https://github.com/jihuanshe/linear) 是 [`schpet/linear-cli`](https://github.com/schpet/linear-cli) 的下游 fork。它保留终端选择和编辑能力，并有意强化自动化、输出和 mutation 安全契约。两个发行版的命令面并不等价。
 
 本项目不是 Linear 的官方产品，也不隶属于 Linear 或得到其认可。
 
@@ -21,26 +21,32 @@ flowchart LR
     commands["Cliffy 命令树<br/>usage · help · typed commands"]
     guides["内嵌 Guide<br/>版本匹配的跨命令工作流"]
     config["配置与凭据解析"]
-    delivery["Issue plan / apply<br/>checkpoint 与冲突保护"]
+    operations["共享 typed operations<br/>身份、校验与写入结果"]
+    delivery["Issue plan / apply<br/>checkpoint 与回执"]
   end
 
   linear["Linear GraphQL 与上传 API"]
   vcs["Git / Jujutsu"]
-  github["GitHub CLI / Releases"]
+  recipes["可编辑 recipes"]
+  github["GitHub CLI"]
 
   human --> commands
   agent --> commands
   ci --> commands
   guides -. "发现与恢复" .-> commands
   config --> commands
-  commands --> linear
+  commands --> operations
   commands --> delivery
-  delivery --> linear
-  commands --> vcs
-  commands --> github
+  delivery --> operations
+  operations --> linear
+  commands -. "只读上下文" .-> vcs
+  ci --> recipes
+  recipes --> commands
+  recipes --> vcs
+  recipes --> github
 ```
 
-常见 Linear 操作优先走专用命令；`linear schema` 和 `linear api` 是专用命令没有覆盖时的 GraphQL 逃生通道。`linear api` 也能发送 mutation，但不提供专用写命令的名称解析、冲突保护或写后核算。
+常见 Linear 操作优先走专用命令；`linear schema` 和 `linear api` 是专用命令没有覆盖时的 GraphQL 逃生通道。`linear api --unprotected` 可以显式发送 raw mutation，保留 GraphQL envelope；它不提供专用命令的领域守卫、回执或恢复。
 
 ## Quick Start
 
@@ -110,29 +116,31 @@ linear guide issue-delivery       # 一篇完整工作流 Guide
 linear issue mine
 linear issue query --search "login bug"
 linear issue view ENG-123
-linear issue start ENG-123
-linear issue update ENG-123 --state "In Progress"
-linear issue pr ENG-123
+linear issue pick
+linear issue view ENG-123 --json > original.json
+linear issue update ENG-123 --base-file original.json --state "In Progress"
 ```
+
+Git/Jujutsu 工作上下文、GitHub PR/autolink、团队迁移与只读治理使用 [可运行 recipes](recipes/README.md)。`issue pick` 保留终端选择，只输出编号；配置团队的可读 key 用 `team key`，UUID 从 `team list --json` 读取。
 
 无人值守执行应禁用提示、分离 stdout 与 stderr，并只消费目标命令明确提供的结构化输出：
 
 ```bash
 export LINEAR_PROMPT_DISABLED=1
 NO_COLOR=1 linear issue view ENG-123 --json >issue.json 2>error.log
-jq -e . issue.json >/dev/null
+jq -e ' .organization.id and .issue.id ' issue.json >/dev/null
 ```
 
 `--json` 和 `--no-pager` 不是全局选项，以目标命令的 `--help` 为准。多行 Markdown 使用 `--description-file` 或 `--body-file`，不要把正文塞进 shell quoting。写命令、确认 flag、`LINEAR_PROMPT_DISABLED=1` 和 JSON 输出都只描述执行机制，不构成用户授权。
 
-一次交付同时包含字段、评论、文件、侧栏 Attachment 或 Issue relation 时，使用同一份 delivery manifest：
+普通更新直接用专用命令；组合多个执行项并需要记录恢复进度时，使用同一份 manifest v2：
 
 ```bash
 linear issue plan --file delivery.json
 linear issue apply --file delivery.json --confirm-workspace jihuanshe
 ```
 
-`plan` 零写入；`apply` 在 mutation 前校验 workspace、文件和 update base，并通过 manifest 旁的 checkpoint 保留部分成功。完整协议见 `linear guide issue-delivery`。
+`plan` 零写入；`apply` 共用单命令操作，在 mutation 前最后校验身份、文件和原始依据，并通过 manifest 旁的 checkpoint 保存逐项效果及回执。完整协议见 `linear guide issue-delivery`。
 
 ## 按任务查入口
 
@@ -150,6 +158,25 @@ linear issue apply --file delivery.json --confirm-workspace jihuanshe
 | 修改 Deno 权限                                  | [Deno permission policy](docs/deno-permissions.md)           |
 | 贡献代码                                        | [仓库维护规则](AGENTS.md)                                    |
 | 发布 `main`                                     | [发布 Skill](.agents/skills/releasing/SKILL.md)              |
+
+## 升级与迁移
+
+这些接口改变会让旧脚本明确失败。按已安装版本的 help 和 Guide 更新调用，不删除旧执行记录来重试：
+
+| 原调用或合同                                            | 当前入口                                                                                                                 |
+| ------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| 六类 update 直接覆盖                                    | 先保存原生 view JSON，再传 `--base-file`；明确无保护替换用 `--unprotected`                                               |
+| 扁平对象读取                                            | `{organization, issue/comment/project/initiative/document/projectMilestone}`，见 [automation](docs/guides/automation.md) |
+| 写 JSON 的对象直接位于根                                | 专用写结果为 `{ok,effect,data,...}`；raw api 保留 GraphQL envelope                                                       |
+| Issue manifest/checkpoint v1                            | 保留旧文件与匹配版本先对账，再为剩余工作建立独立 v2；[恢复说明](docs/guides/issue-delivery.md)                           |
+| `issue start`、`issue create --start`                   | `issue pick` 加显式 VCS 和状态步骤                                                                                       |
+| `issue pull-request`、`team autolinks`、`issue commits` | 原生 gh/jj [recipes](recipes/README.md)                                                                                  |
+| `doctor`                                                | 可编辑的只读 [doctor recipe](docs/guides/doctor.md)                                                                      |
+| `project create --initiative`                           | 创建回执中的 ID → `initiative add-project`                                                                               |
+| `team delete --move-issues`                             | 固定 UUID 范围迁移、保存编号映射，再显式删除空团队                                                                       |
+| `team id` 返回可读 key                                  | `team key`；真实 UUID 读取 `team list --json`                                                                            |
+
+`title`、`url`、`describe`、`mine`、常用 CRUD、上传下载及交互编辑继续保留。`api --paginate` 只用于 query，raw mutation 必须显式 `--unprotected`。服务器 CAS、事务和 exactly-once 不在客户端保证内。
 
 ## 开发
 

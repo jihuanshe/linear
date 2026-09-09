@@ -6,11 +6,21 @@ import {
 } from "@cliffy/command"
 import { withUsageMetadata } from "./usage.ts"
 import denoConfig from "../../deno.json" with { type: "json" }
+import {
+  type DocumentNode,
+  Kind,
+  type OperationDefinitionNode,
+  parse,
+  type SelectionSetNode,
+} from "graphql"
 import { getGraphQLEndpoint, getResolvedApiKey } from "../utils/graphql.ts"
+import { completeConnection, type Connection } from "../utils/pagination.ts"
+import { setMachineOutput } from "../utils/write-result.ts"
 import {
   CliError,
   handleError,
   ValidationError as AppValidationError,
+  WriteError,
 } from "../utils/errors.ts"
 
 class VariableType extends Type<[string, string]> {
@@ -30,7 +40,9 @@ export const apiCommand = withUsageMetadata(new Command(), {
   outputModes: ["json"],
 })
   .name("api")
-  .description("Make a raw GraphQL API request")
+  .description(
+    "Run raw GraphQL. Mutations require --unprotected; no domain guards, receipts or checkpoints. No retries; inspect data/errors and reconcile uncertain writes.",
+  )
   .type("variable", new VariableType())
   .arguments("[query:string]")
   .option(
@@ -43,20 +55,64 @@ export const apiCommand = withUsageMetadata(new Command(), {
     "JSON object of variables (merged with --variable, which takes precedence)",
   )
   .option(
+    "--operation-name <name:string>",
+    "Select the GraphQL operation (required when the document contains multiple operations)",
+  )
+  .option(
+    "--unprotected",
+    "Explicitly allow a raw mutation without domain guards, receipts or checkpoints",
+  )
+  .option(
     "--paginate",
-    "Auto-paginate a single connection field using cursor pagination",
+    "Read one query connection to its final page using $after (mutations are rejected)",
   )
   .option(
     "--silent",
     "Suppress response output (exit code still reflects errors)",
   )
   .action(async (options, query?: string) => {
+    setMachineOutput(true)
     try {
       const resolvedQuery = await resolveQuery(query)
+      const document = parseDocument(resolvedQuery)
+      const operation = selectOperation(document, options.operationName)
+      if (options.paginate && operation.operation !== "query") {
+        throw new AppValidationError(
+          "--paginate only supports query operations",
+        )
+      }
+      if (operation.operation === "subscription") {
+        throw new AppValidationError(
+          "Subscriptions are not supported by this HTTP request command",
+        )
+      }
+      if (operation.operation === "mutation" && !options.unprotected) {
+        throw new AppValidationError("Raw mutations require --unprotected", {
+          suggestion:
+            "Use a dedicated command for domain guards. --unprotected only permits raw transport; it does not provide guards, receipts or checkpoints.",
+        })
+      }
+      if (options.unprotected && operation.operation !== "mutation") {
+        throw new AppValidationError(
+          "--unprotected only applies to mutation operations",
+        )
+      }
+      const connectionPath = options.paginate
+        ? paginationPath(document, operation)
+        : undefined
       const variables = await buildVariables(
         options.variable,
         options.variablesJson,
       )
+      if (options.paginate && variables.after != null) {
+        throw new AppValidationError(
+          "--paginate starts at the first page; omit the after variable",
+          {
+            suggestion:
+              "To read a bounded page from an existing cursor, omit --paginate.",
+          },
+        )
+      }
 
       const apiKey = getResolvedApiKey()
       if (!apiKey) {
@@ -75,19 +131,27 @@ export const apiCommand = withUsageMetadata(new Command(), {
         "User-Agent": `jihuanshe-linear/${denoConfig.version}`,
       }
 
-      if (options.paginate) {
+      const request = {
+        query: resolvedQuery,
+        ...(options.operationName
+          ? { operationName: options.operationName }
+          : {}),
+      }
+      if (connectionPath) {
         await executePaginated(
-          resolvedQuery,
+          request,
           variables,
           headers,
           options.silent ?? false,
+          connectionPath,
         )
       } else {
         await executeSingle(
-          resolvedQuery,
+          request,
           variables,
           headers,
           options.silent ?? false,
+          operation.operation === "mutation",
         )
       }
     } catch (error) {
@@ -95,13 +159,115 @@ export const apiCommand = withUsageMetadata(new Command(), {
     }
   })
 
-async function executeSingle(
-  query: string,
+function parseDocument(query: string): DocumentNode {
+  try {
+    return parse(query)
+  } catch (error) {
+    throw new AppValidationError(
+      `Invalid GraphQL document: ${
+        error instanceof Error ? error.message : String(error)
+      }`,
+    )
+  }
+}
+
+function selectOperation(
+  document: DocumentNode,
+  operationName?: string,
+): OperationDefinitionNode {
+  const operations = document.definitions.filter((definition) =>
+    definition.kind === Kind.OPERATION_DEFINITION &&
+    (operationName == null || definition.name?.value === operationName)
+  ) as OperationDefinitionNode[]
+  if (operations.length !== 1) {
+    throw new AppValidationError(
+      operationName == null
+        ? "Provide exactly one operation or select one with --operation-name"
+        : `--operation-name ${operationName} must identify exactly one operation`,
+    )
+  }
+  return operations[0]!
+}
+
+/** Bind pagination to the selected operation and the field receiving $after. */
+function paginationPath(
+  document: DocumentNode,
+  operation: OperationDefinitionNode,
+): string[] {
+  const after = operation.variableDefinitions?.find((definition) =>
+    definition.variable.name.value === "after"
+  )
+  if (
+    after?.type.kind !== Kind.NAMED_TYPE || after.type.name.value !== "String"
+  ) {
+    throw new AppValidationError(
+      "--paginate requires the selected query to declare $after: String",
+    )
+  }
+  const fragments = new Map(
+    document.definitions.flatMap((definition) =>
+      definition.kind === Kind.FRAGMENT_DEFINITION
+        ? [[definition.name.value, definition] as const]
+        : []
+    ),
+  )
+  const paths = new Map<string, string[]>()
+  function walk(
+    selectionSet: SelectionSetNode,
+    path: string[],
+    active = new Set<string>(),
+  ) {
+    for (const selection of selectionSet.selections) {
+      if (selection.kind === Kind.FIELD) {
+        const next = [...path, selection.alias?.value ?? selection.name.value]
+        if (
+          selection.arguments?.some((argument) =>
+            argument.name.value === "after" &&
+            argument.value.kind === Kind.VARIABLE &&
+            argument.value.name.value === "after"
+          )
+        ) {
+          paths.set(JSON.stringify(next), next)
+        }
+        if (selection.selectionSet) walk(selection.selectionSet, next, active)
+      } else if (selection.kind === Kind.INLINE_FRAGMENT) {
+        walk(selection.selectionSet, path, active)
+      } else {
+        const name = selection.name.value
+        const fragment = fragments.get(name)
+        if (!fragment || active.has(name)) {
+          throw new AppValidationError(
+            `Cannot paginate missing or cyclic fragment ${name}`,
+          )
+        }
+        walk(fragment.selectionSet, path, new Set([...active, name]))
+      }
+    }
+  }
+  walk(operation.selectionSet, ["data"])
+  if (paths.size !== 1) {
+    throw new AppValidationError(
+      "--paginate requires exactly one connection using after: $after",
+      {
+        suggestion: "Split independent connections into separate queries.",
+      },
+    )
+  }
+  return [...paths.values()][0]!
+}
+
+interface RawRequest {
+  query: string
+  operationName?: string
+}
+
+async function requestPage(
+  request: RawRequest,
   variables: Record<string, unknown>,
   headers: Record<string, string>,
   silent: boolean,
-): Promise<void> {
-  const body: Record<string, unknown> = { query }
+): Promise<Record<string, unknown>> {
+  const body: Record<string, unknown> = { ...request }
   if (Object.keys(variables).length > 0) {
     body.variables = variables
   }
@@ -114,69 +280,61 @@ async function executeSingle(
 
   const text = await response.text()
 
-  if (response.status >= 400) {
-    if (!silent) {
-      console.error(text)
-    }
-    Deno.exit(1)
-  }
-
   const parsed = parseResponse(text)
   const hasGraphQLErrors = Array.isArray(parsed.errors) &&
     parsed.errors.length > 0
-  if (!silent) {
-    outputJSON(parsed, text)
-  }
-
-  if (hasGraphQLErrors) {
+  if (!response.ok || hasGraphQLErrors) {
+    // Preserve partial data and GraphQL errors, including HTTP 400 RATELIMITED.
+    // No retry: a raw mutation may already have had effects.
+    if (!silent) outputJSON(parsed, text)
     Deno.exit(1)
   }
+  return parsed
 }
 
-async function executePaginated(
-  query: string,
+async function executeSingle(
+  request: RawRequest,
   variables: Record<string, unknown>,
   headers: Record<string, string>,
   silent: boolean,
+  mutation: boolean,
 ): Promise<void> {
-  const allNodes: unknown[] = []
-  let cursor: string | undefined
+  let parsed: Record<string, unknown>
+  try {
+    parsed = await requestPage(request, variables, headers, silent)
+  } catch (error) {
+    if (mutation) {
+      throw new WriteError(
+        "Raw mutation outcome is unknown; no GraphQL result was received",
+        {
+          effect: "unknown",
+          cause: error,
+          suggestion:
+            "Reconcile the target object's state before any retry. This command did not retry the mutation.",
+        },
+      )
+    }
+    throw error
+  }
+  if (!silent) outputJSON(parsed, JSON.stringify(parsed))
+}
+
+async function executePaginated(
+  request: RawRequest,
+  variables: Record<string, unknown>,
+  headers: Record<string, string>,
+  silent: boolean,
+  connectionPath: string[],
+): Promise<void> {
   let mergedResponse: Record<string, unknown> | undefined
-  let connectionPath: string[] | undefined
-  let finalPageInfo: Record<string, unknown> | undefined
-
-  for (;;) {
-    const vars = { ...variables, after: cursor ?? null }
-
-    const body: Record<string, unknown> = { query }
-    if (Object.keys(vars).length > 0) {
-      body.variables = vars
-    }
-
-    const response = await fetch(getGraphQLEndpoint(), {
-      method: "POST",
+  async function readPage(after: string | null): Promise<Connection<unknown>> {
+    const parsed = await requestPage(
+      request,
+      { ...variables, after },
       headers,
-      body: JSON.stringify(body),
-    })
-
-    const text = await response.text()
-
-    if (response.status >= 400) {
-      if (!silent) {
-        console.error(text)
-      }
-      Deno.exit(1)
-    }
-
-    const parsed = parseResponse(text)
-    if (Array.isArray(parsed.errors) && parsed.errors.length > 0) {
-      if (!silent) {
-        outputJSON(parsed, text)
-      }
-      Deno.exit(1)
-    }
-
-    if (allNodes.length === 0 && countConnections(parsed.data) > 1) {
+      silent,
+    )
+    if (countConnections(parsed.data) > 1) {
       throw new AppValidationError(
         "--paginate does not support queries with multiple paginated connections",
         {
@@ -186,93 +344,45 @@ async function executePaginated(
       )
     }
 
-    const pageResult = extractPageInfo(parsed)
-
-    if (!pageResult) {
-      if (!silent) {
-        outputJSON(parsed, text)
-      }
-      return
-    }
-
-    allNodes.push(...pageResult.nodes)
     mergedResponse ??= parsed
-    connectionPath ??= pageResult.connectionPath
-    finalPageInfo = pageResult.pageInfo
-
-    if (!samePath(connectionPath, pageResult.connectionPath)) {
-      throw new CliError(
-        "Paginated response changed its connection path between pages",
-      )
-    }
-
-    if (!pageResult.hasNextPage || !pageResult.endCursor) {
-      break
-    }
-
-    cursor = pageResult.endCursor
+    return getConnection(parsed, connectionPath)
   }
-
-  if (!silent && mergedResponse && connectionPath && finalPageInfo) {
+  const connection = await completeConnection(
+    await readPage(null),
+    readPage,
+    "API",
+  )
+  if (!silent && mergedResponse) {
     replaceConnectionPage(
       mergedResponse,
       connectionPath,
-      allNodes,
-      finalPageInfo,
+      connection.nodes,
+      connection.pageInfo,
     )
     outputJSON(mergedResponse, JSON.stringify(mergedResponse))
   }
 }
 
-interface PageResult {
-  nodes: unknown[]
-  hasNextPage: boolean
-  endCursor: string | null
-  connectionPath: string[]
-  pageInfo: Record<string, unknown>
-}
-
-function extractPageInfo(
-  data: Record<string, unknown>,
-): PageResult | null {
-  return findPageInfo(data, [])
-}
-
-function findPageInfo(
-  obj: unknown,
+function getConnection(
+  response: Record<string, unknown>,
   path: string[],
-): PageResult | null {
-  if (obj == null || typeof obj !== "object") return null
-
-  const record = obj as Record<string, unknown>
-
-  if (
-    "pageInfo" in record &&
-    "nodes" in record &&
-    record.pageInfo != null &&
-    typeof record.pageInfo === "object"
-  ) {
-    const pageInfo = record.pageInfo as Record<string, unknown>
-    return {
-      nodes: Array.isArray(record.nodes) ? record.nodes : [],
-      hasNextPage: Boolean(pageInfo.hasNextPage),
-      endCursor: (pageInfo.endCursor as string) ?? null,
-      connectionPath: path,
-      pageInfo,
+): Connection<unknown> {
+  let value: unknown = response
+  for (const segment of path) {
+    if (value == null || typeof value !== "object" || Array.isArray(value)) {
+      throw new CliError(
+        "Incomplete API pagination: connection path is missing or changed",
+      )
     }
+    value = (value as Record<string, unknown>)[segment]
   }
-
-  for (const [key, value] of Object.entries(record)) {
-    const result = findPageInfo(value, [...path, key])
-    if (result) return result
+  if (value == null || typeof value !== "object" || Array.isArray(value)) {
+    throw new CliError(
+      "Incomplete API pagination: connection path is missing or changed",
+    )
   }
-
-  return null
-}
-
-function samePath(left: string[], right: string[]): boolean {
-  return left.length === right.length &&
-    left.every((segment, index) => segment === right[index])
+  // completeConnection validates untrusted nodes/pageInfo before consuming them.
+  return value as Connection<unknown>
 }
 
 function replaceConnectionPage(

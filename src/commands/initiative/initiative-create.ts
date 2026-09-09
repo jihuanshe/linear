@@ -9,8 +9,10 @@ import {
 import { getGraphQLClient } from "../../utils/graphql.ts"
 import { lookupUserId } from "../../utils/linear.ts"
 import { shouldShowSpinner } from "../../utils/hyperlink.ts"
+import { printWriteResult, setMachineOutput } from "../../utils/write-result.ts"
 import {
-  CliError,
+  assertMutationReceipt,
+  assertMutationSuccess,
   handleError,
   NotFoundError,
   ValidationError,
@@ -47,8 +49,10 @@ const DEFAULT_COLORS = [
 export const createCommand = withUsageMetadata(new Command(), {
   writes: true,
   interactive: true,
+  outputModes: ["human", "json"],
 })
   .name("create")
+  .option("--json", "Output a JSON write result")
   .description("Create a new Linear initiative")
   .option("-n, --name <name:string>", "Initiative name (required)")
   .option("-d, --description <description:string>", "Initiative description")
@@ -71,7 +75,13 @@ export const createCommand = withUsageMetadata(new Command(), {
     "Interactive mode (default if no flags provided)",
   )
   .action(async (options) => {
+    setMachineOutput(options.json ?? false)
     try {
+      if (options.json && options.interactive) {
+        throw new ValidationError(
+          "--json cannot be combined with --interactive",
+        )
+      }
       const {
         name: providedName,
         description: providedDescription,
@@ -95,7 +105,8 @@ export const createCommand = withUsageMetadata(new Command(), {
 
       // Determine if we should run in interactive mode
       const noFlagsProvided = !name
-      const isInteractive = (noFlagsProvided || interactiveFlag) &&
+      const isInteractive = !options.json &&
+        (noFlagsProvided || interactiveFlag) &&
         Deno.stdout.isTerminal()
 
       if (isInteractive) {
@@ -177,7 +188,7 @@ export const createCommand = withUsageMetadata(new Command(), {
       }
 
       // Validate required fields
-      if (!name) {
+      if (!name?.trim()) {
         throw new ValidationError(
           "Initiative name is required. Use --name or -n flag.",
         )
@@ -219,20 +230,25 @@ export const createCommand = withUsageMetadata(new Command(), {
       }
 
       const { Spinner } = await import("@std/cli/unstable-spinner")
-      const showSpinner = shouldShowSpinner()
+      const showSpinner = !options.json && shouldShowSpinner()
       const spinner = showSpinner ? new Spinner() : null
       spinner?.start()
 
       try {
         const result = await client.request(CreateInitiative, { input })
 
-        if (!result.initiativeCreate.success) {
-          spinner?.stop()
-          throw new CliError("Failed to create initiative")
-        }
+        assertMutationSuccess(
+          result?.initiativeCreate,
+          result?.initiativeCreate,
+        )
 
-        const initiative = result.initiativeCreate.initiative
+        const initiative = result?.initiativeCreate.initiative
         spinner?.stop()
+        assertMutationReceipt(initiative, result?.initiativeCreate)
+        if (options.json) {
+          printWriteResult(initiative)
+          return
+        }
 
         console.log(`✓ Created initiative: ${initiative.name}`)
         console.log(`  Slug: ${initiative.slugId}`)

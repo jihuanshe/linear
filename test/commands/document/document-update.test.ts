@@ -4,6 +4,23 @@ import { updateCommand } from "../../../src/commands/document/document-update.ts
 import { MockLinearServer } from "../../utils/mock_linear_server.ts"
 import { commonDenoArgs } from "../../utils/test-helpers.ts"
 
+const originalDocument = {
+  queryName: "ReadDocument",
+  response: {
+    data: {
+      organization: { id: "workspace-1", urlKey: "test" },
+      document: {
+        id: "doc-1",
+        title: "Original title",
+        content: "Old content",
+        icon: null,
+        project: null,
+        archivedAt: null,
+      },
+    },
+  },
+}
+
 for (
   const scenario of [
     "clear",
@@ -25,6 +42,36 @@ for (
     const succeeds = ["clear", "inline", "equals", "short", "nonempty", "title"]
       .includes(scenario)
     const server = new MockLinearServer([
+      {
+        queryName: "ReadDocument",
+        response: (_request, history) => {
+          if (
+            !history.some((request) =>
+              request.query.includes("mutation UpdateDocument")
+            )
+          ) return originalDocument.response
+          if (scenario === "read-error") {
+            return { errors: [{ message: "Read denied" }] }
+          }
+          return {
+            data: {
+              organization: { id: "workspace-1", urlKey: "test" },
+              document: {
+                id: "doc-1",
+                title: "Spec",
+                icon: null,
+                project: null,
+                archivedAt: null,
+                content: scenario === "unchanged"
+                  ? "Old content"
+                  : scenario === "null"
+                  ? null
+                  : "",
+              },
+            },
+          }
+        },
+      },
       {
         queryName: "DocumentInlineCommentGuard",
         response: {
@@ -69,25 +116,6 @@ for (
           },
         },
       },
-      {
-        queryName: "GetDocumentForEdit",
-        variables: { id: "doc-1" },
-        response: scenario === "read-error"
-          ? { errors: [{ message: "Read denied" }] }
-          : {
-            data: {
-              document: {
-                id: "doc-1",
-                title: "Spec",
-                content: scenario === "unchanged"
-                  ? "Old content"
-                  : scenario === "null"
-                  ? null
-                  : "",
-              },
-            },
-          },
-      },
     ])
     try {
       await Deno.writeTextFile(file, content)
@@ -100,6 +128,7 @@ for (
           "document",
           "update",
           "doc-1",
+          "--unprotected",
           ...(scenario === "title"
             ? ["--title", "Spec"]
             : scenario === "inline"
@@ -127,9 +156,11 @@ for (
           request.query.match(/(?:query|mutation)\s+(\w+)/)?.[1]
         ),
         [
+          "ReadDocument",
           ...(scenario === "title" ? [] : ["DocumentInlineCommentGuard"]),
+          ...(["title", "blocked"].includes(scenario) ? [] : ["ReadDocument"]),
           ...(scenario === "blocked" ? [] : ["UpdateDocument"]),
-          ...(verifiesClear ? ["GetDocumentForEdit"] : []),
+          ...(verifiesClear ? ["ReadDocument"] : []),
         ],
       )
       if (succeeds) {
@@ -138,10 +169,10 @@ for (
         assertEquals(stdout, "")
         assertStringIncludes(
           stderr,
-          scenario === "blocked" ? "inline comments" : "write was sent",
+          scenario === "blocked" ? "inline comments" : "update was applied",
         )
         if (verifiesClear) {
-          assertStringIncludes(stderr, "No automatic retry was performed")
+          assertStringIncludes(stderr, "Inspect the document before retrying")
         }
       }
     } finally {
@@ -170,6 +201,7 @@ Deno.test("document update rejects empty paths and competing content sources wit
         "document",
         "update",
         "doc-1",
+        "--unprotected",
         ...args,
       ],
       env: { NO_COLOR: "1" },
@@ -206,34 +238,32 @@ await snapshotTest({
   name: "Document Update Command - Update Title",
   meta: import.meta,
   colors: false,
-  args: ["d4b93e3b2695", "--title", "New Title"],
+  args: ["--unprotected", "d4b93e3b2695", "--title", "New Title"],
   denoArgs: commonDenoArgs,
   async fn() {
-    const server = new MockLinearServer([
-      {
-        queryName: "UpdateDocument",
-        variables: {
-          id: "d4b93e3b2695",
-          input: {
-            title: "New Title",
-          },
+    const server = new MockLinearServer([originalDocument, {
+      queryName: "UpdateDocument",
+      variables: {
+        id: "doc-1",
+        input: {
+          title: "New Title",
         },
-        response: {
-          data: {
-            documentUpdate: {
-              success: true,
-              document: {
-                id: "doc-1",
-                slugId: "d4b93e3b2695",
-                title: "New Title",
-                url: "https://linear.app/test/document/new-title-d4b93e3b2695",
-                updatedAt: "2026-01-19T10:00:00Z",
-              },
+      },
+      response: {
+        data: {
+          documentUpdate: {
+            success: true,
+            document: {
+              id: "doc-1",
+              slugId: "d4b93e3b2695",
+              title: "New Title",
+              url: "https://linear.app/test/document/new-title-d4b93e3b2695",
+              updatedAt: "2026-01-19T10:00:00Z",
             },
           },
         },
       },
-    ])
+    }])
 
     try {
       await server.start()
@@ -254,58 +284,60 @@ await snapshotTest({
   name: "Document Update Command - Update Content",
   meta: import.meta,
   colors: false,
-  args: ["d4b93e3b2695", "--content", "# Updated Content\n\nNew content here."],
+  args: [
+    "--unprotected",
+    "d4b93e3b2695",
+    "--content",
+    "# Updated Content\n\nNew content here.",
+  ],
   denoArgs: commonDenoArgs,
   async fn() {
-    const server = new MockLinearServer([
-      {
-        queryName: "DocumentInlineCommentGuard",
-        variables: {
-          id: "d4b93e3b2695",
-          after: null,
+    const server = new MockLinearServer([originalDocument, {
+      queryName: "DocumentInlineCommentGuard",
+      variables: {
+        id: "doc-1",
+        after: null,
+      },
+      response: {
+        data: {
+          document: {
+            id: "doc-1",
+            title: "Delegation System Spec",
+            content: "# Current Content",
+            comments: {
+              nodes: [],
+              pageInfo: {
+                hasNextPage: false,
+                endCursor: null,
+              },
+            },
+          },
         },
-        response: {
-          data: {
+      },
+    }, {
+      queryName: "UpdateDocument",
+      variables: {
+        id: "doc-1",
+        input: {
+          content: "# Updated Content\n\nNew content here.",
+        },
+      },
+      response: {
+        data: {
+          documentUpdate: {
+            success: true,
             document: {
               id: "doc-1",
+              slugId: "d4b93e3b2695",
               title: "Delegation System Spec",
-              content: "# Current Content",
-              comments: {
-                nodes: [],
-                pageInfo: {
-                  hasNextPage: false,
-                  endCursor: null,
-                },
-              },
+              url:
+                "https://linear.app/test/document/delegation-system-spec-d4b93e3b2695",
+              updatedAt: "2026-01-19T10:00:00Z",
             },
           },
         },
       },
-      {
-        queryName: "UpdateDocument",
-        variables: {
-          id: "d4b93e3b2695",
-          input: {
-            content: "# Updated Content\n\nNew content here.",
-          },
-        },
-        response: {
-          data: {
-            documentUpdate: {
-              success: true,
-              document: {
-                id: "doc-1",
-                slugId: "d4b93e3b2695",
-                title: "Delegation System Spec",
-                url:
-                  "https://linear.app/test/document/delegation-system-spec-d4b93e3b2695",
-                updatedAt: "2026-01-19T10:00:00Z",
-              },
-            },
-          },
-        },
-      },
-    ])
+    }])
 
     try {
       await server.start()
@@ -327,61 +359,58 @@ await snapshotTest({
     "Document Update Command - Allows Content Update With Top Level Comments",
   meta: import.meta,
   colors: false,
-  args: ["d4b93e3b2695", "--content", "# Updated Content"],
+  args: ["--unprotected", "d4b93e3b2695", "--content", "# Updated Content"],
   denoArgs: commonDenoArgs,
   async fn() {
-    const server = new MockLinearServer([
-      {
-        queryName: "DocumentInlineCommentGuard",
-        variables: {
-          id: "d4b93e3b2695",
-          after: null,
+    const server = new MockLinearServer([originalDocument, {
+      queryName: "DocumentInlineCommentGuard",
+      variables: {
+        id: "doc-1",
+        after: null,
+      },
+      response: {
+        data: {
+          document: {
+            id: "doc-1",
+            comments: {
+              nodes: [
+                {
+                  id: "comment-1",
+                  quotedText: null,
+                },
+              ],
+              pageInfo: {
+                hasNextPage: false,
+                endCursor: null,
+              },
+            },
+          },
         },
-        response: {
-          data: {
+      },
+    }, {
+      queryName: "UpdateDocument",
+      variables: {
+        id: "doc-1",
+        input: {
+          content: "# Updated Content",
+        },
+      },
+      response: {
+        data: {
+          documentUpdate: {
+            success: true,
             document: {
               id: "doc-1",
-              comments: {
-                nodes: [
-                  {
-                    id: "comment-1",
-                    quotedText: null,
-                  },
-                ],
-                pageInfo: {
-                  hasNextPage: false,
-                  endCursor: null,
-                },
-              },
+              slugId: "d4b93e3b2695",
+              title: "Delegation System Spec",
+              url:
+                "https://linear.app/test/document/delegation-system-spec-d4b93e3b2695",
+              updatedAt: "2026-01-19T10:00:00Z",
             },
           },
         },
       },
-      {
-        queryName: "UpdateDocument",
-        variables: {
-          id: "d4b93e3b2695",
-          input: {
-            content: "# Updated Content",
-          },
-        },
-        response: {
-          data: {
-            documentUpdate: {
-              success: true,
-              document: {
-                id: "doc-1",
-                slugId: "d4b93e3b2695",
-                title: "Delegation System Spec",
-                url:
-                  "https://linear.app/test/document/delegation-system-spec-d4b93e3b2695",
-                updatedAt: "2026-01-19T10:00:00Z",
-              },
-            },
-          },
-        },
-      },
-    ])
+    }])
 
     try {
       await server.start()
@@ -403,65 +432,62 @@ await snapshotTest({
   meta: import.meta,
   colors: false,
   canFail: true,
-  args: ["d4b93e3b2695", "--content", "# Updated Content"],
+  args: ["--unprotected", "d4b93e3b2695", "--content", "# Updated Content"],
   denoArgs: commonDenoArgs,
   async fn() {
-    const server = new MockLinearServer([
-      {
-        queryName: "DocumentInlineCommentGuard",
-        variables: {
-          id: "d4b93e3b2695",
-          after: null,
-        },
-        response: {
-          data: {
-            document: {
-              id: "doc-1",
-              title: "Delegation System Spec",
-              content: "# Current Content",
-              comments: {
-                nodes: [
-                  {
-                    id: "comment-1",
-                    quotedText: null,
-                  },
-                ],
-                pageInfo: {
-                  hasNextPage: true,
-                  endCursor: "cursor-1",
+    const server = new MockLinearServer([originalDocument, {
+      queryName: "DocumentInlineCommentGuard",
+      variables: {
+        id: "doc-1",
+        after: null,
+      },
+      response: {
+        data: {
+          document: {
+            id: "doc-1",
+            title: "Delegation System Spec",
+            content: "# Current Content",
+            comments: {
+              nodes: [
+                {
+                  id: "comment-1",
+                  quotedText: null,
                 },
+              ],
+              pageInfo: {
+                hasNextPage: true,
+                endCursor: "cursor-1",
               },
             },
           },
         },
       },
-      {
-        queryName: "DocumentInlineCommentGuard",
-        variables: {
-          id: "d4b93e3b2695",
-          after: "cursor-1",
-        },
-        response: {
-          data: {
-            document: {
-              id: "doc-1",
-              comments: {
-                nodes: [
-                  {
-                    id: "comment-2",
-                    quotedText: "Current Content",
-                  },
-                ],
-                pageInfo: {
-                  hasNextPage: false,
-                  endCursor: null,
+    }, {
+      queryName: "DocumentInlineCommentGuard",
+      variables: {
+        id: "doc-1",
+        after: "cursor-1",
+      },
+      response: {
+        data: {
+          document: {
+            id: "doc-1",
+            comments: {
+              nodes: [
+                {
+                  id: "comment-2",
+                  quotedText: "Current Content",
                 },
+              ],
+              pageInfo: {
+                hasNextPage: false,
+                endCursor: null,
               },
             },
           },
         },
       },
-    ])
+    }])
 
     try {
       await server.start()
@@ -482,35 +508,39 @@ await snapshotTest({
   name: "Document Update Command - Force Content Update With Comments",
   meta: import.meta,
   colors: false,
-  args: ["d4b93e3b2695", "--content", "# Updated Content", "--force"],
+  args: [
+    "--unprotected",
+    "d4b93e3b2695",
+    "--content",
+    "# Updated Content",
+    "--force",
+  ],
   denoArgs: commonDenoArgs,
   async fn() {
-    const server = new MockLinearServer([
-      {
-        queryName: "UpdateDocument",
-        variables: {
-          id: "d4b93e3b2695",
-          input: {
-            content: "# Updated Content",
-          },
+    const server = new MockLinearServer([originalDocument, {
+      queryName: "UpdateDocument",
+      variables: {
+        id: "doc-1",
+        input: {
+          content: "# Updated Content",
         },
-        response: {
-          data: {
-            documentUpdate: {
-              success: true,
-              document: {
-                id: "doc-1",
-                slugId: "d4b93e3b2695",
-                title: "Delegation System Spec",
-                url:
-                  "https://linear.app/test/document/delegation-system-spec-d4b93e3b2695",
-                updatedAt: "2026-01-19T10:00:00Z",
-              },
+      },
+      response: {
+        data: {
+          documentUpdate: {
+            success: true,
+            document: {
+              id: "doc-1",
+              slugId: "d4b93e3b2695",
+              title: "Delegation System Spec",
+              url:
+                "https://linear.app/test/document/delegation-system-spec-d4b93e3b2695",
+              updatedAt: "2026-01-19T10:00:00Z",
             },
           },
         },
       },
-    ])
+    }])
 
     try {
       await server.start()
@@ -532,6 +562,7 @@ await snapshotTest({
   meta: import.meta,
   colors: false,
   args: [
+    "--unprotected",
     "d4b93e3b2695",
     "--title",
     "Updated Title",
@@ -542,57 +573,54 @@ await snapshotTest({
   ],
   denoArgs: commonDenoArgs,
   async fn() {
-    const server = new MockLinearServer([
-      {
-        queryName: "DocumentInlineCommentGuard",
-        variables: {
-          id: "d4b93e3b2695",
-          after: null,
+    const server = new MockLinearServer([originalDocument, {
+      queryName: "DocumentInlineCommentGuard",
+      variables: {
+        id: "doc-1",
+        after: null,
+      },
+      response: {
+        data: {
+          document: {
+            id: "doc-1",
+            title: "Delegation System Spec",
+            content: "# Current Content",
+            comments: {
+              nodes: [],
+              pageInfo: {
+                hasNextPage: false,
+                endCursor: null,
+              },
+            },
+          },
         },
-        response: {
-          data: {
+      },
+    }, {
+      queryName: "UpdateDocument",
+      variables: {
+        id: "doc-1",
+        input: {
+          title: "Updated Title",
+          content: "# New Content",
+          icon: "📝",
+        },
+      },
+      response: {
+        data: {
+          documentUpdate: {
+            success: true,
             document: {
               id: "doc-1",
-              title: "Delegation System Spec",
-              content: "# Current Content",
-              comments: {
-                nodes: [],
-                pageInfo: {
-                  hasNextPage: false,
-                  endCursor: null,
-                },
-              },
+              slugId: "d4b93e3b2695",
+              title: "Updated Title",
+              url:
+                "https://linear.app/test/document/updated-title-d4b93e3b2695",
+              updatedAt: "2026-01-19T10:00:00Z",
             },
           },
         },
       },
-      {
-        queryName: "UpdateDocument",
-        variables: {
-          id: "d4b93e3b2695",
-          input: {
-            title: "Updated Title",
-            content: "# New Content",
-            icon: "📝",
-          },
-        },
-        response: {
-          data: {
-            documentUpdate: {
-              success: true,
-              document: {
-                id: "doc-1",
-                slugId: "d4b93e3b2695",
-                title: "Updated Title",
-                url:
-                  "https://linear.app/test/document/updated-title-d4b93e3b2695",
-                updatedAt: "2026-01-19T10:00:00Z",
-              },
-            },
-          },
-        },
-      },
-    ])
+    }])
 
     try {
       await server.start()
@@ -616,7 +644,7 @@ await snapshotTest({
   meta: import.meta,
   colors: false,
   canFail: true,
-  args: ["d4b93e3b2695"],
+  args: ["--unprotected", "d4b93e3b2695"],
   denoArgs: commonDenoArgs,
   async fn() {
     // Set dummy API key so validation logic is reached (not "api_key not set" error)
@@ -638,56 +666,53 @@ await snapshotTest({
   name: "Document Update Command - Resolved Inline Comment Does Not Block",
   meta: import.meta,
   colors: false,
-  args: ["d4b93e3b2695", "--content", "# Updated Content"],
+  args: ["--unprotected", "d4b93e3b2695", "--content", "# Updated Content"],
   denoArgs: commonDenoArgs,
   async fn() {
-    const server = new MockLinearServer([
-      {
-        queryName: "DocumentInlineCommentGuard",
-        variables: { id: "d4b93e3b2695" },
-        response: {
-          data: {
+    const server = new MockLinearServer([originalDocument, {
+      queryName: "DocumentInlineCommentGuard",
+      variables: { id: "doc-1" },
+      response: {
+        data: {
+          document: {
+            id: "doc-1",
+            comments: {
+              nodes: [
+                {
+                  // Inline (has quotedText) but resolved: must be ignored.
+                  id: "comment-resolved",
+                  quotedText: "Old anchored text",
+                  resolvedAt: "2026-01-15T10:00:00Z",
+                  archivedAt: null,
+                },
+              ],
+              pageInfo: { hasNextPage: false, endCursor: null },
+            },
+          },
+        },
+      },
+    }, {
+      queryName: "UpdateDocument",
+      variables: {
+        id: "doc-1",
+        input: { content: "# Updated Content" },
+      },
+      response: {
+        data: {
+          documentUpdate: {
+            success: true,
             document: {
               id: "doc-1",
-              comments: {
-                nodes: [
-                  {
-                    // Inline (has quotedText) but resolved: must be ignored.
-                    id: "comment-resolved",
-                    quotedText: "Old anchored text",
-                    resolvedAt: "2026-01-15T10:00:00Z",
-                    archivedAt: null,
-                  },
-                ],
-                pageInfo: { hasNextPage: false, endCursor: null },
-              },
+              slugId: "d4b93e3b2695",
+              title: "Delegation System Spec",
+              url:
+                "https://linear.app/test/document/delegation-system-spec-d4b93e3b2695",
+              updatedAt: "2026-01-19T10:00:00Z",
             },
           },
         },
       },
-      {
-        queryName: "UpdateDocument",
-        variables: {
-          id: "d4b93e3b2695",
-          input: { content: "# Updated Content" },
-        },
-        response: {
-          data: {
-            documentUpdate: {
-              success: true,
-              document: {
-                id: "doc-1",
-                slugId: "d4b93e3b2695",
-                title: "Delegation System Spec",
-                url:
-                  "https://linear.app/test/document/delegation-system-spec-d4b93e3b2695",
-                updatedAt: "2026-01-19T10:00:00Z",
-              },
-            },
-          },
-        },
-      },
-    ])
+    }])
 
     try {
       await server.start()
@@ -728,22 +753,21 @@ await snapshotTest({
   meta: import.meta,
   colors: false,
   args: [
+    "--unprotected",
     "d4b93e3b2695",
     "--project",
     "00000000-0000-0000-0000-000000000000",
   ],
   denoArgs: commonDenoArgs,
   async fn() {
-    const server = new MockLinearServer([
-      {
-        queryName: "UpdateDocument",
-        variables: {
-          id: "d4b93e3b2695",
-          input: { projectId: "00000000-0000-0000-0000-000000000000" },
-        },
-        response: projectDocResponse,
+    const server = new MockLinearServer([originalDocument, {
+      queryName: "UpdateDocument",
+      variables: {
+        id: "doc-1",
+        input: { projectId: "00000000-0000-0000-0000-000000000000" },
       },
-    ])
+      response: projectDocResponse,
+    }])
     try {
       await server.start()
       Deno.env.set("LINEAR_GRAPHQL_ENDPOINT", server.getEndpoint())
@@ -762,24 +786,28 @@ await snapshotTest({
   name: "Document Update Command - Set Project By Name",
   meta: import.meta,
   colors: false,
-  args: ["d4b93e3b2695", "--project", "Tech Debt"],
+  args: ["--unprotected", "d4b93e3b2695", "--project", "Tech Debt"],
   denoArgs: commonDenoArgs,
   async fn() {
-    const server = new MockLinearServer([
-      {
-        queryName: "GetProjectIdByName",
-        variables: { name: "Tech Debt" },
-        response: { data: { projects: { nodes: [{ id: "proj-uuid" }] } } },
-      },
-      {
-        queryName: "UpdateDocument",
-        variables: {
-          id: "d4b93e3b2695",
-          input: { projectId: "proj-uuid" },
+    const server = new MockLinearServer([originalDocument, {
+      queryName: "GetProjectIdByName",
+      variables: { name: "Tech Debt" },
+      response: {
+        data: {
+          projects: {
+            pageInfo: { hasNextPage: false, endCursor: null },
+            nodes: [{ id: "proj-uuid" }],
+          },
         },
-        response: projectDocResponse,
       },
-    ])
+    }, {
+      queryName: "UpdateDocument",
+      variables: {
+        id: "doc-1",
+        input: { projectId: "proj-uuid" },
+      },
+      response: projectDocResponse,
+    }])
     try {
       await server.start()
       Deno.env.set("LINEAR_GRAPHQL_ENDPOINT", server.getEndpoint())
@@ -799,6 +827,7 @@ await snapshotTest({
   meta: import.meta,
   colors: false,
   args: [
+    "--unprotected",
     "d4b93e3b2695",
     "--title",
     "Renamed Spec",
@@ -807,19 +836,17 @@ await snapshotTest({
   ],
   denoArgs: commonDenoArgs,
   async fn() {
-    const server = new MockLinearServer([
-      {
-        queryName: "UpdateDocument",
-        variables: {
-          id: "d4b93e3b2695",
-          input: {
-            title: "Renamed Spec",
-            projectId: "00000000-0000-0000-0000-000000000000",
-          },
+    const server = new MockLinearServer([originalDocument, {
+      queryName: "UpdateDocument",
+      variables: {
+        id: "doc-1",
+        input: {
+          title: "Renamed Spec",
+          projectId: "00000000-0000-0000-0000-000000000000",
         },
-        response: projectDocResponse,
       },
-    ])
+      response: projectDocResponse,
+    }])
     try {
       await server.start()
       Deno.env.set("LINEAR_GRAPHQL_ENDPOINT", server.getEndpoint())
@@ -838,22 +865,33 @@ await snapshotTest({
   name: "Document Update Command - Project Not Found",
   meta: import.meta,
   colors: false,
-  args: ["d4b93e3b2695", "--project", "Nope"],
+  args: ["--unprotected", "d4b93e3b2695", "--project", "Nope"],
   denoArgs: commonDenoArgs,
   canFail: true,
   async fn() {
-    const server = new MockLinearServer([
-      {
-        queryName: "GetProjectIdByName",
-        variables: { name: "Nope" },
-        response: { data: { projects: { nodes: [] } } },
+    const server = new MockLinearServer([originalDocument, {
+      queryName: "GetProjectIdByName",
+      variables: { name: "Nope" },
+      response: {
+        data: {
+          projects: {
+            pageInfo: { hasNextPage: false, endCursor: null },
+            nodes: [],
+          },
+        },
       },
-      {
-        queryName: "GetProjectIdBySlugId",
-        variables: { slugId: "Nope" },
-        response: { data: { projects: { nodes: [] } } },
+    }, {
+      queryName: "GetProjectIdBySlugId",
+      variables: { slugId: "Nope" },
+      response: {
+        data: {
+          projects: {
+            pageInfo: { hasNextPage: false, endCursor: null },
+            nodes: [],
+          },
+        },
       },
-    ])
+    }])
     try {
       await server.start()
       Deno.env.set("LINEAR_GRAPHQL_ENDPOINT", server.getEndpoint())

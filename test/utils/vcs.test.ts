@@ -1,5 +1,5 @@
 import { assertEquals, assertRejects } from "@std/assert"
-import { getCurrentIssueFromVcs, startVcsWork } from "../../src/utils/vcs.ts"
+import { getCurrentIssueFromVcs } from "../../src/utils/vcs.ts"
 import { CliError } from "../../src/utils/errors.ts"
 
 Deno.test("getCurrentIssueFromVcs - handles git errors gracefully", async () => {
@@ -107,74 +107,6 @@ Deno.test("getCurrentIssueFromVcs - returns null for branch without issue ID", a
 
     const issueId = await getCurrentIssueFromVcs()
     assertEquals(issueId, null)
-  } finally {
-    Deno.chdir(originalCwd)
-    if (originalVcs !== undefined) {
-      Deno.env.set("LINEAR_VCS", originalVcs)
-    } else {
-      Deno.env.delete("LINEAR_VCS")
-    }
-    await Deno.remove(tempDir, { recursive: true })
-  }
-})
-
-Deno.test("startVcsWork - propagates git checkout errors when not in a git repo", async () => {
-  const tempDir = await Deno.makeTempDir()
-  const originalCwd = Deno.cwd()
-  const originalVcs = Deno.env.get("LINEAR_VCS")
-
-  try {
-    Deno.env.set("LINEAR_VCS", "git")
-    Deno.chdir(tempDir)
-
-    await assertRejects(
-      async () => await startVcsWork("ABC-123", "feature/ABC-123-test"),
-      CliError,
-      "Failed to create branch",
-    )
-  } finally {
-    Deno.chdir(originalCwd)
-    if (originalVcs !== undefined) {
-      Deno.env.set("LINEAR_VCS", originalVcs)
-    } else {
-      Deno.env.delete("LINEAR_VCS")
-    }
-    await Deno.remove(tempDir, { recursive: true })
-  }
-})
-
-Deno.test("startVcsWork - propagates git checkout errors when source ref doesn't exist", async () => {
-  const tempDir = await Deno.makeTempDir()
-  const originalCwd = Deno.cwd()
-  const originalVcs = Deno.env.get("LINEAR_VCS")
-
-  try {
-    Deno.env.set("LINEAR_VCS", "git")
-    Deno.chdir(tempDir)
-
-    // Initialize git repo
-    await new Deno.Command("git", { args: ["init"] }).output()
-    await new Deno.Command("git", {
-      args: ["config", "user.email", "test@example.com"],
-    }).output()
-    await new Deno.Command("git", {
-      args: ["config", "user.name", "Test User"],
-    }).output()
-
-    // Create initial commit
-    await Deno.writeTextFile("test.txt", "test")
-    await new Deno.Command("git", { args: ["add", "test.txt"] }).output()
-    await new Deno.Command("git", {
-      args: ["commit", "-m", "initial commit"],
-    }).output()
-
-    // Try to create a branch from a non-existent ref
-    await assertRejects(
-      async () =>
-        await startVcsWork("ABC-123", "feature/ABC-123-test", "nonexistent"),
-      CliError,
-      "Failed to create branch",
-    )
   } finally {
     Deno.chdir(originalCwd)
     if (originalVcs !== undefined) {

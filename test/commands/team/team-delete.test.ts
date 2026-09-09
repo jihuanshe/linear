@@ -1,277 +1,133 @@
-import { Confirm } from "@cliffy/prompt"
 import { assertEquals } from "@std/assert"
 import { stub } from "@std/testing/mock"
 import { deleteCommand } from "../../../src/commands/team/team-delete.ts"
 import { setupMockLinearServer } from "../../utils/test-helpers.ts"
 
-Deno.test("Team Delete Command - Cancel Before Moving Issues", async () => {
-  const { cleanup } = await setupMockLinearServer([
+async function runDelete(issueCount: number, args: string[]) {
+  const { server, cleanup } = await setupMockLinearServer([
     {
       queryName: "GetTeamIdByKey",
-      variables: { team: "SOURCE" },
-      response: {
-        data: {
-          teams: {
-            nodes: [{ id: "source-team-id" }],
-          },
-        },
-      },
+      response: { data: { teams: { nodes: [{ id: "team-id" }] } } },
     },
     {
       queryName: "GetTeamDetails",
-      variables: { id: "source-team-id" },
       response: {
         data: {
-          team: {
-            id: "source-team-id",
-            key: "SOURCE",
-            name: "Source Team",
-            issueCount: 1,
-            issues: {
-              nodes: [{ id: "issue-1" }],
-            },
-          },
-        },
-      },
-    },
-    {
-      queryName: "GetTeamIdByKey",
-      variables: { team: "TARGET" },
-      response: {
-        data: {
-          teams: {
-            nodes: [{ id: "target-team-id" }],
-          },
-        },
-      },
-    },
-  ])
-
-  const terminalStub = stub(
-    Object.getPrototypeOf(Deno.stdin),
-    "isTerminal",
-    () => true,
-  )
-  let confirmCalls = 0
-  const confirmStub = stub(Confirm, "prompt", () => {
-    confirmCalls += 1
-    return Promise.resolve(false)
-  })
-
-  try {
-    await deleteCommand.parse([
-      "SOURCE",
-      "--move-issues",
-      "TARGET",
-    ])
-    assertEquals(confirmCalls, 1)
-  } finally {
-    confirmStub.restore()
-    terminalStub.restore()
-    await cleanup()
-  }
-})
-
-Deno.test("Team Delete Command - Dry Run Stops Before Mutations", async () => {
-  const { cleanup } = await setupMockLinearServer([
-    {
-      queryName: "GetTeamIdByKey",
-      variables: { team: "SOURCE" },
-      response: {
-        data: { teams: { nodes: [{ id: "source-team-id" }] } },
-      },
-    },
-    {
-      queryName: "GetTeamDetails",
-      variables: { id: "source-team-id" },
-      response: {
-        data: {
-          team: {
-            id: "source-team-id",
-            key: "SOURCE",
-            name: "Source Team",
-            issueCount: 12,
-          },
-        },
-      },
-    },
-    {
-      queryName: "GetTeamIdByKey",
-      variables: { team: "TARGET" },
-      response: {
-        data: { teams: { nodes: [{ id: "target-team-id" }] } },
-      },
-    },
-  ])
-  const logs: string[] = []
-  const logStub = stub(console, "log", (...args: unknown[]) => {
-    logs.push(args.map(String).join(" "))
-  })
-
-  try {
-    await deleteCommand.parse([
-      "SOURCE",
-      "--move-issues",
-      "TARGET",
-      "--dry-run",
-    ])
-  } finally {
-    logStub.restore()
-    await cleanup()
-  }
-
-  assertEquals(logs, [
-    "Would delete team SOURCE (Source Team)",
-    "Would move 12 issue(s) to TARGET",
-  ])
-})
-
-Deno.test("Team Delete Command - Reports Moved Issue Identifiers", async () => {
-  const { cleanup } = await setupMockLinearServer([
-    {
-      queryName: "GetTeamIdByKey",
-      variables: { team: "SOURCE" },
-      response: {
-        data: { teams: { nodes: [{ id: "source-team-id" }] } },
-      },
-    },
-    {
-      queryName: "GetTeamDetails",
-      variables: { id: "source-team-id" },
-      response: {
-        data: {
-          team: {
-            id: "source-team-id",
-            key: "SOURCE",
-            name: "Source Team",
-            issueCount: 1,
-          },
-        },
-      },
-    },
-    {
-      queryName: "GetTeamIdByKey",
-      variables: { team: "TARGET" },
-      response: {
-        data: { teams: { nodes: [{ id: "target-team-id" }] } },
-      },
-    },
-    {
-      queryName: "GetTeamIssuesForMove",
-      variables: {
-        teamId: "source-team-id",
-        first: 100,
-        after: undefined,
-      },
-      response: {
-        data: {
-          team: {
-            issues: {
-              nodes: [{ id: "issue-id", identifier: "SOURCE-1" }],
-              pageInfo: { hasNextPage: false, endCursor: null },
-            },
-          },
-        },
-      },
-    },
-    {
-      queryName: "MoveIssueToTeam",
-      variables: { id: "issue-id", teamId: "target-team-id" },
-      response: {
-        data: {
-          issueUpdate: {
-            success: true,
-            issue: { identifier: "TARGET-42" },
-          },
+          team: { id: "team-id", key: "ENG", name: "Engineering", issueCount },
         },
       },
     },
     {
       queryName: "DeleteTeam",
-      variables: { id: "source-team-id" },
       response: { data: { teamDelete: { success: true } } },
     },
   ])
   const logs: string[] = []
-  const logStub = stub(console, "log", (...args: unknown[]) => {
-    logs.push(args.map(String).join(" "))
+  const errors: string[] = []
+  const log = stub(console, "log", (...values: unknown[]) => {
+    logs.push(values.join(" "))
   })
-
-  try {
-    await deleteCommand.parse([
-      "SOURCE",
-      "--move-issues",
-      "TARGET",
-      "--force",
-    ])
-  } finally {
-    logStub.restore()
-    await cleanup()
-  }
-
-  assertEquals(logs, [
-    "✓ Moved SOURCE-1 → TARGET-42",
-    "✓ Moved 1 issue(s) to target team",
-    "✓ Successfully deleted team: SOURCE: Source Team",
-  ])
-})
-
-Deno.test("Team Delete Command - Prompt Disabled Requires Force", async () => {
-  const { cleanup } = await setupMockLinearServer([
-    {
-      queryName: "GetTeamIdByKey",
-      variables: { team: "SOURCE" },
-      response: {
-        data: { teams: { nodes: [{ id: "source-team-id" }] } },
-      },
-    },
-    {
-      queryName: "GetTeamDetails",
-      variables: { id: "source-team-id" },
-      response: {
-        data: {
-          team: {
-            id: "source-team-id",
-            key: "SOURCE",
-            name: "Source Team",
-            issueCount: 0,
-          },
-        },
-      },
-    },
-  ])
-  const original = Deno.env.get("LINEAR_PROMPT_DISABLED")
-  Deno.env.set("LINEAR_PROMPT_DISABLED", "1")
-  const errorLogs: string[] = []
-  const errorStub = stub(console, "error", (...args: unknown[]) => {
-    errorLogs.push(args.map(String).join(" "))
+  const err = stub(console, "error", (...values: unknown[]) => {
+    errors.push(values.join(" "))
   })
-  const exitStub = stub(Deno, "exit", (_code?: number) => {
+  const exit = stub(Deno, "exit", () => {
     throw new Error("EXIT")
   })
-
   try {
-    await deleteCommand.parse(["SOURCE"])
-  } catch (error) {
-    if (!(error instanceof Error) || error.message !== "EXIT") throw error
+    try {
+      await deleteCommand.parse(["ENG", ...args])
+    } catch (error) {
+      if (!(error instanceof Error) || error.message !== "EXIT") throw error
+    }
+    return {
+      logs,
+      errors,
+      requests: server.graphqlRequests.map((r) => r.query),
+    }
   } finally {
-    exitStub.restore()
-    errorStub.restore()
-    if (original == null) Deno.env.delete("LINEAR_PROMPT_DISABLED")
-    else Deno.env.set("LINEAR_PROMPT_DISABLED", original)
+    log.restore()
+    err.restore()
+    exit.restore()
     await cleanup()
   }
+}
+Deno.test("Team delete refuses a nonempty team with no migration or deletion", async () => {
+  const result = await runDelete(2, ["--force"])
+  assertEquals(
+    result.errors.some((e) => e.includes("requires an empty team")),
+    true,
+  )
+  assertEquals(result.requests.length, 2)
+  assertEquals(
+    result.requests[1].includes("issueCount(includeArchived: true)"),
+    true,
+  )
+})
+Deno.test("Team delete dry run is read only", async () => {
+  const result = await runDelete(0, ["--dry-run"])
+  assertEquals(result.logs, ["Would delete team ENG (Engineering)"])
+  assertEquals(result.requests.length, 2)
+})
+Deno.test("Team delete rereads the same team immediately before deletion", async () => {
+  const result = await runDelete(0, ["--force", "--json"])
+  assertEquals(
+    result.requests.filter((q) => q.includes("query GetTeamDetails")).length,
+    2,
+  )
+  const output = JSON.parse(result.logs[0])
+  assertEquals(output.ok, true)
+  assertEquals(output.effect, "applied")
+  assertEquals(output.data.team.id, "team-id")
+})
 
-  assertEquals(
-    errorLogs.some((line) =>
-      line.includes(
-        "Interactive prompting is disabled by LINEAR_PROMPT_DISABLED",
-      )
-    ),
-    true,
+Deno.test("Team delete refuses issues added while confirmation is open", async () => {
+  const { Confirm } = await import("../../../src/utils/prompt.ts")
+  const team = { id: "team-id", key: "ENG", name: "Engineering", issueCount: 0 }
+  const { server, cleanup } = await setupMockLinearServer([
+    {
+      queryName: "GetTeamIdByKey",
+      response: { data: { teams: { nodes: [{ id: "team-id" }] } } },
+    },
+    { queryName: "GetTeamDetails", response: { data: { team } } },
+  ])
+  const terminal = stub(
+    Object.getPrototypeOf(Deno.stdin),
+    "isTerminal",
+    () => true,
   )
-  assertEquals(
-    errorLogs.some((line) => line.includes("Use --force")),
-    true,
-  )
+  const prompt = stub(Confirm, "prompt", () => {
+    team.issueCount = 1
+    return Promise.resolve(true)
+  })
+  const errors: string[] = []
+  const error = stub(console, "error", (...values: unknown[]) => {
+    errors.push(values.join(" "))
+  })
+  const exit = stub(Deno, "exit", () => {
+    throw new Error("EXIT")
+  })
+  try {
+    try {
+      await deleteCommand.parse(["ENG"])
+    } catch (err) {
+      if (!(err instanceof Error) || err.message !== "EXIT") throw err
+    }
+    assertEquals(
+      errors.some((message) => message.includes("requires an empty team")),
+      true,
+    )
+    assertEquals(server.graphqlRequests.length, 3)
+    assertEquals(
+      server.graphqlRequests.some((request) =>
+        request.query.includes("mutation")
+      ),
+      false,
+    )
+  } finally {
+    terminal.restore()
+    prompt.restore()
+    error.restore()
+    exit.restore()
+    await cleanup()
+  }
 })

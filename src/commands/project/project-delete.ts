@@ -5,7 +5,13 @@ import { gql } from "../../__codegen__/gql.ts"
 import { getGraphQLClient } from "../../utils/graphql.ts"
 import { resolveProjectId } from "../../utils/linear.ts"
 import { shouldShowSpinner } from "../../utils/hyperlink.ts"
-import { CliError, handleError, ValidationError } from "../../utils/errors.ts"
+import {
+  assertMutationReceipt,
+  assertMutationSuccess,
+  handleError,
+  ValidationError,
+} from "../../utils/errors.ts"
+import { printWriteResult, setMachineOutput } from "../../utils/write-result.ts"
 
 const DeleteProject = gql(`
   mutation DeleteProject($id: String!) {
@@ -23,14 +29,17 @@ export const deleteCommand = withUsageMetadata(new Command(), {
   writes: true,
   interactive: true,
   confirmationRequiredUnless: "--force",
+  outputModes: ["human", "json"],
 })
   .name("delete")
+  .option("--json", "Output a JSON write result")
   .description("Delete (trash) a Linear project")
   .arguments("<projectId:string>")
   .option("-f, --force", "Skip confirmation prompt")
-  .action(async ({ force }, projectId) => {
+  .action(async ({ force, json }, projectId) => {
+    setMachineOutput(json ?? false)
     if (!force) {
-      if (!Deno.stdin.isTerminal()) {
+      if (json || !Deno.stdin.isTerminal()) {
         throw new ValidationError("Interactive confirmation required", {
           suggestion: "Use --force to skip confirmation.",
         })
@@ -47,7 +56,7 @@ export const deleteCommand = withUsageMetadata(new Command(), {
     }
 
     const { Spinner } = await import("@std/cli/unstable-spinner")
-    const showSpinner = shouldShowSpinner()
+    const showSpinner = !json && shouldShowSpinner()
     const spinner = showSpinner ? new Spinner() : null
     spinner?.start()
 
@@ -60,11 +69,20 @@ export const deleteCommand = withUsageMetadata(new Command(), {
       })
       spinner?.stop()
 
-      if (!result.projectDelete.success) {
-        throw new CliError("Failed to delete project")
+      assertMutationSuccess(result?.projectDelete, {
+        id: resolvedId,
+        result: result?.projectDelete,
+      })
+      const entity = result.projectDelete.entity
+      assertMutationReceipt(entity, {
+        id: resolvedId,
+        result: result.projectDelete,
+      }, resolvedId)
+      if (json) {
+        printWriteResult({ id: resolvedId, ...result?.projectDelete })
+        return
       }
 
-      const entity = result.projectDelete.entity
       const displayName = entity?.name ?? projectId
       console.log(`✓ Deleted project: ${displayName}`)
     } catch (error) {

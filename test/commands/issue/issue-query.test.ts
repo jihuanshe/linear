@@ -18,7 +18,14 @@ for (const search of [false, true]) {
       {
         queryName: "LookupUserById",
         variables: { id: userId },
-        response: { data: { users: { nodes: [{ id: userId }] } } },
+        response: {
+          data: {
+            users: {
+              nodes: [{ id: userId }],
+              pageInfo: { hasNextPage: false, endCursor: null },
+            },
+          },
+        },
       },
       {
         queryName: search ? "SearchIssues" : "GetIssuesForQuery",

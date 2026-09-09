@@ -8,6 +8,7 @@ import { MockLinearServer } from "../../utils/mock_linear_server.ts"
 import { setupMockLinearServer } from "../../utils/test-helpers.ts"
 
 const id = "550e8400-e29b-41d4-a716-446655440000"
+const organization = { id: "workspace-test", urlKey: "test" }
 const initiative = {
   id,
   slugId: "example",
@@ -51,10 +52,16 @@ async function runCli(server: MockLinearServer, args: string[]) {
 
 for (const command of ["create", "update"]) {
   Deno.test(`initiative ${command} normalizes supported status casing`, async () => {
+    let currentStatus = "Active"
     const server = new MockLinearServer([
       {
-        queryName: "GetInitiativeForUpdate",
-        response: { data: { initiative } },
+        queryName: "ReadInitiative",
+        response: () => ({
+          data: {
+            organization,
+            initiative: { ...initiative, status: currentStatus },
+          },
+        }),
       },
       {
         queryName: command === "create"
@@ -91,15 +98,25 @@ for (const command of ["create", "update"]) {
             canonical.toUpperCase(),
           ]
         ) {
+          currentStatus = canonical === "Active" ? "Planned" : "Active"
+          const before = server.graphqlRequests.filter((request) =>
+            /mutation\s/.test(request.query)
+          ).length
           const result = await runCli(server, [
             command,
-            ...(command === "create" ? ["--name", "Example"] : [id]),
+            ...(command === "create"
+              ? ["--name", "Example"]
+              : [id, "--unprotected"]),
             "--status",
             status,
           ])
           assertEquals(result.code, 0, result.stderr)
+          const mutations = server.graphqlRequests.filter((request) =>
+            /mutation\s/.test(request.query)
+          )
+          assertEquals(mutations.length, before + 1)
           assertEquals(
-            server.graphqlRequests.at(-1)?.variables.input,
+            mutations.at(-1)?.variables.input,
             command === "create"
               ? { name: "Example", status: canonical }
               : { status: canonical },
@@ -158,8 +175,8 @@ for (const command of ["create", "update"]) {
   Deno.test(`initiative ${command} interactive choices send canonical status`, async () => {
     const { server, cleanup } = await setupMockLinearServer([
       {
-        queryName: "GetInitiativeForUpdate",
-        response: { data: { initiative } },
+        queryName: "ReadInitiative",
+        response: { data: { organization, initiative } },
       },
       {
         queryName: command === "create"
@@ -177,6 +194,11 @@ for (const command of ["create", "update"]) {
     ])
     const terminal = stub(
       Object.getPrototypeOf(Deno.stdout),
+      "isTerminal",
+      () => true,
+    )
+    const stdinTerminal = stub(
+      Object.getPrototypeOf(Deno.stdin),
       "isTerminal",
       () => true,
     )
@@ -230,6 +252,7 @@ for (const command of ["create", "update"]) {
       select.restore()
       input.restore()
       terminal.restore()
+      stdinTerminal.restore()
       await cleanup()
     }
   })

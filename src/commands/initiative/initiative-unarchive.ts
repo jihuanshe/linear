@@ -1,11 +1,14 @@
+import { resolveInitiativeId } from "./initiative-resolve.ts"
 import { Command } from "@cliffy/command"
 import { withUsageMetadata } from "../usage.ts"
 import { Confirm } from "../../utils/prompt.ts"
 import { gql } from "../../__codegen__/gql.ts"
 import { getGraphQLClient } from "../../utils/graphql.ts"
 import { shouldShowSpinner } from "../../utils/hyperlink.ts"
+import { printWriteResult, setMachineOutput } from "../../utils/write-result.ts"
 import {
-  CliError,
+  assertMutationReceipt,
+  assertMutationSuccess,
   handleError,
   NotFoundError,
   ValidationError,
@@ -15,16 +18,19 @@ export const unarchiveCommand = withUsageMetadata(new Command(), {
   writes: true,
   interactive: true,
   confirmationRequiredUnless: "--force",
+  outputModes: ["human", "json"],
 })
   .name("unarchive")
+  .option("--json", "Output a JSON write result")
   .description("Unarchive a Linear initiative")
   .arguments("<initiativeId:string>")
   .option("-y, --force", "Skip confirmation prompt")
-  .action(async ({ force }, initiativeId) => {
+  .action(async ({ force, json }, initiativeId) => {
+    setMachineOutput(json ?? false)
     const client = getGraphQLClient()
 
     // Resolve initiative ID
-    const resolvedId = await resolveInitiativeId(client, initiativeId)
+    const resolvedId = await resolveInitiativeId(client, initiativeId, true)
     if (!resolvedId) {
       throw new NotFoundError("Initiative", initiativeId)
     }
@@ -60,13 +66,17 @@ export const unarchiveCommand = withUsageMetadata(new Command(), {
 
     // Check if already unarchived
     if (!initiative.archivedAt) {
+      if (json) {
+        printWriteResult(initiative, { effect: "none" })
+        return
+      }
       console.log(`Initiative "${initiative.name}" is not archived.`)
       return
     }
 
     // Confirm unarchive
     if (!force) {
-      if (!Deno.stdin.isTerminal()) {
+      if (json || !Deno.stdin.isTerminal()) {
         throw new ValidationError(
           "Interactive confirmation required. Use --force to skip.",
         )
@@ -83,7 +93,7 @@ export const unarchiveCommand = withUsageMetadata(new Command(), {
     }
 
     const { Spinner } = await import("@std/cli/unstable-spinner")
-    const showSpinner = shouldShowSpinner()
+    const showSpinner = !json && shouldShowSpinner()
     const spinner = showSpinner ? new Spinner() : null
     spinner?.start()
 
@@ -109,11 +119,20 @@ export const unarchiveCommand = withUsageMetadata(new Command(), {
 
       spinner?.stop()
 
-      if (!result.initiativeUnarchive.success) {
-        throw new CliError("Failed to unarchive initiative")
-      }
+      assertMutationSuccess(result?.initiativeUnarchive, {
+        id: resolvedId,
+        result: result?.initiativeUnarchive,
+      })
 
-      const unarchived = result.initiativeUnarchive.entity
+      const unarchived = result?.initiativeUnarchive.entity
+      assertMutationReceipt(unarchived, {
+        id: resolvedId,
+        result: result?.initiativeUnarchive,
+      }, resolvedId)
+      if (json) {
+        printWriteResult(unarchived)
+        return
+      }
       console.log(`✓ Unarchived initiative: ${unarchived?.name}`)
       if (unarchived?.url) {
         console.log(unarchived.url)
@@ -123,61 +142,3 @@ export const unarchiveCommand = withUsageMetadata(new Command(), {
       handleError(error, "Failed to unarchive initiative")
     }
   })
-
-async function resolveInitiativeId(
-  client: ReturnType<typeof getGraphQLClient>,
-  idOrSlugOrName: string,
-): Promise<string | undefined> {
-  // Try as UUID first
-  if (
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
-      idOrSlugOrName,
-    )
-  ) {
-    return idOrSlugOrName
-  }
-
-  // Try as slug (including archived)
-  const slugQuery = gql(`
-    query GetInitiativeBySlugIncludeArchived($slugId: String!) {
-      initiatives(filter: { slugId: { eq: $slugId } }, includeArchived: true) {
-        nodes {
-          id
-          slugId
-        }
-      }
-    }
-  `)
-
-  try {
-    const result = await client.request(slugQuery, { slugId: idOrSlugOrName })
-    if (result.initiatives?.nodes?.length > 0) {
-      return result.initiatives.nodes[0].id
-    }
-  } catch {
-    // Continue to name lookup
-  }
-
-  // Try as name (including archived)
-  const nameQuery = gql(`
-    query GetInitiativeByNameIncludeArchived($name: String!) {
-      initiatives(filter: { name: { eqIgnoreCase: $name } }, includeArchived: true) {
-        nodes {
-          id
-          name
-        }
-      }
-    }
-  `)
-
-  try {
-    const result = await client.request(nameQuery, { name: idOrSlugOrName })
-    if (result.initiatives?.nodes?.length > 0) {
-      return result.initiatives.nodes[0].id
-    }
-  } catch {
-    // Not found
-  }
-
-  return undefined
-}

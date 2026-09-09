@@ -5,33 +5,226 @@ import {
   extractIssueRelationSnapshot,
   getIssueIdentifier,
   planIssueRelations,
-  requireIssueId,
 } from "../../utils/linear.ts"
+import { readIssueHeader } from "../../utils/issue-read.ts"
+import { completeConnection } from "../../utils/pagination.ts"
 import {
+  assertMutationReceipt,
+  assertMutationSuccess,
+  CliError,
   handleError,
-  isClientError,
-  isNotFoundError,
   NotFoundError,
   ValidationError,
 } from "../../utils/errors.ts"
+import { printWriteResult, writeResult } from "../../utils/write-result.ts"
 import { withUsageMetadata } from "../usage.ts"
 
 const RELATION_TYPES = ["blocks", "blocked-by", "related", "duplicate"] as const
-type RelationType = (typeof RELATION_TYPES)[number]
+export type RelationType = (typeof RELATION_TYPES)[number]
 
-// Map CLI-friendly names to Linear API types
-// Note: "blocked-by" is implemented by reversing the issue order with "blocks"
-function getApiRelationType(
-  type: RelationType,
-): "blocks" | "related" | "duplicate" {
-  if (type === "blocked-by") return "blocks"
+const ExistingRelations = gql(`
+  query GetExistingIssueRelations($issueId: String!) {
+    issue(id: $issueId) {
+      relations(first: 100) {
+        nodes { id type relatedIssue { id identifier title } }
+        pageInfo { hasNextPage endCursor }
+      }
+      inverseRelations(first: 100) {
+        nodes { id type issue { id identifier title } }
+        pageInfo { hasNextPage endCursor }
+      }
+    }
+  }
+`)
+const OutgoingRelations = gql(`
+  query GetIssueOutgoingRelations($issueId: String!, $first: Int!, $after: String) {
+    issue(id: $issueId) {
+      relations(first: $first, after: $after) {
+        nodes { id type relatedIssue { id identifier title } }
+        pageInfo { hasNextPage endCursor }
+      }
+    }
+  }
+`)
+const IncomingRelations = gql(`
+  query GetIssueIncomingRelations($issueId: String!, $first: Int!, $after: String) {
+    issue(id: $issueId) {
+      inverseRelations(first: $first, after: $after) {
+        nodes { id type issue { id identifier title } }
+        pageInfo { hasNextPage endCursor }
+      }
+    }
+  }
+`)
+const CreateRelation = gql(`
+  mutation CreateIssueRelation($input: IssueRelationCreateInput!) {
+    issueRelationCreate(input: $input) { success issueRelation { id } }
+  }
+`)
+const DeleteRelation = gql(`
+  mutation DeleteIssueRelation($id: String!) {
+    issueRelationDelete(id: $id) { success }
+  }
+`)
+
+function parseType(value: string): RelationType {
+  const type = value.toLowerCase() as RelationType
+  if (!RELATION_TYPES.includes(type)) {
+    throw new ValidationError(`Invalid relation type: ${value}`, {
+      suggestion: `Must be one of: ${RELATION_TYPES.join(", ")}`,
+    })
+  }
   return type
+}
+
+async function resolveIssue(ref?: string) {
+  const identifier = await getIssueIdentifier(ref)
+  if (!identifier) {
+    throw new ValidationError(
+      `Could not resolve issue identifier: ${ref ?? "current issue"}`,
+    )
+  }
+  const issue = await readIssueHeader(identifier)
+  if (!issue.id) throw new CliError("Issue lookup returned no stable identity")
+  return issue
+}
+
+/** Complete both directions; missing or cyclic cursors fail before any write. */
+export async function readIssueRelationInventory(issueId: string) {
+  const client = getGraphQLClient()
+  const data = await client.request(ExistingRelations, { issueId })
+  if (!data.issue) throw new NotFoundError("Issue", issueId)
+  const relations = await completeConnection(
+    data.issue.relations,
+    async (after, first) => {
+      const page = await client.request(OutgoingRelations, {
+        issueId,
+        after,
+        first,
+      })
+      if (!page.issue) throw new NotFoundError("Issue", issueId)
+      return page.issue.relations
+    },
+    `outgoing relations for ${issueId}`,
+  )
+  const inverseRelations = await completeConnection(
+    data.issue.inverseRelations,
+    async (after, first) => {
+      const page = await client.request(IncomingRelations, {
+        issueId,
+        after,
+        first,
+      })
+      if (!page.issue) throw new NotFoundError("Issue", issueId)
+      return page.issue.inverseRelations
+    },
+    `incoming relations for ${issueId}`,
+  )
+  return { relations, inverseRelations }
+}
+
+async function relationContext(
+  issueRef: string,
+  type: RelationType,
+  relatedRef: string,
+) {
+  parseType(type)
+  const issue = await resolveIssue(issueRef)
+  const relatedIssue = await resolveIssue(relatedRef)
+  if (issue.id === relatedIssue.id) {
+    throw new ValidationError("An issue cannot be related to itself")
+  }
+  const input = {
+    issueId: type === "blocked-by" ? relatedIssue.id : issue.id,
+    relatedIssueId: type === "blocked-by" ? issue.id : relatedIssue.id,
+    type: type === "blocked-by" ? "blocks" as const : type,
+  }
+  const inventory = await readIssueRelationInventory(issue.id)
+  const edges = [
+    ...inventory.relations.nodes.map((r) => ({
+      id: r.id,
+      type: r.type,
+      issueId: issue.id,
+      relatedIssueId: r.relatedIssue.id,
+    })),
+    ...inventory.inverseRelations.nodes.map((r) => ({
+      id: r.id,
+      type: r.type,
+      issueId: r.issue.id,
+      relatedIssueId: issue.id,
+    })),
+  ]
+  const relation = edges.find((r) =>
+    r.type === input.type && (
+      (r.issueId === input.issueId &&
+        r.relatedIssueId === input.relatedIssueId) ||
+      (input.type === "related" && r.issueId === input.relatedIssueId &&
+        r.relatedIssueId === input.issueId)
+    )
+  )
+  return { issue, relatedIssue, type, input, inventory, relation }
+}
+
+/** Read-only preparation for plan; apply calls addIssueRelation to read again. */
+export async function prepareIssueRelation(
+  issueRef: string,
+  type: RelationType,
+  relatedRef: string,
+) {
+  const context = await relationContext(issueRef, type, relatedRef)
+  const plan = planIssueRelations([{
+    type,
+    issue: context.relatedIssue.identifier,
+    issueId: context.relatedIssue.id,
+  }], extractIssueRelationSnapshot(context.inventory))[0]
+  if (plan.verdict === "conflict") {
+    throw new ValidationError(
+      `Cannot add ${context.issue.identifier} ${type} ${context.relatedIssue.identifier}: ${
+        plan.detail ?? "an existing relation would be replaced"
+      }`,
+      {
+        suggestion:
+          "Delete the existing relation explicitly before adding a different type or direction.",
+      },
+    )
+  }
+  if (plan.verdict === "idempotent" && !context.relation?.id) {
+    throw new CliError("Existing relation has no stable identity")
+  }
+  return { ...context, verdict: plan.verdict }
+}
+
+/** The command and delivery call this mutation owner; preparation has no effects. */
+export async function addIssueRelation(
+  issueRef: string,
+  type: RelationType,
+  relatedRef: string,
+  options: { beforeWrite?: () => Promise<void> } = {},
+) {
+  const prepared = await prepareIssueRelation(issueRef, type, relatedRef)
+  const { issue, relatedIssue } = prepared
+  if (prepared.verdict === "idempotent") {
+    return writeResult({
+      issue,
+      relatedIssue,
+      type,
+      relation: prepared.relation!,
+    }, { effect: "none" })
+  }
+  const client = getGraphQLClient()
+  await options.beforeWrite?.()
+  const data = await client.request(CreateRelation, { input: prepared.input })
+  assertMutationSuccess(data.issueRelationCreate, data)
+  const relation = data.issueRelationCreate.issueRelation
+  assertMutationReceipt(relation, data)
+  return writeResult({ issue, relatedIssue, type, relation })
 }
 
 const addRelationCommand = withUsageMetadata(new Command(), { writes: true })
   .name("add")
-  .description("Add a relation between two issues")
+  .description("Add a relation without replacing an existing type or direction")
   .arguments("<issueId:string> <relationType:string> <relatedIssueId:string>")
+  .option("--json", "Output the confirmed relation or no-op as JSON")
   .example(
     "Mark issue as blocked by another",
     "linear issue relation add ENG-123 blocked-by ENG-100",
@@ -48,145 +241,19 @@ const addRelationCommand = withUsageMetadata(new Command(), { writes: true })
     "Mark ENG-123 as a duplicate of ENG-100",
     "linear issue relation add ENG-123 duplicate ENG-100",
   )
-  .action(async (_options, issueIdArg, relationTypeArg, relatedIssueIdArg) => {
+  .action(async ({ json }, issue, type, relatedIssue) => {
     try {
-      // Validate relation type
-      const relationType = relationTypeArg.toLowerCase() as RelationType
-      if (!RELATION_TYPES.includes(relationType)) {
-        throw new ValidationError(
-          `Invalid relation type: ${relationTypeArg}`,
-          { suggestion: `Must be one of: ${RELATION_TYPES.join(", ")}` },
-        )
-      }
-
-      // Get issue identifiers
-      const issueIdentifier = await getIssueIdentifier(issueIdArg)
-      if (!issueIdentifier) {
-        throw new ValidationError(
-          `Could not resolve issue identifier: ${issueIdArg}`,
-        )
-      }
-
-      const relatedIssueIdentifier = await getIssueIdentifier(relatedIssueIdArg)
-      if (!relatedIssueIdentifier) {
-        throw new ValidationError(
-          `Could not resolve issue identifier: ${relatedIssueIdArg}`,
-        )
-      }
-
-      const { Spinner } = await import("@std/cli/unstable-spinner")
-      const { shouldShowSpinner } = await import("../../utils/hyperlink.ts")
-      const spinner = shouldShowSpinner() ? new Spinner() : null
-      spinner?.start()
-
-      // Get issue IDs
-      let issueId: string
-      let relatedIssueId: string
-      try {
-        issueId = await requireIssueId(issueIdentifier)
-        relatedIssueId = await requireIssueId(relatedIssueIdentifier)
-      } catch (error) {
-        spinner?.stop()
-        throw error
-      }
-
-      // For "blocked-by", we swap the issues so the relation is correct
-      // "A blocked-by B" means "B blocks A"
-      const apiType = getApiRelationType(relationType)
-      const [fromId, toId] = relationType === "blocked-by"
-        ? [relatedIssueId, issueId]
-        : [issueId, relatedIssueId]
-
-      // Linear stores only one relation per Issue pair. Creating a different
-      // type silently replaces the existing edge, so `add` must fail closed
-      // unless this is a new pair or an equivalent idempotent request.
-      const existingRelationsQuery = gql(`
-        query GetExistingIssueRelations($issueId: String!) {
-          issue(id: $issueId) {
-            relations(first: 250) {
-              nodes {
-                type
-                relatedIssue { id identifier }
-              }
-              pageInfo { hasNextPage }
-            }
-            inverseRelations(first: 250) {
-              nodes {
-                type
-                issue { id identifier }
-              }
-              pageInfo { hasNextPage }
-            }
-          }
-        }
-      `)
-
-      const client = getGraphQLClient()
-      const existingData = await client.request(existingRelationsQuery, {
-        issueId,
-      })
-      if (existingData.issue == null) {
-        spinner?.stop()
-        throw new NotFoundError("Issue", issueIdentifier)
-      }
-      const relationPlan = planIssueRelations(
-        [{
-          type: relationType,
-          issue: relatedIssueIdentifier,
-          issueId: relatedIssueId,
-        }],
-        extractIssueRelationSnapshot(existingData.issue),
-      )[0]
-      if (relationPlan.verdict === "conflict") {
-        spinner?.stop()
-        throw new ValidationError(
-          `Cannot add ${issueIdentifier} ${relationType} ${relatedIssueIdentifier}: ${
-            relationPlan.detail ?? "an existing relation would be replaced"
-          }`,
-          {
-            suggestion:
-              "Delete the existing relation explicitly before adding a different type or direction.",
-          },
-        )
-      }
-      if (relationPlan.verdict === "idempotent") {
-        spinner?.stop()
-        console.log(
-          `✓ Relation already exists: ${issueIdentifier} ${relationType} ${relatedIssueIdentifier}`,
-        )
-        return
-      }
-
-      const createRelationMutation = gql(`
-        mutation CreateIssueRelation($input: IssueRelationCreateInput!) {
-          issueRelationCreate(input: $input) {
-            success
-            issueRelation {
-              id
-            }
-          }
-        }
-      `)
-
-      const data = await client.request(createRelationMutation, {
-        input: {
-          issueId: fromId,
-          relatedIssueId: toId,
-          type: apiType,
-        },
-      })
-
-      spinner?.stop()
-
-      if (!data.issueRelationCreate.success) {
-        throw new Error("Failed to create relation")
-      }
-
-      if (data.issueRelationCreate.issueRelation) {
-        console.log(
-          `✓ Created relation: ${issueIdentifier} ${relationType} ${relatedIssueIdentifier}`,
-        )
-      }
+      const result = await addIssueRelation(
+        issue,
+        parseType(type),
+        relatedIssue,
+      )
+      if (json) printWriteResult(result.data, { effect: result.effect })
+      else {console.log(`✓ ${
+          result.effect === "none"
+            ? "Relation already exists"
+            : "Created relation"
+        }: ${result.data.issue.identifier} ${result.data.type} ${result.data.relatedIssue.identifier}`)}
     } catch (error) {
       handleError(error, "Failed to create relation")
     }
@@ -194,109 +261,37 @@ const addRelationCommand = withUsageMetadata(new Command(), { writes: true })
 
 const deleteRelationCommand = withUsageMetadata(new Command(), { writes: true })
   .name("delete")
-  .description("Delete a relation between two issues")
+  .description("Delete the specified relation between two issues")
   .arguments("<issueId:string> <relationType:string> <relatedIssueId:string>")
-  .action(async (_options, issueIdArg, relationTypeArg, relatedIssueIdArg) => {
+  .option("--json", "Output the confirmed deletion as JSON")
+  .action(async ({ json }, issueRef, typeArg, relatedRef) => {
     try {
-      // Validate relation type
-      const relationType = relationTypeArg.toLowerCase() as RelationType
-      if (!RELATION_TYPES.includes(relationType)) {
-        throw new ValidationError(
-          `Invalid relation type: ${relationTypeArg}`,
-          { suggestion: `Must be one of: ${RELATION_TYPES.join(", ")}` },
-        )
-      }
-
-      // Get issue identifiers
-      const issueIdentifier = await getIssueIdentifier(issueIdArg)
-      if (!issueIdentifier) {
-        throw new ValidationError(
-          `Could not resolve issue identifier: ${issueIdArg}`,
-        )
-      }
-
-      const relatedIssueIdentifier = await getIssueIdentifier(relatedIssueIdArg)
-      if (!relatedIssueIdentifier) {
-        throw new ValidationError(
-          `Could not resolve issue identifier: ${relatedIssueIdArg}`,
-        )
-      }
-
-      const { Spinner } = await import("@std/cli/unstable-spinner")
-      const { shouldShowSpinner } = await import("../../utils/hyperlink.ts")
-      const spinner = shouldShowSpinner() ? new Spinner() : null
-      spinner?.start()
-
-      // Get issue IDs
-      let issueId: string
-      let relatedIssueId: string
-      try {
-        issueId = await requireIssueId(issueIdentifier)
-        relatedIssueId = await requireIssueId(relatedIssueIdentifier)
-      } catch (error) {
-        spinner?.stop()
-        throw error
-      }
-
-      // Find the relation
-      const apiType = getApiRelationType(relationType)
-      const [fromId, toId] = relationType === "blocked-by"
-        ? [relatedIssueId, issueId]
-        : [issueId, relatedIssueId]
-
-      const findRelationQuery = gql(`
-        query FindIssueRelation($issueId: String!) {
-          issue(id: $issueId) {
-            relations {
-              nodes {
-                id
-                type
-                relatedIssue { id }
-              }
-            }
-          }
-        }
-      `)
-
-      const client = getGraphQLClient()
-      const findData = await client.request(findRelationQuery, {
-        issueId: fromId,
-      })
-
-      const relation = findData.issue?.relations.nodes.find(
-        (r: { type: string; relatedIssue: { id: string } }) =>
-          r.type === apiType && r.relatedIssue.id === toId,
+      const { issue, relatedIssue, type, relation } = await relationContext(
+        issueRef,
+        parseType(typeArg),
+        relatedRef,
       )
-
-      if (!relation) {
-        spinner?.stop()
+      if (!relation?.id) {
         throw new NotFoundError(
           "Relation",
-          `${relationType} between ${issueIdentifier} and ${relatedIssueIdentifier}`,
+          `${type} between ${issue.identifier} and ${relatedIssue.identifier}`,
         )
       }
-
-      const deleteRelationMutation = gql(`
-        mutation DeleteIssueRelation($id: String!) {
-          issueRelationDelete(id: $id) {
-            success
-          }
-        }
-      `)
-
-      const deleteData = await client.request(deleteRelationMutation, {
+      const data = await getGraphQLClient().request(DeleteRelation, {
         id: relation.id,
       })
-
-      spinner?.stop()
-
-      if (!deleteData.issueRelationDelete.success) {
-        throw new Error("Failed to delete relation")
-      }
-
-      console.log(
-        `✓ Deleted relation: ${issueIdentifier} ${relationType} ${relatedIssueIdentifier}`,
-      )
+      assertMutationSuccess(data.issueRelationDelete, data)
+      if (json) {
+        printWriteResult({
+          issue,
+          relatedIssue,
+          type,
+          relation,
+          ...data.issueRelationDelete,
+        })
+      } else {console.log(
+          `✓ Deleted relation: ${issue.identifier} ${type} ${relatedIssue.identifier}`,
+        )}
     } catch (error) {
       handleError(error, "Failed to delete relation")
     }
@@ -304,102 +299,46 @@ const deleteRelationCommand = withUsageMetadata(new Command(), { writes: true })
 
 const listRelationsCommand = new Command()
   .name("list")
-  .description("List relations for an issue")
+  .description("List all outgoing and incoming relations for an issue")
   .arguments("[issueId:string]")
-  .action(async (_options, issueIdArg) => {
+  .option(
+    "--json",
+    "Output the issue and complete relation connections as JSON",
+  )
+  .action(async ({ json }, issueRef) => {
     try {
-      const issueIdentifier = await getIssueIdentifier(issueIdArg)
-      if (!issueIdentifier) {
-        throw new ValidationError(
-          "Could not determine issue identifier",
-          { suggestion: "Please provide an issue identifier like 'ENG-123'." },
+      const issue = await resolveIssue(issueRef)
+      const inventory = await readIssueRelationInventory(issue.id)
+      if (json) {
+        console.log(
+          JSON.stringify({ issue: { ...issue, ...inventory } }, null, 2),
         )
+        return
       }
-
-      const { Spinner } = await import("@std/cli/unstable-spinner")
-      const { shouldShowSpinner } = await import("../../utils/hyperlink.ts")
-      const spinner = shouldShowSpinner() ? new Spinner() : null
-      spinner?.start()
-
-      const listRelationsQuery = gql(`
-        query ListIssueRelations($issueId: String!) {
-          issue(id: $issueId) {
-            identifier
-            title
-            relations {
-              nodes {
-                id
-                type
-                relatedIssue {
-                  identifier
-                  title
-                }
-              }
-            }
-            inverseRelations {
-              nodes {
-                id
-                type
-                issue {
-                  identifier
-                  title
-                }
-              }
-            }
-          }
-        }
-      `)
-
-      const client = getGraphQLClient()
-      let data
-      try {
-        data = await client.request(listRelationsQuery, {
-          issueId: issueIdentifier,
-        })
-      } catch (error) {
-        spinner?.stop()
-        if (isClientError(error) && isNotFoundError(error)) {
-          throw new NotFoundError("Issue", issueIdentifier)
-        }
-        throw error
-      }
-
-      spinner?.stop()
-
-      if (!data.issue) {
-        throw new NotFoundError("Issue", issueIdentifier)
-      }
-
-      const { identifier, title, relations, inverseRelations } = data.issue
-
-      console.log(`Relations for ${identifier}: ${title}`)
+      console.log(`Relations for ${issue.identifier}: ${issue.title}`)
       console.log()
-
-      const outgoing = relations.nodes
-      const incoming = inverseRelations.nodes
-
-      if (outgoing.length === 0 && incoming.length === 0) {
+      const outgoing = inventory.relations.nodes,
+        incoming = inventory.inverseRelations.nodes
+      if (!outgoing.length && !incoming.length) {
         console.log("  No relations")
         return
       }
-
-      if (outgoing.length > 0) {
+      if (outgoing.length) {
         console.log("Outgoing:")
         for (const rel of outgoing) {
           console.log(
-            `  ${identifier} ${rel.type} ${rel.relatedIssue.identifier}: ${rel.relatedIssue.title}`,
+            `  ${issue.identifier} ${rel.type} ${rel.relatedIssue.identifier}: ${rel.relatedIssue.title}`,
           )
         }
       }
-
-      if (incoming.length > 0) {
-        if (outgoing.length > 0) console.log()
+      if (incoming.length) {
+        if (outgoing.length) console.log()
         console.log("Incoming:")
         for (const rel of incoming) {
-          // Show inverse perspective
-          const displayType = rel.type === "blocks" ? "blocked-by" : rel.type
           console.log(
-            `  ${identifier} ${displayType} ${rel.issue.identifier}: ${rel.issue.title}`,
+            `  ${issue.identifier} ${
+              rel.type === "blocks" ? "blocked-by" : rel.type
+            } ${rel.issue.identifier}: ${rel.issue.title}`,
           )
         }
       }
@@ -408,7 +347,6 @@ const listRelationsCommand = new Command()
     }
   })
 
-// Export the main command after subcommands are defined
 export const relationCommand = new Command()
   .name("relation")
   .description("Manage issue relations")

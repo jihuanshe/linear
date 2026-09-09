@@ -14,6 +14,7 @@ Options:
   -h, --help             - Show this help.                                                                   
   --all                  - Fetch and list every issue attached to the milestone (paginates the Linear API).  
   --project   <project>  - Project for resolving a milestone name (UUID, slug ID, or name)                   
+  -j, --json             - Output {organization, projectMilestone} for --base-file; --all completes issues   
 
 "
 stderr:

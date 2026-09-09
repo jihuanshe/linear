@@ -27,13 +27,23 @@ await cliffySnapshotTest({
     const server = new MockLinearServer([
       {
         queryName: "GetProjectIdByName",
-        response: { data: { projects: { nodes: [] } } },
+        response: {
+          data: {
+            projects: {
+              nodes: [],
+              pageInfo: { hasNextPage: false, endCursor: null },
+            },
+          },
+        },
       },
       {
         queryName: "GetProjectIdBySlugId",
         response: {
           data: {
-            projects: { nodes: [{ id: "project-123" }] },
+            projects: {
+              nodes: [{ id: "project-123" }],
+              pageInfo: { hasNextPage: false, endCursor: null },
+            },
           },
         },
       },
@@ -110,13 +120,23 @@ await cliffySnapshotTest({
     const server = new MockLinearServer([
       {
         queryName: "GetProjectIdByName",
-        response: { data: { projects: { nodes: [] } } },
+        response: {
+          data: {
+            projects: {
+              nodes: [],
+              pageInfo: { hasNextPage: false, endCursor: null },
+            },
+          },
+        },
       },
       {
         queryName: "GetProjectIdBySlugId",
         response: {
           data: {
-            projects: { nodes: [{ id: "project-456" }] },
+            projects: {
+              nodes: [{ id: "project-456" }],
+              pageInfo: { hasNextPage: false, endCursor: null },
+            },
           },
         },
       },

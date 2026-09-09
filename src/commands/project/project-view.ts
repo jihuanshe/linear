@@ -6,9 +6,11 @@ import { formatRelativeTime, printStyled } from "../../utils/display.ts"
 import { openProjectPage } from "../../utils/actions.ts"
 import { shouldShowSpinner } from "../../utils/hyperlink.ts"
 import { handleError, NotFoundError } from "../../utils/errors.ts"
+import { completeProjectCollections } from "./project-read.ts"
 
 const GetProjectDetails = gql(`
   query GetProjectDetails($id: String!, $includeContent: Boolean!) {
+    organization { id urlKey }
     project(id: $id) {
       id
       name
@@ -27,6 +29,7 @@ const GetProjectDetails = gql(`
         displayName
       }
       lead {
+        id
         name
         displayName
       }
@@ -38,14 +41,20 @@ const GetProjectDetails = gql(`
       completedAt
       canceledAt
       updatedAt
+      archivedAt
       createdAt
       url
-      teams {
+      teams(first: 100) {
         nodes {
           id
           key
           name
         }
+        pageInfo { hasNextPage endCursor }
+      }
+      labels(first: 100) {
+        nodes { id name }
+        pageInfo { hasNextPage endCursor }
       }
       issues {
         nodes {
@@ -57,6 +66,7 @@ const GetProjectDetails = gql(`
             type
           }
         }
+        pageInfo { hasNextPage endCursor }
       }
       lastUpdate {
         id
@@ -108,7 +118,8 @@ export const viewCommand = new Command()
       }
 
       if (json) {
-        console.log(JSON.stringify(project, null, 2))
+        await completeProjectCollections(client, project)
+        console.log(JSON.stringify(result, null, 2))
         return
       }
 
@@ -248,7 +259,11 @@ export const viewCommand = new Command()
         const backlog = issuesByState.backlog || 0
         const triage = issuesByState.triage || 0
 
-        lines.push(`**Total Issues:** ${total}`)
+        lines.push(
+          project.issues.pageInfo?.hasNextPage
+            ? `**Issues in this page:** ${total} (more available)`
+            : `**Total Issues:** ${total}`,
+        )
         if (completed > 0) lines.push(`**Completed:** ${completed}`)
         if (started > 0) lines.push(`**In Progress:** ${started}`)
         if (unstarted > 0) lines.push(`**To Do:** ${unstarted}`)

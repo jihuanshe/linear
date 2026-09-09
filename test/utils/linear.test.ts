@@ -8,15 +8,10 @@ import {
   resolveProjectId,
   resolveWorkflowState,
   searchIssuesByTerm,
-  updateIssueState,
   type WorkflowState,
   workflowStateNotFoundError,
 } from "../../src/utils/linear.ts"
-import {
-  CliError,
-  NotFoundError,
-  ValidationError,
-} from "../../src/utils/errors.ts"
+import { NotFoundError, ValidationError } from "../../src/utils/errors.ts"
 import { setupMockLinearServer } from "../utils/test-helpers.ts"
 
 function relationView(
@@ -322,7 +317,12 @@ Deno.test("resolveProjectId - resolves by exact name", async () => {
       queryName: "GetProjectIdByName",
       variables: { name: "Tech Debt" },
       response: {
-        data: { projects: { nodes: [{ id: "proj-name-uuid" }] } },
+        data: {
+          projects: {
+            pageInfo: { hasNextPage: false, endCursor: null },
+            nodes: [{ id: "proj-name-uuid" }],
+          },
+        },
       },
     },
   ])
@@ -339,13 +339,25 @@ Deno.test("resolveProjectId - falls back to slug ID when name does not match", a
     {
       queryName: "GetProjectIdByName",
       variables: { name: "f-foo" },
-      response: { data: { projects: { nodes: [] } } },
+      response: {
+        data: {
+          projects: {
+            pageInfo: { hasNextPage: false, endCursor: null },
+            nodes: [],
+          },
+        },
+      },
     },
     {
       queryName: "GetProjectIdBySlugId",
       variables: { slugId: "f-foo" },
       response: {
-        data: { projects: { nodes: [{ id: "proj-slug-uuid" }] } },
+        data: {
+          projects: {
+            pageInfo: { hasNextPage: false, endCursor: null },
+            nodes: [{ id: "proj-slug-uuid" }],
+          },
+        },
       },
     },
   ])
@@ -361,11 +373,25 @@ Deno.test("resolveProjectId - throws NotFoundError when nothing matches", async 
   const { cleanup } = await setupMockLinearServer([
     {
       queryName: "GetProjectIdByName",
-      response: { data: { projects: { nodes: [] } } },
+      response: {
+        data: {
+          projects: {
+            pageInfo: { hasNextPage: false, endCursor: null },
+            nodes: [],
+          },
+        },
+      },
     },
     {
       queryName: "GetProjectIdBySlugId",
-      response: { data: { projects: { nodes: [] } } },
+      response: {
+        data: {
+          projects: {
+            pageInfo: { hasNextPage: false, endCursor: null },
+            nodes: [],
+          },
+        },
+      },
     },
   ])
   try {
@@ -497,24 +523,4 @@ Deno.test("workflowStateNotFoundError - handles a team with no states", () => {
     error.suggestion,
     "Team ENG has no workflow states. Run `linear team states ENG`.",
   )
-})
-
-Deno.test("updateIssueState - rejects an unsuccessful mutation", async () => {
-  const { cleanup } = await setupMockLinearServer([
-    {
-      queryName: "UpdateIssueState",
-      variables: { issueId: "issue-id", stateId: "state-id" },
-      response: { data: { issueUpdate: { success: false } } },
-    },
-  ])
-
-  try {
-    await assertRejects(
-      () => updateIssueState("issue-id", "state-id"),
-      CliError,
-      "Failed to update issue state",
-    )
-  } finally {
-    await cleanup()
-  }
 })

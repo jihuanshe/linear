@@ -73,17 +73,18 @@ export const viewCommand = new Command()
 
       const spinner = shouldShowSpinner() && !json ? new Spinner() : null
       spinner?.start()
-      let issueData: Awaited<ReturnType<typeof fetchIssueDetailsRaw>>
+      let readData: Awaited<ReturnType<typeof fetchIssueDetailsRaw>>
       try {
-        issueData = await fetchIssueDetailsRaw(resolvedId, showComments, true)
+        readData = await fetchIssueDetailsRaw(resolvedId, showComments, true)
       } finally {
         spinner?.stop()
       }
       if (json) {
-        console.log(JSON.stringify(issueData, null, 2))
+        console.log(JSON.stringify(readData, null, 2))
         return
       }
 
+      const issueData = readData.issue
       let issueComments = "comments" in issueData
         ? issueData.comments.nodes
         : undefined
@@ -314,8 +315,11 @@ export const viewCommand = new Command()
     }
   })
 
-type IssueDetails = Awaited<ReturnType<typeof fetchIssueDetailsRaw>>
-type IssueRef = NonNullable<IssueDetails["parent"]>
+type IssueDetails = Awaited<ReturnType<typeof fetchIssueDetailsRaw>>["issue"]
+type IssueRef = Pick<
+  NonNullable<IssueDetails["parent"]>,
+  "identifier" | "title" | "state"
+>
 
 function formatIssueHierarchyAsMarkdown(
   parent: IssueRef | null | undefined,

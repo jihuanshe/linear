@@ -202,6 +202,7 @@ await cliffySnapshotTest({
         response: {
           data: {
             users: {
+              pageInfo: { hasNextPage: false, endCursor: null },
               nodes: [{
                 id: "user-lead-123",
                 email: "lead@example.com",
@@ -218,6 +219,7 @@ await cliffySnapshotTest({
         response: {
           data: {
             projectLabels: {
+              pageInfo: { hasNextPage: false, endCursor: null },
               nodes: [{ id: "project-label-frontend", name: "Frontend" }],
             },
           },
@@ -229,6 +231,7 @@ await cliffySnapshotTest({
         response: {
           data: {
             projectLabels: {
+              pageInfo: { hasNextPage: false, endCursor: null },
               nodes: [{ id: "project-label-backend", name: "Backend" }],
             },
           },
@@ -240,6 +243,7 @@ await cliffySnapshotTest({
         response: {
           data: {
             users: {
+              pageInfo: { hasNextPage: false, endCursor: null },
               nodes: [{
                 id: "user-jane-123",
                 email: "jane@example.com",
@@ -465,7 +469,14 @@ Deno.test("Project Create Command - rejects an unknown project label", async () 
     {
       queryName: "GetProjectLabelIdByName",
       variables: { name: "Nonexistent" },
-      response: { data: { projectLabels: { nodes: [] } } },
+      response: {
+        data: {
+          projectLabels: {
+            pageInfo: { hasNextPage: false, endCursor: null },
+            nodes: [],
+          },
+        },
+      },
     },
   ])
 
@@ -520,7 +531,14 @@ Deno.test("Project Create Command - rejects an unknown member", async () => {
     {
       queryName: "LookupUser",
       variables: { input: "ghostuser" },
-      response: { data: { users: { nodes: [] } } },
+      response: {
+        data: {
+          users: {
+            pageInfo: { hasNextPage: false, endCursor: null },
+            nodes: [],
+          },
+        },
+      },
     },
   ])
 
@@ -561,148 +579,6 @@ Deno.test("Project Create Command - rejects an unknown member", async () => {
   // "ghostuser" but never this exact "User not found:" text.
   assertEquals(
     errorLogs.some((l) => l.includes("User not found: ghostuser")),
-    true,
-  )
-})
-
-Deno.test("Project Create Command - resolves initiative before creating", async () => {
-  const server = new MockLinearServer([
-    {
-      queryName: "GetTeamIdByKey",
-      variables: { team: "ENG" },
-      response: { data: { teams: { nodes: [{ id: "team-eng-123" }] } } },
-    },
-    {
-      queryName: "GetInitiativeBySlugForCreate",
-      variables: { slugId: "missing-initiative" },
-      response: { data: { initiatives: { nodes: [] } } },
-    },
-    {
-      queryName: "GetInitiativeByNameForCreate",
-      variables: { name: "missing-initiative" },
-      response: { data: { initiatives: { nodes: [] } } },
-    },
-  ])
-  const errorLogs: string[] = []
-  const errorStub = stub(console, "error", (...args: unknown[]) => {
-    errorLogs.push(args.map(String).join(" "))
-  })
-  const exitStub = stub(Deno, "exit", (_code?: number) => {
-    throw new Error("EXIT")
-  })
-
-  try {
-    await server.start()
-    Deno.env.set("LINEAR_GRAPHQL_ENDPOINT", server.getEndpoint())
-    Deno.env.set("LINEAR_API_KEY", "Bearer test-token")
-    await createCommand.parse([
-      "--name",
-      "No Partial Project",
-      "--team",
-      "ENG",
-      "--initiative",
-      "missing-initiative",
-    ])
-  } catch (error) {
-    if (!(error instanceof Error) || error.message !== "EXIT") throw error
-  } finally {
-    exitStub.restore()
-    errorStub.restore()
-    await server.stop()
-    Deno.env.delete("LINEAR_GRAPHQL_ENDPOINT")
-    Deno.env.delete("LINEAR_API_KEY")
-  }
-
-  assertEquals(
-    errorLogs.some((line) =>
-      line.includes("Initiative not found: missing-initiative")
-    ),
-    true,
-  )
-})
-
-Deno.test("Project Create Command - reports a failed initiative link", async () => {
-  const initiativeId = "550e8400-e29b-41d4-a716-446655440020"
-  const projectId = "550e8400-e29b-41d4-a716-446655440021"
-  const server = new MockLinearServer([
-    {
-      queryName: "GetTeamIdByKey",
-      variables: { team: "ENG" },
-      response: { data: { teams: { nodes: [{ id: "team-eng-123" }] } } },
-    },
-    {
-      queryName: "CreateProject",
-      response: {
-        data: {
-          projectCreate: {
-            success: true,
-            project: {
-              id: projectId,
-              slugId: "partially-created-project",
-              name: "Partially Created Project",
-              url: "https://linear.app/test/project/partially-created-project",
-            },
-          },
-        },
-      },
-    },
-    {
-      queryName: "AddProjectToInitiativeForCreate",
-      variables: {
-        input: { initiativeId, projectId },
-      },
-      response: {
-        data: { initiativeToProjectCreate: { success: false } },
-      },
-    },
-  ])
-  const outputLogs: string[] = []
-  const errorLogs: string[] = []
-  const outputStub = stub(console, "log", (...args: unknown[]) => {
-    outputLogs.push(args.map(String).join(" "))
-  })
-  const errorStub = stub(console, "error", (...args: unknown[]) => {
-    errorLogs.push(args.map(String).join(" "))
-  })
-  const exitStub = stub(Deno, "exit", (_code?: number) => {
-    throw new Error("EXIT")
-  })
-
-  try {
-    await server.start()
-    Deno.env.set("LINEAR_GRAPHQL_ENDPOINT", server.getEndpoint())
-    Deno.env.set("LINEAR_API_KEY", "Bearer test-token")
-    await createCommand.parse([
-      "--name",
-      "Partially Created Project",
-      "--team",
-      "ENG",
-      "--initiative",
-      initiativeId,
-      "--json",
-    ])
-  } catch (error) {
-    if (!(error instanceof Error) || error.message !== "EXIT") throw error
-  } finally {
-    exitStub.restore()
-    errorStub.restore()
-    outputStub.restore()
-    await server.stop()
-    Deno.env.delete("LINEAR_GRAPHQL_ENDPOINT")
-    Deno.env.delete("LINEAR_API_KEY")
-  }
-
-  assertEquals(outputLogs, [])
-  assertEquals(
-    errorLogs.some((line) =>
-      line.includes(
-        "Project Partially Created Project was created, but could not be added",
-      )
-    ),
-    true,
-  )
-  assertEquals(
-    errorLogs.some((line) => line.includes(`The project ID is ${projectId}`)),
     true,
   )
 })

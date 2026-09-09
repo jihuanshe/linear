@@ -8,6 +8,7 @@ Usage: delete <projectId>
 Writes: true                         
 Interactive: true                    
 Confirmation required unless: --force
+Output modes: human,json             
 
 Description:
 
@@ -15,8 +16,9 @@ Description:
 
 Options:
 
-  -h, --help   - Show this help.           
-  -f, --force  - Skip confirmation prompt  
+  -h, --help   - Show this help.             
+  --json       - Output a JSON write result  
+  -f, --force  - Skip confirmation prompt    
 
 "
 stderr:

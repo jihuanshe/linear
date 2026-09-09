@@ -3,7 +3,7 @@ import { withUsageMetadata } from "../usage.ts"
 import { assertPromptAllowed, Confirm } from "../../utils/prompt.ts"
 import { gql } from "../../__codegen__/gql.ts"
 import { getGraphQLClient } from "../../utils/graphql.ts"
-import { getIssueIdentifier, isLinearUuid } from "../../utils/linear.ts"
+import { getIssueIdentifier } from "../../utils/linear.ts"
 import {
   type BulkOperationResult,
   collectBulkIds,
@@ -12,14 +12,45 @@ import {
   printBulkSummary,
 } from "../../utils/bulk.ts"
 import {
+  assertMutationReceipt,
+  assertMutationSuccess,
   CliError,
+  errorResult,
   handleError,
   NotFoundError,
   ValidationError,
+  WriteError,
 } from "../../utils/errors.ts"
+import { printWriteResult } from "../../utils/write-result.ts"
 
-interface IssueDeleteResult extends BulkOperationResult {
-  identifier?: string
+const IssueDeleteDetails = gql(`
+  query GetIssueDeleteDetails($id: String!) {
+    issue(id: $id) { id title identifier }
+  }
+`)
+const DeleteIssue = gql(`
+  mutation DeleteIssue($id: String!) {
+    issueDelete(id: $id) { success entity { id identifier title } }
+  }
+`)
+
+async function resolveIssue(ref: string) {
+  const identifier = await getIssueIdentifier(ref)
+  if (!identifier) throw new NotFoundError("Issue", ref)
+  const data = await getGraphQLClient().request(IssueDeleteDetails, {
+    id: identifier,
+  })
+  if (!data.issue) throw new NotFoundError("Issue", ref)
+  if (!data.issue.id) {
+    throw new CliError("Issue lookup returned no stable identity")
+  }
+  return data.issue
+}
+async function removeIssue(issue: Awaited<ReturnType<typeof resolveIssue>>) {
+  const data = await getGraphQLClient().request(DeleteIssue, { id: issue.id })
+  assertMutationSuccess(data.issueDelete, data)
+  assertMutationReceipt(data.issueDelete.entity, data, issue.id)
+  return data.issueDelete
 }
 
 export const deleteCommand = withUsageMetadata(new Command(), {
@@ -28,7 +59,9 @@ export const deleteCommand = withUsageMetadata(new Command(), {
   confirmationRequiredUnless: "--confirm",
 })
   .name("delete")
-  .description("Delete an issue by identifier or UUID")
+  .description(
+    "Delete an issue by identifier or UUID; bulk stops after an unknown outcome",
+  )
   .alias("d")
   .arguments("[issueId:string]")
   .option("-y, --confirm", "Skip confirmation prompt")
@@ -41,226 +74,112 @@ export const deleteCommand = withUsageMetadata(new Command(), {
     "Read issue identifiers or UUIDs from a file (one per line)",
   )
   .option("--bulk-stdin", "Read issue identifiers or UUIDs from stdin")
-  .action(
-    async (
-      { confirm, bulk, bulkFile, bulkStdin },
-      issueId,
-    ) => {
-      try {
-        const client = getGraphQLClient()
-
-        // Check if bulk mode
-        if (isBulkMode({ bulk, bulkFile, bulkStdin })) {
-          await handleBulkDelete(client, {
-            bulk,
-            bulkFile,
-            bulkStdin,
-            confirm,
-          })
-          return
-        }
-
-        // Single mode requires issueId
-        if (!issueId) {
+  .option("--json", "Output deletion effects and per-item bulk results as JSON")
+  .action(async ({ confirm, bulk, bulkFile, bulkStdin, json }, issueRef) => {
+    try {
+      if (isBulkMode({ bulk, bulkFile, bulkStdin })) {
+        if (issueRef != null) {
           throw new ValidationError(
-            "Issue ID required",
-            { suggestion: "Use --bulk for multiple issues." },
+            "Do not combine an issue argument with bulk inputs",
           )
         }
-
-        await handleSingleDelete(client, issueId, { confirm })
-      } catch (error) {
-        handleError(error, "Failed to delete issue")
+        const ids = await collectBulkIds({ bulk, bulkFile, bulkStdin })
+        if (!ids.length) {
+          throw new ValidationError(
+            "No issue identifiers or UUIDs provided for bulk delete",
+          )
+        }
+        if (!json) console.error(`Found ${ids.length} issue(s) to delete.`)
+        if (!confirm) {
+          assertPromptAllowed({ suggestion: "Use --confirm to skip." })
+          if (
+            !await Confirm.prompt({
+              message: `Delete ${ids.length} issue(s)?`,
+              default: false,
+              writer: Deno.stderr,
+            })
+          ) {
+            if (json) {
+              printWriteResult({ cancelled: true, ids }, { effect: "none" })
+            } else console.log("Bulk delete cancelled.")
+            return
+          }
+        }
+        const summary = await executeBulkOperations(
+          ids,
+          async (
+            ref,
+          ): Promise<BulkOperationResult & { identifier: string }> => {
+            const issue = await resolveIssue(ref)
+            const identity = {
+              id: issue.id,
+              identifier: issue.identifier,
+              name: `${issue.identifier}: ${issue.title}`,
+            }
+            try {
+              const data = await removeIssue(issue)
+              return { ...identity, success: true, effect: "applied", data }
+            } catch (error) {
+              const failure = errorResult(error)
+              return {
+                ...identity,
+                success: false,
+                effect: failure.effect,
+                error: failure.error.message,
+                data: failure,
+              }
+            }
+          },
+          { showProgress: !json },
+        )
+        if (json) {
+          if (summary.failed || summary.unattempted.length) {
+            throw new WriteError("Bulk issue deletion did not complete", {
+              effect: summary.effect,
+              data: summary,
+            })
+          }
+          printWriteResult(summary, {
+            effect: summary.effect === "applied" ? "applied" : "none",
+          })
+        } else {
+          printBulkSummary(summary, {
+            entityName: "issue",
+            operationName: "deleted",
+            showDetails: true,
+          })
+          if (summary.failed || summary.unattempted.length) Deno.exit(1)
+        }
+        return
       }
-    },
-  )
-
-async function handleSingleDelete(
-  client: ReturnType<typeof getGraphQLClient>,
-  issueId: string,
-  options: { confirm?: boolean },
-): Promise<void> {
-  const { confirm } = options
-
-  // First resolve the issue ID to get the issue details
-  const resolvedId = isLinearUuid(issueId)
-    ? issueId
-    : await getIssueIdentifier(issueId)
-  if (!resolvedId) {
-    throw new NotFoundError("Issue", issueId)
-  }
-
-  // Get issue details to show title in confirmation
-  const detailsQuery = gql(`
-    query GetIssueDeleteDetails($id: String!) {
-      issue(id: $id) { title, identifier }
-    }
-  `)
-
-  const issueDetails = await client.request(detailsQuery, { id: resolvedId })
-
-  if (!issueDetails?.issue) {
-    throw new NotFoundError("Issue", resolvedId)
-  }
-
-  const { title, identifier } = issueDetails.issue
-
-  // Show confirmation prompt unless --confirm flag is used
-  if (!confirm) {
-    assertPromptAllowed({ suggestion: "Use --confirm to skip." })
-    const confirmed = await Confirm.prompt({
-      message: `Are you sure you want to delete "${identifier}: ${title}"?`,
-      default: false,
-    })
-
-    if (!confirmed) {
-      console.log("Delete cancelled.")
-      return
-    }
-  }
-
-  // Delete the issue
-  const deleteQuery = gql(`
-    mutation DeleteIssue($id: String!) {
-      issueDelete(id: $id) {
-        success
-        entity {
-          identifier
-          title
+      if (!issueRef) {
+        throw new ValidationError("Issue ID required", {
+          suggestion: "Use --bulk for multiple issues.",
+        })
+      }
+      const issue = await resolveIssue(issueRef)
+      if (!confirm) {
+        assertPromptAllowed({ suggestion: "Use --confirm to skip." })
+        if (
+          !await Confirm.prompt({
+            message:
+              `Are you sure you want to delete "${issue.identifier}: ${issue.title}"?`,
+            default: false,
+            writer: Deno.stderr,
+          })
+        ) {
+          if (json) {
+            printWriteResult({ cancelled: true, issue }, { effect: "none" })
+          } else console.log("Delete cancelled.")
+          return
         }
       }
+      const data = await removeIssue(issue)
+      if (json) printWriteResult(data)
+      else {console.log(
+          `✓ Successfully deleted issue: ${issue.identifier}: ${issue.title}`,
+        )}
+    } catch (error) {
+      handleError(error, "Failed to delete issue")
     }
-  `)
-
-  const result = await client.request(deleteQuery, { id: resolvedId })
-
-  if (result.issueDelete.success) {
-    console.log(`✓ Successfully deleted issue: ${identifier}: ${title}`)
-  } else {
-    throw new CliError("Failed to delete issue")
-  }
-}
-
-async function handleBulkDelete(
-  client: ReturnType<typeof getGraphQLClient>,
-  options: {
-    bulk?: string[]
-    bulkFile?: string
-    bulkStdin?: boolean
-    confirm?: boolean
-  },
-): Promise<void> {
-  const { confirm } = options
-
-  // Collect all IDs
-  const ids = await collectBulkIds({
-    bulk: options.bulk,
-    bulkFile: options.bulkFile,
-    bulkStdin: options.bulkStdin,
   })
-
-  if (ids.length === 0) {
-    throw new ValidationError(
-      "No issue identifiers or UUIDs provided for bulk delete",
-    )
-  }
-
-  console.error(`Found ${ids.length} issue(s) to delete.`)
-
-  // Confirm bulk operation
-  if (!confirm) {
-    assertPromptAllowed({ suggestion: "Use --confirm to skip." })
-    const confirmed = await Confirm.prompt({
-      message: `Delete ${ids.length} issue(s)?`,
-      default: false,
-    })
-
-    if (!confirmed) {
-      console.log("Bulk delete cancelled.")
-      return
-    }
-  }
-
-  // Define the delete operation
-  const deleteOperation = async (
-    issueIdInput: string,
-  ): Promise<IssueDeleteResult> => {
-    // Resolve identifiers while allowing UUIDs to pass through unchanged.
-    const resolvedId = isLinearUuid(issueIdInput)
-      ? issueIdInput
-      : await getIssueIdentifier(issueIdInput)
-    if (!resolvedId) {
-      return {
-        id: issueIdInput,
-        identifier: issueIdInput,
-        success: false,
-        error: "Issue not found",
-      }
-    }
-
-    // Get issue details for display
-    const detailsQuery = gql(`
-      query GetIssueDetailsForBulkDelete($id: String!) {
-        issue(id: $id) { title, identifier }
-      }
-    `)
-
-    let identifier = resolvedId
-    let title = ""
-
-    try {
-      const details = await client.request(detailsQuery, { id: resolvedId })
-      if (details?.issue) {
-        identifier = details.issue.identifier
-        title = details.issue.title
-      }
-    } catch {
-      // Continue with default identifier
-    }
-
-    // Delete the issue
-    const deleteMutation = gql(`
-      mutation BulkDeleteIssue($id: String!) {
-        issueDelete(id: $id) {
-          success
-        }
-      }
-    `)
-
-    const result = await client.request(deleteMutation, { id: resolvedId })
-
-    if (!result.issueDelete.success) {
-      return {
-        id: resolvedId,
-        identifier,
-        name: title ? `${identifier}: ${title}` : identifier,
-        success: false,
-        error: "Delete operation failed",
-      }
-    }
-
-    return {
-      id: resolvedId,
-      identifier,
-      name: title ? `${identifier}: ${title}` : identifier,
-      success: true,
-    }
-  }
-
-  // Execute bulk operation
-  const summary = await executeBulkOperations(ids, deleteOperation, {
-    showProgress: true,
-  })
-
-  // Print summary
-  printBulkSummary(summary, {
-    entityName: "issue",
-    operationName: "deleted",
-    showDetails: true,
-  })
-
-  // Exit with error code if any failed
-  if (summary.failed > 0) {
-    Deno.exit(1)
-  }
-}

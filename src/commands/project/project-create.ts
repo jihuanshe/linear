@@ -1,10 +1,10 @@
 import { Command } from "@cliffy/command"
 import { withUsageMetadata } from "../usage.ts"
+import { printWriteResult } from "../../utils/write-result.ts"
 import { Input, Select } from "../../utils/prompt.ts"
 import { gql } from "../../__codegen__/gql.ts"
 import type { ProjectCreateInput } from "../../__codegen__/graphql.ts"
 import { getGraphQLClient } from "../../utils/graphql.ts"
-import type { GraphQLClient } from "graphql-request"
 import {
   getAllTeams,
   getProjectLabelIdByName,
@@ -14,7 +14,8 @@ import {
 } from "../../utils/linear.ts"
 import { shouldShowSpinner } from "../../utils/hyperlink.ts"
 import {
-  CliError,
+  assertMutationReceipt,
+  assertMutationSuccess,
   handleError,
   NotFoundError,
   ValidationError,
@@ -50,14 +51,6 @@ const GetProjectStatuses = gql(`
   }
 `)
 
-const AddProjectToInitiative = gql(`
-  mutation AddProjectToInitiativeForCreate($input: InitiativeToProjectCreateInput!) {
-    initiativeToProjectCreate(input: $input) {
-      success
-    }
-  }
-`)
-
 const PRIORITY_MAPPING: Record<string, number> = {
   "none": 0,
   "urgent": 1,
@@ -74,64 +67,6 @@ function parsePriority(priority: string): number {
     })
   }
   return mapped
-}
-
-async function resolveInitiativeId(
-  client: GraphQLClient,
-  idOrSlugOrName: string,
-): Promise<string | undefined> {
-  // Try as UUID first
-  if (
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
-      idOrSlugOrName,
-    )
-  ) {
-    return idOrSlugOrName
-  }
-
-  // Try as slug
-  const slugQuery = gql(`
-    query GetInitiativeBySlugForCreate($slugId: String!) {
-      initiatives(filter: { slugId: { eq: $slugId } }) {
-        nodes {
-          id
-          slugId
-        }
-      }
-    }
-  `)
-
-  try {
-    const result = await client.request(slugQuery, { slugId: idOrSlugOrName })
-    if (result.initiatives?.nodes?.length > 0) {
-      return result.initiatives.nodes[0].id
-    }
-  } catch {
-    // Continue to name lookup
-  }
-
-  // Try as name
-  const nameQuery = gql(`
-    query GetInitiativeByNameForCreate($name: String!) {
-      initiatives(filter: { name: { eqIgnoreCase: $name } }) {
-        nodes {
-          id
-          name
-        }
-      }
-    }
-  `)
-
-  try {
-    const result = await client.request(nameQuery, { name: idOrSlugOrName })
-    if (result.initiatives?.nodes?.length > 0) {
-      return result.initiatives.nodes[0].id
-    }
-  } catch {
-    // Not found
-  }
-
-  return undefined
 }
 
 export async function resolveProjectContent(
@@ -164,7 +99,9 @@ export const createCommand = withUsageMetadata(new Command(), {
   interactive: true,
 })
   .name("create")
-  .description("Create a new Linear project")
+  .description(
+    "Create a new Linear project; link it separately with initiative add-project",
+  )
   .option("-n, --name <name:string>", "Project name (required)")
   .option(
     "-d, --description <description:string>",
@@ -214,10 +151,6 @@ export const createCommand = withUsageMetadata(new Command(), {
   .option("--icon <icon:string>", "Project icon")
   .option("--color <color:string>", "Project color as a HEX string")
   .option(
-    "--initiative <initiative:string>",
-    "Add to initiative immediately (ID, slug, or name)",
-  )
-  .option(
     "-i, --interactive",
     "Interactive mode (default if no flags provided)",
   )
@@ -241,7 +174,6 @@ export const createCommand = withUsageMetadata(new Command(), {
           member: providedMembers,
           icon: providedIcon,
           color: providedColor,
-          initiative: providedInitiative,
           interactive: interactiveFlag,
           json: jsonOutput,
         } = options
@@ -254,7 +186,6 @@ export const createCommand = withUsageMetadata(new Command(), {
           ? parsePriority(providedPriority)
           : undefined
         const client = getGraphQLClient()
-        const initiative = providedInitiative
 
         let name = providedName
         let description = providedDescription
@@ -461,14 +392,6 @@ export const createCommand = withUsageMetadata(new Command(), {
           memberIds.push(memberId)
         }
 
-        let initiativeId: string | undefined
-        if (initiative) {
-          initiativeId = await resolveInitiativeId(client, initiative)
-          if (!initiativeId) {
-            throw new NotFoundError("Initiative", initiative)
-          }
-        }
-
         if (startDate && !/^\d{4}-\d{2}-\d{2}$/.test(startDate)) {
           throw new ValidationError("Start date must be in YYYY-MM-DD format")
         }
@@ -502,51 +425,13 @@ export const createCommand = withUsageMetadata(new Command(), {
         try {
           const result = await client.request(CreateProject, { input })
 
-          if (!result.projectCreate.success) {
-            spinner?.stop()
-            throw new CliError("Failed to create project")
-          }
-
+          assertMutationSuccess(result?.projectCreate, result)
           const project = result.projectCreate.project
           spinner?.stop()
-
-          if (!project) {
-            throw new CliError("Failed to create project: no project returned")
-          }
-
-          if (initiative && initiativeId) {
-            try {
-              const linkResult = await client.request(
-                AddProjectToInitiative,
-                {
-                  input: {
-                    initiativeId,
-                    projectId: project.id,
-                  },
-                },
-              )
-
-              if (!linkResult.initiativeToProjectCreate.success) {
-                throw new CliError("Linear rejected the initiative link")
-              }
-            } catch (error) {
-              throw new CliError(
-                `Project ${project.name} was created, but could not be added to initiative ${initiative}`,
-                {
-                  suggestion:
-                    `The project ID is ${project.id}. Add it to the initiative manually; do not create the project again.`,
-                  cause: error,
-                },
-              )
-            }
-
-            if (!jsonOutput) {
-              console.log(`✓ Added to initiative: ${initiative}`)
-            }
-          }
+          assertMutationReceipt(project, result)
 
           if (jsonOutput) {
-            console.log(JSON.stringify(result.projectCreate, null, 2))
+            printWriteResult(result.projectCreate)
           } else {
             console.log(`✓ Created project: ${project.name}`)
             console.log(`  Slug: ${project.slugId}`)

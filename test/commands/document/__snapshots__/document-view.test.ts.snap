@@ -55,62 +55,71 @@ stderr:
 snapshot[`Document View Command - JSON Output 1`] = `
 stdout:
 '{
-  "id": "doc-1",
-  "title": "Delegation System Spec",
-  "slugId": "d4b93e3b2695",
-  "content": "# Delegation System\\\\n\\\\nThis document describes the delegation system architecture.",
-  "url": "https://linear.app/test/document/delegation-system-spec-d4b93e3b2695",
-  "createdAt": "2026-01-15T08:00:00Z",
-  "updatedAt": "2026-01-18T10:30:00Z",
-  "creator": {
-    "name": "John Doe",
-    "email": "john@example.com"
+  "organization": {
+    "id": "workspace-1",
+    "urlKey": "test"
   },
-  "project": {
-    "name": "TinyCloud SDK",
-    "slugId": "tinycloud-sdk"
-  },
-  "issue": null,
-  "comments": {
-    "nodes": [
-      {
-        "id": "comment-1",
-        "body": "Can we clarify this?",
-        "quotedText": "delegation system architecture",
-        "documentContentId": "document-content-1",
-        "createdAt": "2026-01-18T11:00:00Z",
-        "updatedAt": "2026-01-18T11:00:00Z",
-        "archivedAt": null,
-        "resolvedAt": null,
-        "url": "https://linear.app/test/comment/comment-1",
-        "user": {
-          "name": "Jane Reviewer",
-          "email": "jane@example.com"
+  "document": {
+    "id": "doc-1",
+    "title": "Delegation System Spec",
+    "slugId": "d4b93e3b2695",
+    "icon": null,
+    "archivedAt": null,
+    "content": "# Delegation System\\\\n\\\\nThis document describes the delegation system architecture.",
+    "url": "https://linear.app/test/document/delegation-system-spec-d4b93e3b2695",
+    "createdAt": "2026-01-15T08:00:00Z",
+    "updatedAt": "2026-01-18T10:30:00Z",
+    "creator": {
+      "name": "John Doe",
+      "email": "john@example.com"
+    },
+    "project": {
+      "id": "project-1",
+      "name": "TinyCloud SDK",
+      "slugId": "tinycloud-sdk"
+    },
+    "issue": null,
+    "comments": {
+      "nodes": [
+        {
+          "id": "comment-1",
+          "body": "Can we clarify this?",
+          "quotedText": "delegation system architecture",
+          "documentContentId": "document-content-1",
+          "createdAt": "2026-01-18T11:00:00Z",
+          "updatedAt": "2026-01-18T11:00:00Z",
+          "archivedAt": null,
+          "resolvedAt": null,
+          "url": "https://linear.app/test/comment/comment-1",
+          "user": {
+            "name": "Jane Reviewer",
+            "email": "jane@example.com"
+          },
+          "parent": null
         },
-        "parent": null
-      },
-      {
-        "id": "comment-2",
-        "body": "Follow-up note",
-        "quotedText": null,
-        "documentContentId": "document-content-1",
-        "createdAt": "2026-01-18T12:00:00Z",
-        "updatedAt": "2026-01-18T12:00:00Z",
-        "archivedAt": null,
-        "resolvedAt": null,
-        "url": "https://linear.app/test/comment/comment-2",
-        "user": {
-          "name": "John Doe",
-          "email": "john@example.com"
-        },
-        "parent": {
-          "id": "comment-1"
+        {
+          "id": "comment-2",
+          "body": "Follow-up note",
+          "quotedText": null,
+          "documentContentId": "document-content-1",
+          "createdAt": "2026-01-18T12:00:00Z",
+          "updatedAt": "2026-01-18T12:00:00Z",
+          "archivedAt": null,
+          "resolvedAt": null,
+          "url": "https://linear.app/test/comment/comment-2",
+          "user": {
+            "name": "John Doe",
+            "email": "john@example.com"
+          },
+          "parent": {
+            "id": "comment-1"
+          }
         }
+      ],
+      "pageInfo": {
+        "hasNextPage": false,
+        "endCursor": null
       }
-    ],
-    "pageInfo": {
-      "hasNextPage": false,
-      "endCursor": null
     }
   }
 }

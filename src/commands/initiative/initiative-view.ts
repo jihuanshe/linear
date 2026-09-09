@@ -6,9 +6,11 @@ import { getGraphQLClient } from "../../utils/graphql.ts"
 import { formatRelativeTime, printStyled } from "../../utils/display.ts"
 import { shouldShowSpinner } from "../../utils/hyperlink.ts"
 import { handleError, NotFoundError } from "../../utils/errors.ts"
+import { resolveInitiativeId } from "./initiative-resolve.ts"
 
 const GetInitiativeDetails = gql(`
   query GetInitiativeDetails($id: String!) {
+    organization { id urlKey }
     initiative(id: $id) {
       id
       slugId
@@ -38,6 +40,7 @@ const GetInitiativeDetails = gql(`
             type
           }
         }
+        pageInfo { hasNextPage endCursor }
       }
     }
   }
@@ -114,7 +117,7 @@ export const viewCommand = new Command()
       }
 
       if (json) {
-        console.log(JSON.stringify(initiative, null, 2))
+        console.log(JSON.stringify(result, null, 2))
         return
       }
 
@@ -245,64 +248,3 @@ export const viewCommand = new Command()
       handleError(error, "Failed to fetch initiative details")
     }
   })
-
-/**
- * Resolve initiative ID from UUID, slug, or name
- */
-async function resolveInitiativeId(
-  client: ReturnType<typeof getGraphQLClient>,
-  idOrSlugOrName: string,
-): Promise<string | undefined> {
-  // Try as UUID first
-  if (
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
-      idOrSlugOrName,
-    )
-  ) {
-    return idOrSlugOrName
-  }
-
-  // Try as slug
-  const slugQuery = gql(`
-    query GetInitiativeBySlugForView($slugId: String!) {
-      initiatives(filter: { slugId: { eq: $slugId } }) {
-        nodes {
-          id
-          slugId
-        }
-      }
-    }
-  `)
-
-  try {
-    const result = await client.request(slugQuery, { slugId: idOrSlugOrName })
-    if (result.initiatives?.nodes?.length > 0) {
-      return result.initiatives.nodes[0].id
-    }
-  } catch {
-    // Continue to name lookup
-  }
-
-  // Try as name (case-insensitive)
-  const nameQuery = gql(`
-    query GetInitiativeByNameForView($name: String!) {
-      initiatives(filter: { name: { eqIgnoreCase: $name } }) {
-        nodes {
-          id
-          name
-        }
-      }
-    }
-  `)
-
-  try {
-    const result = await client.request(nameQuery, { name: idOrSlugOrName })
-    if (result.initiatives?.nodes?.length > 0) {
-      return result.initiatives.nodes[0].id
-    }
-  } catch {
-    // Not found
-  }
-
-  return undefined
-}

@@ -1,0 +1,28 @@
+export const snapshot = {};
+
+snapshot[`Team Key Command - Help Text 1`] = `
+stdout:
+"
+Usage: key
+
+Description:
+
+  Print the configured team key; team list --json includes team UUIDs
+
+Options:
+
+  -h, --help  - Show this help.  
+
+"
+stderr:
+""
+`;
+
+snapshot[`Team Key Command - No Team Configured 1`] = `
+stdout:
+""
+stderr:
+"✗ Failed to get team key: No team key configured
+  Run \`linear config\` to set a team.
+"
+`;

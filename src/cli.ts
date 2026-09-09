@@ -21,7 +21,6 @@ import { updateCommand } from "./commands/update.ts"
 import { downloadCommand } from "./commands/download.ts"
 import { uploadCommand } from "./commands/upload.ts"
 import { versionCommand } from "./commands/version.ts"
-import { doctorCommand } from "./commands/doctor.ts"
 import {
   createUsageAction,
   createUsageCommand,
@@ -30,6 +29,7 @@ import {
 import { guidesForCommandPath } from "./guides/guides.ts"
 import { setCliWorkspace } from "./config.ts"
 import { supportsStdoutStyling } from "./utils/terminal.ts"
+import { setMachineOutput } from "./utils/write-result.ts"
 
 // Import config and credentials setup
 import "./config.ts"
@@ -56,6 +56,9 @@ Environment Variables:
   )
   .globalAction((options) => {
     setCliWorkspace(options.workspace)
+    // Once parsing succeeded, a literal '--json' used as an option value must
+    // not select machine output. Raw api sets its always-JSON mode in action.
+    setMachineOutput((options as { json?: boolean }).json === true)
   })
   .action(createUsageAction(false))
   .command("auth", authCommand)
@@ -90,7 +93,6 @@ Environment Variables:
   .command("download", downloadCommand)
   .command("update", updateCommand)
   .command("version", versionCommand)
-  .command("doctor", doctorCommand)
 
 interface UsageInjectable extends UsageCommandSource {
   hasCommands(): boolean

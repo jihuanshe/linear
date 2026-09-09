@@ -1,7 +1,17 @@
 import { gql } from "../__codegen__/gql.ts"
 import { getGraphQLClient } from "./graphql.ts"
 import { basename, extname } from "@std/path"
-import { CliError, NotFoundError, ValidationError } from "./errors.ts"
+import {
+  assertMutationSuccess,
+  errorResult,
+  isClientError,
+  NotFoundError,
+  ValidationError,
+  WriteError,
+} from "./errors.ts"
+import { encodeHex } from "@std/encoding/hex"
+import { Spinner } from "@std/cli/unstable-spinner"
+import { shouldShowSpinner } from "./hyperlink.ts"
 
 /**
  * MIME type mapping for common file extensions
@@ -127,6 +137,10 @@ export interface UploadOptions {
   makePublic?: boolean
   /** Show progress indicator */
   showProgress?: boolean
+  /** Pin the bytes validated by a delivery or batch before its first write. */
+  expectedSha256?: string
+  /** The delivery ledger records in-flight state immediately before sending. */
+  beforeWrite?: () => Promise<void>
 }
 
 /**
@@ -169,6 +183,43 @@ export function resolveMakePublic(
   return makePublic
 }
 
+async function readUploadBytes(filepath: string, requestedPublic?: boolean) {
+  const fileInfo = await validateFilePath(filepath)
+  if (fileInfo.size > MAX_FILE_SIZE) {
+    throw new ValidationError(
+      `File too large: ${filepath} (max ${MAX_FILE_SIZE / 1024 / 1024}MB)`,
+      {
+        suggestion: "Please upload a file smaller than 100MB",
+      },
+    )
+  }
+  const filename = basename(filepath)
+  const contentType = getMimeType(filepath)
+  const makePublic = resolveMakePublic(contentType, requestedPublic)
+  const fileData = await Deno.readFile(filepath)
+  const size = fileData.byteLength
+  if (size > MAX_FILE_SIZE) {
+    throw new ValidationError("File grew beyond the upload size limit")
+  }
+  return { filename, contentType, makePublic, fileData, size }
+}
+
+/** Validate the entire batch before its first write and pin each file's bytes. */
+export async function prepareUploads(
+  filepaths: readonly string[],
+  options: Pick<UploadOptions, "makePublic"> = {},
+): Promise<Array<{ filepath: string; sha256: string }>> {
+  const prepared: Array<{ filepath: string; sha256: string }> = []
+  for (const filepath of filepaths) {
+    const { fileData } = await readUploadBytes(filepath, options.makePublic)
+    prepared.push({
+      filepath,
+      sha256: encodeHex(await crypto.subtle.digest("SHA-256", fileData)),
+    })
+  }
+  return prepared
+}
+
 /**
  * Upload a file to Linear's cloud storage
  *
@@ -186,30 +237,15 @@ export async function uploadFile(
 ): Promise<UploadResult> {
   const { showProgress = false } = options
 
-  // Read file and get metadata
-  const fileInfo = await Deno.stat(filepath)
-  if (!fileInfo.isFile) {
-    throw new ValidationError(`Not a file: ${filepath}`, {
-      suggestion: "Please provide a path to a valid file",
-    })
+  // These exact checked bytes are sent after the grant; later edits cannot change them.
+  const { filename, contentType, makePublic, fileData, size } =
+    await readUploadBytes(filepath, options.makePublic)
+  if (options.expectedSha256 != null) {
+    const actual = encodeHex(await crypto.subtle.digest("SHA-256", fileData))
+    if (actual !== options.expectedSha256) {
+      throw new ValidationError(`File changed after validation: ${filepath}`)
+    }
   }
-
-  const size = fileInfo.size
-  if (size > MAX_FILE_SIZE) {
-    throw new ValidationError(
-      `File too large: ${(size / 1024 / 1024).toFixed(2)}MB exceeds limit of ${
-        MAX_FILE_SIZE / 1024 / 1024
-      }MB`,
-      { suggestion: "Please upload a file smaller than 100MB" },
-    )
-  }
-
-  const filename = basename(filepath)
-  const contentType = getMimeType(filepath)
-
-  // Default to private; public is an explicit opt-in and only valid for images.
-  // Validate before doing any network work or starting the spinner.
-  const makePublic = resolveMakePublic(contentType, options.makePublic)
 
   // Step 1: Request signed upload URL
   const mutation = gql(`
@@ -229,14 +265,18 @@ export async function uploadFile(
   `)
 
   const client = getGraphQLClient()
-  const { Spinner } = await import("@std/cli/unstable-spinner")
-  const { shouldShowSpinner } = await import("./hyperlink.ts")
   const spinner = showProgress && shouldShowSpinner()
     ? new Spinner({ message: `Uploading ${filename}...` })
     : null
   spinner?.start()
 
+  let grant: UploadResult | undefined
+  let grantStarted = false
+  let putStarted = false
+
   try {
+    await options.beforeWrite?.()
+    grantStarted = true
     const data = await client.request(mutation, {
       contentType,
       filename,
@@ -244,14 +284,42 @@ export async function uploadFile(
       makePublic,
     })
 
-    if (!data.fileUpload.success || !data.fileUpload.uploadFile) {
-      throw new CliError("Failed to get upload URL from Linear")
+    // Signed PUT URLs and headers are capabilities, not diagnostic output.
+    const acknowledgement = {
+      fileUpload: { success: data?.fileUpload?.success },
+    }
+    assertMutationSuccess(data?.fileUpload, acknowledgement)
+    if (!data.fileUpload.uploadFile) {
+      throw new WriteError("Upload grant returned no upload details", {
+        effect: "applied",
+        data: acknowledgement,
+      })
     }
 
     const { assetUrl, uploadUrl, headers } = data.fileUpload.uploadFile
-
-    // Step 2: Upload file to signed URL
-    const fileData = await Deno.readFile(filepath)
+    if (
+      typeof assetUrl !== "string" || !assetUrl
+    ) {
+      throw new WriteError("Upload grant returned incomplete details", {
+        effect: "applied",
+        data: acknowledgement,
+      })
+    }
+    grant = { assetUrl, filename, size, contentType, public: makePublic }
+    if (
+      typeof uploadUrl !== "string" || !uploadUrl || !Array.isArray(headers) ||
+      !headers.every((header) =>
+        header != null && typeof header.key === "string" &&
+        typeof header.value === "string"
+      )
+    ) {
+      throw new WriteError(
+        "Upload grant returned incomplete transfer details",
+        {
+          effect: "applied",
+        },
+      )
+    }
 
     // Build headers - start with Content-Type which is required by the signed URL
     const uploadHeaders: Record<string, string> = {
@@ -263,6 +331,7 @@ export async function uploadFile(
       uploadHeaders[header.key] = header.value
     }
 
+    putStarted = true
     const response = await fetch(uploadUrl, {
       method: "PUT",
       headers: uploadHeaders,
@@ -270,52 +339,82 @@ export async function uploadFile(
     })
 
     if (!response.ok) {
-      const errorText = await response.text()
-      throw new CliError(
-        `Failed to upload file: ${response.status} ${response.statusText} - ${errorText}`,
+      await response.body?.cancel()
+      throw new WriteError(
+        `Failed to upload file (HTTP ${response.status})`,
+        { effect: "unknown" },
       )
     }
 
     spinner?.stop()
 
-    return {
-      assetUrl,
-      filename,
-      size,
-      contentType,
-      public: makePublic,
-    }
+    return grant
   } catch (error) {
     spinner?.stop()
+    // graphql-request includes partial response data in ClientError.stack.
+    // Keep the safe grant metadata, never the signed URL, headers or raw cause.
+    const failedPayload = isClientError(error)
+      ? (error.response.data as {
+        fileUpload?: { success?: unknown; uploadFile?: { assetUrl?: unknown } }
+      } | undefined)?.fileUpload
+      : undefined
+    const partialAsset = failedPayload?.uploadFile?.assetUrl
+    if (
+      failedPayload?.success === true && typeof partialAsset === "string" &&
+      partialAsset
+    ) {
+      grant = {
+        assetUrl: partialAsset,
+        filename,
+        size,
+        contentType,
+        public: makePublic,
+      }
+    }
+    if (grant != null) {
+      throw new WriteError(
+        error instanceof WriteError
+          ? error.userMessage
+          : putStarted
+          ? "Upload transfer outcome is unknown"
+          : "Upload grant could not be used",
+        {
+          effect: putStarted ? "unknown" : "applied",
+          receipts: [{
+            kind: "upload",
+            stage: putStarted ? "unknown" : "signed",
+            ...grant,
+          }],
+          suggestion:
+            "A signed URL is not proof the bytes were stored; reconcile this upload before retrying.",
+        },
+      )
+    }
+    if (grantStarted) {
+      const effect = failedPayload?.success === true
+        ? "applied"
+        : errorResult(error).effect
+      throw new WriteError(
+        error instanceof WriteError
+          ? error.userMessage
+          : "Upload grant request did not provide a usable receipt",
+        {
+          effect,
+          suggestion:
+            "Reconcile the upload grant before retrying; no file transfer was confirmed.",
+        },
+      )
+    }
     throw error
   }
 }
 
 /**
- * Upload multiple files to Linear's cloud storage
- *
- * @param filepaths - Array of file paths to upload
- * @param options - Upload options
- * @returns Array of upload results
- */
-export async function uploadFiles(
-  filepaths: string[],
-  options: UploadOptions = {},
-): Promise<UploadResult[]> {
-  const results: UploadResult[] = []
-
-  for (const filepath of filepaths) {
-    const result = await uploadFile(filepath, options)
-    results.push(result)
-  }
-
-  return results
-}
-
-/**
  * Check if a file exists and is readable
  */
-export async function validateFilePath(filepath: string): Promise<void> {
+export async function validateFilePath(
+  filepath: string,
+): Promise<Deno.FileInfo> {
   try {
     const info = await Deno.stat(filepath)
     if (!info.isFile) {
@@ -323,6 +422,7 @@ export async function validateFilePath(filepath: string): Promise<void> {
         suggestion: "Please provide a path to a valid file",
       })
     }
+    return info
   } catch (error) {
     if (error instanceof Deno.errors.NotFound) {
       throw new NotFoundError("File", filepath)

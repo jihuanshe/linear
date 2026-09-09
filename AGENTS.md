@@ -9,11 +9,12 @@
 | 事实                                    | Canonical owner                                                                                                           |
 | --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
 | 命令、参数、别名和单命令语义            | `src/cli.ts`、`src/commands/`、对应 `test/commands/`                                                                      |
+| 共享业务操作与文件关联                  | 命令模块导出的操作、`src/operations/`，由单命令和 `src/delivery/` 共用                                                    |
 | 渐进发现、能力元数据和机器契约          | `src/commands/usage.ts`、命令模块中的 `withUsageMetadata`、对应测试                                                       |
 | 跨命令且随版本变化的工作流              | `docs/guides/`、`src/guides/`                                                                                             |
 | Linear GraphQL schema 与 typed document | `graphql/schema.graphql`、`codegen.ts`、`src/**` 中的 `gql`                                                               |
 | 认证、配置与凭据解析                    | `src/config.ts`、`src/credentials.ts`、`src/utils/graphql.ts`、`docs/authentication.md`、`docs/configuration.md`          |
-| Issue delivery manifest、执行和恢复     | `src/delivery/`、`src/commands/issue/issue-plan.ts`、`src/commands/issue/issue-apply.ts`、`docs/guides/issue-delivery.md` |
+| Issue delivery manifest v2、执行和恢复  | `src/delivery/`、`src/commands/issue/issue-plan.ts`、`src/commands/issue/issue-apply.ts`、`docs/guides/issue-delivery.md` |
 | Agent 接口设计与一次性交付记录          | `docs/agent-interface-architecture.md`、`docs/agent-interface-delivery.md`、`docs/skill-migration-ledger.md`              |
 | 开发工具版本、任务与权限                | `mise.toml`、`mise.lock`、`deno.json`、`docs/deno-permissions.md`                                                         |
 | 提交前检查与 Markdown 规则              | `prek.toml`、`.markdownlint-cli2.jsonc`、`.autocorrectrc`                                                                 |
@@ -28,7 +29,7 @@ flowchart TD
   owner -->|单个命令调用者| command["命令树 / --help / 运行时校验"]
   owner -->|跨命令工作流调用者| guide["docs/guides<br/>随二进制嵌入"]
   owner -->|安装、配置或维护者| docs["README / docs / AGENTS"]
-  owner -->|一次性交付证据| history["architecture / delivery record"]
+  owner -->|一次性交付证据| history["delivery record"]
   command --> test["从生产入口验证"]
   guide --> test
   docs --> test
@@ -43,18 +44,26 @@ flowchart TD
 - `usage` 与根／领域导航从实际 Cliffy tree 生成，不维护第二份命令目录。`withUsageMetadata` 与定义和执行该行为的命令模块放在一起；`writes`、`interactive`、confirmation 和 output mode 描述能力，不代表授权。
 - Guide 的 Markdown 是内容事实源。frontmatter 只使用 `name`、`description`、`commands`；它拥有 command-to-guide 关系。新增 Guide 时同步 `src/guides/content.ts` 的静态 import manifest，Guide 测试必须证明文件、名称、命令引用和二进制嵌入一致。
 - 保留 GraphQL 字段名称和嵌套结构。分页 JSON 保留 `{nodes,pageInfo}` connection，拼接 `nodes`，不扁平化或重命名。机器输出 stdout 不混入进度、诊断或提示；具体支持的 output mode 以目标命令为准。
-- 显式无效输入必须失败并给出指引，不能 fallback 或静默忽略。命令 action 使用 `src/utils/errors.ts` 的 `ValidationError`、`NotFoundError`、`AuthError` 或 `CliError`，并以 `handleError(error, "Failed to <action>")` 收口；错误写 stderr，stack trace 只在 `LINEAR_DEBUG=1` 时显示。
+- 显式无效输入必须失败，不能 fallback 或静默忽略。action 使用 `errors.ts` 的领域错误并以 `handleError` 收口。专用写结果由 `write-result.ts` 序列化；JSON 错误也只在 stdout 输出一份结果，人类诊断写 stderr。GraphQL／网络／回执错误保留 none、applied、unknown，不能用普通错误抹掉已确认效果。stack trace 只在 `LINEAR_DEBUG=1` 时显示。
 - 优先静态 import；只有运行时成本或平台边界确实要求时才用 dynamic import。避免 `any`，GraphQL 结果沿 `gql` document 推断；空值判断优先使用 `== null`／`!= null`。
 - 终端样式使用 `@std/fmt/colors`。添加短 flag 前搜索全局和同路径选项；Cliffy 会优先解析全局别名。
 - 修改 Deno permission 前按 `docs/deno-permissions.md` 盘点所有生产、测试、Orb 和发布入口，不能只改 `deno.json`。
 
+## 原始读取与写入
+
+- Issue、Comment、Project、Initiative、Document、Milestone 的 replacement 通过 `utils/replacement.ts` 共用原始依据比较；读取保留 `{organization, <API 对象>}`、稳定 ID 和字段 presence。
+- 初读在讨论／编辑前保存；提交前最后读取。不能现读新 base 冒充用户依据。仅提交判定为 write 的字段，一个字段冲突即拒绝整个 patch；Markdown 精确比较，只有明确 ID 集合使用集合语义。
+- 默认缺依据拒绝；`--unprotected` 只跳过原值比较，保留领域校验。Document 行内评论锚点是独立规则。原生增量不改成完整集合替换。
+- 实际 mutation 使用解析后的同一 UUID。专用命令和 apply 共用 typed operation；`beforeWrite` 只在真实派发前调用，准备失败与 no-op 不调用。
+- 原生 api 是明确例外：raw mutation 要求 `--unprotected`，保持 GraphQL envelope，自动分页仅处理 query。它不具有专用领域守卫或恢复账本。
+
 ## Issue delivery
 
 - `plan` 对远端零写入；`apply` 要求 `--confirm-workspace` 精确匹配 manifest，并在 mutation 前使用同一凭据核对实际 workspace。
-- 单次与 batch 共用 manifest v1。整批本地文件在第一笔 mutation 前校验；update 在每个 Issue 的第一笔 mutation 前重读目标，并按 base／desired／remote 做三方比较。
+- 单命令不强制 manifest；需要组合和恢复时使用 manifest v2。整批本地文件首写前读取并校验，base/baseFile 保存原生读取。set 使用共享 Issue 操作的选项名；apply 直接调用其实现，不自产 argv 或 self-spawn。
 - mutation 发射前先把 in-flight 执行项记为 `unknown`。结果未知时停止一切自动续跑，等待显式对账；不把网络失败解释为远端未写入。
-- checkpoint 记录在 manifest 旁，负责跳过已确认成功的执行项和拒绝结构漂移，不是锁或事务。两个执行者不得并发 apply 同一 manifest；部分成功不自动回滚。
-- 修改 manifest schema、执行顺序、状态词表、checkpoint key 或恢复语义时，同时更新 engine/checkpoint 测试和 `docs/guides/issue-delivery.md`。测试必须走生产 `plan`／`apply` 入口，不复写被测实现。
+- checkpoint v2 记录在 manifest 旁：真实派发前 unknown，取得有效 receipt 后 completed；upload 有独立回执。已确认写入不因读回失败变成可重试。两个执行者不得并发 apply 同一 manifest；账本不是锁或事务，部分成功不自动回滚。
+- schemaVersion 1 清单／账本明确拒绝；保留旧文件与匹配版本对账后，只为剩余工作新建 v2，不自动迁移重放。修改 schema、状态、key、回执或恢复语义时，同步 engine/checkpoint 测试和 `docs/guides/issue-delivery.md`。测试走生产入口，不复写实现。
 
 ## Kadoraba 实时 API 实验
 

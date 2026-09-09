@@ -20,14 +20,18 @@ Description:
 
 Options:
 
-  -h, --help                     - Show this help.                                                     
-  -t, --title         <title>    - New title for the document                                          
-  -c, --content       <content>  - New markdown content (inline; empty string clears it)               
-  -f, --content-file  <path>     - Read new content from file                                          
-  --icon              <icon>     - New icon (emoji)                                                    
-  --project           <project>  - Attach to project (UUID, slug ID, or name)                          
-  -e, --edit                     - Open current content in \$EDITOR for editing                         
-  --force                        - Update content even when document comments may lose inline anchors  
+  -h, --help                     - Show this help.                                                                              
+  -t, --title         <title>    - New title for the document                                                                   
+  -c, --content       <content>  - New markdown content (inline; empty string clears it)                                        
+  -f, --content-file  <path>     - Read new content from file                                                                   
+  --icon              <icon>     - New icon (emoji)                                                                             
+  --project           <project>  - Attach to project (UUID, slug ID, or name)                                                   
+  -e, --edit                     - Open current content in \$EDITOR for editing                                                  
+  --force                        - Update content even when document comments may lose inline anchors                           
+  --json                         - Output the write result as JSON; never open an editor                                        
+  --base-file         <path>     - Original view --json output, saved before preparing the update                               
+  --unprotected                  - Explicitly skip original-value comparison; inline-comment protection still requires --force  
+  --expect-field      <field>    - Also require this API field to match the original basis                                      
 
 "
 stderr:

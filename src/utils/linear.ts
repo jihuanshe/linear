@@ -1,4 +1,4 @@
-import type { TypedDocumentNode } from "@graphql-typed-document-node/core"
+import { completeIssueLabels } from "./issue-read.ts"
 import { gql } from "../__codegen__/gql.ts"
 import type {
   GetAllTeamsQuery,
@@ -338,6 +338,7 @@ export function getTeamKey(): string | undefined {
 export async function getIssueIdentifier(
   providedId?: string,
 ): Promise<string | undefined> {
+  if (providedId && isLinearUuid(providedId)) return providedId.toLowerCase()
   if (providedId) {
     const normalizedIdentifier = normalizeIssueIdentifier(providedId)
     if (normalizedIdentifier) {
@@ -376,6 +377,14 @@ export async function getIssueId(
 
   const client = getGraphQLClient()
   const data = await client.request(query, { id: identifier })
+  if (
+    isLinearUuid(identifier) &&
+    data.issue?.id?.toLowerCase() !== identifier.toLowerCase()
+  ) {
+    throw new ValidationError(
+      "Issue lookup returned a different stable identity",
+    )
+  }
   return data.issue?.id
 }
 
@@ -416,19 +425,6 @@ export async function getWorkflowStates(
 export type WorkflowState = Awaited<
   ReturnType<typeof getWorkflowStates>
 >[number]
-
-export async function getStartedState(
-  teamKey: string,
-): Promise<{ id: string; name: string }> {
-  const states = await getWorkflowStates(teamKey)
-  const startedStates = states.filter((s) => s.type === "started")
-
-  if (!startedStates.length) {
-    throw new Error("No 'started' state found in workflow")
-  }
-
-  return { id: startedStates[0].id, name: startedStates[0].name }
-}
 
 /**
  * Resolve a workflow state from an already-fetched list by name
@@ -473,87 +469,11 @@ export function workflowStateNotFoundError(
   )
 }
 
-export async function updateIssueState(
-  issueId: string,
-  stateId: string,
-): Promise<void> {
-  const mutation = gql(/* GraphQL */ `
-    mutation UpdateIssueState($issueId: String!, $stateId: String!) {
-      issueUpdate(id: $issueId, input: { stateId: $stateId }) {
-        success
-      }
-    }
-  `)
-
-  const client = getGraphQLClient()
-  const result = await client.request(mutation, { issueId, stateId })
-  if (!result.issueUpdate.success) {
-    throw new CliError("Failed to update issue state")
-  }
-}
-
 const issueDetailsWithCommentsQuery = gql(/* GraphQL */ `
   query GetIssueDetailsWithComments($id: String!) {
+    organization { id urlKey }
     issue(id: $id) {
-      identifier
-      archivedAt
-      trashed
-      title
-      description
-      url
-      branchName
-      state {
-        name
-        type
-        color
-      }
-      assignee {
-        id
-        name
-        displayName
-      }
-      priority
-      project {
-        id
-        name
-        slugId
-      }
-      projectMilestone {
-        name
-      }
-      cycle {
-        id
-        number
-        name
-        isActive
-        isNext
-        isPrevious
-        isFuture
-        isPast
-      }
-      team {
-        activeCycle {
-          number
-        }
-      }
-      labels(first: 250) {
-        nodes {
-          id
-          name
-          color
-        }
-        pageInfo {
-          hasNextPage
-        }
-      }
-      parent {
-        identifier
-        title
-        state {
-          name
-          color
-        }
-      }
+      ...IssueFields
       children(first: 250) {
         nodes {
           identifier
@@ -680,66 +600,9 @@ async function fetchAllIssueCommentBodies(issueId: string): Promise<string[]> {
 
 const issueDetailsQuery = gql(/* GraphQL */ `
   query GetIssueDetails($id: String!) {
+    organization { id urlKey }
     issue(id: $id) {
-      identifier
-      archivedAt
-      trashed
-      title
-      description
-      url
-      branchName
-      state {
-        name
-        type
-        color
-      }
-      assignee {
-        id
-        name
-        displayName
-      }
-      priority
-      project {
-        id
-        name
-        slugId
-      }
-      projectMilestone {
-        name
-      }
-      cycle {
-        id
-        number
-        name
-        isActive
-        isNext
-        isPrevious
-        isFuture
-        isPast
-      }
-      team {
-        activeCycle {
-          number
-        }
-      }
-      labels(first: 250) {
-        nodes {
-          id
-          name
-          color
-        }
-        pageInfo {
-          hasNextPage
-        }
-      }
-      parent {
-        identifier
-        title
-        state {
-          name
-          color
-        }
-      }
+      ...IssueFields
       children(first: 250) {
         nodes {
           identifier
@@ -879,22 +742,22 @@ async function completeIssueAttachments(
 export function fetchIssueDetailsRaw(
   issueId: string,
   includeComments: true,
-  completeCommentsAndAttachments?: boolean,
-): Promise<IssueDetailsWithComments>
+  complete?: boolean,
+): Promise<GetIssueDetailsWithCommentsQuery>
 export function fetchIssueDetailsRaw(
   issueId: string,
   includeComments?: false,
-  completeCommentsAndAttachments?: boolean,
-): Promise<IssueDetailsWithoutComments>
+  complete?: boolean,
+): Promise<GetIssueDetailsQuery>
 export function fetchIssueDetailsRaw(
   issueId: string,
   includeComments: boolean,
-  completeCommentsAndAttachments?: boolean,
-): Promise<IssueDetailsWithComments | IssueDetailsWithoutComments>
+  complete?: boolean,
+): Promise<GetIssueDetailsWithCommentsQuery | GetIssueDetailsQuery>
 export async function fetchIssueDetailsRaw(
   issueId: string,
   includeComments = false,
-  completeCommentsAndAttachments = false,
+  complete = false,
 ) {
   const client = getGraphQLClient()
   if (includeComments) {
@@ -902,36 +765,25 @@ export async function fetchIssueDetailsRaw(
       id: issueId,
     })
     if (data.issue == null) throw new NotFoundError("Issue", issueId)
-    if (!completeCommentsAndAttachments) return data.issue
-    const [comments, attachments] = await Promise.all([
-      fetchIssueComments(issueId, 0, data.issue.comments),
-      completeIssueAttachments(issueId, data.issue.attachments),
+    if (!complete) return data
+    const [comments, attachments, labels] = await Promise.all([
+      fetchIssueComments(data.issue.id, 0, data.issue.comments),
+      completeIssueAttachments(data.issue.id, data.issue.attachments),
+      completeIssueLabels(data.issue.id, data.issue.labels),
     ])
-    return {
-      ...data.issue,
-      comments,
-      attachments,
-    }
+    return { ...data, issue: { ...data.issue, comments, attachments, labels } }
   }
-
   const data = await client.request(issueDetailsQuery, { id: issueId })
   if (data.issue == null) throw new NotFoundError("Issue", issueId)
-  if (!completeCommentsAndAttachments) return data.issue
-  return {
-    ...data.issue,
-    attachments: await completeIssueAttachments(
-      issueId,
-      data.issue.attachments,
-    ),
-  }
+  if (!complete) return data
+  const [attachments, labels] = await Promise.all([
+    completeIssueAttachments(data.issue.id, data.issue.attachments),
+    completeIssueLabels(data.issue.id, data.issue.labels),
+  ])
+  return { ...data, issue: { ...data.issue, attachments, labels } }
 }
-
-type IssueDetailsWithComments = GetIssueDetailsWithCommentsQuery["issue"]
-type IssueDetailsWithoutComments = GetIssueDetailsQuery["issue"]
-
-export type FetchedIssueComment = IssueDetailsWithComments["comments"]["nodes"][
-  number
-]
+export type FetchedIssueComment =
+  GetIssueDetailsWithCommentsQuery["issue"]["comments"]["nodes"][number]
 
 export async function fetchParentIssueTitle(
   parentId: string,
@@ -1838,7 +1690,7 @@ export async function getProjectIdByName(
   input: string,
   includeArchived?: boolean,
 ): Promise<string | undefined> {
-  if (isLinearUuid(input)) return input
+  if (isLinearUuid(input)) return input.toLowerCase()
 
   const client = getGraphQLClient()
 
@@ -1848,12 +1700,14 @@ export async function getProjectIdByName(
       $includeArchived: Boolean = false
     ) {
       projects(
+        first: 2
         filter: { name: { eq: $name } }
         includeArchived: $includeArchived
       ) {
         nodes {
           id
         }
+        pageInfo { hasNextPage endCursor }
       }
     }
   `)
@@ -1861,7 +1715,7 @@ export async function getProjectIdByName(
     name: input,
     ...(includeArchived === undefined ? {} : { includeArchived }),
   })
-  const nameMatch = nameData.projects?.nodes[0]?.id
+  const nameMatch = uniqueLookupId(nameData?.projects, input, "Project")
   if (nameMatch) return nameMatch
 
   const slugQuery = gql(/* GraphQL */ `
@@ -1870,12 +1724,14 @@ export async function getProjectIdByName(
       $includeArchived: Boolean = false
     ) {
       projects(
+        first: 2
         filter: { slugId: { eq: $slugId } }
         includeArchived: $includeArchived
       ) {
         nodes {
           id
         }
+        pageInfo { hasNextPage endCursor }
       }
     }
   `)
@@ -1883,7 +1739,29 @@ export async function getProjectIdByName(
     slugId: input,
     ...(includeArchived === undefined ? {} : { includeArchived }),
   })
-  return slugData.projects?.nodes[0]?.id
+  return uniqueLookupId(slugData?.projects, input, "Project")
+}
+
+function uniqueLookupId(
+  connection: { nodes: { id: string }[]; pageInfo: { hasNextPage: boolean } },
+  input: string,
+  kind: string,
+): string | undefined {
+  if (
+    connection == null || !Array.isArray(connection.nodes) ||
+    typeof connection.pageInfo?.hasNextPage !== "boolean"
+  ) throw new CliError(kind + " lookup returned an incomplete connection")
+  if (connection.nodes.length > 1 || connection.pageInfo.hasNextPage) {
+    throw new ValidationError(kind + " name or slug is ambiguous: " + input, {
+      suggestion: "Use the exact object UUID.",
+    })
+  }
+  if (
+    connection.nodes.some((node) => typeof node.id !== "string" || !node.id)
+  ) {
+    throw new CliError(kind + " lookup returned no stable identity")
+  }
+  return connection.nodes[0]?.id
 }
 
 /**
@@ -2041,135 +1919,158 @@ export async function searchTeamsByKeySubstring(
   )
 }
 
-export type UserLookupRequest = <T, V extends Record<string, unknown>>(
-  document: TypedDocumentNode<T, V>,
-  variables: V,
-) => Promise<T>
-
-function requestUserLookup<T, V extends Record<string, unknown>>(
-  document: TypedDocumentNode<T, V>,
-  variables: V,
-): Promise<T> {
-  return getGraphQLClient().request<T, Record<string, unknown>>(
-    document,
-    variables,
-  )
-}
-
 export async function lookupUserId(
-  /**
-   * User UUID, email, username, display name, 'self', or '@me' for viewer
-   */
   input: "self" | "@me" | string,
-  request: UserLookupRequest = requestUserLookup,
 ): Promise<string | undefined> {
+  const client = getGraphQLClient()
   if (input === "@me" || input === "self") {
-    const query = gql(/* GraphQL */ `
-      query GetViewerId {
-        viewer {
-          id
-        }
-      }
+    const query = gql(`
+      query GetViewerId { viewer { id } }
     `)
-    const data = await request(query, {})
+    const data = await client.request(query)
+    if (typeof data?.viewer?.id !== "string" || !data.viewer.id) {
+      throw new CliError("Viewer lookup returned no identity")
+    }
     return data.viewer.id
-  } else if (isLinearUuid(input)) {
-    const query = gql(/* GraphQL */ `
-      query LookupUserById($id: ID!) {
-        users(filter: { id: { eq: $id } }) {
-          nodes {
-            id
-          }
-        }
-      }
-    `)
-    const data = await request(query, { id: input.toLowerCase() })
-    return data.users.nodes[0]?.id
-  } else {
-    const query = gql(/* GraphQL */ `
-      query LookupUser($input: String!) {
-        users(
-          filter: {
-            or: [
-              { email: { eqIgnoreCase: $input } }
-              { displayName: { eqIgnoreCase: $input } }
-              { name: { containsIgnoreCaseAndAccent: $input } }
-            ]
-          }
-        ) {
-          nodes {
-            id
-            email
-            displayName
-            name
-          }
-        }
-      }
-    `)
-    const data = await request(query, { input })
-
-    if (!data.users?.nodes?.length) {
-      return undefined
-    }
-
-    for (const user of data.users.nodes) {
-      if (user.email?.toLowerCase() === input.toLowerCase()) {
-        return user.id
-      }
-    }
-
-    for (const user of data.users.nodes) {
-      if (user.displayName?.toLowerCase() === input.toLowerCase()) {
-        return user.id
-      }
-    }
-
-    return data.users.nodes[0]?.id
   }
+  if (isLinearUuid(input)) {
+    const query = gql(`
+      query LookupUserById($id: ID!) {
+        users(first: 2, filter: { id: { eq: $id } }) {
+          nodes { id }
+          pageInfo { hasNextPage endCursor }
+        }
+      }
+    `)
+    const data = await client.request(query, { id: input.toLowerCase() })
+    const id = uniqueLookupId(data?.users, input, "User")
+    if (id != null && id.toLowerCase() !== input.toLowerCase()) {
+      throw new CliError("User lookup returned a different identity")
+    }
+    return id
+  }
+  const query = gql(`
+    query LookupUser($input: String!) {
+      users(first: 2, filter: {or: [
+        {email: {eqIgnoreCase: $input}},
+        {displayName: {eqIgnoreCase: $input}},
+        {name: {containsIgnoreCaseAndAccent: $input}}
+      ]}) {
+        nodes { id email displayName name }
+        pageInfo { hasNextPage endCursor }
+      }
+    }
+  `)
+  const data = await client.request(query, { input })
+  if (
+    data?.users == null || typeof data.users.pageInfo?.hasNextPage !== "boolean"
+  ) throw new CliError("User lookup returned an incomplete connection")
+  if (data.users.pageInfo.hasNextPage) {
+    throw new ValidationError("User name is ambiguous: " + input, {
+      suggestion: "Use an exact user UUID or email.",
+    })
+  }
+  const users = data.users.nodes
+  const normalized = input.toLowerCase()
+  const email = users.filter((user) => user.email.toLowerCase() === normalized)
+  const display = users.filter((user) =>
+    user.displayName.toLowerCase() === normalized
+  )
+  const name = users.filter((user) => user.name.toLowerCase() === normalized)
+  const matches = email.length
+    ? email
+    : display.length
+    ? display
+    : name.length
+    ? name
+    : users
+  return uniqueLookupId(
+    { nodes: matches, pageInfo: { hasNextPage: false } },
+    input,
+    "User",
+  )
 }
 
 export async function getIssueLabelIdByNameForTeam(
   name: string,
-  teamKey: string,
+  team: string,
 ): Promise<string | undefined> {
   const client = getGraphQLClient()
-  const query = gql(/* GraphQL */ `
-    query GetIssueLabelIdByNameForTeam($name: String!, $teamKey: String!) {
+  if (isLinearUuid(name)) {
+    const byId = gql(`
+      query GetIssueLabelForWrite($id: String!) {
+        issueLabel(id: $id) { id isGroup team { id key } }
+      }
+    `)
+    const data = await client.request(byId, { id: name.toLowerCase() })
+    const label = data?.issueLabel
+    if (label == null) return undefined
+    if (label.id?.toLowerCase() !== name.toLowerCase()) {
+      throw new CliError("Issue label lookup returned a different identity")
+    }
+    const matches = label.team == null ||
+      (isLinearUuid(team)
+        ? label.team.id.toLowerCase() === team.toLowerCase()
+        : label.team.key.toLowerCase() === team.toLowerCase())
+    if (label.isGroup || !matches) {
+      throw new ValidationError(
+        "Issue label is not assignable in the target team",
+      )
+    }
+    return label.id
+  }
+  const query = gql(`
+    query GetIssueLabelIdByNameForTeam($name: String!, $team: NullableTeamFilter!) {
       issueLabels(
+        first: 2
         filter: {
           name: { eqIgnoreCase: $name }
-          or: [{ team: { key: { eq: $teamKey } } }, { team: { null: true } }]
+          isGroup: { eq: false }
+          or: [{ team: $team }, { team: { null: true } }]
         }
       ) {
-        nodes {
-          id
-          name
-        }
+        nodes { id name }
+        pageInfo { hasNextPage endCursor }
       }
     }
   `)
-  const data = await client.request(query, { name, teamKey })
-  return data.issueLabels?.nodes[0]?.id
+  const scope = isLinearUuid(team)
+    ? { id: { eq: team } }
+    : { key: { eq: team } }
+  const data = await client.request(query, { name, team: scope })
+  return uniqueLookupId(data?.issueLabels, name, "Issue label")
 }
 
 export async function getProjectLabelIdByName(
   name: string,
 ): Promise<string | undefined> {
   const client = getGraphQLClient()
-  const query = gql(/* GraphQL */ `
+  if (isLinearUuid(name)) {
+    const byId = gql(`
+      query GetProjectLabelForWrite($id: String!) {
+        projectLabel(id: $id) { id isGroup }
+      }
+    `)
+    const data = await client.request(byId, { id: name.toLowerCase() })
+    if (data?.projectLabel == null) return undefined
+    if (data.projectLabel.id?.toLowerCase() !== name.toLowerCase()) {
+      throw new CliError("Project label lookup returned a different identity")
+    }
+    if (data.projectLabel.isGroup) {
+      throw new ValidationError("A Project label group cannot be assigned")
+    }
+    return data.projectLabel.id
+  }
+  const query = gql(`
     query GetProjectLabelIdByName($name: String!) {
-      projectLabels(
-        filter: { name: { eqIgnoreCase: $name }, isGroup: { eq: false } }
-      ) {
-        nodes {
-          id
-          name
-        }
+      projectLabels(first: 2, filter: { name: { eqIgnoreCase: $name }, isGroup: { eq: false } }) {
+        nodes { id name }
+        pageInfo { hasNextPage endCursor }
       }
     }
   `)
   const data = await client.request(query, { name })
-  return data.projectLabels?.nodes[0]?.id
+  return uniqueLookupId(data?.projectLabels, name, "Project label")
 }
 
 export async function getIssueLabelOptionsByNameForTeam(

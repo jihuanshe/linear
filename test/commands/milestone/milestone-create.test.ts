@@ -37,7 +37,12 @@ await cliffySnapshotTest({
       {
         queryName: "GetProjectIdByName",
         response: {
-          data: { projects: { nodes: [] } },
+          data: {
+            projects: {
+              pageInfo: { hasNextPage: false, endCursor: null },
+              nodes: [],
+            },
+          },
         },
       },
       {
@@ -45,6 +50,7 @@ await cliffySnapshotTest({
         response: {
           data: {
             projects: {
+              pageInfo: { hasNextPage: false, endCursor: null },
               nodes: [{ id: "project-123" }],
             },
           },
@@ -102,7 +108,12 @@ await cliffySnapshotTest({
       {
         queryName: "GetProjectIdByName",
         response: {
-          data: { projects: { nodes: [] } },
+          data: {
+            projects: {
+              pageInfo: { hasNextPage: false, endCursor: null },
+              nodes: [],
+            },
+          },
         },
       },
       {
@@ -110,6 +121,7 @@ await cliffySnapshotTest({
         response: {
           data: {
             projects: {
+              pageInfo: { hasNextPage: false, endCursor: null },
               nodes: [{ id: "project-456" }],
             },
           },
@@ -168,7 +180,12 @@ await cliffySnapshotTest({
         queryName: "GetProjectIdByName",
         variables: { name: "Tech Debt" },
         response: {
-          data: { projects: { nodes: [{ id: "project-tech-debt-uuid" }] } },
+          data: {
+            projects: {
+              pageInfo: { hasNextPage: false, endCursor: null },
+              nodes: [{ id: "project-tech-debt-uuid" }],
+            },
+          },
         },
       },
       {

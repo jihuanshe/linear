@@ -1,16 +1,9 @@
 import { open } from "@opensrc/deno-open"
-import {
-  fetchIssueDetailsRaw,
-  getIssueIdentifier,
-  getStartedState,
-  getTeamKey,
-  updateIssueState,
-} from "./linear.ts"
+import { getIssueIdentifier, getTeamKey } from "./linear.ts"
 import { getOption } from "../config.ts"
 import { encodeBase64 } from "@std/encoding/base64"
-import { getNoIssueFoundMessage, startVcsWork } from "./vcs.ts"
+import { getNoIssueFoundMessage } from "./vcs.ts"
 import { LINEAR_WEB_BASE_URL } from "../const.ts"
-import { CliError } from "./errors.ts"
 
 export async function openIssuePage(
   providedId?: string,
@@ -55,10 +48,10 @@ export async function openProjectPage(
 }
 
 export async function openTeamAssigneeView(options: { app?: boolean } = {}) {
-  const teamId = getTeamKey()
-  if (!teamId) {
+  const teamKey = getTeamKey()
+  if (!teamKey) {
     console.error(
-      "Could not determine team id from configuration or directory name.",
+      "Could not determine team key from configuration or directory name.",
     )
     Deno.exit(1)
   }
@@ -76,39 +69,6 @@ export async function openTeamAssigneeView(options: { app?: boolean } = {}) {
   }
   const filter = encodeBase64(JSON.stringify(filterObj)).replace(/=/g, "")
   const url =
-    `${LINEAR_WEB_BASE_URL}/${workspace}/team/${teamId}/active?filter=${filter}`
+    `${LINEAR_WEB_BASE_URL}/${workspace}/team/${teamKey}/active?filter=${filter}`
   await open(url, options.app ? { app: { name: "Linear" } } : undefined)
-}
-
-export async function startWorkOnIssue(
-  issueId: string,
-  teamId: string,
-  gitSourceRef?: string,
-  customBranchName?: string,
-) {
-  const { branchName: defaultBranchName } = await fetchIssueDetailsRaw(issueId)
-  const branchName = customBranchName || defaultBranchName
-
-  // Start VCS work (git or jj)
-  await startVcsWork(issueId, branchName, gitSourceRef)
-
-  // Update issue state
-  try {
-    const state = await getStartedState(teamId)
-    if (!issueId) {
-      console.error("No issue ID resolved")
-      Deno.exit(1)
-    }
-    await updateIssueState(issueId, state.id)
-    console.log(`✓ Issue state updated to '${state.name}'`)
-  } catch (error) {
-    throw new CliError(
-      "VCS work started, but the Linear issue state was not updated",
-      {
-        suggestion:
-          "The branch or Jujutsu change already exists. Update the Linear issue state manually before retrying other setup steps.",
-        cause: error,
-      },
-    )
-  }
 }

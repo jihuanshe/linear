@@ -13,12 +13,16 @@ Description:
 
 Options:
 
-  -h, --help                    - Show this help.                                       
-  --name         <name>         - Milestone name                                        
-  --description  <description>  - Milestone description                                 
-  --target-date  <date>         - Target date (YYYY-MM-DD)                              
-  --sort-order   <value>        - Sort order relative to other milestones               
-  --project      <project>      - Move to a different project (UUID, slug ID, or name)  
+  -h, --help                     - Show this help.                                                       
+  --name          <name>         - Milestone name                                                        
+  --description   <description>  - Milestone description; empty string clears it                         
+  --target-date   <date>         - Target date (YYYY-MM-DD)                                              
+  --sort-order    <value>        - Sort order relative to other milestones                               
+  --project       <project>      - Move to a different project (UUID, slug ID, or name)                  
+  -j, --json                     - Output the write result as JSON                                       
+  --base-file     <path>         - Original view --json output, saved before preparing the update        
+  --unprotected                  - Explicitly skip original-value comparison; domain checks still apply  
+  --expect-field  <field>        - Also require this API field to match the original basis               
 
 "
 stderr:

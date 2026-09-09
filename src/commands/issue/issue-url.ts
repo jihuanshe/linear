@@ -1,5 +1,6 @@
 import { Command } from "@cliffy/command"
-import { fetchIssueDetailsRaw, getIssueIdentifier } from "../../utils/linear.ts"
+import { getIssueIdentifier } from "../../utils/linear.ts"
+import { readIssueHeader } from "../../utils/issue-read.ts"
 import { handleError, ValidationError } from "../../utils/errors.ts"
 
 export const urlCommand = new Command()
@@ -15,7 +16,7 @@ export const urlCommand = new Command()
           { suggestion: "Please provide an issue identifier like 'ENG-123'." },
         )
       }
-      const { url } = await fetchIssueDetailsRaw(resolvedId)
+      const { url } = await readIssueHeader(resolvedId)
       console.log(url)
     } catch (error) {
       handleError(error, "Failed to get issue URL")

@@ -4,7 +4,12 @@ import { Confirm } from "../../utils/prompt.ts"
 import { gql } from "../../__codegen__/gql.ts"
 import { getGraphQLClient } from "../../utils/graphql.ts"
 import { shouldShowSpinner } from "../../utils/hyperlink.ts"
-import { CliError, handleError, ValidationError } from "../../utils/errors.ts"
+import {
+  assertMutationSuccess,
+  handleError,
+  ValidationError,
+} from "../../utils/errors.ts"
+import { printWriteResult, setMachineOutput } from "../../utils/write-result.ts"
 
 const DeleteProjectMilestone = gql(`
   mutation DeleteProjectMilestone($id: String!) {
@@ -18,15 +23,18 @@ export const deleteCommand = withUsageMetadata(new Command(), {
   writes: true,
   interactive: true,
   confirmationRequiredUnless: "--force",
+  outputModes: ["human", "json"],
 })
   .name("delete")
+  .option("--json", "Output a JSON write result")
   .description("Delete a project milestone")
   .arguments("<id:string>")
   .option("-f, --force", "Skip confirmation prompt")
-  .action(async ({ force }, id) => {
+  .action(async ({ force, json }, id) => {
+    setMachineOutput(json ?? false)
     // Confirmation prompt unless --force is used
     if (!force) {
-      if (!Deno.stdin.isTerminal()) {
+      if (json || !Deno.stdin.isTerminal()) {
         throw new ValidationError("Interactive confirmation required", {
           suggestion: "Use --force to skip confirmation.",
         })
@@ -43,7 +51,7 @@ export const deleteCommand = withUsageMetadata(new Command(), {
     }
 
     const { Spinner } = await import("@std/cli/unstable-spinner")
-    const showSpinner = shouldShowSpinner()
+    const showSpinner = !json && shouldShowSpinner()
     const spinner = showSpinner ? new Spinner() : null
     spinner?.start()
 
@@ -54,11 +62,15 @@ export const deleteCommand = withUsageMetadata(new Command(), {
       })
       spinner?.stop()
 
-      if (result.projectMilestoneDelete.success) {
-        console.log(`✓ Deleted milestone ${id}`)
-      } else {
-        throw new CliError("Failed to delete milestone")
+      assertMutationSuccess(result?.projectMilestoneDelete, {
+        id,
+        result: result?.projectMilestoneDelete,
+      })
+      if (json) {
+        printWriteResult({ id, success: true })
+        return
       }
+      console.log(`✓ Deleted milestone ${id}`)
     } catch (error) {
       spinner?.stop()
       handleError(error, "Failed to delete milestone")
