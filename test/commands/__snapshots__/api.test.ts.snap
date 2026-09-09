@@ -10,8 +10,10 @@ Output modes: json
 
 Description:
 
-  Run raw GraphQL. Mutations require --unprotected; no domain guards, receipts or checkpoints. No retries; inspect data/errors and reconcile uncertain
-  writes.                                                                                                                                             
+  Run raw GraphQL queries or explicitly unprotected mutations.                                                                                    
+                                                                                                                                                  
+  Raw mutations require --unprotected and do not provide domain guards, receipts or checkpoints. Requests are not retried; inspect data/errors and
+  reconcile uncertain writes.                                                                                                                     
 
 Options:
 
@@ -75,8 +77,10 @@ Output modes: json
 
 Description:
 
-  Run raw GraphQL. Mutations require --unprotected; no domain guards, receipts or checkpoints. No retries; inspect data/errors and reconcile uncertain
-  writes.                                                                                                                                             
+  Run raw GraphQL queries or explicitly unprotected mutations.                                                                                    
+                                                                                                                                                  
+  Raw mutations require --unprotected and do not provide domain guards, receipts or checkpoints. Requests are not retried; inspect data/errors and
+  reconcile uncertain writes.                                                                                                                     
 
 Options:
 

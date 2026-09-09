@@ -156,7 +156,7 @@ export const createCommand = withUsageMetadata(new Command(), {
           projectId = await resolveProjectId(project)
         }
 
-        // Resolve issue ID if provided
+        // Resolve the Issue reference to its stable UUID if provided.
         let issueId: string | undefined
         if (issue) {
           issueId = await resolveIssueId(client, issue)

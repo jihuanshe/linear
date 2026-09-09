@@ -1,34 +1,21 @@
-# Deno permission policy and change procedure
+# Deno 权限与修改流程
 
-This CLI uses `--allow-all` for simplicity. Linear issues can contain images and attachments from arbitrary external domains, making fine-grained `--allow-net` restrictions impractical.
+CLI 使用 `--allow-all`。Linear 正文中的图片和附件可以来自外部域名，因此不能用固定的域名白名单覆盖所有下载来源。此外，CLI 需要读写配置与临时文件、读取密钥和编辑器环境变量、启动 Git／编辑器／分页器，以及读取主机名。
 
-## Permission surfaces
+## 权限入口
 
-| Surface                           | Purpose                                                 |
-| --------------------------------- | ------------------------------------------------------- |
-| `deno.json`                       | Development, installation, test, and codegen tasks      |
-| `.agents/resume`                  | Checkout-local `linear` source wrapper                  |
-| `.github/workflows/ship-main.yml` | Release compilation                                     |
-| `test/`                           | Child Deno processes used by command and snapshot tests |
+| 入口                              | 用途                                 |
+| --------------------------------- | ------------------------------------ |
+| `deno.json`                       | 开发、安装、测试和类型生成任务       |
+| `.agents/resume`                  | 当前工作副本的 `linear` 源码包装脚本 |
+| `.github/workflows/ship-main.yml` | 发布编译                             |
+| `test/`                           | 命令和快照测试启动的 Deno 子进程     |
 
-Before changing permissions, locate every active flag instead of relying only on this table:
+修改权限前，搜索所有实际使用的选项，不能只依赖此表：
 
 ```bash
 rg -n --glob '!deno.lock' -- '--allow-|--deny-' \
   deno.json .agents .github test
 ```
 
-Update every entry point that executes the affected code path, then run `deno task verify-source`.
-
-## Why `--allow-all`?
-
-The CLI needs network access to download attachments and images from Linear comments. Since these can be hosted on any domain (e.g., user-uploaded images, external file hosts), maintaining an allow-list is not feasible.
-
-The CLI also requires:
-
-- File system access for config and temp files
-- Environment variables for API keys and editor settings
-- Subprocess execution for git, editors, and pagers
-- System info for hostname
-
-Using `--allow-all` avoids permission errors when Linear content references external resources.
+更新所有会执行受影响代码路径的入口，然后运行 `deno task verify-source`。工作流示例的脚本权限由各自运行命令声明；查看或导出示例不会执行脚本。

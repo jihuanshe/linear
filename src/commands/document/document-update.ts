@@ -150,7 +150,7 @@ async function openEditorWithContent(
 }
 
 /**
- * Read content from stdin if available (with timeout to avoid hanging)
+ * Read piped content through EOF; empty stdin does not replace content.
  */
 async function readContentFromStdin(): Promise<string | undefined> {
   // Check if stdin has data (not a TTY)
@@ -159,19 +159,15 @@ async function readContentFromStdin(): Promise<string | undefined> {
   }
 
   try {
-    // Use timeout to avoid hanging when stdin is not a terminal but has no data
-    // (e.g., in test subprocess environments)
-    const timeoutPromise = new Promise<never>((_, reject) => {
-      setTimeout(() => reject(new Error("stdin timeout")), 100)
-    })
-
-    const content = await Promise.race([
-      new Response(Deno.stdin.readable).text(),
-      timeoutPromise,
-    ])
+    const content = await new Response(Deno.stdin.readable).text()
     return content.length > 0 ? content : undefined
-  } catch {
-    return undefined
+  } catch (error) {
+    throw new CliError(
+      `Failed to read document content from stdin: ${
+        error instanceof Error ? error.message : String(error)
+      }`,
+      { cause: error },
+    )
   }
 }
 
@@ -180,7 +176,11 @@ export const updateCommand = withUsageMetadata(new Command(), {
   interactive: true,
 })
   .name("update")
-  .description(withMarkdownHint("Update an existing document"))
+  .description(withMarkdownHint(
+    "Update an existing document\n\n" +
+      "Without --content, --content-file, or --edit, read piped Markdown through EOF.\n" +
+      "Nonempty stdin can be combined with metadata updates; empty stdin leaves content unchanged.",
+  ))
   .alias("u")
   .arguments("<documentId:string>")
   .option("-t, --title <title:string>", "New title for the document")
@@ -280,10 +280,7 @@ export const updateCommand = withUsageMetadata(new Command(), {
         // Set the document's project. A document has a single related project
         // (DocumentUpdateInput.projectId), so this replaces any existing one.
         // (The API silently ignores projectId: null, so detaching a document
-        // from its only anchor isn't supported — only re-pointing it.) Resolved
-        // here alongside the other metadata flags so it participates in the
-        // stdin auto-read guard below (a project-only update shouldn't slurp
-        // stdin as content).
+        // from its only anchor isn't supported — only re-pointing it.)
         if (project != null) {
           input.projectId = await resolveProjectId(project)
         }
@@ -322,15 +319,8 @@ export const updateCommand = withUsageMetadata(new Command(), {
           console.log(`Opening ${documentData.document.title} in editor...`)
 
           finalContent = await openEditorWithContent(currentContent)
-        } else if (
-          !Deno.stdin.isTerminal() && Object.keys(input).length === 0
-        ) {
-          // Only try reading from stdin if no other update fields were provided
-          // This avoids hanging when stdin is piped but has no data (e.g., in test environments)
-          const stdinContent = await readContentFromStdin()
-          if (stdinContent) {
-            finalContent = stdinContent
-          }
+        } else if (!Deno.stdin.isTerminal()) {
+          finalContent = await readContentFromStdin()
         }
 
         // Add content to input if resolved

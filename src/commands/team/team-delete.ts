@@ -49,7 +49,7 @@ export const deleteCommand = withUsageMetadata(new Command(), {
             `Team ${team.key} has ${team.issueCount} issue(s); deletion requires an empty team`,
             {
               suggestion:
-                "Use recipes/migrate-team.js to freeze and migrate an explicit issue set, then inspect the team before deleting it.",
+                "Run `linear recipe migrate-team` for a workflow that freezes and migrates an explicit issue set, then inspect the team before deleting it.",
             },
           )
         }

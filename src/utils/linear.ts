@@ -331,9 +331,8 @@ export function getTeamKey(): string | undefined {
 }
 
 /**
- * based on loose inputs, returns a linear issue identifier like ABC-123
- *
- * formats the provided identifier, adds the team id prefix, or finds one from VCS state
+ * Resolves an Issue reference: a normalized UUID or identifier such as ABC-123.
+ * A numeric reference uses the configured team key; omitted input uses VCS context.
  */
 export async function getIssueIdentifier(
   providedId?: string,

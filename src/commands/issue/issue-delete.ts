@@ -153,7 +153,7 @@ export const deleteCommand = withUsageMetadata(new Command(), {
         return
       }
       if (!issueRef) {
-        throw new ValidationError("Issue ID required", {
+        throw new ValidationError("An issue identifier or UUID is required", {
           suggestion: "Use --bulk for multiple issues.",
         })
       }

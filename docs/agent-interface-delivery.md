@@ -1,8 +1,8 @@
-# Agent 接口交付记录
+# Agent 接口历史交付记录
 
-本记录保留 Agent 接口一次性交付的范围、验证结果和当时的发布计划；当前行为以命令 `--help` 与内嵌 Guide 为准。设计本体见 [agent-interface-architecture.md](agent-interface-architecture.md)；被替换 Skill family 的逐节去向见 [skill-migration-ledger.md](skill-migration-ledger.md)。
+本记录保留 Agent 接口一次性交付的范围、验证结果和当时的发布计划。以下未完成项、命令、字段与输出说明均属于当时记录，不作为当前任务清单或接口合同；当前行为以命令 `--help`、`linear guide` 与 `linear recipe` 为准。现行设计见 [agent-interface-architecture.md](agent-interface-architecture.md)；被替换 Skill 的逐节去向见 [skill-migration-ledger.md](skill-migration-ledger.md)。
 
-## 实现 TODO
+## 当时的实现计划
 
 本仓库推送到 `main` 即触发 `Publish Linear CLI rolling release` workflow。按 2026-08-08 的一次性交付决定，`main` 只在集成完成时接受一次合并：剩余能力全部在集成分支（PR #5，`docs/context-continuity`）上以可评审 commit 累积，一次 merge 产出一个携带全部能力的 release。中间状态不单独发布，向后兼容不是约束。
 
@@ -320,12 +320,12 @@ Commit 8–10 与 Skill 迁移零耦合：delivery 与 batch 使用现有 `--jso
 - 专用命令、GraphQL fallback 和授权边界各有正确代表性路径，且不把激活 Skill 养成一本手册；
 - 场景失败按本章的拥有者规则裁定，不为了让测试全绿扩张 CLI 协议。
 
-## 发布编排
+## 当时的发布编排
 
 两个仓库、一个发布窗口、一次完整状态切换：
 
 1. **集成完成**：`jihuanshe/linear` 集成分支完成本次发布范围的全部 commit，`deno task verify-release` 通过。
-2. **merge 与发布**：集成分支一次 merge 进 `main`；`Publish Linear CLI rolling release` 构建并发布携带新 capability 的 release。现行 capability 词汇为 `usage-v1`、`guide-v1`、`delivery-v1`。
+2. **merge 与发布**：集成分支一次 merge 进 `main`；`Publish Linear CLI rolling release` 构建并发布携带新 capability 的 release。当时的 capability 词汇为 `usage-v1`、`guide-v1`、`delivery-v1`。
 3. **安装验证**：通过 mise（非受管机器）或 Rotom（受管机器）收敛到新版本；`linear version --json` 报告新 capability，`linear guide` 与 delivery `plan` 冒烟通过。
 4. **Skill 替换**：merge `jihuanshe/skills#219`——`preserving-context-continuity`、新 `linear` 激活 Skill、四个旧 Skill 的删除与迁移台账是同一个原子评审单元。
 5. **Live**：skillshare sync 使替换在全部配置目标生效；按 lifecycle 规则验证投影内容并运行最小冒烟。
@@ -333,11 +333,11 @@ Commit 8–10 与 Skill 迁移零耦合：delivery 与 batch 使用现有 `--jso
 
 顺序约束只有一条：新 Skill 引用的入口只存在于新 release，因此 CLI 先上线、Skill 替换随后。这不是渐进主义——中间状态不对外发布，两步是同一次切换在两个仓库的落点。
 
-## 发布后工作（信号驱动）
+## 当时记录的发布后工作（信号驱动）
 
 以下工作项与 Skill 迁移零耦合，不进入本次发布窗口；规格保持可实现精度，编号沿用原路线图，由发布后的真实使用信号排期。
 
-### 开放信号清单
+### 当时的开放信号清单
 
 验证各轮实测留下的全部待信号事项，收拢于此；单次出现不行动，信号重复才排期。证据在各轮验证记录原文。
 
@@ -345,7 +345,7 @@ Commit 8–10 与 Skill 迁移零耦合：delivery 与 batch 使用现有 `--jso
 - `issue(id).history` 查询返回空 nodes，未分诊（第三轮探针旁证）。
 - checkpoint 不是锁：同一 manifest 并发双执行者互不可见、逐项双写（第四轮实测）。指南已声明单执行者边界；锁文件只在真实交接事故出现后考虑。
 - 宿主 auto-mode 权限门：无 allow 规则的机器上 agent 的 `issue apply` 会被拦（第二、三轮两侧证据）。这是宿主策略层的部署事项——同事机器需要权限规则或用户在场——不是 CLI 缺陷。
-- 内部搜索、文件系统投影与 `guides export`，以及受管主机 Rotom 与直接 mise 的归属：见架构文档「待决事项」11–12，后者需与 Rotom 契约共同决定。
+- 内部搜索、文件系统投影与 `guides export`，以及受管主机 Rotom 与直接 mise 的归属：当时架构文档的「待决事项」11–12 将其列为待决内容，后者需与 Rotom 契约共同决定。现行架构文档已不保留该章节。
 
 ### Commit 8：统一的可选机器输出
 
@@ -540,7 +540,7 @@ linear#5 上 13 条 Codex 评论（两批，含 2 条 P1）逐条对源码裁决
 
 拒绝：createdIdentifiers 复用风险已被结构漂移守卫覆盖；整批预读 update 冲突与 relation 目标与「批量不是事务、失败由 checkpoint 续跑承接」的设计冲突，预读在 TOCTOU 下只制造假信心——指南措辞已同步澄清 apply 的校验边界。
 
-## 完成定义
+## 当时的完成定义
 
 架构在满足以下条件时完成：
 

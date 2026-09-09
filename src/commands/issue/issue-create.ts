@@ -860,7 +860,7 @@ export const createCommand = withUsageMetadata(new Command(), {
   .option("-t, --title <title:string>", "Title of the issue")
   .option(
     "-j, --json",
-    "Output {success, issue: {id, identifier, url, team}} as JSON (non-interactive only)",
+    "Output a JSON write result; the created issue is in data.issue (non-interactive only)",
   )
   .action(
     async (

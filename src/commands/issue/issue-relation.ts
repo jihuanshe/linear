@@ -123,6 +123,15 @@ export async function readIssueRelationInventory(issueId: string) {
   return { relations, inverseRelations }
 }
 
+export function assertDistinctIssueTargets(
+  issueId: string,
+  relatedIssueId: string,
+): void {
+  if (issueId === relatedIssueId) {
+    throw new ValidationError("An issue cannot be related to itself")
+  }
+}
+
 async function relationContext(
   issueRef: string,
   type: RelationType,
@@ -131,9 +140,7 @@ async function relationContext(
   parseType(type)
   const issue = await resolveIssue(issueRef)
   const relatedIssue = await resolveIssue(relatedRef)
-  if (issue.id === relatedIssue.id) {
-    throw new ValidationError("An issue cannot be related to itself")
-  }
+  assertDistinctIssueTargets(issue.id, relatedIssue.id)
   const input = {
     issueId: type === "blocked-by" ? relatedIssue.id : issue.id,
     relatedIssueId: type === "blocked-by" ? issue.id : relatedIssue.id,

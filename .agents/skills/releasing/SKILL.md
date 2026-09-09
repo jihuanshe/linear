@@ -1,6 +1,6 @@
 ---
 name: releasing
-description: 通过仓库的滚动 GitHub Release 工作流验证并发布当前 main 分支。仅在用户要求发布、推送正式版本或 ship 此 CLI 时使用。
+description: 通过仓库的滚动 GitHub Release 工作流验证并发布当前 main 分支。仅在用户要求发布或推送此 CLI 的正式版本时使用。
 ---
 
 # 主分支发布
@@ -16,7 +16,7 @@ description: 通过仓库的滚动 GitHub Release 工作流验证并发布当前
 
 ## 准备
 
-1. 确认 checkout 为 `main`，`origin` 为 `https://github.com/jihuanshe/linear`，并且已经理解所有计划中的变更。
+1. 确认工作副本的当前分支为 `main`，`origin` 为 `https://github.com/jihuanshe/linear`，并且已经理解所有计划中的变更。
 2. 在第一次提交前检查实际生效的提交身份：
 
    ```bash
@@ -32,7 +32,7 @@ description: 通过仓库的滚动 GitHub Release 工作流验证并发布当前
    deno task verify-release
    ```
 
-   在工作区干净且门禁通过前不要 push。
+   在工作副本干净且门禁通过前不要 push。
 
 ## 推送
 
@@ -61,22 +61,22 @@ gh run watch "$run_id" --exit-status
 
 ```mermaid
 flowchart TD
-  push["main push"] --> keyring["Linux Keyring 集成测试"]
+  push["推送 main"] --> keyring["Linux 密钥环集成测试"]
   push --> builds["五个平台构建"]
-  keyring --> assets["10 个分发文件<br/>10 个 SHA-256 sidecar<br/>sha256.sum"]
+  keyring --> assets["10 个分发文件<br/>10 个 SHA-256 校验和文件<br/>sha256.sum"]
   builds --> assets
   assets --> draft["创建或恢复 Draft Release"]
   draft --> attest["验证来源并发布 GitHub Release"]
-  attest --> head{"提交仍是 main head？"}
+  attest --> head{"提交仍是 main 最新提交？"}
   head -->|是| latest["标记为 latest"]
   head -->|否| history["保留历史 Release"]
   latest --> linear["记录同版本 Linear Release"]
   history --> linear
 ```
 
-每个平台产出一个安装归档、一个独立自更新二进制和各自的 SHA-256 sidecar。GitHub Release 只有在对应提交仍是当前 `main` head 时才标记为 latest，防止较早的排队任务把安装目标倒退到旧版本。Linear Release 使用准确的 `before..HEAD` 推送范围；其 ID 和 URL 必须非空，版本必须与 GitHub Release 一致。
+每个平台产出一个安装归档、一个独立自更新二进制和各自的 SHA-256 校验和文件。GitHub Release 只有在对应提交仍是当前 `main` 最新提交时才标记为 `latest`，防止较早的排队任务把安装目标倒退到旧版本。Linear Release 使用准确的 `before..HEAD` 推送范围；其 ID 和 URL 必须非空，版本必须与 GitHub Release 一致。
 
-除非 Keyring 集成测试和每个目标的构建都成功，否则不得运行 GitHub Release 任务。除非 GitHub Release 任务成功，否则不得运行 Linear Release 任务。
+除非密钥环集成测试和每个目标的构建都成功，否则不得运行 GitHub Release 任务。除非 GitHub Release 任务成功，否则不得运行 Linear Release 任务。
 
 ## 发布后验证
 
@@ -93,7 +93,7 @@ if [[ "$(git rev-parse origin/main)" == "$(git rev-parse HEAD)" ]]; then
 fi
 ```
 
-必须确认该 Release 指向推送的提交、已经发布且不是 prerelease。如果推送的提交仍是当前 `main`，还必须确认它是 latest。它必须包含 21 个文件：10 个可分发文件、10 个校验和 sidecar 文件以及 `sha256.sum`。
+必须确认该 Release 指向推送的提交、已经发布且不是预发布版本。如果推送的提交仍是当前 `main` 的最新提交，还必须确认它是 `latest`。它必须包含 21 个文件：10 个可分发文件、10 个独立校验和文件以及 `sha256.sum`。
 
 如果 mise 可用，验证公开安装解析出的版本是否符合预期：
 
@@ -106,7 +106,7 @@ test "$actual" = "linear $version"
 
 ## 失败处理
 
-- 本地源码检查、CI Keyring 集成检查或构建失败时，不得产生已发布的 Release。使用新的 `main` 提交修复问题。
+- 本地源码检查、CI 密钥环集成检查或构建失败时，不得产生已发布的 Release。使用新的 `main` 提交修复问题。
 - 被取消的任务不算已发布 Release，可能会留下不可见的 Draft。`main` 前进后不要重新运行它；如有需要，之后再清理。
 - 固定的并发组会串行执行发布任务，并保留最多 100 个待处理的 `main` 更新。已完成的历史 Release 保持不可变且可下载。
 - 如果 GitHub 拒绝写入权限、证明或 Release 创建，报告阻塞它的仓库设置，不要改用个人 token 或私有 runner。

@@ -9,19 +9,19 @@ import { findIssueIdentifierInText } from "./issue-identifier.ts"
  * Returns the issue title and Linear-issue trailer
  */
 export function formatIssueDescription(
-  issueId: string,
+  identifier: string,
   title: string,
   url: string,
   magicWord = "Fixes",
 ): string {
-  return `${issueId} ${title}\n\nLinear-issue: ${magicWord} ${issueId}\nLinear-issue-url: ${url}`
+  return `${identifier} ${title}\n\nLinear-issue: ${magicWord} ${identifier}\nLinear-issue-url: ${url}`
 }
 
 /**
  * Parses a Linear issue identifier from a Linear-issue trailer value
  * Supports two formats:
- * - New format: "Fixes ABC-123" (with magic words)
- * - Old format: [ABC-123](https://linear.app/...)
+ * - Plain trailer: "Fixes ABC-123" (with magic words)
+ * - Markdown link: [ABC-123](https://linear.app/...)
  * Returns the issue identifier (e.g., "ABC-123") or null if not found
  */
 export function parseLinearIssueFromTrailer(
@@ -32,35 +32,34 @@ export function parseLinearIssueFromTrailer(
 
 /**
  * Parses the output from jj log trailers command
- * Returns the last valid issue ID from the first commit with Linear-issue trailer(s)
+ * Returns the last valid issue identifier from the first commit with Linear-issue trailer(s)
  * If multiple trailers exist in a commit, returns the last one
  */
 export function parseJjTrailersOutput(output: string): string | null {
-  // Collect all valid issue IDs from the first commit with Linear-issue trailer(s)
+  // Collect valid issue identifiers from the first commit with Linear-issue trailer(s)
   // If multiple trailers exist in a commit, use the last one
   const lines = output.split("\n")
-  let lastValidIssueId: string | null = null
+  let lastIdentifier: string | null = null
 
   for (const line of lines) {
     const trimmed = line.trim()
     if (trimmed) {
-      const issueId = parseLinearIssueFromTrailer(trimmed)
-      if (issueId) {
-        lastValidIssueId = issueId
+      const identifier = parseLinearIssueFromTrailer(trimmed)
+      if (identifier) {
+        lastIdentifier = identifier
       }
-    } else if (lastValidIssueId) {
+    } else if (lastIdentifier) {
       // Empty line indicates end of current commit's trailers
-      // Return the last valid issue ID found in this commit
-      return lastValidIssueId
+      return lastIdentifier
     }
   }
 
-  // Return the last valid issue ID found (handles case where output doesn't end with blank line)
-  return lastValidIssueId
+  // The final commit may have no trailing blank line.
+  return lastIdentifier
 }
 
 /**
- * Gets the current Linear issue ID from jj commit trailers
+ * Gets the current Linear issue identifier from jj commit trailers
  * Searches the current change and ancestors for the most recent Linear-issue trailer
  * If multiple Linear-issue trailers exist in a commit, returns the last one
  * Returns the issue identifier (e.g., "ABC-123") or null if not found

@@ -392,7 +392,7 @@ Deno.test("team delete dry-run requires an empty team and points to the migratio
     assertEquals(result.code, 1)
     assertEquals(result.stdout, "")
     assertMatch(result.stderr, /deletion requires an empty team/)
-    assertMatch(result.stderr, /recipes\/migrate-team.js/)
+    assertMatch(result.stderr, /linear recipe migrate-team/)
     assertEquals(result.stderr.includes("prompt"), false)
   } finally {
     await cleanup()

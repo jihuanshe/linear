@@ -154,7 +154,10 @@ export const createCommand = withUsageMetadata(new Command(), {
     "-i, --interactive",
     "Interactive mode (default if no flags provided)",
   )
-  .option("-j, --json", "Output created project as JSON")
+  .option(
+    "-j, --json",
+    "Output a JSON write result; the created project is in data.project",
+  )
   .action(
     async (options) => {
       try {

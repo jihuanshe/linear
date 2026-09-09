@@ -35,7 +35,7 @@ export const linkCommand = withUsageMetadata(new Command(), { writes: true })
       let linkUrl: string
 
       if (url != null) {
-        // Two args: first is issue ID, second is URL
+        // Two args: first is an Issue reference (identifier or UUID), second is URL.
         issueIdInput = urlOrIssueId
         linkUrl = url
       } else if (looksLikeUrl(urlOrIssueId)) {

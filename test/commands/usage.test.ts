@@ -149,7 +149,6 @@ Deno.test("usage --json exposes the top-level command tree", async () => {
   assertEquals(result.code, 0, result.stderr)
   assertEquals(result.stderr, "")
   const document = JSON.parse(result.stdout) as UsageDocument
-  assertEquals(document.schemaVersion, 1)
   assertEquals(document.command.path, "linear")
   assertEquals(
     document.globalOptions.some((option) => option.name === "workspace"),
@@ -223,7 +222,6 @@ Deno.test("nested command groups expose usage recursively", async () => {
   assertEquals(jsonResult.code, 0, jsonResult.stderr)
   assertEquals(jsonResult.stderr, "")
   const document = JSON.parse(jsonResult.stdout) as UsageDocument
-  assertEquals(document.schemaVersion, 1)
   assertEquals(document.command.path, "linear issue comment")
   assertEquals(
     document.subcommands.map(({ name }) => name).sort(),
@@ -399,12 +397,10 @@ Deno.test("usage omits defaults that are not static JSON values", () => {
   }
 })
 
-Deno.test("usage JSON v1 freezes its existing fields and types", async (t) => {
+Deno.test("usage JSON describes command metadata", async (t) => {
   const result = await run(["issue", "usage", "--json"])
   assertEquals(result.code, 0, result.stderr)
   assertEquals(result.stderr, "")
-  // Additive fields may update this snapshot without changing schemaVersion.
-  // Removing a field or changing its type requires a version increment.
   await assertSnapshot(t, JSON.parse(result.stdout))
 })
 

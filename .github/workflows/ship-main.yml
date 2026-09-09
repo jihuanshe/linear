@@ -137,27 +137,73 @@ jobs:
           fi
 
           if [[ "$TARGET" == "x86_64-unknown-linux-gnu" ]]; then
-            actual_version="$("$output_dir/$binary" --version)"
-            if [[ "$actual_version" != "linear $VERSION" ]]; then
-              echo "Expected linear $VERSION, got $actual_version" >&2
-              exit 1
-            fi
+            release_binary="$GITHUB_WORKSPACE/$output_dir/$binary"
+            smoke_dir="$(mktemp -d)"
+            (
+              # Read the compiled documentation away from the source checkout.
+              cd "$smoke_dir"
+              actual_version="$("$release_binary" --version)"
+              if [[ "$actual_version" != "linear $VERSION" ]]; then
+                echo "Expected linear $VERSION, got $actual_version" >&2
+                exit 1
+              fi
 
-            probe="$("$output_dir/$binary" version --json)"
-            PROBE="$probe" EXPECTED_VERSION="$VERSION" deno eval '
-              const probe = JSON.parse(Deno.env.get("PROBE"))
-              const expectedVersion = Deno.env.get("EXPECTED_VERSION")
-              if (
-                probe.schemaVersion !== 1 ||
-                probe.distribution !== "jihuanshe/linear" ||
-                probe.version !== expectedVersion ||
-                !Array.isArray(probe.capabilities) ||
-                !probe.capabilities.includes("usage-v1")
-              ) {
-                console.error("Unexpected version probe", probe)
-                Deno.exit(1)
-              }
-            '
+              release_identity="$("$release_binary" version --json)"
+              release_usage="$("$release_binary" usage --json)"
+              release_guides="$("$release_binary" guide --json)"
+              release_guide="$("$release_binary" guide core --json)"
+              release_recipes="$("$release_binary" recipe --json)"
+              release_recipe="$("$release_binary" recipe guarded-edit --json)"
+              release_source="$("$release_binary" recipe guarded-edit --source)"
+              RELEASE_IDENTITY="$release_identity" \
+              RELEASE_USAGE="$release_usage" \
+              RELEASE_GUIDES="$release_guides" \
+              RELEASE_GUIDE="$release_guide" \
+              RELEASE_RECIPES="$release_recipes" \
+              RELEASE_RECIPE="$release_recipe" \
+              RELEASE_SOURCE="$release_source" \
+              EXPECTED_VERSION="$VERSION" deno eval '
+                const read = (name) => JSON.parse(Deno.env.get(name) ?? "null")
+                const hasText = (value) => typeof value === "string" && value.trim().length > 0
+                const identity = read("RELEASE_IDENTITY")
+                if (
+                  identity?.distribution !== "jihuanshe/linear" ||
+                  identity.version !== Deno.env.get("EXPECTED_VERSION")
+                ) throw new Error("Unexpected release build identity")
+
+                const usage = read("RELEASE_USAGE")
+                if (
+                  usage?.command?.path !== "linear" ||
+                  !Array.isArray(usage.globalOptions) ||
+                  !Array.isArray(usage.subcommands) ||
+                  !["issue", "guide", "recipe"].every((name) =>
+                    usage.subcommands.some((command) => command.name === name && hasText(command.details))
+                  )
+                ) throw new Error("Compiled usage is missing command metadata")
+
+                const guides = read("RELEASE_GUIDES")
+                const guide = read("RELEASE_GUIDE")
+                if (
+                  !Array.isArray(guides) ||
+                  !guides.some((item) => item.name === "core" && hasText(item.description)) ||
+                  guide?.name !== "core" ||
+                  !Array.isArray(guide.commands) || guide.commands.length === 0 ||
+                  !hasText(guide.body)
+                ) throw new Error("Compiled Guide content is missing")
+
+                const recipes = read("RELEASE_RECIPES")
+                const recipe = read("RELEASE_RECIPE")
+                const source = Deno.env.get("RELEASE_SOURCE")
+                if (
+                  !Array.isArray(recipes) ||
+                  !recipes.some((item) => item.name === "guarded-edit" && hasText(item.description)) ||
+                  recipe?.name !== "guarded-edit" || recipe.filename !== "guarded-edit.js" ||
+                  !hasText(recipe.body) || !hasText(recipe.source) ||
+                  !hasText(source) || source.trimEnd() !== recipe.source.trimEnd()
+                ) throw new Error("Compiled Recipe instructions or source are missing")
+              '
+            )
+            rm -rf "$smoke_dir"
           fi
 
           archive="${archive#release/}"

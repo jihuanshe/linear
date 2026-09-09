@@ -42,7 +42,7 @@ Options:
   --base-file         <path>         - Original JSON read saved before deciding this replacement                                                      
   --unprotected                      - Explicitly replace without comparing original values; domain checks still apply                                
   --expect-field      <field>        - Require another API field to remain equal to the original read (repeatable)                                    
-  -j, --json                         - Output the mutation result, including resulting priority and labels, as JSON                                   
+  -j, --json                         - Output a JSON write result; the resulting issue is in data.issue                                               
 
 "
 stderr:

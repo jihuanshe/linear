@@ -14,6 +14,7 @@ import { initiativeUpdateCommand } from "./commands/initiative-update/initiative
 import { labelCommand } from "./commands/label/label.ts"
 import { documentCommand } from "./commands/document/document.ts"
 import { guideCommand } from "./commands/guide/guide.ts"
+import { recipeCommand } from "./commands/recipe.ts"
 import { configCommand } from "./commands/config.ts"
 import { schemaCommand } from "./commands/schema.ts"
 import { apiCommand } from "./commands/api.ts"
@@ -84,6 +85,7 @@ Environment Variables:
   .alias("l")
   .command("document", documentCommand)
   .command("guide", guideCommand)
+  .command("recipe", recipeCommand)
   .command("completions", new CompletionsCommand())
   .command("config", configCommand)
   .alias("configure")

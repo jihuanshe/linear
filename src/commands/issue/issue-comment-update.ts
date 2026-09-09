@@ -33,7 +33,10 @@ export const commentUpdateCommand = withUsageMetadata(new Command(), {
     "--body-file <path:string>",
     "Read comment body from a file (preferred for markdown content)",
   )
-  .option("-j, --json", "Output {comment} as JSON")
+  .option(
+    "-j, --json",
+    "Output a JSON write result; the comment is in data.comment",
+  )
   .option(
     "--base-file <path:string>",
     "Original view --json output, saved before preparing the update",

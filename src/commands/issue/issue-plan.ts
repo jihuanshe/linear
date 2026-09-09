@@ -16,10 +16,10 @@ export function formatPlan(plan: PlanOutcome): string {
       if (field.verdict !== "idempotent") {
         lines.push(
           "    desired: " + JSON.stringify(field.desired),
-          "    current: " + JSON.stringify(field.remote),
+          "    remote: " + JSON.stringify(field.remote),
         )
         if (field.base !== undefined) {
-          lines.push("    original: " + JSON.stringify(field.base))
+          lines.push("    base: " + JSON.stringify(field.base))
         }
       }
     }
@@ -54,7 +54,7 @@ export const issuePlanCommand = withUsageMetadata(
     .description(
       "Preview an Issue delivery using the same preparation as apply; no remote writes or checkpoint writes",
     )
-    .option("-f, --file <path:string>", "Delivery manifest v2 path", {
+    .option("-f, --file <path:string>", "Delivery manifest path", {
       required: true,
     })
     .option("--json", "Output the plan as JSON")

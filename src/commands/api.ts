@@ -41,7 +41,7 @@ export const apiCommand = withUsageMetadata(new Command(), {
 })
   .name("api")
   .description(
-    "Run raw GraphQL. Mutations require --unprotected; no domain guards, receipts or checkpoints. No retries; inspect data/errors and reconcile uncertain writes.",
+    "Run raw GraphQL queries or explicitly unprotected mutations.\n\nRaw mutations require --unprotected and do not provide domain guards, receipts or checkpoints. Requests are not retried; inspect data/errors and reconcile uncertain writes.",
   )
   .type("variable", new VariableType())
   .arguments("[query:string]")

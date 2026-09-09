@@ -38,7 +38,7 @@ Options:
   --no-use-default-template                 - Do not use default template for the issue                                                               
   --no-interactive                          - Disable interactive prompts                                                                             
   -t, --title                <title>        - Title of the issue                                                                                      
-  -j, --json                                - Output {success, issue: {id, identifier, url, team}} as JSON (non-interactive only)                     
+  -j, --json                                - Output a JSON write result; the created issue is in data.issue (non-interactive only)                   
 
 "
 stderr:

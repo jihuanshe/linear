@@ -1,7 +1,9 @@
 #!/usr/bin/env -S deno run --allow-run --allow-env --allow-read
 // Organization policy lives here. Edit these conditions for your workspace.
 // All network access and complete pagination belong to the installed CLI.
-import { parseArgs } from "@std/cli/parse-args"
+// The exported script must resolve its dependency without the repository import map.
+// deno-lint-ignore no-import-prefix
+import { parseArgs } from "jsr:@std/cli@1.0.32/parse-args"
 
 export const doctorRuleIds = [
   "project-team-mismatch",
@@ -191,7 +193,6 @@ export function evaluateDoctorIssues(
     )
   )
   return {
-    schemaVersion: 1,
     scope,
     policy,
     scanned: { issueCount: scoped.length, projectCount: projects.length },

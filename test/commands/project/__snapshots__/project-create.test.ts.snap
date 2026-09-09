@@ -31,7 +31,7 @@ Options:
   --icon                  <icon>         - Project icon                                                                           
   --color                 <color>        - Project color as a HEX string                                                          
   -i, --interactive                      - Interactive mode (default if no flags provided)                                        
-  -j, --json                             - Output created project as JSON                                                         
+  -j, --json                             - Output a JSON write result; the created project is in data.project                     
 
 "
 stderr:

@@ -1,112 +1,95 @@
-# Authentication and workspace credentials
+# 认证与工作区凭据
 
-the CLI supports multiple authentication methods with the following precedence:
+CLI 按以下优先级选择认证凭据：
 
-1. `LINEAR_API_KEY` environment variable (conflicts with `--workspace`)
-2. `api_key` in project `.linear.toml` config
-3. `--workspace` flag → stored credentials lookup
-4. project's `workspace` config → stored credentials lookup
-5. default workspace from stored credentials
+1. 环境变量 `LINEAR_API_KEY`，不能与 `--workspace` 同用；
+2. 项目配置中的 `api_key`；
+3. `--workspace` 指定工作区的已保存凭据；
+4. 项目 `workspace` 配置对应的已保存凭据；
+5. 已保存凭据中的默认工作区。
 
-## stored credentials (recommended)
+工作区短名对应 API 的 `organization.urlKey`，工作区 UUID 对应 `organization.id`。用 `linear auth whoami --json` 核对当前身份；切换工作区前先排除更高优先级的密钥来源。
 
-API keys are stored in your system's native keyring (macOS Keychain, Linux libsecret, Windows CredentialManager). workspace metadata is stored in `~/.config/linear/credentials.toml`.
+## 保存工作区凭据
 
-### commands
+默认把 API 密钥存入系统密钥环：macOS Keychain、Linux libsecret 或 Windows Credential Manager。工作区列表和默认值保存在凭据文件中：
 
-The canonical command list is `linear auth --help`; these examples show the multi-workspace flow.
+| 系统                           | 凭据文件                                   |
+| ------------------------------ | ------------------------------------------ |
+| Unix，已设置 `XDG_CONFIG_HOME` | `$XDG_CONFIG_HOME/linear/credentials.toml` |
+| Unix，未设置 `XDG_CONFIG_HOME` | `$HOME/.config/linear/credentials.toml`    |
+| Windows                        | `%APPDATA%\linear\credentials.toml`        |
+
+完整命令以 `linear auth --help` 为准。以下是多工作区的常用流程：
 
 ```bash
-linear auth login              # add a workspace (prompts for API key)
-linear auth login --plaintext  # store on disk when no system keyring exists
-linear auth migrate            # move plaintext-era keys into the system keyring
-linear auth list               # list configured workspaces
-linear auth default            # interactively set default workspace
-linear auth default <slug>     # set default workspace directly
-linear auth logout <slug>      # remove a workspace
-linear auth logout <slug> -f   # remove without confirmation
-linear auth whoami             # show current user and workspace
-linear auth token              # print the resolved API key; use only in a tightly controlled process
+linear auth login              # 通过提示符输入 API 密钥并保存工作区
+linear auth login --plaintext  # 没有系统密钥环时明文保存
+linear auth migrate            # 把已有明文密钥迁入系统密钥环
+linear auth list               # 查看已配置工作区
+linear auth default            # 交互选择默认工作区
+linear auth default <slug>     # 直接指定默认工作区短名
+linear auth logout <slug>      # 移除工作区凭据
+linear auth logout <slug> -f   # 跳过移除确认
+linear auth whoami --json      # 核对当前用户和工作区
 ```
 
-For scripts, inject `LINEAR_API_KEY` through the process environment from your secret manager or CI secret store. Do not pass keys in command-line arguments or write them to shell history or logs. `auth token` prints a secret; only consume it in process memory when a lower-level HTTP client needs it.
+在脚本中，从密钥管理器或 CI 密钥存储向单个进程注入 `LINEAR_API_KEY`。不要把密钥放进命令参数、shell 历史或日志。`linear auth token` 会输出解析后的密钥；只有底层 HTTP 客户端确实需要时，才在受控进程内消费它。
 
-### adding workspaces
+### 添加工作区
 
-```bash
-# first workspace becomes the default
+第一个工作区自动设为默认值：
+
+```text
 $ linear auth login
 Enter your Linear API key: ***
 Logged in to workspace: Acme Corp (acme)
   User: Jane Developer <jane@acme.com>
   Set as default workspace
-
-# add additional workspaces
-$ linear auth login
-Enter your Linear API key: ***
-Logged in to workspace: Side Project (side-project)
-  User: Jane Developer <jane@example.com>
 ```
 
-### listing workspaces
+再次运行 `linear auth login` 可以添加其他工作区。`linear auth list` 中的 `*` 表示默认工作区：
 
-```bash
+```text
 $ linear auth list
   WORKSPACE    ORG NAME      USER
 * acme         Acme Corp     Jane Developer <jane@acme.com>
   side-project Side Project  Jane Developer <jane@example.com>
 ```
 
-the `*` indicates the default workspace.
-
-### switching workspaces
+### 切换工作区
 
 ```bash
-# set a new default
+# 修改默认工作区。
 linear auth default side-project
 
-# or use --workspace flag for a single command
-linear --workspace side-project issue list
-linear --workspace acme issue create --title "Bug fix"
+# 只为本次调用选择工作区。
+linear --workspace side-project issue mine
+linear --workspace acme auth whoami --json
 ```
 
-### credentials file format
+### 凭据文件格式
+
+系统密钥环模式下，凭据文件只保存工作区元数据：
 
 ```toml
-# ~/.config/linear/credentials.toml
 default = "acme"
 workspaces = ["acme", "side-project"]
 ```
 
-In keyring mode, this file contains workspace metadata only; API keys are stored in the system keyring and loaded at startup. With `auth login --plaintext` or an existing plaintext-format credentials file, keys are stored directly in this TOML file. Protect it as a secret and use `auth migrate` to move those keys into the keyring when available.
+使用 `auth login --plaintext` 或沿用已有明文格式时，API 密钥也会直接保存在此 TOML 文件中。应按密钥文件保护它；系统密钥环可用后，运行 `linear auth migrate` 迁移。CLI 兼容旧明文格式，并在检测到时提示。
 
-### platform requirements
+### 平台依赖
 
-- **macOS**: uses Keychain via `/usr/bin/security` (built-in)
-- **Linux**: requires `secret-tool` from libsecret
-  - Debian/Ubuntu: `apt install libsecret-tools`
-  - Arch: `pacman -S libsecret`
-- **Windows**: uses Credential Manager via `advapi32.dll` (built-in)
+- macOS 使用系统自带的 `/usr/bin/security` 访问 Keychain。
+- Linux 使用 libsecret 的 `secret-tool`。Debian／Ubuntu 安装 `libsecret-tools`，Arch 安装 `libsecret`。
+- Windows 使用系统自带的 `advapi32.dll` 访问 Credential Manager。
 
-if the keyring is unavailable, set `LINEAR_API_KEY` as a fallback.
+没有系统密钥环时，可以通过 `LINEAR_API_KEY` 注入密钥，或显式选择 `auth login --plaintext`。
 
-### migrating from plaintext credentials
+## 环境变量与代理
 
-older versions stored API keys directly in the TOML file. if the CLI detects this format, it will continue to work but print a warning. run `linear auth migrate` to move the keys into the system keyring.
-
-## environment variable
-
-for simpler setups or CI environments, you can use an environment variable:
-
-```sh
-# bash/zsh
-export LINEAR_API_KEY="lin_api_..."
-
-# fish
-set -Ux LINEAR_API_KEY "lin_api_..."
-```
-
-this takes precedence over stored credentials. `LINEAR_GRAPHQL_ENDPOINT` overrides the GraphQL endpoint for proxy setups (`linear guide core` covers the recovery paths). if you have `LINEAR_API_KEY` set and try to use `linear auth login`, you'll see a warning:
+`LINEAR_API_KEY` 优先于已保存凭据。已设置它时，`linear auth login` 会提示：
 
 ```text
 Warning: LINEAR_API_KEY environment variable is set.
@@ -114,35 +97,23 @@ It takes precedence over stored credentials.
 Remove it from your shell config to use multi-workspace auth.
 ```
 
-## project config
+要使用已保存的多工作区凭据，先移除当前进程及其启动配置中的 `LINEAR_API_KEY`。`LINEAR_GRAPHQL_ENDPOINT` 可以指定受控代理的 GraphQL 端点；代理不会免除身份核对。认证失败的处理见 `linear guide core`。
 
-you can also select a stored workspace or set an API key in a project's `.linear.toml`:
+## 项目配置
 
-```toml
-workspace = "acme"
-# api_key = "lin_api_..." # less secure than the system keyring
-```
-
-an `api_key` in project config takes precedence over stored credentials but is less secure because it may be committed to version control. prefer `workspace` plus `linear auth login`. team, sorting, VCS, and attachment settings are documented in [configuration](configuration.md).
-
-## workspace matching
-
-when your project config has a `workspace` setting:
+项目可以用 `workspace` 选择已保存的凭据：
 
 ```toml
-# .linear.toml
 workspace = "acme"
 team_id = "ENG"
 ```
 
-the CLI will automatically use the stored credentials for that workspace, even if a different workspace is your default. this lets you work on multiple projects with different workspaces without constantly switching.
+即使默认工作区不同，该项目也会使用 `acme` 的凭据。团队、排序、版本控制与附件设置见[配置](configuration.md)。
 
-## creating an API key
+项目配置也支持 `api_key`，但它优先于工作区选择，且可能被误提交到版本控制。日常使用 `workspace` 配合 `linear auth login`，不要把密钥写入项目配置。
 
-1. go to [linear.app/settings/account/security](https://linear.app/settings/account/security)
-2. scroll to "Personal API keys"
-3. click "Create key"
-4. give it a label (e.g., "CLI")
-5. copy the key (starts with `lin_api_`)
+## 创建 API 密钥
 
-note: creating an API key requires member access; it is not available for guest accounts.
+打开 [Linear Security & Access](https://linear.app/settings/account/security)，在 Personal API keys 中选择 Create key，填写用途名称并复制生成的密钥，然后通过 `linear auth login` 的提示符输入。
+
+创建 API 密钥需要成员权限，访客账号不提供此功能。

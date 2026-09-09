@@ -6,7 +6,7 @@ import {
   ValidationError,
 } from "../utils/errors.ts"
 
-/** These functions own one remote object each; the caller already resolved its Issue ID. */
+/** These functions own one remote object each; the caller already resolved its Issue UUID. */
 export async function createIssueComment(
   issueId: string,
   options: {

@@ -32,8 +32,13 @@ async function readContentFromStdin(): Promise<string | undefined> {
   try {
     const content = await new Response(Deno.stdin.readable).text()
     return content.length > 0 ? content : undefined
-  } catch {
-    return undefined
+  } catch (error) {
+    throw new CliError(
+      `Failed to read update content from stdin: ${
+        error instanceof Error ? error.message : String(error)
+      }`,
+      { cause: error },
+    )
   }
 }
 

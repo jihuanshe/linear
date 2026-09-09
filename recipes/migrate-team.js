@@ -16,6 +16,13 @@ async function read(args) {
   if (!result.success) throw new Error(`Read failed: ${result.diagnostic}`)
   return JSON.parse(result.text)
 }
+function assertMigratable(issue) {
+  if (issue.archivedAt != null || issue.trashed === true) {
+    throw new Error(
+      `Issue ${issue.id} is archived or trashed; decide its lifecycle separately before freezing a new scope. No moves executed.`,
+    )
+  }
+}
 async function teams(source, target) {
   const result = await read([
     "api",
@@ -73,6 +80,7 @@ export async function freeze(source, target, directory) {
         `Issue scope changed while freezing ${issue.id}; no moves executed`,
       )
     }
+    assertMigratable(base.issue)
     const baseFile = `${index}.base.json`
     await Deno.writeTextFile(
       `${directory}/${baseFile}`,
@@ -109,6 +117,7 @@ export async function move(directory) {
         `Saved basis does not match the frozen scope: ${issue.id}`,
       )
     }
+    assertMigratable(base.issue)
   }
   const current = await teams(scope.source.key, scope.target.key)
   if (

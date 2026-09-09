@@ -137,7 +137,7 @@ export interface UploadOptions {
   makePublic?: boolean
   /** Show progress indicator */
   showProgress?: boolean
-  /** Pin the bytes validated by a delivery or batch before its first write. */
+  /** Pin the bytes validated by delivery before its first write. */
   expectedSha256?: string
   /** The delivery ledger records in-flight state immediately before sending. */
   beforeWrite?: () => Promise<void>

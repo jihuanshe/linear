@@ -216,14 +216,14 @@ export async function prepareIssueUpdate(
     }
   }
 
-  // Get the issue ID - either from argument or infer from current context
+  // Resolve the Issue reference from the argument or current VCS context.
   const issueId = await getIssueIdentifier(issueIdArg)
   if (!issueId) {
     throw new ValidationError(
       "Could not determine issue identifier",
       {
         suggestion:
-          "Please provide an issue identifier like 'ENG-123' or run from a branch with an issue ID.",
+          "Provide an issue identifier such as ENG-123, a UUID, or a VCS context containing an issue identifier.",
       },
     )
   }
@@ -304,11 +304,12 @@ export async function prepareIssueUpdate(
   }
 
   let projectMilestoneId: string | undefined
+  let milestoneProjectId: string | undefined
   if (milestone != null) {
     if (isLinearUuid(milestone)) {
       projectMilestoneId = milestone
     } else {
-      const milestoneProjectId = projectId ??
+      milestoneProjectId = projectId ??
         await getIssueProjectId(target.issue.id)
       if (milestoneProjectId == null) {
         throw new ValidationError(
@@ -389,6 +390,15 @@ export async function prepareIssueUpdate(
   ) {
     throw new ValidationError(
       "Issue project changed while checking team compatibility",
+    )
+  }
+  // A milestone name uses the project observed by its own lookup.
+  if (
+    project == null && milestoneProjectId != null &&
+    current.issue.project?.id !== milestoneProjectId
+  ) {
+    throw new ValidationError(
+      "Issue project changed while resolving the milestone",
     )
   }
   const planned = prepareReplacement({
@@ -565,7 +575,7 @@ export const updateCommand = withUsageMetadata(new Command(), { writes: true })
   )
   .option(
     "-j, --json",
-    "Output the mutation result, including resulting priority and labels, as JSON",
+    "Output a JSON write result; the resulting issue is in data.issue",
   )
   .action(async (options, issueIdArg) => {
     try {

@@ -12,6 +12,7 @@ import {
 } from "../commands/issue/issue-update.ts"
 import {
   addIssueRelation,
+  assertDistinctIssueTargets,
   readIssueRelationInventory,
 } from "../commands/issue/issue-relation.ts"
 import {
@@ -546,7 +547,11 @@ async function inspect(
         },
       )
       for (const { relation, relationIndex } of pendingRelations) {
-        result.related.set(relationIndex, await readIssueHeader(relation.issue))
+        const related = await readIssueHeader(relation.issue)
+        if (result.target != null) {
+          assertDistinctIssueTargets(result.target.id, related.id)
+        }
+        result.related.set(relationIndex, related)
       }
       if (pendingRelations.length > 0) {
         const inventory = result.target == null

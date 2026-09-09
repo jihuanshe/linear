@@ -10,13 +10,13 @@ export function getVcs(): VcsType {
 }
 
 /**
- * Returns an appropriate error message when no issue ID is found
+ * Returns an appropriate error message when no issue identifier is found
  */
 export function getNoIssueFoundMessage(): string {
   const vcs = getVcs()
   switch (vcs) {
     case "git":
-      return "The current branch does not contain a valid linear issue id."
+      return "The current branch does not contain a valid Linear issue identifier."
     case "jj":
       return "No Linear-issue trailer found in current or ancestor commits."
     default:

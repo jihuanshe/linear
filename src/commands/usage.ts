@@ -49,7 +49,7 @@ export interface UsageOptionMetadata {
   staticallyRequired: boolean
   repeatable: boolean
   /**
-   * A static default representable in usage JSON v1. Absence does not prove
+   * A static default representable in usage JSON. Absence does not prove
    * that the command has no runtime-computed default.
    */
   default?: JsonValue
@@ -71,17 +71,14 @@ export interface UsageCommandMetadata {
   outputModes: UsageOutputMode[]
   /**
    * Related guides derived from guide frontmatter; omitted when none relate.
-   * Additive within usage JSON schemaVersion 1.
    */
   guides?: UsageGuideMetadata[]
 }
 
 /**
- * Usage JSON v1 is additive: readers must ignore unknown fields. Removing an
- * existing field or changing its type requires a schemaVersion increment.
+ * Usage readers consume the fields they need and ignore unknown fields.
  */
 export interface UsageDocument {
-  schemaVersion: 1
   command: UsageCommandMetadata
   globalOptions: UsageOptionMetadata[]
   subcommands: UsageCommandMetadata[]
@@ -262,7 +259,6 @@ function commandMetadata(command: UsageCommandSource): UsageCommandMetadata {
 
 export function buildUsageDocument(command: UsageCommandSource): UsageDocument {
   return {
-    schemaVersion: 1,
     command: commandMetadata(command),
     globalOptions: globalOptions(command).map(optionMetadata),
     subcommands: visibleSubcommands(command).map(commandMetadata),
@@ -367,7 +363,7 @@ export function formatUsage(
     `machine-readable: ${document.command.path} usage --json`,
   )
   if (document.subcommands.some((command) => command.name === "guide")) {
-    lines.push("workflows: linear guide; linear guide <name>")
+    lines.push("workflows: linear guide; examples: linear recipe")
   } else if (
     includeSubcommandOptions && (document.command.guides ?? []).length > 0
   ) {

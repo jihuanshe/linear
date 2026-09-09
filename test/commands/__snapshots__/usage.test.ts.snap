@@ -16,15 +16,16 @@ commands:
   initiative-update, iu           Manage initiative status updates (timeline posts)
   label, l                        Manage Linear issue labels
   document, docs, doc             Manage Linear documents
-  guide [name] [options]          Read version-matched workflow guides [json]
+  guide [name] [options]          Read bundled workflow guides [json]
+  recipe [name] [options]         Read bundled workflow examples and script source [json]
   completions                     Generate shell completions.
   config, configure               Interactively generate .linear.toml configuration [writes; interactive]
   schema [options]                Print the GraphQL schema to stdout [json]
-  api [query] [options]           Run raw GraphQL. Mutations require --unprotected; no domain guards, receipts or checkpoints. No retries; inspect data/errors and reconcile uncertain writes. [writes; json]
+  api [query] [options]           Run raw GraphQL queries or explicitly unprotected mutations. [writes; json]
   upload <files...> [options]     Upload files to Linear storage and print their asset URLs for embedding in Markdown [writes; json]
   download <asset-url> [options]  Download a Linear asset and verify its SHA-256 [json]
   update [options]                Update the Linear CLI [writes]
-  version [options]               Show build identity and protocol capabilities [json]
+  version [options]               Show the CLI distribution and build version [json]
 
 global options:
   -h, --help          Show this help.
@@ -32,11 +33,11 @@ global options:
 
 detail: linear <domain> usage; linear <command> --help
 machine-readable: linear usage --json
-workflows: linear guide; linear guide <name>
+workflows: linear guide; examples: linear recipe
 "
 `;
 
-snapshot[`usage JSON v1 freezes its existing fields and types 1`] = `
+snapshot[`usage JSON describes command metadata 1`] = `
 {
   command: {
     aliases: [
@@ -48,11 +49,11 @@ snapshot[`usage JSON v1 freezes its existing fields and types 1`] = `
     details: "linear issue usage",
     guides: [
       {
-        description: "选择命令、核对 workspace、确定查询范围与写入授权",
+        description: "选择命令、核对工作区、确定查询范围与写入授权",
         name: "core",
       },
       {
-        description: "保存原始依据、执行受保护更新并解释 JSON 效果与分页",
+        description: "保存原始依据、执行受保护更新并解释 JSON 写入效果与分页",
         name: "automation",
       },
       {
@@ -60,11 +61,11 @@ snapshot[`usage JSON v1 freezes its existing fields and types 1`] = `
         name: "issue-authoring",
       },
       {
-        description: "用 manifest v2 组合共享操作，按回执续跑并对账 unknown",
+        description: "用交付清单组合共享操作，按回执续跑并对账未知结果",
         name: "issue-delivery",
       },
       {
-        description: "使用只读 recipe 选择治理范围、解释九类候选并复查结果",
+        description: "解释只读健康检查的候选，保留判断依据并复查结果",
         name: "doctor",
       },
       {
@@ -114,13 +115,12 @@ snapshot[`usage JSON v1 freezes its existing fields and types 1`] = `
       staticallyRequired: false,
     },
   ],
-  schemaVersion: 1,
   subcommands: [
     {
       aliases: [],
       arguments: [],
       confirmation: null,
-      description: "Print the issue based on the current git branch",
+      description: "Print the issue identifier from the current Git or Jujutsu context",
       details: "linear issue id --help",
       hasSubcommands: false,
       interactive: false,
@@ -410,11 +410,11 @@ snapshot[`usage JSON v1 freezes its existing fields and types 1`] = `
       details: "linear issue query --help",
       guides: [
         {
-          description: "保存原始依据、执行受保护更新并解释 JSON 效果与分页",
+          description: "保存原始依据、执行受保护更新并解释 JSON 写入效果与分页",
           name: "automation",
         },
         {
-          description: "使用只读 recipe 选择治理范围、解释九类候选并复查结果",
+          description: "解释只读健康检查的候选，保留判断依据并复查结果",
           name: "doctor",
         },
       ],
@@ -877,7 +877,7 @@ snapshot[`usage JSON v1 freezes its existing fields and types 1`] = `
       details: "linear issue view --help",
       guides: [
         {
-          description: "保存原始依据、执行受保护更新并解释 JSON 效果与分页",
+          description: "保存原始依据、执行受保护更新并解释 JSON 写入效果与分页",
           name: "automation",
         },
         {
@@ -987,7 +987,7 @@ snapshot[`usage JSON v1 freezes its existing fields and types 1`] = `
       details: "linear issue history --help",
       guides: [
         {
-          description: "保存原始依据、执行受保护更新并解释 JSON 效果与分页",
+          description: "保存原始依据、执行受保护更新并解释 JSON 写入效果与分页",
           name: "automation",
         },
         {
@@ -1204,7 +1204,7 @@ Run \`linear guide markdown\` for mentions, collapsible sections and rewrite ris
       details: "linear issue create --help",
       guides: [
         {
-          description: "保存原始依据、执行受保护更新并解释 JSON 效果与分页",
+          description: "保存原始依据、执行受保护更新并解释 JSON 写入效果与分页",
           name: "automation",
         },
         {
@@ -1500,7 +1500,7 @@ Run \`linear guide markdown\` for mentions, collapsible sections and rewrite ris
         },
         {
           arguments: [],
-          description: "Output {success, issue: {id, identifier, url, team}} as JSON (non-interactive only)",
+          description: "Output a JSON write result; the created issue is in data.issue (non-interactive only)",
           flags: [
             "-j",
             "--json",
@@ -1540,11 +1540,11 @@ Run \`linear guide markdown\` for mentions, collapsible sections and rewrite ris
       details: "linear issue update --help",
       guides: [
         {
-          description: "选择命令、核对 workspace、确定查询范围与写入授权",
+          description: "选择命令、核对工作区、确定查询范围与写入授权",
           name: "core",
         },
         {
-          description: "保存原始依据、执行受保护更新并解释 JSON 效果与分页",
+          description: "保存原始依据、执行受保护更新并解释 JSON 写入效果与分页",
           name: "automation",
         },
         {
@@ -1922,7 +1922,7 @@ Run \`linear guide markdown\` for mentions, collapsible sections and rewrite ris
         },
         {
           arguments: [],
-          description: "Output the mutation result, including resulting priority and labels, as JSON",
+          description: "Output a JSON write result; the resulting issue is in data.issue",
           flags: [
             "-j",
             "--json",
@@ -1948,11 +1948,11 @@ Run \`linear guide markdown\` for mentions, collapsible sections and rewrite ris
       details: "linear issue comment usage",
       guides: [
         {
-          description: "选择命令、核对 workspace、确定查询范围与写入授权",
+          description: "选择命令、核对工作区、确定查询范围与写入授权",
           name: "core",
         },
         {
-          description: "保存原始依据、执行受保护更新并解释 JSON 效果与分页",
+          description: "保存原始依据、执行受保护更新并解释 JSON 写入效果与分页",
           name: "automation",
         },
         {
@@ -1998,7 +1998,7 @@ Run \`linear guide markdown\` for mentions, collapsible sections and rewrite ris
       details: "linear issue attach --help",
       guides: [
         {
-          description: "选择命令、核对 workspace、确定查询范围与写入授权",
+          description: "选择命令、核对工作区、确定查询范围与写入授权",
           name: "core",
         },
         {
@@ -2175,7 +2175,7 @@ Run \`linear guide markdown\` for mentions, collapsible sections and rewrite ris
           name: "issue-authoring",
         },
         {
-          description: "用 manifest v2 组合共享操作，按回执续跑并对账 unknown",
+          description: "用交付清单组合共享操作，按回执续跑并对账未知结果",
           name: "issue-delivery",
         },
         {
@@ -2197,7 +2197,7 @@ Run \`linear guide markdown\` for mentions, collapsible sections and rewrite ris
               variadic: false,
             },
           ],
-          description: "Delivery manifest v2 path",
+          description: "Delivery manifest path",
           flags: [
             "-f",
             "--file",
@@ -2239,7 +2239,7 @@ Run \`linear guide markdown\` for mentions, collapsible sections and rewrite ris
           name: "issue-authoring",
         },
         {
-          description: "用 manifest v2 组合共享操作，按回执续跑并对账 unknown",
+          description: "用交付清单组合共享操作，按回执续跑并对账未知结果",
           name: "issue-delivery",
         },
         {
