@@ -1252,6 +1252,72 @@ Deno.test("Issue Create Command - Additional Fields Can Set Project", async () =
   }
 })
 
+for (const mode of ["flags", "interactive"] as const) {
+  Deno.test(`Issue Create Command - Parent Read Failure Stops ${mode} Creation`, async () => {
+    const { server, cleanup } = await setupMockLinearServer([
+      {
+        queryName: "GetTeamIdByKey",
+        response: {
+          data: { teams: { nodes: [{ id: "team-eng-id" }] } },
+        },
+      },
+      {
+        queryName: "GetIssueId",
+        variables: { id: "ENG-123" },
+        response: { data: { issue: { id: "parent-1" } } },
+      },
+      {
+        queryName: "GetParentIssueData",
+        variables: { id: "parent-1" },
+        response: { errors: [{ message: "Parent project read failed" }] },
+      },
+    ], { LINEAR_TEAM_ID: "ENG" })
+    const terminalStub = stub(
+      Object.getPrototypeOf(Deno.stdout),
+      "isTerminal",
+      () => mode === "interactive",
+    )
+    const inputStub = stub(Input, "prompt", () => {
+      throw new Error("Must stop before prompting")
+    })
+    const errors: string[] = []
+    const errorStub = stub(console, "error", (...args: unknown[]) => {
+      errors.push(args.map(String).join(" "))
+    })
+    const exitStub = stub(Deno, "exit", (code?: number) => {
+      assertEquals(code, 1)
+      throw new Error("DENO_EXIT")
+    })
+
+    try {
+      const args = mode === "interactive" ? ["--parent", "ENG-123"] : [
+        "--title",
+        "Child issue",
+        "--team",
+        "ENG",
+        "--parent",
+        "ENG-123",
+        "--no-interactive",
+      ]
+      await assertRejects(() => createCommand.parse(args), Error, "DENO_EXIT")
+      assertStringIncludes(errors.join("\n"), "Parent project read failed")
+      assertEquals(inputStub.calls.length, 0)
+      assertEquals(
+        server.graphqlRequests.filter((request) =>
+          request.query.includes("mutation")
+        ),
+        [],
+      )
+    } finally {
+      exitStub.restore()
+      errorStub.restore()
+      inputStub.restore()
+      terminalStub.restore()
+      await cleanup()
+    }
+  })
+}
+
 Deno.test("Issue Create Command - Inherits Parent Project When Project Not Set", async () => {
   const { cleanup } = await setupMockLinearServer([
     {

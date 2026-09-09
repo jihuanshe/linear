@@ -959,30 +959,25 @@ export async function fetchParentIssueData(parentId: string): Promise<
     title: string
     identifier: string
     projectId: string | null
-  } | null
+  }
 > {
-  try {
-    const query = gql(/* GraphQL */ `
-      query GetParentIssueData($id: String!) {
-        issue(id: $id) {
-          title
-          identifier
-          project {
-            id
-          }
+  const query = gql(/* GraphQL */ `
+    query GetParentIssueData($id: String!) {
+      issue(id: $id) {
+        title
+        identifier
+        project {
+          id
         }
       }
-    `)
-    const client = getGraphQLClient()
-    const data = await client.request(query, { id: parentId })
-    return {
-      title: data.issue.title,
-      identifier: data.issue.identifier,
-      projectId: data.issue.project?.id || null,
     }
-  } catch {
-    // Silently fail for optional parent lookup - caller handles display
-    return null
+  `)
+  const client = getGraphQLClient()
+  const data = await client.request(query, { id: parentId })
+  return {
+    title: data.issue.title,
+    identifier: data.issue.identifier,
+    projectId: data.issue.project?.id || null,
   }
 }
 
