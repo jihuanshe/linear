@@ -565,7 +565,6 @@ export const queryCommand = withUsageMetadata(new Command(), {
           noProject: unprojected === true,
           projectLabel,
           cycleId,
-          milestoneId,
           labelNames,
           createdAfter,
           updatedAfter,

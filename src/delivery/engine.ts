@@ -13,7 +13,6 @@ import {
   extractIssueRelationSnapshot,
   isLinearUuid,
   type IssueRelationPlan,
-  type IssueRelationRequest,
   lookupUserId,
   planIssueRelations,
 } from "../utils/linear.ts"
@@ -95,26 +94,8 @@ export function selfExecRunner(): CommandRunner {
  */
 export function normalizeMarkdown(text: string): string {
   const source = text.replaceAll("\r\n", "\n")
-  const parser = unified().use(remarkParse).use(remarkGfm)
-  const tree = parser.parse(source)
   const protectedLines = new Set<number>()
-  const unorderedItemLines = new Set<number>()
-  const taskItemLines = new Set<number>()
-  const tableDelimiterLines = new Set<number>()
-  visit(tree, (node, _index, parent) => {
-    if (
-      node.type === "listItem" && parent?.type === "list" && !parent.ordered
-    ) {
-      const line = node.position?.start.line
-      if (line != null) {
-        unorderedItemLines.add(line - 1)
-        if (node.checked != null) taskItemLines.add(line - 1)
-      }
-    }
-    if (node.type === "table") {
-      const headerEndLine = node.children[0]?.position?.end.line
-      if (headerEndLine != null) tableDelimiterLines.add(headerEndLine)
-    }
+  visit(unified().use(remarkParse).use(remarkGfm).parse(source), (node) => {
     if (
       node.type !== "code" && node.type !== "inlineCode" &&
       node.type !== "html" && node.type !== "break"
@@ -127,93 +108,19 @@ export function normalizeMarkdown(text: string): string {
       protectedLines.add(line - 1)
     }
   })
-  // Only rewrite syntax owned by the parsed node. Whole-line replacements
-  // would also rewrite URLs containing underscores or Markdown-like bytes.
-  const edits: Array<{ start: number; end: number; text: string }> = []
-  visit(tree, (node, _index, parent) => {
-    const position = node.position
-    const start = position?.start.offset
-    const end = position?.end.offset
-    if (position == null || start == null || end == null) return
-    for (let line = position.start.line; line <= position.end.line; line++) {
-      if (protectedLines.has(line - 1)) return
-    }
-    // Delimiter substitution is safe only for isolated, plain emphasis.
-    // Nested or adjacent runs can be parsed differently after `_` becomes `*`.
-    if (
-      node.type === "emphasis" && source[start] === "_" &&
-      ["paragraph", "heading", "tableCell"].includes(parent?.type ?? "") &&
-      node.children.length === 1 && node.children[0].type === "text" &&
-      /^[\p{L}\p{N}]/u.test(source.slice(start + 1, end - 1)) &&
-      /[\p{L}\p{N}]$/u.test(source.slice(start + 1, end - 1)) &&
-      !/[*_]/.test(source.slice(start + 1, end - 1)) &&
-      !/[*_]/.test(source[start - 1] ?? "") &&
-      !/[*_]/.test(source[end] ?? "")
-    ) {
-      edits.push({ start, end: start + 1, text: "*" })
-      edits.push({ start: end - 1, end, text: "*" })
-    }
-    if (node.type !== "link" && node.type !== "image") return
-    const raw = source.slice(start, end)
-    const preservesDestination = (markdown: string): boolean => {
-      const children = parser.parse(markdown).children
-      const paragraph = children.length === 1 ? children[0] : undefined
-      const candidate = paragraph?.type === "paragraph" &&
-          paragraph.children.length === 1
-        ? paragraph.children[0]
-        : undefined
-      return (candidate?.type === "link" || candidate?.type === "image") &&
-        candidate.type === node.type && candidate.url === node.url &&
-        candidate.title === node.title &&
-        candidate.position?.start.offset === 0 &&
-        candidate.position?.end.offset === markdown.length
-    }
-    if (
-      node.type === "link" && /^https?:\/\/[^\s<>]+$/.test(node.url) &&
-      (start === 0 || /\s/.test(source[start - 1])) &&
-      (end === source.length || /\s/.test(source[end])) &&
-      node.children.length === 1 && node.children[0].type === "text" &&
-      node.children[0].value === node.url &&
-      (raw === `[${node.url}](${node.url})` ||
-        raw === `[${node.url}](<${node.url}>)`)
-    ) {
-      // A bare URL may drop trailing punctuation from its clickable target.
-      // Fold only when GFM recognizes exactly the same destination.
-      if (preservesDestination(node.url)) {
-        edits.push({ start, end, text: node.url })
-        return
-      }
-    }
-    if (
-      raw.endsWith(`](<${node.url}>)`) &&
-      preservesDestination(raw.slice(0, -node.url.length - 3) + node.url + ")")
-    ) {
-      edits.push({
-        start: end - node.url.length - 3,
-        end: end - node.url.length - 2,
-        text: "",
-      })
-      edits.push({ start: end - 2, end: end - 1, text: "" })
-    }
-  })
-  let normalized = source
-  for (const edit of edits.sort((a, b) => b.start - a.start)) {
-    normalized = normalized.slice(0, edit.start) + edit.text +
-      normalized.slice(edit.end)
-  }
-  const lines = normalized
+  const lines = source
     .split("\n")
     .map((line, index) => {
       if (protectedLines.has(index)) return line
-      let trimmed = line.replace(/[ \t]+$/, "")
-      if (unorderedItemLines.has(index)) {
-        trimmed = trimmed.replace(/^(\s*)\* /, "$1- ")
-      }
-      if (taskItemLines.has(index)) {
-        trimmed = trimmed.replace(/^(\s*)- \[[xX]\] /, "$1- [x] ")
-      }
+      const trimmed = line
+        .replace(/[ \t]+$/, "")
+        .replace(/^(\s*)\* /, "$1- ")
+        .replace(/^(\s*)- \[[xX]\] /, "$1- [x] ")
+        .replace(/\]\(<([^<>\s]+)>\)/g, "]($1)")
+        .replace(/\[([^\]\s]+)\]\(\1\)/g, "$1")
+        .replace(/\b_([^_\n]+)_(?![\w])/g, "*$1*")
       const bare = trimmed.trim()
-      if (tableDelimiterLines.has(index) && /^\|[\s|:-]+\|$/.test(bare)) {
+      if (/^\|[\s|:-]+\|$/.test(bare) && bare.includes("-")) {
         // Linear discards column alignment colons entirely, so the canonical
         // delimiter cell is plain dashes.
         const cells = bare.slice(1, -1).split("|").map(() => "---")
@@ -718,7 +625,6 @@ async function readBackIssue(
   workspaceFlags: string[],
   receipts: DeliveryReceipt[],
   desired: DeliverySet,
-  relations: IssueRelationRequest[],
   legacyItems: boolean,
   signal: AbortSignal,
 ): Promise<ReadBackResult> {
@@ -824,26 +730,13 @@ async function readBackIssue(
           node != null && typeof node === "object" && node.id === receipt.id
         )
     })
-    const missingRelations = planIssueRelations(
-      relations,
-      extractIssueRelationSnapshot(data),
-    ).filter((plan) =>
-      plan.verdict !== "idempotent" || plan.idempotentSource !== "remote"
-    )
-    if (
-      missingFields.length || missingReceipts.length || missingRelations.length
-    ) {
+    if (missingFields.length || missingReceipts.length) {
       return {
         ...failed(
           "Not yet confirmed: " + [
             ...missingFields.map((field) => "field " + field),
             ...missingReceipts.map((receipt) =>
               receipt.kind + " " + receipt.id
-            ),
-            ...missingRelations.map((plan) =>
-              `relation ${plan.type} ${plan.issue}${
-                plan.detail == null ? "" : ` (${plan.detail})`
-              }`
             ),
           ].join(", ") +
             "; run the same apply again to verify without repeating applied writes",
@@ -1320,9 +1213,6 @@ export async function applyManifest(
       const receipts = appliedItems.flatMap((item) =>
         checkpoint.items[item.key].receipt ?? []
       )
-      const relations = appliedItems.flatMap((item) =>
-        item.kind === "relation" ? issue.relations?.[item.subIndex] ?? [] : []
-      )
       const legacyItems = appliedItems.some((item) =>
         (item.kind === "comment" || item.kind === "attachment") &&
         checkpoint.items[item.key].receipt == null
@@ -1354,7 +1244,6 @@ export async function applyManifest(
             workspaceFlags,
             receipts,
             desired,
-            relations,
             legacyItems,
             controller.signal,
           )

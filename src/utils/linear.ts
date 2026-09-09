@@ -656,7 +656,9 @@ const issueCommentsForUrlLookupQuery = gql(/* GraphQL */ `
 
 async function fetchAllIssueCommentBodies(issueId: string): Promise<string[]> {
   const client = getGraphQLClient()
-  const fetchPage = async (after?: string) => {
+  const bodies: string[] = []
+  let after: string | null | undefined
+  while (true) {
     const result = await client.request(issueCommentsForUrlLookupQuery, {
       id: issueId,
       after,
@@ -665,14 +667,15 @@ async function fetchAllIssueCommentBodies(issueId: string): Promise<string[]> {
     if (comments == null) {
       throw new CliError(`Unable to read comments for ${issueId}`)
     }
-    return comments
+    bodies.push(...comments.nodes.map((comment) => comment.body))
+    if (!comments.pageInfo.hasNextPage) break
+    const next = comments.pageInfo.endCursor
+    if (next == null || next === after) {
+      throw new CliError(`Incomplete comment pagination for ${issueId}`)
+    }
+    after = next
   }
-  const comments = await completeConnection(
-    await fetchPage(),
-    fetchPage,
-    `comments for ${issueId}`,
-  )
-  return comments.nodes.map((comment) => comment.body)
+  return bodies
 }
 
 const issueDetailsQuery = gql(/* GraphQL */ `
@@ -1706,7 +1709,6 @@ export interface SearchIssuesByTermOptions {
   noProject?: boolean
   projectLabel?: string
   cycleId?: string
-  milestoneId?: string
   labelNames?: string[]
   createdAfter?: string
   updatedAfter?: string
@@ -1761,10 +1763,6 @@ export async function searchIssuesByTerm(
 
   if (options.cycleId) {
     filter.cycle = { id: { eq: options.cycleId } }
-  }
-
-  if (options.milestoneId) {
-    filter.projectMilestone = { id: { eq: options.milestoneId } }
   }
 
   if (options.labelNames != null && options.labelNames.length > 0) {

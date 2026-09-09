@@ -231,11 +231,9 @@ export const updateCommand = withUsageMetadata(new Command(), { writes: true })
         const spinner = shouldShowSpinner() && !json ? new Spinner() : null
         spinner?.start()
 
-        // Historical identifiers can survive a team move. Resolve team-scoped
-        // fields against the current team unless this update explicitly moves it.
-        const needsCurrentTeam = project != null || state != null ||
-          cycle != null || replacesLabels || addsLabels || removesLabels
-        const currentTeam = needsCurrentTeam && team == null
+        // A previous identifier may still resolve after a team move. Project
+        // validation must use the current team, not that historical prefix.
+        const currentTeam = project != null && team == null
           ? await getIssueTeam(issueId)
           : undefined
         let teamKey = team ?? currentTeam?.key
@@ -252,7 +250,7 @@ export const updateCommand = withUsageMetadata(new Command(), { writes: true })
         // requires it. Team-scoped state and label lookups use the key directly.
         let teamId: string | undefined
         if (team != null || cycle != null) {
-          teamId = currentTeam?.id ?? await getTeamIdByKey(teamKey)
+          teamId = await getTeamIdByKey(teamKey)
           if (!teamId) {
             throw new NotFoundError("Team", teamKey)
           }

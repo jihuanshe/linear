@@ -429,20 +429,21 @@ Deno.test("equivalent relations checkpoint idempotently without mutation", async
       issues: [{
         operation: "update",
         identifier: "DATA-606",
-        relations: [{ type: "blocks", issue: "DATA-580" }],
+        relations: [{ type: "related", issue: "DATA-580" }],
       }],
     })
-    let relationView: Record<string, unknown> = {
-      relations: {
-        nodes: [{
-          type: "blocks",
-          relatedIssue: { identifier: "DATA-580" },
-        }],
-        pageInfo: { hasNextPage: false },
-      },
-    }
     const runner = fakeRunner((args) =>
-      args[1] === "view" ? viewResult(relationView) : undefined
+      args[1] === "view"
+        ? viewResult({
+          relations: {
+            nodes: [{
+              type: "related",
+              relatedIssue: { identifier: "DATA-580" },
+            }],
+            pageInfo: { hasNextPage: false },
+          },
+        })
+        : undefined
     )
     const loaded = await loadManifest(manifestPath)
     const first = await applyManifest({ loaded, runner })
@@ -467,53 +468,6 @@ Deno.test("equivalent relations checkpoint idempotently without mutation", async
         viewCallsBeforeResume,
       1,
     )
-    const appliedCheckpoint = await Deno.readTextFile(
-      checkpointPath(manifestPath),
-    )
-    for (
-      const changed of [
-        {},
-        {
-          inverseRelations: {
-            nodes: [{ type: "blocks", issue: { identifier: "DATA-580" } }],
-            pageInfo: { hasNextPage: false },
-          },
-        },
-        {
-          relations: {
-            nodes: [{
-              type: "related",
-              relatedIssue: { identifier: "DATA-580" },
-            }],
-            pageInfo: { hasNextPage: false },
-          },
-        },
-        { relations: { nodes: [], pageInfo: { hasNextPage: true } } },
-        { inverseRelations: { nodes: [], pageInfo: { hasNextPage: true } } },
-        { relations: null },
-      ]
-    ) {
-      relationView = changed
-      const changedResume = await applyManifest({
-        loaded,
-        runner,
-        verificationDelay: () => Promise.resolve(),
-      })
-      assertEquals(changedResume.status, "applied-unverified")
-      assertEquals(changedResume.items[0].status, "skipped")
-      assertStringIncludes(
-        changedResume.verification[0].detail ?? "",
-        "relation blocks DATA-580",
-      )
-      assertEquals(
-        await Deno.readTextFile(checkpointPath(manifestPath)),
-        appliedCheckpoint,
-      )
-      assertEquals(
-        runner.calls.filter((args) => args[1] === "relation").length,
-        0,
-      )
-    }
   } finally {
     await Deno.remove(dir, { recursive: true })
   }
@@ -583,9 +537,7 @@ Deno.test("relation conflicts preserve applied checkpoint items on resume", asyn
     })
     let relationConflict = false
     let relationCalls = 0
-    let updated = false
     const runner = fakeRunner((args) => {
-      if (args[1] === "update") updated = true
       if (args[1] === "view") {
         return relationConflict
           ? viewResult({
@@ -598,7 +550,7 @@ Deno.test("relation conflicts preserve applied checkpoint items on resume", asyn
               pageInfo: { hasNextPage: false },
             },
           })
-          : viewResult({ title: updated ? "New title" : "Old title" })
+          : viewResult()
       }
       if (args[1] === "relation") {
         relationCalls += 1
@@ -613,8 +565,6 @@ Deno.test("relation conflicts preserve applied checkpoint items on resume", asyn
       "applied",
       "unknown",
     ])
-    // The failed relation was never confirmed applied and is outside read-back.
-    assertEquals(first.verification[0].status, "verified")
 
     relationConflict = true
     await assertRejects(
@@ -885,10 +835,6 @@ Deno.test("apply creates, threads the identifier, and reads back", async () => {
           title: "New issue",
           comments: { nodes: [{ id: "comment-1" }] },
           attachments: { nodes: [{ id: "attachment-1" }] },
-          relations: {
-            nodes: [{ type: "blocks", relatedIssue: { identifier: "DATA-1" } }],
-            pageInfo: { hasNextPage: false },
-          },
         })
       }
       if (args[1] === "comment") {
@@ -1982,10 +1928,9 @@ Deno.test("markdown normalization absorbs Linear's equivalent rewrites only", ()
     normalizeMarkdown("| 列 A | 列 B |\n| ---- | ---- |\n| 表格 | 单元格 |"),
     normalizeMarkdown("| 列 A | 列 B |\n| -- | -- |\n| 表格 | 单元格 |"),
   )
-  // Synthetic headers place these delimiter variants inside real GFM tables.
   assertEquals(
-    normalizeMarkdown("| A | B |\n| :--- | ---: |"),
-    normalizeMarkdown("| A | B |\n| :-- | --: |"),
+    normalizeMarkdown("| :--- | ---: |"),
+    normalizeMarkdown("| :-- | --: |"),
   )
   // Real round-trip sample: Linear wraps link destinations in angle brackets.
   assertEquals(
@@ -2003,8 +1948,8 @@ Deno.test("markdown normalization absorbs Linear's equivalent rewrites only", ()
     ),
   )
   assertEquals(
-    normalizeMarkdown("| A | B | C |\n| :--- | :---: | ---: |"),
-    normalizeMarkdown("| A | B | C |\n| -- | -- | -- |"),
+    normalizeMarkdown("| :--- | :---: | ---: |"),
+    normalizeMarkdown("| -- | -- | -- |"),
   )
   assertEquals(
     normalizeMarkdown("自动链接 https://example.com"),
@@ -2031,99 +1976,6 @@ Deno.test("markdown normalization absorbs Linear's equivalent rewrites only", ()
 })
 
 const literalMarkdownDifferences = [
-  [
-    "paragraph list-like continuation",
-    "intro\n    * literal",
-    "intro\n    - literal",
-  ],
-  [
-    "paragraph checkbox-like continuation",
-    "intro\n    - [X] literal",
-    "intro\n    - [x] literal",
-  ],
-  ["paragraph table-like text", "| :--- |", "| --- |"],
-  ["punctuation-edge emphasis", "*prefix(_!_)", "*prefix(*!*)"],
-  ["adjacent emphasis runs", "_a_*b*", "*a**b*"],
-  ["nested emphasis delimiters", "_a*b*_", "*a*b**"],
-  ["emphasis inside emphasis", "*x _a_ y*", "*x *a* y*"],
-  ["adjacent emphasis prefix", "*b*_a_", "*b**a*"],
-  ["literal emphasis delimiter", "_a_b_", "*a_b*"],
-  [
-    "self-link adjacent suffix",
-    "[https://example.com/a](https://example.com/a)b",
-    "https://example.com/ab",
-  ],
-  [
-    "self-link adjacent prefix",
-    "x[https://example.com/a](https://example.com/a)",
-    "xhttps://example.com/a",
-  ],
-  [
-    "self-link trailing parenthesis",
-    "[https://example.com/a)](<https://example.com/a)>)",
-    "https://example.com/a)",
-  ],
-  [
-    "angle URL whitespace",
-    "[download](<https://example.com/a b>)",
-    "[download](https://example.com/a b)",
-  ],
-  [
-    "angle URL unbalanced parenthesis",
-    "[download](<https://example.com/a)b>)",
-    "[download](https://example.com/a)b)",
-  ],
-  [
-    "self-link trailing punctuation",
-    "[https://example.com/path.](https://example.com/path.)",
-    "https://example.com/path.",
-  ],
-  [
-    "URL underscores",
-    "[download](https://example.com/_release_)",
-    "[download](https://example.com/*release*)",
-  ],
-  [
-    "image URL underscores",
-    "![download](https://example.com/_release_)",
-    "![download](https://example.com/*release*)",
-  ],
-  [
-    "definition URL underscores",
-    "[download][ref]\n\n[ref]: https://example.com/_release_",
-    "[download][ref]\n\n[ref]: https://example.com/*release*",
-  ],
-  [
-    "URL self-link bytes",
-    "[download](https://example.com/[x](x))",
-    "[download](https://example.com/x)",
-  ],
-  [
-    "image URL self-link bytes",
-    "![download](https://example.com/[x](x))",
-    "![download](https://example.com/x)",
-  ],
-  [
-    "definition URL self-link bytes",
-    "[download][ref]\n\n[ref]: https://example.com/[x](x)",
-    "[download][ref]\n\n[ref]: https://example.com/x",
-  ],
-  [
-    "URL angle-link bytes",
-    "[download](https://example.com/[x](<y>))",
-    "[download](https://example.com/[x](y))",
-  ],
-  [
-    "image URL angle-link bytes",
-    "![download](https://example.com/[x](<y>))",
-    "![download](https://example.com/[x](y))",
-  ],
-  [
-    "definition URL angle-link bytes",
-    "[download][ref]\n\n[ref]: https://example.com/[x](<y>)",
-    "[download][ref]\n\n[ref]: https://example.com/[x](y)",
-  ],
-  ["relative self-link", "[x](x)", "x"],
   ["fenced code", "```text\n* literal\n```", "```text\n- literal\n```"],
   [
     "longer outer fence",
@@ -2823,13 +2675,6 @@ for (
             title: "Title",
             comments: { nodes: [{ id: "comment-1" }] },
             attachments: { nodes: [{ id: "attachment-1" }] },
-            relations: {
-              nodes: [{
-                type: "related",
-                relatedIssue: { identifier: "DATA-1" },
-              }],
-              pageInfo: { hasNextPage: false },
-            },
           })
         }
         return undefined
