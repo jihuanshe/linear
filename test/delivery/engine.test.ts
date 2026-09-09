@@ -108,6 +108,89 @@ const USER_A = "abcdef01-2345-4678-9abc-def012345678"
 const USER_B = "abcdef02-2345-4678-9abc-def012345678"
 const USER_C = "abcdef03-2345-4678-9abc-def012345678"
 
+for (const base of [null, "eng-1"]) {
+  Deno.test(`delivery parent casing verifies and resumes from ${base}`, async () => {
+    const dir = await Deno.makeTempDir()
+    try {
+      const path = await writeManifest(dir, {
+        schemaVersion: 1,
+        workspace: "jihuanshe",
+        issues: [{
+          operation: "update",
+          identifier: "DATA-606",
+          base: { parent: base },
+          set: { parent: "eng-2" },
+        }],
+      })
+      let written = false
+      const runner = fakeRunner((args) => {
+        if (args[1] === "update") {
+          assertEquals(args[args.indexOf("--parent") + 1], "eng-2")
+          written = true
+        }
+        if (args[1] === "view") {
+          return viewResult({
+            parent: written
+              ? { identifier: "ENG-2" }
+              : base == null
+              ? null
+              : { identifier: "ENG-1" },
+          })
+        }
+      })
+      const loaded = await loadManifest(path)
+      const plan = await planManifest({ loaded, runner })
+      assertEquals(plan.status, "ready")
+      assertEquals(plan.issues[0].fields[0].verdict, "write")
+      assertEquals(
+        (await applyManifest({ loaded, runner })).status,
+        "completed",
+      )
+      const resumed = await applyManifest({ loaded, runner })
+      assertEquals(resumed.status, "completed")
+      assertEquals(resumed.summary.skipped, 1)
+      assertEquals(
+        runner.calls.filter((args) => args[1] === "update").length,
+        1,
+      )
+      const updatedPlan = await planManifest({ loaded, runner })
+      assertEquals(updatedPlan.issues[0].fields[0].verdict, "idempotent")
+      assertEquals(loaded.manifest.issues[0].set?.parent, "eng-2")
+    } finally {
+      await Deno.remove(dir, { recursive: true })
+    }
+  })
+}
+
+for (const remote of ["ENG-3", "not-an-identifier"]) {
+  Deno.test(`delivery parent comparison rejects unrelated or invalid ${remote}`, async () => {
+    const dir = await Deno.makeTempDir()
+    try {
+      const path = await writeManifest(dir, {
+        schemaVersion: 1,
+        workspace: "jihuanshe",
+        issues: [{
+          operation: "update",
+          identifier: "DATA-606",
+          base: { parent: "eng-1" },
+          set: { parent: remote === "ENG-3" ? "eng-2" : remote },
+        }],
+      })
+      const loaded = await loadManifest(path)
+      const runner = fakeRunner((args) =>
+        args[1] === "view"
+          ? viewResult({ parent: { identifier: remote } })
+          : undefined
+      )
+      assertEquals((await planManifest({ loaded, runner })).status, "conflict")
+      assertEquals((await applyManifest({ loaded, runner })).status, "conflict")
+      assertEquals(runner.calls.some((args) => args[1] === "update"), false)
+    } finally {
+      await Deno.remove(dir, { recursive: true })
+    }
+  })
+}
+
 for (
   const scenario of [
     {

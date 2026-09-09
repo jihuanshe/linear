@@ -1,5 +1,8 @@
 import { assertProjectTeam } from "../utils/project-teams.ts"
-import { getTeamKeyFromIssueIdentifier } from "../utils/issue-identifier.ts"
+import {
+  getTeamKeyFromIssueIdentifier,
+  normalizeIssueIdentifier,
+} from "../utils/issue-identifier.ts"
 import { encodeHex } from "@std/encoding/hex"
 import { fromFileUrl } from "@std/path"
 import { print } from "graphql"
@@ -276,6 +279,19 @@ function fieldEquals(
       return (remote.projectAliases ?? [remoteValue as string]).some((alias) =>
         alias === manifestValue
       )
+    case "parent": {
+      if (manifestValue == null || remoteValue == null) {
+        return manifestValue == null && remoteValue == null
+      }
+      if (
+        typeof manifestValue !== "string" || typeof remoteValue !== "string"
+      ) {
+        return false
+      }
+      const identifier = normalizeIssueIdentifier(manifestValue)
+      return identifier !== undefined &&
+        identifier === normalizeIssueIdentifier(remoteValue)
+    }
     case "assignee": {
       const assignee = remote.assignee
       if (manifestValue == null || assignee == null) {
