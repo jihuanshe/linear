@@ -50,7 +50,7 @@ export const commentUpdateCommand = withUsageMetadata(new Command(), {
   .option(
     "--expect-field <field:string>",
     "Also require this API field to match the original basis",
-    { collect: true },
+    { collect: true, preserveEmpty: true },
   )
   .action(async (options, commentId) => {
     const { body, bodyFile, json } = options
@@ -96,7 +96,10 @@ export const commentUpdateCommand = withUsageMetadata(new Command(), {
       let original = options.baseFile != null
         ? await loadBasisFile(options.baseFile)
         : undefined
-      if (newBody !== undefined || original != null || options.unprotected) {
+      if (
+        newBody !== undefined || original != null || options.unprotected ||
+        options.expectField?.some((field) => !field.trim())
+      ) {
         validateReplacementOptions({
           original,
           unprotected: options.unprotected,

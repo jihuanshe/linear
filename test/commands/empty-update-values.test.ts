@@ -10,6 +10,45 @@ import {
   WORKSPACE,
 } from "../delivery/fixture.ts"
 
+for (const action of ["create", "update"]) {
+  for (const option of ["priority", "estimate"]) {
+    Deno.test(`issue ${action} rejects an empty ${option} before transport`, async () => {
+      const { server, cleanup } = await setupMockLinearServer([])
+      try {
+        const result = await new Deno.Command(Deno.execPath(), {
+          args: [
+            "run",
+            "--allow-all",
+            "--quiet",
+            "src/main.ts",
+            "issue",
+            action,
+            ...(action === "create"
+              ? ["--team", "ENG", "--no-interactive"]
+              : ["ENG-123", "--unprotected"]),
+            "--title",
+            "Changed",
+            `--${option}`,
+            "",
+            "--json",
+          ],
+          stdin: "null",
+          stdout: "piped",
+          stderr: "piped",
+        }).output()
+        assertEquals(result.code, 1)
+        assertEquals(
+          JSON.parse(new TextDecoder().decode(result.stdout)).effect,
+          "none",
+        )
+        assertEquals(server.graphqlRequests, [])
+      } finally {
+        await cleanup()
+      }
+    })
+  }
+}
+
 function readResponse(
   domain: "issue" | "project",
   id: string,

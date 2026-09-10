@@ -82,6 +82,9 @@ export async function resolveProjectContent(
   if (contentFile == null) {
     return content
   }
+  if (contentFile === "") {
+    throw new ValidationError("Content file path cannot be empty")
+  }
 
   try {
     return await Deno.readTextFile(contentFile)
@@ -102,54 +105,69 @@ export const createCommand = withUsageMetadata(new Command(), {
   .description(
     "Create a new Linear project; link it separately with initiative add-project",
   )
-  .option("-n, --name <name:string>", "Project name (required)")
+  .option("-n, --name <name:string>", "Project name (required)", {
+    preserveEmpty: true,
+  })
   .option(
     "-d, --description <description:string>",
     `Project description (max ${PROJECT_DESCRIPTION_MAX_LENGTH} characters, enforced by Linear's API)`,
+    { preserveEmpty: true },
   )
   .option(
     "-f, --description-file <path:string>",
     `Read project description from file (still subject to the ${PROJECT_DESCRIPTION_MAX_LENGTH}-character API limit)`,
+    { preserveEmpty: true },
   )
-  .option("--content <markdown:string>", "Project overview markdown")
+  .option("--content <markdown:string>", "Project overview markdown", {
+    preserveEmpty: true,
+  })
   .option(
     "--content-file <path:string>",
     "Read project overview markdown from a file",
+    { preserveEmpty: true },
   )
   .option(
     "-t, --team <team:string>",
     "Team key (required, can be repeated for multiple teams)",
-    { collect: true },
+    { collect: true, preserveEmpty: true },
   )
   .option(
     "-l, --lead <lead:string>",
     "Project lead (user UUID, username, name, email, 'self', or '@me')",
+    { preserveEmpty: true },
   )
   .option(
     "-s, --status <status:string>",
     "Project status (planned, started, paused, completed, canceled, backlog)",
+    { preserveEmpty: true },
   )
-  .option("--start-date <startDate:string>", "Start date (YYYY-MM-DD)")
+  .option("--start-date <startDate:string>", "Start date (YYYY-MM-DD)", {
+    preserveEmpty: true,
+  })
   .option(
     "--target-date <targetDate:string>",
     "Target completion date (YYYY-MM-DD)",
+    { preserveEmpty: true },
   )
   .option(
     "--priority <priority:string>",
     "Project priority (none, urgent, high, medium, low)",
+    { preserveEmpty: true },
   )
   .option(
     "--label <label:string>",
     "Project label associated with the project. May be repeated.",
-    { collect: true },
+    { collect: true, preserveEmpty: true },
   )
   .option(
     "--member <user:string>",
     "Project member (user UUID, username, name, email, 'self', or '@me'). May be repeated.",
-    { collect: true },
+    { collect: true, preserveEmpty: true },
   )
-  .option("--icon <icon:string>", "Project icon")
-  .option("--color <color:string>", "Project color as a HEX string")
+  .option("--icon <icon:string>", "Project icon", { preserveEmpty: true })
+  .option("--color <color:string>", "Project color as a HEX string", {
+    preserveEmpty: true,
+  })
   .option(
     "-i, --interactive",
     "Interactive mode (default if no flags provided)",
@@ -161,6 +179,42 @@ export const createCommand = withUsageMetadata(new Command(), {
   .action(
     async (options) => {
       try {
+        if (options.interactive && options.json) {
+          throw new ValidationError(
+            "--json cannot be combined with --interactive",
+          )
+        }
+        if (
+          options.interactive &&
+          (!Deno.stdin.isTerminal() || !Deno.stdout.isTerminal())
+        ) {
+          throw new ValidationError("Interactive creation requires a terminal")
+        }
+        for (
+          const [field, value] of Object.entries({
+            name: options.name,
+            lead: options.lead,
+            status: options.status,
+            "start-date": options.startDate,
+            "target-date": options.targetDate,
+            priority: options.priority,
+          })
+        ) {
+          if (value != null && value.trim() === "") {
+            throw new ValidationError(`--${field} cannot be empty`)
+          }
+        }
+        for (
+          const [field, values] of Object.entries({
+            team: options.team,
+            label: options.label,
+            member: options.member,
+          })
+        ) {
+          if (values?.some((value) => value.trim() === "")) {
+            throw new ValidationError(`--${field} cannot be empty`)
+          }
+        }
         const {
           name: providedName,
           description: providedDescription,
@@ -191,7 +245,10 @@ export const createCommand = withUsageMetadata(new Command(), {
         const client = getGraphQLClient()
 
         let name = providedName
-        let description = providedDescription
+        let description = await resolveProjectDescription(
+          providedDescription,
+          providedDescriptionFile,
+        )
         const descriptionFile = providedDescriptionFile
         let teams = providedTeams || []
         let lead = providedLead
@@ -203,8 +260,9 @@ export const createCommand = withUsageMetadata(new Command(), {
 
         // Determine if we should run in interactive mode
         const noFlagsProvided = !name && teams.length === 0
-        const isInteractive = (noFlagsProvided || interactiveFlag) &&
-          Deno.stdout.isTerminal()
+        const isInteractive = !jsonOutput &&
+          (noFlagsProvided || interactiveFlag) &&
+          Deno.stdin.isTerminal() && Deno.stdout.isTerminal()
 
         if (isInteractive) {
           console.log("\nCreate a new project\n")
@@ -218,7 +276,7 @@ export const createCommand = withUsageMetadata(new Command(), {
           }
 
           // Description (optional) — skip the prompt when --description-file was passed.
-          if (!description && descriptionFile == null) {
+          if (description == null && descriptionFile == null) {
             description = await Input.prompt({
               message: "Description (optional):",
             })
@@ -303,7 +361,7 @@ export const createCommand = withUsageMetadata(new Command(), {
 
         const resolvedDescription = await resolveProjectDescription(
           description,
-          descriptionFile,
+          undefined,
         )
 
         // Validate required fields
@@ -337,7 +395,7 @@ export const createCommand = withUsageMetadata(new Command(), {
 
         // Build input - resolve all optional fields first
         let leadId: string | undefined
-        if (lead) {
+        if (lead != null) {
           leadId = await lookupUserId(lead)
           if (!leadId) {
             throw new NotFoundError("Lead", lead)
@@ -345,7 +403,7 @@ export const createCommand = withUsageMetadata(new Command(), {
         }
 
         let statusId: string | undefined
-        if (status) {
+        if (status != null) {
           // Map display value to API type if needed
           const statusLower = status.toLowerCase()
           const statusTypeMapping: Record<string, string> = {
@@ -395,11 +453,11 @@ export const createCommand = withUsageMetadata(new Command(), {
           memberIds.push(memberId)
         }
 
-        if (startDate && !/^\d{4}-\d{2}-\d{2}$/.test(startDate)) {
+        if (startDate != null && !/^\d{4}-\d{2}-\d{2}$/.test(startDate)) {
           throw new ValidationError("Start date must be in YYYY-MM-DD format")
         }
 
-        if (targetDate && !/^\d{4}-\d{2}-\d{2}$/.test(targetDate)) {
+        if (targetDate != null && !/^\d{4}-\d{2}-\d{2}$/.test(targetDate)) {
           throw new ValidationError("Target date must be in YYYY-MM-DD format")
         }
 
@@ -411,8 +469,8 @@ export const createCommand = withUsageMetadata(new Command(), {
           ...(content != null && { content }),
           ...(leadId && { leadId }),
           ...(statusId && { statusId }),
-          ...(startDate && { startDate }),
-          ...(targetDate && { targetDate }),
+          ...(startDate != null && { startDate }),
+          ...(targetDate != null && { targetDate }),
           ...(priority != null && { priority }),
           ...(labelIds.length > 0 && { labelIds }),
           ...(memberIds.length > 0 && { memberIds }),

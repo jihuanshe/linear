@@ -54,22 +54,31 @@ export const createCommand = withUsageMetadata(new Command(), {
   .name("create")
   .option("--json", "Output a JSON write result")
   .description("Create a new Linear initiative")
-  .option("-n, --name <name:string>", "Initiative name (required)")
-  .option("-d, --description <description:string>", "Initiative description")
+  .option("-n, --name <name:string>", "Initiative name (required)", {
+    preserveEmpty: true,
+  })
+  .option("-d, --description <description:string>", "Initiative description", {
+    preserveEmpty: true,
+  })
   .option(
     "-s, --status <status:string>",
     "Status: planned, active, completed, proposed, canceled (case-insensitive; non-interactive omission uses server default). Use --status to set explicitly",
+    { preserveEmpty: true },
   )
   .option(
     "-o, --owner <owner:string>",
     "Owner (user UUID, username, name, email, 'self', or '@me')",
+    { preserveEmpty: true },
   )
   .option(
     "--target-date <targetDate:string>",
     "Target completion date (YYYY-MM-DD)",
+    { preserveEmpty: true },
   )
-  .option("-c, --color <color:string>", "Color hex code (e.g., #5E6AD2)")
-  .option("--icon <icon:string>", "Icon name")
+  .option("-c, --color <color:string>", "Color hex code (e.g., #5E6AD2)", {
+    preserveEmpty: true,
+  })
+  .option("--icon <icon:string>", "Icon name", { preserveEmpty: true })
   .option(
     "-i, --interactive",
     "Interactive mode (default if no flags provided)",
@@ -77,10 +86,29 @@ export const createCommand = withUsageMetadata(new Command(), {
   .action(async (options) => {
     setMachineOutput(options.json ?? false)
     try {
+      for (
+        const [field, value] of Object.entries({
+          name: options.name,
+          status: options.status,
+          owner: options.owner,
+          "target-date": options.targetDate,
+          color: options.color,
+        })
+      ) {
+        if (value != null && value.trim() === "") {
+          throw new ValidationError(`--${field} cannot be empty`)
+        }
+      }
       if (options.json && options.interactive) {
         throw new ValidationError(
           "--json cannot be combined with --interactive",
         )
+      }
+      if (
+        options.interactive &&
+        (!Deno.stdin.isTerminal() || !Deno.stdout.isTerminal())
+      ) {
+        throw new ValidationError("Interactive creation requires a terminal")
       }
       const {
         name: providedName,
@@ -107,7 +135,7 @@ export const createCommand = withUsageMetadata(new Command(), {
       const noFlagsProvided = !name
       const isInteractive = !options.json &&
         (noFlagsProvided || interactiveFlag) &&
-        Deno.stdout.isTerminal()
+        Deno.stdin.isTerminal() && Deno.stdout.isTerminal()
 
       if (isInteractive) {
         console.log("\nCreate a new initiative\n")
@@ -121,7 +149,7 @@ export const createCommand = withUsageMetadata(new Command(), {
         }
 
         // Description (optional)
-        if (!description) {
+        if (description == null) {
           description = await Input.prompt({
             message: "Description (optional):",
           })
@@ -199,20 +227,20 @@ export const createCommand = withUsageMetadata(new Command(), {
         : undefined
 
       // Validate color format if provided
-      if (color && !/^#[0-9A-Fa-f]{6}$/.test(color)) {
+      if (color != null && !/^#[0-9A-Fa-f]{6}$/.test(color)) {
         throw new ValidationError(
           "Color must be a valid hex code (e.g., #5E6AD2)",
         )
       }
 
       // Validate target date format if provided
-      if (targetDate && !/^\d{4}-\d{2}-\d{2}$/.test(targetDate)) {
+      if (targetDate != null && !/^\d{4}-\d{2}-\d{2}$/.test(targetDate)) {
         throw new ValidationError("Target date must be in YYYY-MM-DD format")
       }
 
       // Build input
       let ownerId: string | undefined
-      if (owner) {
+      if (owner != null) {
         ownerId = await lookupUserId(owner)
         if (!ownerId) {
           throw new NotFoundError("Owner", owner)
@@ -221,12 +249,12 @@ export const createCommand = withUsageMetadata(new Command(), {
 
       const input = {
         name: name as string,
-        ...(description && { description }),
-        ...(apiStatus && { status: apiStatus }),
-        ...(ownerId && { ownerId }),
-        ...(targetDate && { targetDate }),
-        ...(color && { color }),
-        ...(icon && { icon }),
+        ...(description != null && { description }),
+        ...(apiStatus != null && { status: apiStatus }),
+        ...(ownerId != null && { ownerId }),
+        ...(targetDate != null && { targetDate }),
+        ...(color != null && { color }),
+        ...(icon != null && { icon }),
       }
 
       const { Spinner } = await import("@std/cli/unstable-spinner")

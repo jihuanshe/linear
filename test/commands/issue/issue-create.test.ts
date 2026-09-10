@@ -11,8 +11,135 @@ import { createCommand } from "../../../src/commands/issue/issue-create.ts"
 import { ValidationError } from "../../../src/utils/errors.ts"
 import { commonDenoArgs } from "../../utils/test-helpers.ts"
 
-for (const assignee of ["", " \n"]) {
-  Deno.test(`interactive create rejects explicit blank assignee ${JSON.stringify(assignee)} before prompts or defaults`, async () => {
+for (
+  const args of [
+    ...[
+      "assignee",
+      "due-date",
+      "parent",
+      "team",
+      "project",
+      "state",
+      "milestone",
+      "cycle",
+      "title",
+      "label",
+      "description-file",
+    ].map((flag) => [`--${flag}`, ""]),
+    ["--label", "valid", "--label", ""],
+    ["--description", "", "--description-file", "body.md"],
+  ]
+) {
+  Deno.test(`create CLI rejects explicit empty options ${JSON.stringify(args)}`, async () => {
+    const { server, cleanup } = await setupMockLinearServer([])
+    try {
+      const result = await new Deno.Command(Deno.execPath(), {
+        args: [
+          "run",
+          ...commonDenoArgs,
+          "src/main.ts",
+          "issue",
+          "create",
+          "--json",
+          ...(args.includes("--title") ? [] : ["--title", "Valid title"]),
+          "--priority",
+          "2",
+          ...args,
+        ],
+        stdin: "null",
+        stdout: "piped",
+        stderr: "piped",
+      }).output()
+      const body = JSON.parse(new TextDecoder().decode(result.stdout))
+      assertEquals(result.code, 1)
+      assertEquals(body.effect, "none")
+      assertStringIncludes(
+        body.error.message,
+        args.includes("--description") ? "both" : "empty",
+      )
+      assertEquals(server.graphqlRequests, [])
+    } finally {
+      await cleanup()
+    }
+  })
+}
+
+Deno.test("create CLI preserves a legal explicit empty description", async () => {
+  const { server, cleanup } = await setupMockLinearServer([
+    {
+      queryName: "GetTeamIdByKey",
+      variables: { team: "ENG" },
+      response: { data: { teams: { nodes: [{ id: teamWriteIds.ENG }] } } },
+    },
+    {
+      queryName: "CreateIssue",
+      response: {
+        data: {
+          issueCreate: {
+            success: true,
+            issue: {
+              id: "issue-id",
+              identifier: "ENG-123",
+              url: "https://linear.app/test/issue/ENG-123",
+              team: { key: "ENG" },
+            },
+          },
+        },
+      },
+    },
+  ], { LINEAR_TEAM_ID: "ENG", LINEAR_ISSUE_CREATE_ASSIGN_SELF: "never" })
+  try {
+    const result = await new Deno.Command(Deno.execPath(), {
+      args: [
+        "run",
+        ...commonDenoArgs,
+        "src/main.ts",
+        "issue",
+        "create",
+        "--json",
+        "--title",
+        "Empty description",
+        "--description",
+        "",
+      ],
+      stdin: "null",
+      stdout: "piped",
+      stderr: "piped",
+    }).output()
+    assertEquals(result.code, 0, new TextDecoder().decode(result.stdout))
+    const writes = server.graphqlRequests.filter((request) =>
+      request.query.includes("mutation CreateIssue")
+    )
+    assertEquals(writes.length, 1)
+    assertEquals(
+      (writes[0].variables.input as Record<string, unknown>).description,
+      "",
+    )
+  } finally {
+    await cleanup()
+  }
+})
+
+for (
+  const args of [
+    ["--assignee", ""],
+    ["--assignee", " \n"],
+    ...[
+      "due-date",
+      "parent",
+      "team",
+      "project",
+      "state",
+      "milestone",
+      "cycle",
+      "title",
+      "label",
+      "description-file",
+    ].map((flag) => [`--${flag}`, ""]),
+    ["--description", "", "--description-file", "body.md"],
+  ]
+) {
+  Deno.test(`interactive create rejects explicit blank options ${JSON.stringify(args)} before prompts or defaults`, async () => {
     const { server, cleanup } = await setupMockLinearServer([], {
       LINEAR_TEAM_ID: "ENG",
       LINEAR_ISSUE_CREATE_ASSIGN_SELF: "always",
@@ -32,9 +159,9 @@ for (const assignee of ["", " \n"]) {
     })
     try {
       await assertRejects(
-        () => createCommand.parse(["--assignee", assignee]),
+        () => createCommand.parse(args),
         ValidationError,
-        "User reference cannot be empty",
+        args.includes("--description") ? "both" : "empty",
       )
       assertEquals(prompt.calls.length, 0)
       assertEquals(server.graphqlRequests, [])

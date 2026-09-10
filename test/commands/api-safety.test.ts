@@ -88,6 +88,19 @@ function assertLocalFailure(
 }
 
 for (const mutation of [false, true]) {
+  Deno.test(`API rejects empty operation selection before transport: mutation=${mutation}`, async () => {
+    const result = await runApi(
+      mutation ? write : read,
+      [...(mutation ? ["--unprotected"] : []), "--operation-name", ""],
+    )
+    assertEquals(result.code, 1)
+    assertEquals(result.requests, [])
+    assertStringIncludes(
+      assertLocalFailure(result),
+      "must identify exactly one operation",
+    )
+  })
+
   Deno.test(`API rejects explicitly empty JSON variables before transport: mutation=${mutation}`, async () => {
     const result = await runApi(
       mutation ? write : read,
@@ -182,6 +195,13 @@ for (
       flags: ["--paginate", "--variable", "after=already-read"],
       message: "starts at the first page",
     },
+    ...["last: 1", 'first: 1, before: "tail"'].map((arguments_) => ({
+      name: `backward pagination ${arguments_}`,
+      query:
+        `query Read($after: String) { issues(${arguments_}, after: $after) { nodes { id } pageInfo { hasNextPage hasPreviousPage endCursor } } }`,
+      flags: ["--paginate"],
+      message: "forward pagination only",
+    })),
   ]
 ) {
   Deno.test(`API safety rejects ${test.name} before the first request`, async () => {

@@ -1,7 +1,8 @@
 import { snapshotTest } from "@cliffy/testing"
-import { assertEquals, assertStringIncludes } from "@std/assert"
+import { assertEquals, assertRejects, assertStringIncludes } from "@std/assert"
 import { stub } from "@std/testing/mock"
 import { commentUpdateCommand } from "../../../src/commands/issue/issue-comment-update.ts"
+import { Input } from "../../../src/utils/prompt.ts"
 import type { MockGraphQLRequest } from "../../utils/mock_linear_server.ts"
 
 const originalComment = {
@@ -18,8 +19,69 @@ import {
   setupMockLinearServer,
 } from "../../utils/test-helpers.ts"
 
+for (const field of ["body", ""]) {
+  Deno.test(`interactive comment dependency preserves basis capture: ${JSON.stringify(field)}`, async () => {
+    const { server, cleanup } = await setupMockLinearServer([originalComment, {
+      queryName: "UpdateComment",
+      response: {
+        data: {
+          commentUpdate: {
+            success: true,
+            comment: {
+              id: "comment-123",
+              body: "New body",
+              url: "https://linear.app/test",
+            },
+          },
+        },
+      },
+    }])
+    const terminal = stub(
+      Object.getPrototypeOf(Deno.stdin),
+      "isTerminal",
+      () => true,
+    )
+    const prompt = stub(Input, "prompt", () => Promise.resolve("New body"))
+    const output = stub(console, "log")
+    const errors = stub(console, "error")
+    const exit = stub(Deno, "exit", () => {
+      throw new Error("EXIT")
+    })
+    try {
+      const run = () =>
+        commentUpdateCommand.parse(["comment-123", "--expect-field", field])
+      if (field === "") {
+        await assertRejects(run, Error, "EXIT")
+        assertEquals(prompt.calls.length, 0)
+        assertEquals(server.graphqlRequests, [])
+      } else {
+        await run()
+        assertEquals(prompt.calls.length, 1)
+        assertEquals(server.graphqlRequests.length, 3)
+        assertEquals(server.graphqlRequests[2].variables, {
+          id: "comment-123",
+          input: { body: "New body" },
+        })
+      }
+    } finally {
+      exit.restore()
+      errors.restore()
+      output.restore()
+      prompt.restore()
+      terminal.restore()
+      await cleanup()
+    }
+  })
+}
+
 for (
-  const args of [["--body-file", ""], ["--body", "new", "--body-file", ""]]
+  const args of [
+    ["--body-file", ""],
+    ["--body", "new", "--body-file", ""],
+    ["--body", "", "--body-file", "body.md"],
+    ["--body", "new", "--base-file", ""],
+    ["--body", "new", "--expect-field", ""],
+  ]
 ) {
   Deno.test(`explicit empty input: comment ${JSON.stringify(args)}`, async () => {
     const { server, cleanup } = await setupMockLinearServer([])
@@ -46,7 +108,13 @@ for (
       assertEquals(body.effect, "none")
       assertStringIncludes(
         body.error.message,
-        args.includes("--body") ? "both" : "path cannot be empty",
+        args.includes("--expect-field")
+          ? "--expect-field"
+          : args.includes("--base-file")
+          ? "file cannot be empty"
+          : args.includes("--body")
+          ? "both"
+          : "path cannot be empty",
       )
       assertEquals(server.graphqlRequests, [])
     } finally {

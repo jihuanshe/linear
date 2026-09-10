@@ -75,7 +75,7 @@ export const updateCommand = withUsageMetadata(new Command(), { writes: true })
   .option(
     "--expect-field <field:string>",
     "Also require this API field to match the original basis",
-    { collect: true },
+    { collect: true, preserveEmpty: true },
   )
   .action(
     async (

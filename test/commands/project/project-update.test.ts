@@ -8,6 +8,86 @@ import {
   MockLinearServer,
 } from "../../utils/mock_linear_server.ts"
 
+for (
+  const fields of [["name", "status"], ["lead", "team", "label"], [
+    "start-date",
+    "target-date",
+    "expect-field",
+  ]]
+) {
+  Deno.test(`project update rejects empty ${fields.join("/")} alongside valid description`, async () => {
+    const server = new MockLinearServer()
+    await server.start()
+    try {
+      for (const field of fields) {
+        const result = await new Deno.Command(Deno.execPath(), {
+          args: [
+            "run",
+            "--allow-all",
+            "--quiet",
+            "src/main.ts",
+            "project",
+            "update",
+            "550e8400-e29b-41d4-a716-446655440000",
+            "--unprotected",
+            "--description",
+            "Valid",
+            `--${field}`,
+            "",
+            "--json",
+          ],
+          env: {
+            LINEAR_API_KEY: "test-token",
+            LINEAR_GRAPHQL_ENDPOINT: server.getEndpoint(),
+          },
+        }).output()
+        assertEquals(result.code, 1, new TextDecoder().decode(result.stdout))
+        assertEquals(server.graphqlRequests, [])
+      }
+    } finally {
+      await server.stop()
+    }
+  })
+}
+
+Deno.test("project update empty inline description conflicts with file before requests", async () => {
+  const server = new MockLinearServer()
+  await server.start()
+  try {
+    const result = await new Deno.Command(Deno.execPath(), {
+      args: [
+        "run",
+        "--allow-all",
+        "--quiet",
+        "src/main.ts",
+        "project",
+        "update",
+        "550e8400-e29b-41d4-a716-446655440000",
+        "--unprotected",
+        "--description",
+        "",
+        "--description-file",
+        "does-not-exist.md",
+        "--json",
+      ],
+      env: {
+        LINEAR_API_KEY: "test-token",
+        LINEAR_GRAPHQL_ENDPOINT: server.getEndpoint(),
+      },
+    }).output()
+    assertEquals(result.code, 1)
+    assertEquals(
+      new TextDecoder().decode(result.stdout).includes(
+        "Cannot use --description and --description-file together",
+      ),
+      true,
+    )
+    assertEquals(server.graphqlRequests, [])
+  } finally {
+    await server.stop()
+  }
+})
+
 const originalProject = {
   queryName: "ReadProject",
   response: ({ variables }: MockGraphQLRequest) => ({

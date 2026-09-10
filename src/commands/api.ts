@@ -58,6 +58,7 @@ export const apiCommand = withUsageMetadata(new Command(), {
   .option(
     "--operation-name <name:string>",
     "Select the GraphQL operation (required when the document contains multiple operations)",
+    { preserveEmpty: true },
   )
   .option(
     "--unprotected",
@@ -228,6 +229,15 @@ function paginationPath(
             argument.value.name.value === "after"
           )
         ) {
+          if (
+            selection.arguments?.some((argument) =>
+              argument.name.value === "last" || argument.name.value === "before"
+            )
+          ) {
+            throw new AppValidationError(
+              "--paginate supports forward pagination only; remove last and before arguments",
+            )
+          }
           paths.set(JSON.stringify(next), next)
         }
         if (selection.selectionSet) walk(selection.selectionSet, next, active)

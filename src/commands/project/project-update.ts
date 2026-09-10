@@ -81,7 +81,7 @@ export const updateCommand = withUsageMetadata(new Command(), { writes: true })
   .name("update")
   .description("Update a Linear project")
   .arguments("<projectId:string>")
-  .option("-n, --name <name:string>", "Project name")
+  .option("-n, --name <name:string>", "Project name", { preserveEmpty: true })
   .option(
     "-d, --description <description:string>",
     `Project description (max ${PROJECT_DESCRIPTION_MAX_LENGTH} characters, enforced by Linear's API; empty string clears it)`,
@@ -95,17 +95,23 @@ export const updateCommand = withUsageMetadata(new Command(), { writes: true })
   .option(
     "-s, --status <status:string>",
     "Status UUID or type (planned, started, paused, completed, canceled, backlog)",
+    { preserveEmpty: true },
   )
   .option(
     "-l, --lead <lead:string>",
     "Project lead (user UUID, username, name, email, 'self', or '@me')",
+    { preserveEmpty: true },
   )
-  .option("--start-date <startDate:string>", "Start date (YYYY-MM-DD)")
-  .option("--target-date <targetDate:string>", "Target date (YYYY-MM-DD)")
+  .option("--start-date <startDate:string>", "Start date (YYYY-MM-DD)", {
+    preserveEmpty: true,
+  })
+  .option("--target-date <targetDate:string>", "Target date (YYYY-MM-DD)", {
+    preserveEmpty: true,
+  })
   .option(
     "-t, --team <team:string>",
     "Replace project teams with these keys (can be repeated)",
-    { collect: true },
+    { collect: true, preserveEmpty: true },
   )
   .option("-j, --json", "Output the write result as JSON")
   .option(
@@ -120,12 +126,12 @@ export const updateCommand = withUsageMetadata(new Command(), { writes: true })
   .option(
     "--expect-field <field:string>",
     "Also require this API field to match the original basis",
-    { collect: true },
+    { collect: true, preserveEmpty: true },
   )
   .option(
     "--label <label:string>",
     "Replace the project's labels. May be repeated to set multiple labels.",
-    { collect: true },
+    { collect: true, preserveEmpty: true },
   )
   .action(
     async (
@@ -151,9 +157,26 @@ export const updateCommand = withUsageMetadata(new Command(), { writes: true })
       const spinner = showSpinner ? new Spinner() : null
 
       try {
+        for (
+          const [field, value] of Object.entries({
+            name,
+            status,
+            lead,
+            "start-date": startDate,
+            "target-date": targetDate,
+          })
+        ) {
+          if (value != null && value.trim() === "") {
+            throw new ValidationError(`--${field} cannot be empty`)
+          }
+        }
+        if (teams?.some((team) => team.trim() === "")) {
+          throw new ValidationError("--team cannot be empty")
+        }
         if (
-          !name && description == null && descriptionFile == null && !status &&
-          !lead && !startDate && !targetDate &&
+          name == null && description == null && descriptionFile == null &&
+          status == null &&
+          lead == null && startDate == null && targetDate == null &&
           (!teams || teams.length === 0) &&
           (!labels || labels.length === 0)
         ) {
@@ -184,11 +207,11 @@ export const updateCommand = withUsageMetadata(new Command(), { writes: true })
           ? await loadBasisFile(baseFile)
           : undefined
 
-        if (startDate && !/^\d{4}-\d{2}-\d{2}$/.test(startDate)) {
+        if (startDate != null && !/^\d{4}-\d{2}-\d{2}$/.test(startDate)) {
           throw new ValidationError("Start date must be in YYYY-MM-DD format")
         }
 
-        if (targetDate && !/^\d{4}-\d{2}-\d{2}$/.test(targetDate)) {
+        if (targetDate != null && !/^\d{4}-\d{2}-\d{2}$/.test(targetDate)) {
           throw new ValidationError("Target date must be in YYYY-MM-DD format")
         }
 
@@ -204,14 +227,14 @@ export const updateCommand = withUsageMetadata(new Command(), { writes: true })
 
         const input: ProjectUpdateInput = {}
 
-        if (name) input.name = name
+        if (name != null) input.name = name
         if (resolvedDescription != null) input.description = resolvedDescription
-        if (startDate) input.startDate = startDate
-        if (targetDate) input.targetDate = targetDate
+        if (startDate != null) input.startDate = startDate
+        if (targetDate != null) input.targetDate = targetDate
 
-        if (status && isLinearUuid(status)) {
+        if (status != null && isLinearUuid(status)) {
           input.statusId = status.toLowerCase()
-        } else if (status) {
+        } else if (status != null) {
           const statusLower = status.toLowerCase()
           const apiStatusType = STATUS_TYPE_MAPPING[statusLower]
           if (!apiStatusType) {
@@ -251,7 +274,7 @@ export const updateCommand = withUsageMetadata(new Command(), { writes: true })
           input.statusId = matchingStatus.id
         }
 
-        if (lead) {
+        if (lead != null) {
           const leadId = await lookupUserId(lead)
           if (!leadId) {
             spinner?.stop()

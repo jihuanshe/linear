@@ -268,6 +268,9 @@ export function validateReplacementOptions(options: {
   unprotected?: boolean
   expectFields?: string[]
 }): void {
+  if (options.expectFields?.some((field) => !field.trim())) {
+    throw new ValidationError("--expect-field cannot be empty")
+  }
   if (options.unprotected && options.original != null) {
     throw new ValidationError(
       "Use either --base-file or --unprotected, not both",

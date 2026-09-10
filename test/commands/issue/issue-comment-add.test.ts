@@ -1,11 +1,64 @@
 import { snapshotTest } from "@cliffy/testing"
-import { assertEquals } from "@std/assert"
+import { assertEquals, assertStringIncludes } from "@std/assert"
 import { stub } from "@std/testing/mock"
 import { commentAddCommand } from "../../../src/commands/issue/issue-comment-add.ts"
 import {
   commonDenoArgs,
   setupMockLinearServer,
 } from "../../utils/test-helpers.ts"
+
+for (
+  const args of [
+    ["--body", ""],
+    ["--body", " \n"],
+    ["--body-file", ""],
+    ["--body", "", "--body-file", "body.md"],
+    ["--body", "valid", "--parent", ""],
+    ["--body", "valid", "--attach", ""],
+    ["--body", "valid", "--attach", "valid.png", "--attach", ""],
+  ]
+) {
+  for (const json of [true, false]) {
+    Deno.test(`comment add CLI rejects explicit empty options json=${json} ${JSON.stringify(args)}`, async () => {
+      const { server, cleanup } = await setupMockLinearServer([])
+      try {
+        const result = await new Deno.Command(Deno.execPath(), {
+          args: [
+            "run",
+            ...commonDenoArgs,
+            "src/main.ts",
+            "issue",
+            "comment",
+            "add",
+            "ENG-123",
+            ...(json ? ["--json"] : []),
+            ...args,
+          ],
+          stdin: "null",
+          stdout: "piped",
+          stderr: "piped",
+        }).output()
+        assertEquals(result.code, 1)
+        const message = json
+          ? JSON.parse(new TextDecoder().decode(result.stdout)).error.message
+          : new TextDecoder().decode(result.stderr)
+        if (json) {
+          assertEquals(
+            JSON.parse(new TextDecoder().decode(result.stdout)).effect,
+            "none",
+          )
+        }
+        assertStringIncludes(
+          message,
+          args.includes("body.md") ? "both" : "empty",
+        )
+        assertEquals(server.graphqlRequests, [])
+      } finally {
+        await cleanup()
+      }
+    })
+  }
+}
 
 // Test adding a comment with body flag
 await snapshotTest({

@@ -6,7 +6,11 @@ import {
   resolveProjectContent,
 } from "../../../src/commands/project/project-create.ts"
 import { ValidationError } from "../../../src/utils/errors.ts"
-import { commonDenoArgs } from "../../utils/test-helpers.ts"
+import { Input, Select } from "../../../src/utils/prompt.ts"
+import {
+  commonDenoArgs,
+  setupMockLinearServer,
+} from "../../utils/test-helpers.ts"
 import { MockLinearServer } from "../../utils/mock_linear_server.ts"
 
 const descriptionFilePath = await Deno.makeTempFile({ suffix: ".md" })
@@ -15,7 +19,262 @@ await Deno.writeTextFile(
   "Short description loaded from a file.",
 )
 
+for (
+  const fields of [
+    ["name", "status", "priority"],
+    ["lead", "team", "label", "member"],
+    ["start-date", "target-date"],
+    ["description-file", "content-file"],
+  ]
+) {
+  Deno.test(`project create rejects explicit empty ${fields.join("/")} before requests`, async () => {
+    const server = new MockLinearServer()
+    await server.start()
+    try {
+      for (const field of fields) {
+        const result = await new Deno.Command(Deno.execPath(), {
+          args: [
+            "run",
+            "--allow-all",
+            "--quiet",
+            "src/main.ts",
+            "project",
+            "create",
+            ...(field === "name" ? [] : ["--name", "Example"]),
+            ...(field === "team" ? [] : ["--team", "ENG"]),
+            `--${field}`,
+            "",
+            "--json",
+          ],
+          env: {
+            LINEAR_API_KEY: "test-token",
+            LINEAR_GRAPHQL_ENDPOINT: server.getEndpoint(),
+          },
+        }).output()
+        assertEquals(result.code, 1, new TextDecoder().decode(result.stdout))
+        assertEquals(server.graphqlRequests, [])
+      }
+    } finally {
+      await server.stop()
+    }
+  })
+}
+
+for (const field of ["description", "content"]) {
+  Deno.test(`project create empty ${field} still conflicts with file`, async () => {
+    const server = new MockLinearServer()
+    await server.start()
+    try {
+      const result = await new Deno.Command(Deno.execPath(), {
+        args: [
+          "run",
+          "--allow-all",
+          "--quiet",
+          "src/main.ts",
+          "project",
+          "create",
+          "--name",
+          "Example",
+          "--team",
+          "ENG",
+          `--${field}`,
+          "",
+          `--${field}-file`,
+          descriptionFilePath,
+          "--json",
+        ],
+        env: {
+          LINEAR_API_KEY: "test-token",
+          LINEAR_GRAPHQL_ENDPOINT: server.getEndpoint(),
+        },
+      }).output()
+      assertEquals(result.code, 1)
+      assertEquals(
+        new TextDecoder().decode(result.stdout).includes(`--${field}`),
+        true,
+      )
+      assertEquals(server.graphqlRequests, [])
+    } finally {
+      await server.stop()
+    }
+  })
+}
+
+Deno.test("project create preserves empty inline bodies in mutation", async () => {
+  const server = new MockLinearServer([
+    {
+      queryName: "GetTeamIdByKey",
+      response: { data: { teams: { nodes: [{ id: "team-eng" }] } } },
+    },
+    {
+      queryName: "CreateProject",
+      response: {
+        data: {
+          projectCreate: {
+            success: true,
+            project: {
+              id: "550e8400-e29b-41d4-a716-446655440000",
+              name: "Example",
+            },
+          },
+        },
+      },
+    },
+  ])
+  await server.start()
+  try {
+    const result = await new Deno.Command(Deno.execPath(), {
+      args: [
+        "run",
+        "--allow-all",
+        "--quiet",
+        "src/main.ts",
+        "project",
+        "create",
+        "--name",
+        "Example",
+        "--team",
+        "ENG",
+        "--description",
+        "",
+        "--content",
+        "",
+        "--json",
+      ],
+      env: {
+        LINEAR_API_KEY: "test-token",
+        LINEAR_GRAPHQL_ENDPOINT: server.getEndpoint(),
+      },
+    }).output()
+    assertEquals(result.code, 0, new TextDecoder().decode(result.stdout))
+    assertEquals(server.graphqlRequests.at(-1)?.variables.input, {
+      name: "Example",
+      teamIds: ["team-eng"],
+      description: "",
+      content: "",
+    })
+  } finally {
+    await server.stop()
+  }
+})
+
+Deno.test("project create rejects explicit empty inputs before interactive prompts", async () => {
+  const { server, cleanup } = await setupMockLinearServer([])
+  const stdin = stub(
+    Object.getPrototypeOf(Deno.stdin),
+    "isTerminal",
+    () => true,
+  )
+  const terminal = stub(
+    Object.getPrototypeOf(Deno.stdout),
+    "isTerminal",
+    () => true,
+  )
+  const input = stub(Input, "prompt", () => Promise.resolve("unexpected"))
+  const select = stub(Select, "prompt", () => Promise.resolve("unexpected"))
+  const errors = stub(console, "error", () => {})
+  const exit = stub(Deno, "exit", () => {
+    throw new Error("EXIT")
+  })
+  try {
+    for (
+      const args of [["--name", ""], ["--team", ""], ["--status", ""], [
+        "--description",
+        "",
+        "--description-file",
+        descriptionFilePath,
+      ]]
+    ) {
+      await assertRejects(
+        () => createCommand.parse(["--interactive", ...args]),
+        Error,
+        "EXIT",
+      )
+    }
+    assertEquals(input.calls.length, 0)
+    assertEquals(select.calls.length, 0)
+    assertEquals(server.graphqlRequests, [])
+  } finally {
+    exit.restore()
+    errors.restore()
+    select.restore()
+    input.restore()
+    terminal.restore()
+    stdin.restore()
+    await cleanup()
+  }
+})
+
+for (const json of [false, true]) {
+  Deno.test(`project create refuses explicit interaction without a terminal: json=${json}`, async () => {
+    const server = new MockLinearServer([])
+    try {
+      await server.start()
+      const result = await new Deno.Command(Deno.execPath(), {
+        args: [
+          "run",
+          ...commonDenoArgs,
+          "src/main.ts",
+          "project",
+          "create",
+          "--name",
+          "Example",
+          "--team",
+          "ENG",
+          "--interactive",
+          ...(json ? ["--json"] : []),
+        ],
+        env: {
+          LINEAR_API_KEY: "test-token",
+          LINEAR_GRAPHQL_ENDPOINT: server.getEndpoint(),
+        },
+        stdin: "null",
+        stdout: "piped",
+        stderr: "piped",
+      }).output()
+      assertEquals(result.code, 1)
+      assertEquals(server.graphqlRequests, [])
+      if (json) {
+        assertEquals(
+          JSON.parse(new TextDecoder().decode(result.stdout)).effect,
+          "none",
+        )
+      }
+    } finally {
+      await server.stop()
+    }
+  })
+}
+
 // Test help output
+for (const stdinTerminal of [false, true]) {
+  Deno.test(`project JSON never implicitly prompts on terminal stdout: stdin=${stdinTerminal}`, async () => {
+    const code = `
+      import { cli } from "./src/cli.ts";
+      import { Input } from "./src/utils/prompt.ts";
+      Deno.stdout.isTerminal = () => true;
+      Deno.stdin.isTerminal = () => ${stdinTerminal};
+      Input.prompt = () => { throw new Error("unexpected prompt"); };
+      globalThis.fetch = () => { throw new Error("unexpected transport"); };
+      await cli.parse(["project", "create", "--json"]);
+    `
+    const result = await new Deno.Command(Deno.execPath(), {
+      args: ["eval", "--quiet", code],
+      env: { LINEAR_API_KEY: "test-token" },
+      stdin: "null",
+      stdout: "piped",
+      stderr: "piped",
+    }).output()
+    assertEquals(result.code, 1)
+    const output = JSON.parse(new TextDecoder().decode(result.stdout))
+    assertEquals(output.effect, "none")
+    assertEquals(
+      output.error.message.includes("Project name is required"),
+      true,
+    )
+  })
+}
+
 await cliffySnapshotTest({
   name: "Project Create Command - Help Text",
   meta: import.meta,

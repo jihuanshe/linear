@@ -146,6 +146,40 @@ async function cli(server: MockLinearServer, args: string[]) {
 }
 
 for (const example of cases) {
+  Deno.test(`${example.name} rejects empty dependency fields with a saved basis before transport`, async () => {
+    const server = new MockLinearServer([])
+    const path = await Deno.makeTempFile({ suffix: ".json" })
+    try {
+      await Deno.writeTextFile(
+        path,
+        JSON.stringify({
+          organization,
+          [example.key]: example.original,
+        }),
+      )
+      await server.start()
+      for (const field of ["", " \n"]) {
+        const result = await cli(server, [
+          ...example.command,
+          "update",
+          id,
+          ...example.flags,
+          "--base-file",
+          path,
+          "--expect-field",
+          field,
+        ])
+        assertEquals(result.code, 1)
+        assertEquals(result.json().effect, "none")
+        assertStringIncludes(result.json().error.message, "cannot be empty")
+        assertEquals(server.graphqlRequests, [])
+      }
+    } finally {
+      await server.stop()
+      await Deno.remove(path)
+    }
+  })
+
   Deno.test(`${example.name} production update consumes view basis, rejects drift, and only writes changed fields`, async () => {
     let remote = structuredClone(example.original)
     const server = new MockLinearServer([

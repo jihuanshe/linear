@@ -2,6 +2,7 @@ import type { IssueCreateInput } from "../../__codegen__/graphql.ts"
 import {
   issueReplacementFields,
   type UpdateIssueOptions,
+  validateIssueWriteStrings,
 } from "./issue-update.ts"
 import type { FieldReader } from "../../utils/replacement.ts"
 import { resolveWriteTeam } from "../../utils/issue-read.ts"
@@ -613,6 +614,7 @@ export type CreateIssueOptions =
   & { useDefaultTemplate?: boolean; interactive?: boolean }
 
 export async function prepareIssueCreate(options: CreateIssueOptions) {
+  validateIssueWriteStrings(options)
   let {
     assignee,
     dueDate,
@@ -805,58 +807,71 @@ export const createCommand = withUsageMetadata(new Command(), {
   .option(
     "--due-date <dueDate:string>",
     "Due date of the issue",
+    { preserveEmpty: true },
   )
   .option(
     "--parent <parent:string>",
     "Parent issue (if any) as a team_number code",
+    { preserveEmpty: true },
   )
   .option(
     "-p, --priority <priority:number>",
     "Priority of the issue (1-4, descending priority)",
+    { preserveEmpty: true },
   )
   .option(
     "--estimate <estimate:number>",
     "Points estimate of the issue",
+    { preserveEmpty: true },
   )
   .option(
     "-d, --description <description:string>",
     "Description of the issue",
+    { preserveEmpty: true },
   )
   .option(
     "--description-file <path:string>",
     "Read description from a file (preferred for markdown content)",
+    { preserveEmpty: true },
   )
   .option(
     "-l, --label <label:string>",
     "Issue label associated with the issue. May be repeated.",
-    { collect: true },
+    { collect: true, preserveEmpty: true },
   )
   .option(
     "--team <team:string>",
     "Team associated with the issue (if not your default team)",
+    { preserveEmpty: true },
   )
   .option(
     "--project <project:string>",
     "Project for the issue (UUID, slug ID, or name)",
+    { preserveEmpty: true },
   )
   .option(
     "-s, --state <state:string>",
     "Workflow state for the issue (by name or type)",
+    { preserveEmpty: true },
   )
   .option(
     "--milestone <milestone:string>",
     "Project milestone (UUID, or name when --project is set)",
+    { preserveEmpty: true },
   )
   .option(
     "--cycle <cycle:string>",
     "Cycle name, number, 'active'/'now', 'next', 'previous', or a relative offset like +1 (use --cycle=-1 for negatives)",
+    { preserveEmpty: true },
   )
   .option(
     "--no-use-default-template",
     "Do not use default template for the issue",
   )
   .option("--no-interactive", "Disable interactive prompts")
-  .option("-t, --title <title:string>", "Title of the issue")
+  .option("-t, --title <title:string>", "Title of the issue", {
+    preserveEmpty: true,
+  })
   .option(
     "-j, --json",
     "Output a JSON write result; the created issue is in data.issue (non-interactive only)",
@@ -883,9 +898,18 @@ export const createCommand = withUsageMetadata(new Command(), {
         json,
       },
     ) => {
-      if (assignee != null && !assignee.trim()) {
-        throw new ValidationError("User reference cannot be empty")
-      }
+      validateIssueWriteStrings({
+        assignee,
+        dueDate,
+        parent: parentIdentifier,
+        label: labels,
+        team,
+        project,
+        state,
+        milestone,
+        cycle,
+        title,
+      })
       interactive = interactive && Deno.stdout.isTerminal() && json !== true
 
       // Validate that description and descriptionFile are not both provided
@@ -897,7 +921,10 @@ export const createCommand = withUsageMetadata(new Command(), {
 
       // Read description from file if provided
       let finalDescription = description
-      if (descriptionFile) {
+      if (descriptionFile === "") {
+        throw new ValidationError("Description file path cannot be empty")
+      }
+      if (descriptionFile != null) {
         try {
           finalDescription = await Deno.readTextFile(descriptionFile)
         } catch (error) {
@@ -915,7 +942,9 @@ export const createCommand = withUsageMetadata(new Command(), {
       // If no creation flags are provided beyond project/parent, use interactive mode.
       const onlyInteractiveSeedFlagsProvided = !title && !assignee &&
         !dueDate &&
-        priority === undefined && estimate === undefined && !finalDescription &&
+        priority === undefined && estimate === undefined &&
+        description == null &&
+        descriptionFile == null &&
         (!labels || labels.length === 0) &&
         !team && !state && !milestone && !cycle
 

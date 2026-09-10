@@ -126,6 +126,52 @@ function requestWasMutation(error: ClientError): boolean {
   }
 }
 
+/** Only an unambiguous, directly selected mutation acknowledgement is proof. */
+function mutationWasAcknowledged(error: ClientError): boolean {
+  try {
+    const query = error.request.query
+    if (Array.isArray(query)) return false
+    const document = typeof query === "string" ? parse(query) : query
+    if (document.definitions.length !== 1) return false
+    const operation = document.definitions[0]
+    if (
+      operation.kind !== Kind.OPERATION_DEFINITION ||
+      operation.operation !== "mutation" ||
+      operation.selectionSet.selections.length !== 1
+    ) return false
+    const field = operation.selectionSet.selections[0]
+    if (
+      field.kind !== Kind.FIELD || field.alias != null ||
+      (field.directives?.length ?? 0) !== 0
+    ) return false
+    const selections = field.selectionSet?.selections
+    if (
+      selections == null ||
+      selections.some((selection) => selection.kind !== Kind.FIELD)
+    ) return false
+    const success = selections.filter((selection) =>
+      selection.kind === Kind.FIELD &&
+      (selection.alias?.value ?? selection.name.value) === "success"
+    )
+    if (
+      success.length !== 1 || success[0].kind !== Kind.FIELD ||
+      success[0].name.value !== "success" || success[0].alias != null ||
+      (success[0].directives?.length ?? 0) !== 0
+    ) return false
+    const data: unknown = error.response.data
+    if (
+      data == null || typeof data !== "object" || Array.isArray(data) ||
+      !Object.hasOwn(data, field.name.value)
+    ) return false
+    const payload = (data as Record<string, unknown>)[field.name.value]
+    return payload != null && typeof payload === "object" &&
+      !Array.isArray(payload) && Object.hasOwn(payload, "success") &&
+      (payload as { success: unknown }).success === true
+  } catch {
+    return false
+  }
+}
+
 export function errorResult(error: unknown, context?: string) {
   const message = error instanceof CliError
     ? error.userMessage
@@ -137,7 +183,7 @@ export function errorResult(error: unknown, context?: string) {
   const effect: WriteEffect = error instanceof WriteError
     ? error.effect
     : isClientError(error) && requestWasMutation(error)
-    ? "unknown"
+    ? mutationWasAcknowledged(error) ? "applied" : "unknown"
     : "none"
   return {
     ok: false as const,

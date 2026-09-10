@@ -10,6 +10,116 @@ import { stripIgnoredCharacters } from "graphql"
 import { updateCommand } from "../../../src/commands/issue/issue-update.ts"
 import { commonDenoArgs } from "../../utils/test-helpers.ts"
 
+for (
+  const args of [
+    ...[
+      "assignee",
+      "due-date",
+      "parent",
+      "team",
+      "project",
+      "state",
+      "milestone",
+      "cycle",
+      "title",
+      "label",
+      "add-label",
+      "remove-label",
+      "description-file",
+      "base-file",
+      "expect-field",
+    ].map((flag) => [`--${flag}`, ""]),
+    ["--add-label", "valid", "--add-label", ""],
+    ["--description", "", "--description-file", "body.md"],
+  ]
+) {
+  Deno.test(`update CLI rejects explicit empty options ${JSON.stringify(args)}`, async () => {
+    const { server, cleanup } = await setupMockLinearServer([])
+    try {
+      const result = await new Deno.Command(Deno.execPath(), {
+        args: [
+          "run",
+          ...commonDenoArgs,
+          "src/main.ts",
+          "issue",
+          "update",
+          "ENG-123",
+          "--json",
+          "--unprotected",
+          "--priority",
+          "2",
+          ...args,
+        ],
+        stdin: "null",
+        stdout: "piped",
+        stderr: "piped",
+      }).output()
+      const body = JSON.parse(new TextDecoder().decode(result.stdout))
+      assertEquals(result.code, 1)
+      assertEquals(body.effect, "none")
+      assertStringIncludes(
+        body.error.message,
+        args.includes("--description")
+          ? "both"
+          : args.includes("--expect-field")
+          ? "--expect-field"
+          : "empty",
+      )
+      assertEquals(server.graphqlRequests, [])
+    } finally {
+      await cleanup()
+    }
+  })
+}
+
+Deno.test("update CLI preserves a legal explicit empty description", async () => {
+  const { server, cleanup } = await setupMockLinearServer([
+    {
+      queryName: "UpdateIssue",
+      response: {
+        data: {
+          issueUpdate: {
+            success: true,
+            issue: {
+              id: issueWriteId,
+              identifier: "ENG-123",
+              title: "Existing issue",
+              url: "https://linear.app/test/issue/ENG-123",
+            },
+          },
+        },
+      },
+    },
+  ])
+  try {
+    const result = await new Deno.Command(Deno.execPath(), {
+      args: [
+        "run",
+        ...commonDenoArgs,
+        "src/main.ts",
+        "issue",
+        "update",
+        "ENG-123",
+        "--json",
+        "--unprotected",
+        "--description",
+        "",
+      ],
+      stdin: "null",
+      stdout: "piped",
+      stderr: "piped",
+    }).output()
+    assertEquals(result.code, 0, new TextDecoder().decode(result.stdout))
+    const writes = server.graphqlRequests.filter((request) =>
+      request.query.includes("mutation UpdateIssue")
+    )
+    assertEquals(writes.length, 1)
+    assertEquals(writes[0].variables.input, { description: "" })
+  } finally {
+    await cleanup()
+  }
+})
+
 for (const outcome of ["found", "missing", "error"] as const) {
   Deno.test(`Issue Update Command - UUID assignee ${outcome} never falls back to a name`, async () => {
     const userId = "abcdef01-2345-4678-9abc-def012345678"

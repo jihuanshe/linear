@@ -56,7 +56,9 @@ export const updateCommand = withUsageMetadata(new Command(), {
   .name("update")
   .description("Update a Linear initiative using its original read basis")
   .arguments("<initiativeId:string>")
-  .option("-n, --name <name:string>", "New name for the initiative")
+  .option("-n, --name <name:string>", "New name for the initiative", {
+    preserveEmpty: true,
+  })
   .option(
     "-d, --description <description:string>",
     "New description; empty string clears it",
@@ -65,17 +67,24 @@ export const updateCommand = withUsageMetadata(new Command(), {
   .option(
     "--status <status:string>",
     "New status (planned, active, completed, proposed, canceled; case-insensitive)",
+    { preserveEmpty: true },
   )
   .option(
     "--owner <owner:string>",
     "New owner (user UUID, username, name, email, 'self', or '@me')",
+    { preserveEmpty: true },
   )
   .option(
     "--target-date <targetDate:string>",
     "Target completion date (YYYY-MM-DD)",
+    { preserveEmpty: true },
   )
-  .option("--color <color:string>", "Initiative color (hex, e.g., #5E6AD2)")
-  .option("--icon <icon:string>", "Initiative icon name")
+  .option("--color <color:string>", "Initiative color (hex, e.g., #5E6AD2)", {
+    preserveEmpty: true,
+  })
+  .option("--icon <icon:string>", "Initiative icon name", {
+    preserveEmpty: true,
+  })
   .option("-i, --interactive", "Interactive mode for updates")
   .option("-j, --json", "Output the write result as JSON; never prompt")
   .option(
@@ -90,10 +99,22 @@ export const updateCommand = withUsageMetadata(new Command(), {
   .option(
     "--expect-field <field:string>",
     "Also require this API field to match the original basis",
-    { collect: true },
+    { collect: true, preserveEmpty: true },
   )
   .action(async (options, initiativeId) => {
     try {
+      for (
+        const [field, value] of Object.entries({
+          name: options.name,
+          status: options.status,
+          owner: options.owner,
+          "target-date": options.targetDate,
+        })
+      ) {
+        if (value != null && value.trim() === "") {
+          throw new ValidationError(`--${field} cannot be empty`)
+        }
+      }
       if (options.interactive && options.json) {
         throw new ValidationError(
           "JSON mode cannot prompt; provide update fields explicitly",
@@ -131,6 +152,21 @@ export const updateCommand = withUsageMetadata(new Command(), {
         !interactive && Object.keys(input).length === 0 &&
         options.owner === undefined
       ) {
+        if (
+          options.baseFile != null || options.unprotected ||
+          options.expectField != null
+        ) {
+          validateReplacementOptions({
+            original,
+            unprotected: options.unprotected,
+            expectFields: options.expectField,
+          })
+        }
+        if (options.expectField?.length) {
+          throw new ValidationError(
+            "--expect-field requires at least one update option",
+          )
+        }
         if (options.json) printWriteResult(null, { effect: "none", fields: [] })
         else console.log("No changes specified")
         return
@@ -199,6 +235,11 @@ export const updateCommand = withUsageMetadata(new Command(), {
       }
 
       if (Object.keys(input).length === 0) {
+        if (options.expectField?.length) {
+          throw new ValidationError(
+            "--expect-field requires at least one update option",
+          )
+        }
         if (options.json) printWriteResult(null, { effect: "none", fields: [] })
         else console.log("No changes specified")
         return

@@ -643,13 +643,14 @@ for (
       assertEquals(result.summary.unattempted, 1)
       assertEquals(
         result.effect,
-        ["missing-id", "missing-identifier"].includes(mode)
+        ["graphql-errors", "missing-id", "missing-identifier"].includes(mode)
           ? "applied"
           : "unknown",
       )
       assertEquals(f.mutations().length, 1)
       const checkpoint = (await loadCheckpoint(f.path))!
       assertEquals(Object.values(checkpoint.items)[0].status, "unknown")
+      assertEquals(Object.values(checkpoint.items)[0].effect, result.effect)
       if (mode === "graphql-errors") {
         assertStringIncludes(JSON.stringify(checkpoint), "ENG-2001")
       }

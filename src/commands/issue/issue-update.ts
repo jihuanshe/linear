@@ -66,6 +66,36 @@ export interface UpdateIssueOptions {
   expectField?: string[]
   beforeWrite?: () => Promise<void>
 }
+
+export function validateIssueWriteStrings(options: UpdateIssueOptions) {
+  for (
+    const field of [
+      "assignee",
+      "dueDate",
+      "parent",
+      "team",
+      "project",
+      "state",
+      "milestone",
+      "cycle",
+      "title",
+    ] as const
+  ) {
+    if (options[field] != null && !options[field].trim()) {
+      throw new ValidationError(
+        field === "assignee"
+          ? "User reference cannot be empty"
+          : `${field} cannot be empty`,
+      )
+    }
+  }
+  for (const field of ["label", "addLabel", "removeLabel"] as const) {
+    if (options[field]?.some((value) => !value.trim())) {
+      throw new ValidationError(`${field} cannot contain an empty reference`)
+    }
+  }
+}
+
 export const issueReplacementFields = {
   title: scalarField("title"),
   description: scalarField("description"),
@@ -86,6 +116,7 @@ export async function prepareIssueUpdate(
   options: UpdateIssueOptions,
   issueIdArg?: string,
 ) {
+  validateIssueWriteStrings(options)
   const {
     assignee,
     unassign,
@@ -498,18 +529,22 @@ export const updateCommand = withUsageMetadata(new Command(), { writes: true })
   .option(
     "--due-date <dueDate:string>",
     "Due date of the issue",
+    { preserveEmpty: true },
   )
   .option(
     "--parent <parent:string>",
     "Parent issue (if any) as a team_number code",
+    { preserveEmpty: true },
   )
   .option(
     "-p, --priority <priority:number>",
     "Priority of the issue (1-4, descending priority)",
+    { preserveEmpty: true },
   )
   .option(
     "--estimate <estimate:number>",
     "Points estimate of the issue",
+    { preserveEmpty: true },
   )
   .option(
     "-d, --description <description:string>",
@@ -524,43 +559,50 @@ export const updateCommand = withUsageMetadata(new Command(), { writes: true })
   .option(
     "-l, --label <label:string>",
     "Replace all issue labels. May be repeated.",
-    { collect: true },
+    { collect: true, preserveEmpty: true },
   )
   .option(
     "--add-label <label:string>",
     "Add an issue label without replacing existing labels. May be repeated.",
-    { collect: true },
+    { collect: true, preserveEmpty: true },
   )
   .option(
     "--remove-label <label:string>",
     "Remove an issue label without replacing other labels. May be repeated.",
-    { collect: true },
+    { collect: true, preserveEmpty: true },
   )
   .option(
     "--team <team:string>",
     "Move the issue to this team (UUID or key)",
+    { preserveEmpty: true },
   )
   .option(
     "--project <project:string>",
     "Project to assign the issue to (UUID, slug ID, or name)",
+    { preserveEmpty: true },
   )
   .option(
     "-s, --state <state:string>",
     "Workflow state for the issue (by name or type)",
+    { preserveEmpty: true },
   )
   .option(
     "--milestone <milestone:string>",
     "Project milestone (UUID, or name when --project is set or the issue already has a project)",
+    { preserveEmpty: true },
   )
   .option(
     "--cycle <cycle:string>",
     "Cycle name, number, 'active'/'now', 'next', 'previous', or a relative offset like +1 (use --cycle=-1 for negatives). Use --clear-cycle to remove the issue from its cycle",
+    { preserveEmpty: true },
   )
   .option(
     "--clear-cycle",
     "Remove the issue from its cycle",
   )
-  .option("-t, --title <title:string>", "Title of the issue")
+  .option("-t, --title <title:string>", "Title of the issue", {
+    preserveEmpty: true,
+  })
   .option(
     "--base-file <path:string>",
     "Original JSON read saved before deciding this replacement",
@@ -573,7 +615,7 @@ export const updateCommand = withUsageMetadata(new Command(), { writes: true })
   .option(
     "--expect-field <field:string>",
     "Require another API field to remain equal to the original read (repeatable)",
-    { collect: true },
+    { collect: true, preserveEmpty: true },
   )
   .option(
     "-j, --json",

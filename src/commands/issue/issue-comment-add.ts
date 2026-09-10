@@ -29,16 +29,21 @@ export const commentAddCommand = withUsageMetadata(new Command(), {
     ),
   )
   .arguments("[issueId:string]")
-  .option("-b, --body <text:string>", "Comment body text")
+  .option("-b, --body <text:string>", "Comment body text", {
+    preserveEmpty: true,
+  })
   .option(
     "--body-file <path:string>",
     "Read comment body from a file (preferred for markdown content)",
+    { preserveEmpty: true },
   )
-  .option("-p, --parent <id:string>", "Parent comment ID for replies")
+  .option("-p, --parent <id:string>", "Parent comment ID for replies", {
+    preserveEmpty: true,
+  })
   .option(
     "-a, --attach <filepath:string>",
     "Upload a file and add its Markdown link to the comment (images render inline; repeatable)",
-    { collect: true },
+    { collect: true, preserveEmpty: true },
   )
   .option(
     "--public",
@@ -66,7 +71,16 @@ export const commentAddCommand = withUsageMetadata(new Command(), {
 
       // Read body from file if provided
       let commentBody = body
-      if (bodyFile) {
+      if (bodyFile === "") {
+        throw new ValidationError("Body file path cannot be empty")
+      }
+      if (parent != null && !parent.trim()) {
+        throw new ValidationError("Parent comment reference cannot be empty")
+      }
+      if (attach?.some((path) => path === "")) {
+        throw new ValidationError("Attachment file path cannot be empty")
+      }
+      if (bodyFile != null) {
         try {
           commentBody = await Deno.readTextFile(bodyFile)
         } catch (error) {
@@ -92,12 +106,11 @@ export const commentAddCommand = withUsageMetadata(new Command(), {
       // Validate and upload attachments first
       const attachments = attach || []
       if (
-        json && attachments.length === 0 && commentBody != null &&
+        attachments.length === 0 && commentBody != null &&
         !commentBody.trim()
       ) {
         throw new ValidationError("Comment body cannot be empty", {
-          suggestion:
-            "Provide non-whitespace content when producing machine-readable output.",
+          suggestion: "Provide non-whitespace content or attach a file.",
         })
       }
       if (makePublic && attachments.length === 0) {

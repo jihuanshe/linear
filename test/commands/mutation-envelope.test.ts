@@ -74,6 +74,7 @@ const commands = [
 async function runCommand(
   command: typeof commands[number],
   mutationEnvelope: unknown,
+  effect = "unknown",
 ) {
   const root = await Deno.makeTempDir()
   const basisFile = join(root, "original.json")
@@ -146,7 +147,7 @@ async function runCommand(
     // Parsing all stdout also rejects a second JSON result or mixed progress.
     const result = JSON.parse(stdout)
     assertEquals(result.ok, false)
-    assertEquals(result.effect, "unknown")
+    assertEquals(result.effect, effect)
     return result
   } finally {
     await server.shutdown()
@@ -178,10 +179,13 @@ for (const command of commands) {
       path: [Object.keys(command.partial)[0], "afterCommitField"],
       extensions: { code: "INTERNAL_SERVER_ERROR" },
     }]
-    const result = await runCommand(command, { data: command.partial, errors })
+    const result = await runCommand(command, {
+      data: command.partial,
+      errors,
+    }, "applied")
     assertEquals(result.data, command.partial)
     assertEquals(result.error.details.errors, errors)
     assertStringIncludes(result.error.message, errors[0].message)
-    assertStringIncludes(result.error.suggestion, "before retrying")
+    assertEquals(result.error.suggestion, undefined)
   })
 }
