@@ -127,8 +127,15 @@ export async function move(directory) {
   ) throw new Error("Workspace or team identity changed; no moves executed")
   const receipts = `${directory}/receipts.jsonl`
   // Existing receipts require explicit reconciliation and a newly selected scope.
-  const file = await Deno.open(receipts, { write: true, createNew: true })
-  file.close()
+  try {
+    const file = await Deno.open(receipts, { write: true, createNew: true })
+    file.close()
+  } catch (error) {
+    if (!(error instanceof Deno.errors.AlreadyExists)) throw error
+    throw new Deno.errors.AlreadyExists(
+      `Receipts already exist at ${receipts}; no moves executed in this attempt. Preserve receipts and original outputs, reconcile prior effects by stable issue UUID, then explicitly select any remaining scope and freeze it in a new directory. Do not delete the ledger to replay this scope.`,
+    )
+  }
   for (const [index, issue] of scope.issues.entries()) {
     const intent = {
       id: issue.id,

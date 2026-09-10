@@ -1,4 +1,5 @@
 import { resolveInitiativeId } from "./initiative-resolve.ts"
+import { readInitiative } from "./initiative-read.ts"
 import { Command } from "@cliffy/command"
 import { withUsageMetadata } from "../usage.ts"
 import { Confirm } from "../../utils/prompt.ts"
@@ -35,34 +36,18 @@ export const unarchiveCommand = withUsageMetadata(new Command(), {
       throw new NotFoundError("Initiative", initiativeId)
     }
 
-    // Get initiative details for confirmation message (must include archived)
-    const detailsQuery = gql(`
-      query GetInitiativeForUnarchive($id: ID!) {
-        initiatives(filter: { id: { eq: $id } }, includeArchived: true) {
-          nodes {
-            id
-            slugId
-            name
-            archivedAt
-          }
-        }
-      }
-    `)
-
     let initiativeDetails
     try {
-      initiativeDetails = await client.request(detailsQuery, {
-        id: resolvedId,
-      })
+      initiativeDetails = await readInitiative(client, resolvedId)
     } catch (error) {
       handleError(error, "Failed to fetch initiative details")
     }
 
-    if (!initiativeDetails?.initiatives?.nodes?.length) {
+    if (!initiativeDetails?.initiative) {
       throw new NotFoundError("Initiative", initiativeId)
     }
 
-    const initiative = initiativeDetails.initiatives.nodes[0]
+    const initiative = initiativeDetails.initiative
 
     // Check if already unarchived
     if (!initiative.archivedAt) {

@@ -716,7 +716,9 @@ async function verifyOnce(
         status: "unavailable",
         detail: signal.aborted
           ? "Read-back timed out; confirmed writes remain recorded"
-          : (error instanceof Error ? error.message : String(error)),
+          : `Read-back unavailable: ${
+            errorResult(error).error.message
+          } Confirmed writes will not be repeated.`,
       },
     }
   }

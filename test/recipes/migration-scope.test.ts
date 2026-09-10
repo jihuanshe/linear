@@ -61,7 +61,7 @@ console.log(JSON.stringify(result));
   )
   return {
     migration,
-    async run(args: string[]) {
+    async run(args: string[], denyWrite?: string) {
       const result = await new Deno.Command(Deno.execPath(), {
         args: [
           "run",
@@ -71,6 +71,7 @@ console.log(JSON.stringify(result));
           "--allow-env=LINEAR_BIN",
           "--allow-read",
           "--allow-write",
+          ...(denyWrite ? [`--deny-write=${denyWrite}`] : []),
           "--deny-net",
           recipe,
           ...args,
@@ -225,6 +226,46 @@ Deno.test("Team migration still freezes and moves an active scope with receipts"
     assertEquals(receipts[3].after, "NEW-2")
     assertEquals(receipts[1].result.effect, "applied")
     assertEquals(receipts[3].result.effect, "applied")
+    const receiptsBefore = await Deno.readFile(
+      join(f.migration, "receipts.jsonl"),
+    )
+    const repeated = await f.run(["move", f.migration])
+    assertEquals(repeated.code, 1)
+    for (
+      const guidance of [
+        "Receipts already exist",
+        "no moves executed in this attempt",
+        "Preserve receipts and original outputs",
+        "reconcile prior effects by stable issue UUID",
+        "explicitly select any remaining scope",
+        "new directory",
+        "Do not delete the ledger",
+      ]
+    ) assertStringIncludes(repeated.stderr, guidance)
+    assertEquals(
+      (await f.calls()).slice(calls.length).filter((args) => args[0] !== "api"),
+      [],
+    )
+    assertEquals(
+      await Deno.readFile(join(f.migration, "receipts.jsonl")),
+      receiptsBefore,
+    )
+  } finally {
+    await f.cleanup()
+  }
+})
+
+Deno.test("Team move preserves receipt IO errors instead of claiming prior execution", async () => {
+  const f = await fixture("active")
+  try {
+    await f.saveOldScope()
+    const receipts = join(f.migration, "receipts.jsonl")
+    const result = await f.run(["move", f.migration], receipts)
+    assertEquals(result.code, 1)
+    assertStringIncludes(result.stderr, "Requires write access")
+    assertEquals(result.stderr.includes("Receipts already exist"), false)
+    assertEquals((await f.calls()).map((args) => args[0]), ["api"])
+    await assertRejects(() => Deno.stat(receipts), Deno.errors.NotFound)
   } finally {
     await f.cleanup()
   }

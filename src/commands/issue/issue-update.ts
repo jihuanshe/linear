@@ -489,6 +489,7 @@ export const updateCommand = withUsageMetadata(new Command(), { writes: true })
   .option(
     "-a, --assignee <assignee:string>",
     "Assignee (user UUID, username, name, email, 'self', or '@me')",
+    { preserveEmpty: true },
   )
   .option(
     "--unassign",

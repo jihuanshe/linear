@@ -1,4 +1,5 @@
 import { resolveInitiativeId } from "./initiative-resolve.ts"
+import { readInitiative } from "./initiative-read.ts"
 import { Command } from "@cliffy/command"
 import { withUsageMetadata } from "../usage.ts"
 import { Confirm, Input } from "../../utils/prompt.ts"
@@ -90,25 +91,9 @@ async function handleSingleDelete(
     throw new NotFoundError("Initiative", initiativeId)
   }
 
-  // Get initiative details for confirmation message
-  const detailsQuery = gql(`
-    query GetInitiativeForDelete($id: String!) {
-      initiative(id: $id) {
-        id
-        slugId
-        name
-        projects {
-          nodes {
-            id
-          }
-        }
-      }
-    }
-  `)
-
   let initiativeDetails
   try {
-    initiativeDetails = await client.request(detailsQuery, { id: resolvedId })
+    initiativeDetails = await readInitiative(client, resolvedId)
   } catch (error) {
     handleError(error, "Failed to fetch initiative details")
   }
@@ -262,19 +247,9 @@ async function handleBulkDelete(
       }
     }
 
-    // Get initiative name for display
-    const detailsQuery = gql(`
-      query GetInitiativeNameForBulkDelete($id: String!) {
-        initiative(id: $id) {
-          id
-          name
-        }
-      }
-    `)
-
     let name = idOrSlugOrName
 
-    const details = await client.request(detailsQuery, { id: resolvedId })
+    const details = await readInitiative(client, resolvedId)
     if (!details.initiative?.id) {
       throw new NotFoundError("Initiative", idOrSlugOrName)
     }

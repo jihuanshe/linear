@@ -107,10 +107,14 @@ for (const outcome of ["found", "missing", "error"] as const) {
 }
 
 for (
-  const { input, expectedId } of [
-    { input: "JANE@EXAMPLE.COM", expectedId: "email-match" },
-    { input: "JANE", expectedId: "display-match" },
-    { input: "Developer", expectedId: "first-name-match" },
+  const { input, expectedId, matchField } of [
+    {
+      input: "JANE@EXAMPLE.COM",
+      expectedId: "email-match",
+      matchField: "email",
+    },
+    { input: "JANE", expectedId: "display-match", matchField: "displayName" },
+    { input: "Developer", expectedId: "first-name-match", matchField: "name" },
   ]
 ) {
   Deno.test(`Issue Update Command - exact assignee preserves lookup precedence for ${input}`, async () => {
@@ -119,42 +123,17 @@ for (
         queryName: "GetTeamIdByKey",
         response: { data: { teams: { nodes: [{ id: teamWriteIds.ENG }] } } },
       },
-      {
+      ...["email", "displayName", "name"].map((field) => ({
         queryName: "LookupUser",
-        variables: { input },
+        variables: { filter: { [field]: { eqIgnoreCase: input } } },
         response: {
           data: {
             users: {
-              nodes: [
-                {
-                  id: "first-name-match",
-                  name: input === "Developer" ? "Developer" : "Developer Jane",
-                  displayName: "other",
-                  email: "other@example.com",
-                },
-                {
-                  id: "display-match",
-                  name: "Jane Developer",
-                  displayName: input === "JANE@EXAMPLE.COM"
-                    ? "jane@example.com"
-                    : "jane",
-                  email: "another@example.com",
-                },
-                {
-                  id: "email-match",
-                  name: "Jane Developer",
-                  displayName: "third",
-                  email: "jane@example.com",
-                },
-              ].filter((user) =>
-                input === "JANE@EXAMPLE.COM"
-                  ? user.id !== "first-name-match"
-                  : user.id !== "email-match"
-              ),
+              nodes: field === matchField ? [{ id: expectedId }] : [],
             },
           },
         },
-      },
+      })),
       {
         queryName: "UpdateIssue",
         response: {

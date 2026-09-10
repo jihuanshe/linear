@@ -78,7 +78,7 @@ export const commentUpdateCommand = withUsageMetadata(new Command(), {
         }
       }
 
-      if (json && !newBody?.trim()) {
+      if (json && newBody == null) {
         throw new ValidationError(
           "JSON mode requires --body or --body-file",
           {

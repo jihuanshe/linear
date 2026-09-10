@@ -55,7 +55,7 @@ linear issue view ENG-123 --json >original.json
 
 `comments` 中的 `body`／`bodyFile` 互斥，`files` 嵌入评论；`public` 仅适用于该评论的上传图片。`attachments` 创建侧栏附件（Attachment）：`url` 项关联链接，`file` 项先上传再关联。关系使用完整编号或 UUID，支持 `related`、`blocks`、`blocked-by`、`duplicate`；`blocked-by` 反转 `blocks` 方向，同一边已存在时不重复写，不同类型或方向会拒绝。
 
-现有评论的修改／删除、附件删除和关系删除使用专用命令。清单不包含任意脚本、循环或条件语言。
+现有评论的修改／删除和关系删除使用专用命令。附件删除没有专用命令，也不在清单内；先确认目标 Attachment ID 和删除授权，通过 `linear schema` 核对 `attachmentDelete(id): DeletePayload`，再使用 `linear api --unprotected`，调用边界见 `linear guide graphql`。删除后读回确认附件关联已移除，不把它当成上传资产删除。清单不包含任意脚本、循环或条件语言。
 
 ## 预览和提交
 

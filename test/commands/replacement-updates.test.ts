@@ -66,7 +66,7 @@ const cases: ReplacementCase[] = [
     name: "Initiative",
     command: ["initiative"],
     key: "initiative",
-    viewQuery: "GetInitiativeDetails",
+    viewQuery: "ReadInitiative",
     readQuery: "ReadInitiative",
     mutation: "UpdateInitiative",
     payload: "initiativeUpdate",
@@ -153,7 +153,14 @@ for (const example of cases) {
         queryName,
       ) => ({
         queryName,
-        response: () => ({ data: { organization, [example.key]: remote } }),
+        response: () => ({
+          data: example.key === "initiative"
+            ? {
+              organization,
+              initiatives: { ...emptyConnection(), nodes: [remote] },
+            }
+            : { organization, [example.key]: remote },
+        }),
       })),
       {
         queryName: "DocumentInlineCommentGuard",
@@ -302,7 +309,14 @@ for (const example of cases) {
     const server = new MockLinearServer([
       {
         queryName: example.readQuery,
-        response: { data: { organization, [example.key]: example.original } },
+        response: {
+          data: example.key === "initiative"
+            ? {
+              organization,
+              initiatives: { ...emptyConnection(), nodes: [example.original] },
+            }
+            : { organization, [example.key]: example.original },
+        },
       },
       {
         queryName: "DocumentInlineCommentGuard",

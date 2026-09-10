@@ -352,15 +352,32 @@ export async function fixture(options: {
     },
     {
       queryName: "LookupUser",
-      response: ({ variables }) => ({
-        data: {
-          users: connection(
-            [...state.users.values()].filter((user) =>
-              user.name.toLowerCase() === String(variables.input).toLowerCase()
-            ).slice(0, 1),
-          ),
-        },
-      }),
+      response: ({ variables }) => {
+        const filter = variables.filter as Record<
+          string,
+          Record<string, string>
+        >
+        const [field, comparison] = Object.entries(filter)[0]
+        const [operator, input] = Object.entries(comparison)[0]
+        const matches = [...state.users.values()].filter((user) => {
+          const value = field === "name"
+            ? user.name
+            : field === "displayName"
+            ? user.displayName
+            : ""
+          return operator === "containsIgnoreCaseAndAccent"
+            ? value.toLowerCase().includes(input.toLowerCase())
+            : value.toLowerCase() === input.toLowerCase()
+        })
+        return {
+          data: {
+            users: {
+              nodes: matches.slice(0, 2),
+              pageInfo: { hasNextPage: matches.length > 2, endCursor: null },
+            },
+          },
+        }
+      },
     },
     { queryName: "GetViewerId", response: { data: { viewer: USER } } },
     {

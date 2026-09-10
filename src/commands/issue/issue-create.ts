@@ -666,15 +666,13 @@ export async function prepareIssueCreate(options: CreateIssueOptions) {
   }
 
   let assigneeId = undefined
-  if (shouldAssignSelfByDefaultForFlagCreate()) {
-    assigneeId = await lookupUserId("self")
-  }
-
-  if (assignee) {
+  if (assignee != null) {
     assigneeId = await lookupUserId(assignee)
     if (assigneeId == null) {
       throw new NotFoundError("User", assignee)
     }
+  } else if (shouldAssignSelfByDefaultForFlagCreate()) {
+    assigneeId = await lookupUserId("self")
   }
 
   const labelIds = []
@@ -802,6 +800,7 @@ export const createCommand = withUsageMetadata(new Command(), {
   .option(
     "-a, --assignee <assignee:string>",
     "Assignee (user UUID, username, name, email, 'self', or '@me')",
+    { preserveEmpty: true },
   )
   .option(
     "--due-date <dueDate:string>",
@@ -884,6 +883,9 @@ export const createCommand = withUsageMetadata(new Command(), {
         json,
       },
     ) => {
+      if (assignee != null && !assignee.trim()) {
+        throw new ValidationError("User reference cannot be empty")
+      }
       interactive = interactive && Deno.stdout.isTerminal() && json !== true
 
       // Validate that description and descriptionFile are not both provided

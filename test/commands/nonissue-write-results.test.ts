@@ -20,20 +20,20 @@ interface RequestBody {
   variables: Record<string, unknown>
 }
 
-function readResponse(request: RequestBody) {
+function readResponse(request: RequestBody, archived = false) {
   const target = String(request.variables?.id ?? id)
   const initiative = {
     id: target,
     name: "Example",
     slugId: "example",
-    archivedAt: null,
+    archivedAt: archived ? "2026-09-01T00:00:00Z" : null,
     projects: { nodes: [] },
   }
   return {
     data: {
       initiative,
       initiatives: {
-        nodes: [{ ...initiative, archivedAt: "2026-09-01T00:00:00Z" }],
+        nodes: [initiative],
         pageInfo: finalPage,
       },
       project: { id: target, name: "Example project" },
@@ -255,7 +255,7 @@ for (const write of writes) {
     Deno.test(`write result ${name}: ${outcome}`, async () => {
       const result = await runCli(write.args, (request) => {
         if (!/^mutation\b/.test(request.query.trim())) {
-          return readResponse(request)
+          return readResponse(request, write.args[1] === "unarchive")
         }
         if (outcome === "missing-data") return { data: null }
         const payload = outcome === "missing-payload" ? null : {
@@ -283,7 +283,7 @@ for (const write of writes) {
     Deno.test(`write result ${name}: success without returned ID retains applied effect`, async () => {
       const result = await runCli(write.args, (request) => {
         if (!/^mutation\b/.test(request.query.trim())) {
-          return readResponse(request)
+          return readResponse(request, write.args[1] === "unarchive")
         }
         return {
           data: { [write.field]: { success: true, [write.entity!]: {} } },
@@ -310,7 +310,7 @@ for (
   ]
 ) {
   Deno.test(`write result ${args.join(" ")}: missing input never writes or prompts`, async () => {
-    const result = await runCli(args, readResponse)
+    const result = await runCli(args, (request) => readResponse(request))
     assertEquals(result.code, 1, result.stdout)
     assertEquals(result.result.effect, "none")
     assertEquals(result.mutations, [])
@@ -330,7 +330,10 @@ for (
   ]
 ) {
   Deno.test(`write result ${args.slice(0, 2).join(" ")}: JSON does not confirm deletion`, async () => {
-    const result = await runCli(args, readResponse)
+    const result = await runCli(
+      args,
+      (request) => readResponse(request, args[1] === "unarchive"),
+    )
     assertEquals(result.code, 1, result.stdout)
     assertEquals(result.result.effect, "none")
     assertEquals(result.mutations, [])
@@ -503,7 +506,7 @@ Deno.test("write result bulk archive reports no effects for already archived ini
     id,
     nextId,
   ], (request) => {
-    const response = readResponse(request)
+    const response = readResponse(request, true)
     return {
       data: {
         ...response.data,
@@ -535,7 +538,7 @@ for (
       if (/^mutation\b/.test(request.query.trim())) {
         return { data: { [field]: { success: true, entity: { id: nextId } } } }
       }
-      return readResponse(request)
+      return readResponse(request, args[1] === "unarchive")
     })
     assertEquals(result.code, 1)
     assertEquals(result.result.effect, "applied")

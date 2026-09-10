@@ -53,6 +53,7 @@ export const apiCommand = withUsageMetadata(new Command(), {
   .option(
     "--variables-json <json:string>",
     "JSON object of variables (merged with --variable, which takes precedence)",
+    { preserveEmpty: true },
   )
   .option(
     "--operation-name <name:string>",
@@ -517,7 +518,7 @@ async function buildVariables(
 ): Promise<Record<string, unknown>> {
   const variables: Record<string, unknown> = {}
 
-  if (variablesJson) {
+  if (variablesJson != null) {
     let parsed: unknown
     try {
       parsed = JSON.parse(variablesJson)

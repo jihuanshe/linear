@@ -3,6 +3,7 @@ import {
   extractIssueRelationSnapshot,
   getIssueIdentifier,
   isLinearUuid,
+  lookupUserId,
   planIssueRelations,
   resolveMilestoneId,
   resolveProjectId,
@@ -13,6 +14,133 @@ import {
 } from "../../src/utils/linear.ts"
 import { NotFoundError, ValidationError } from "../../src/utils/errors.ts"
 import { setupMockLinearServer } from "../utils/test-helpers.ts"
+
+for (const input of ["", " ", "\t\n"]) {
+  Deno.test(`lookupUserId rejects empty reference ${JSON.stringify(input)}`, async () => {
+    await assertRejects(
+      () => lookupUserId(input),
+      ValidationError,
+      "User reference cannot be empty",
+    )
+  })
+}
+
+for (
+  const scenario of [
+    {
+      title: "email wins over display and fuzzy",
+      counts: [1, 1, 1, 3],
+      calls: 1,
+      id: "tier-0-0",
+    },
+    {
+      title: "unique display survives three fuzzy matches",
+      counts: [0, 1, 0, 3],
+      calls: 2,
+      id: "tier-1-0",
+    },
+    {
+      title: "exact name wins over fuzzy",
+      counts: [0, 0, 1, 3],
+      calls: 3,
+      id: "tier-2-0",
+    },
+    {
+      title: "unique fuzzy without exact",
+      counts: [0, 0, 0, 1],
+      calls: 4,
+      id: "tier-3-0",
+    },
+    { title: "missing user", counts: [0, 0, 0, 0], calls: 4, id: undefined },
+    {
+      title: "ambiguous email stops before display",
+      counts: [2, 1, 0, 0],
+      calls: 1,
+      ambiguous: true,
+    },
+    {
+      title: "ambiguous display stops before exact name",
+      counts: [0, 2, 1, 0],
+      calls: 2,
+      ambiguous: true,
+    },
+    {
+      title: "ambiguous exact name",
+      counts: [0, 0, 2, 1],
+      calls: 3,
+      ambiguous: true,
+    },
+    {
+      title: "ambiguous fuzzy first page",
+      counts: [0, 0, 0, 2],
+      calls: 4,
+      ambiguous: true,
+    },
+    {
+      title: "fuzzy next page cannot select first result",
+      counts: [0, 0, 0, 3],
+      calls: 4,
+      ambiguous: true,
+    },
+    {
+      title: "display next page cannot select first result",
+      counts: [0, 3, 1, 1],
+      calls: 2,
+      ambiguous: true,
+    },
+  ]
+) {
+  Deno.test(`lookupUserId ${scenario.title}`, async () => {
+    // Preserve significant whitespace and casing in every server-side filter.
+    const input = " Ann "
+    const filters = [
+      { email: { eqIgnoreCase: input } },
+      { displayName: { eqIgnoreCase: input } },
+      { name: { eqIgnoreCase: input } },
+      { name: { containsIgnoreCaseAndAccent: input } },
+    ]
+    const { server, cleanup } = await setupMockLinearServer(
+      filters.map((filter, tier) => ({
+        queryName: "LookupUser",
+        variables: { filter },
+        response: {
+          data: {
+            users: {
+              // A partial page with one row must still reject hasNextPage.
+              nodes: Array.from({
+                length: scenario.counts[tier] === 3 ? 1 : scenario.counts[tier],
+              }, (_, index) => ({ id: `tier-${tier}-${index}` })),
+              pageInfo: {
+                hasNextPage: scenario.counts[tier] > 2,
+                endCursor: null,
+              },
+            },
+          },
+        },
+      })),
+    )
+    try {
+      if (scenario.ambiguous) {
+        await assertRejects(
+          () => lookupUserId(input),
+          ValidationError,
+          "ambiguous",
+        )
+      } else {
+        assertEquals(await lookupUserId(input), scenario.id)
+      }
+      assertEquals(
+        server.graphqlRequests.map((request) => request.variables),
+        filters.slice(0, scenario.calls).map((filter) => ({ filter })),
+      )
+      for (const request of server.graphqlRequests) {
+        assertStringIncludes(request.query, "first: 2")
+      }
+    } finally {
+      await cleanup()
+    }
+  })
+}
 
 function relationView(
   outgoing: Array<{ type: string; identifier: string }> = [],

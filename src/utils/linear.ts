@@ -1921,6 +1921,9 @@ export async function searchTeamsByKeySubstring(
 export async function lookupUserId(
   input: "self" | "@me" | string,
 ): Promise<string | undefined> {
+  if (!input.trim()) {
+    throw new ValidationError("User reference cannot be empty")
+  }
   const client = getGraphQLClient()
   if (input === "@me" || input === "self") {
     const query = gql(`
@@ -1949,45 +1952,26 @@ export async function lookupUserId(
     return id
   }
   const query = gql(`
-    query LookupUser($input: String!) {
-      users(first: 2, filter: {or: [
-        {email: {eqIgnoreCase: $input}},
-        {displayName: {eqIgnoreCase: $input}},
-        {name: {containsIgnoreCaseAndAccent: $input}}
-      ]}) {
-        nodes { id email displayName name }
+    query LookupUser($filter: UserFilter!) {
+      users(first: 2, filter: $filter) {
+        nodes { id }
         pageInfo { hasNextPage endCursor }
       }
     }
   `)
-  const data = await client.request(query, { input })
-  if (
-    data?.users == null || typeof data.users.pageInfo?.hasNextPage !== "boolean"
-  ) throw new CliError("User lookup returned an incomplete connection")
-  if (data.users.pageInfo.hasNextPage) {
-    throw new ValidationError("User name is ambiguous: " + input, {
-      suggestion: "Use an exact user UUID or email.",
-    })
+  for (
+    const filter of [
+      { email: { eqIgnoreCase: input } },
+      { displayName: { eqIgnoreCase: input } },
+      { name: { eqIgnoreCase: input } },
+      { name: { containsIgnoreCaseAndAccent: input } },
+    ]
+  ) {
+    const data = await client.request(query, { filter })
+    const id = uniqueLookupId(data?.users, input, "User")
+    if (id != null) return id
   }
-  const users = data.users.nodes
-  const normalized = input.toLowerCase()
-  const email = users.filter((user) => user.email.toLowerCase() === normalized)
-  const display = users.filter((user) =>
-    user.displayName.toLowerCase() === normalized
-  )
-  const name = users.filter((user) => user.name.toLowerCase() === normalized)
-  const matches = email.length
-    ? email
-    : display.length
-    ? display
-    : name.length
-    ? name
-    : users
-  return uniqueLookupId(
-    { nodes: matches, pageInfo: { hasNextPage: false } },
-    input,
-    "User",
-  )
+  return undefined
 }
 
 export async function getIssueLabelIdByNameForTeam(

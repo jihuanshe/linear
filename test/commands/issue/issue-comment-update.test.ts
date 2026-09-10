@@ -18,6 +18,47 @@ import {
   setupMockLinearServer,
 } from "../../utils/test-helpers.ts"
 
+for (const input of ["empty", "whitespace", "file"] as const) {
+  Deno.test(`comment update JSON distinguishes explicit ${input} content from an omitted body`, async () => {
+    const { server, cleanup } = await setupMockLinearServer([])
+    const path = await Deno.makeTempFile({ suffix: ".md" })
+    try {
+      const args = input === "file"
+        ? ["--body-file", path]
+        : ["--body", input === "empty" ? "" : " \n"]
+      const result = await new Deno.Command(Deno.execPath(), {
+        args: [
+          "run",
+          ...commonDenoArgs,
+          "src/main.ts",
+          "issue",
+          "comment",
+          "update",
+          "comment-123",
+          "--unprotected",
+          "--json",
+          ...args,
+        ],
+        stdin: "null",
+        stdout: "piped",
+        stderr: "piped",
+      }).output()
+      const body = JSON.parse(new TextDecoder().decode(result.stdout))
+      assertEquals(result.code, 1)
+      assertEquals(body.effect, "none")
+      assertEquals(
+        body.error.message,
+        "Failed to update comment: Comment body cannot be empty",
+      )
+      assertEquals(new TextDecoder().decode(result.stderr), "")
+      assertEquals(server.graphqlRequests, [])
+    } finally {
+      await Deno.remove(path)
+      await cleanup()
+    }
+  })
+}
+
 Deno.test("comment update preserves mentions, ordinary links and collapsible Markdown", async () => {
   const body = [
     "https://linear.app/example/profiles/person-123 请确认。",

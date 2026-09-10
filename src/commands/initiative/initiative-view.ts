@@ -1,50 +1,12 @@
 import { Command } from "@cliffy/command"
 import { renderMarkdown } from "../../utils/markdown.ts"
 import { open } from "@opensrc/deno-open"
-import { gql } from "../../__codegen__/gql.ts"
+import { readInitiative } from "./initiative-read.ts"
 import { getGraphQLClient } from "../../utils/graphql.ts"
 import { formatRelativeTime, printStyled } from "../../utils/display.ts"
 import { shouldShowSpinner } from "../../utils/hyperlink.ts"
 import { handleError, NotFoundError } from "../../utils/errors.ts"
 import { resolveInitiativeId } from "./initiative-resolve.ts"
-
-const GetInitiativeDetails = gql(`
-  query GetInitiativeDetails($id: String!) {
-    organization { id urlKey }
-    initiative(id: $id) {
-      id
-      slugId
-      name
-      description
-      status
-      targetDate
-      health
-      color
-      icon
-      url
-      archivedAt
-      createdAt
-      updatedAt
-      owner {
-        id
-        name
-        displayName
-      }
-      projects {
-        nodes {
-          id
-          slugId
-          name
-          status {
-            name
-            type
-          }
-        }
-        pageInfo { hasNextPage endCursor }
-      }
-    }
-  }
-`)
 
 // Initiative status display names
 const INITIATIVE_STATUS_DISPLAY: Record<string, string> = {
@@ -78,7 +40,7 @@ export const viewCommand = new Command()
     const client = getGraphQLClient()
 
     // Resolve initiative ID (can be UUID, slug, or name)
-    const resolvedId = await resolveInitiativeId(client, initiativeId)
+    const resolvedId = await resolveInitiativeId(client, initiativeId, true)
     if (!resolvedId) {
       throw new NotFoundError("Initiative", initiativeId)
     }
@@ -86,9 +48,7 @@ export const viewCommand = new Command()
     // Handle open in browser/app
     if (web || app) {
       // Get initiative URL
-      const result = await client.request(GetInitiativeDetails, {
-        id: resolvedId,
-      })
+      const result = await readInitiative(client, resolvedId)
       const initiative = result.initiative
       if (!initiative?.url) {
         throw new NotFoundError("Initiative", initiativeId)
@@ -106,9 +66,7 @@ export const viewCommand = new Command()
     spinner?.start()
 
     try {
-      const result = await client.request(GetInitiativeDetails, {
-        id: resolvedId,
-      })
+      const result = await readInitiative(client, resolvedId)
       spinner?.stop()
 
       const initiative = result.initiative

@@ -8,8 +8,11 @@ import { shouldShowSpinner } from "../../utils/hyperlink.ts"
 import {
   assertMutationReceipt,
   assertMutationSuccess,
+  CliError,
+  errorResult,
   handleError,
   ValidationError,
+  WriteError,
 } from "../../utils/errors.ts"
 import {
   loadBasisFile,
@@ -155,18 +158,57 @@ export const updateCommand = withUsageMetadata(new Command(), { writes: true })
           } else console.log("No changes needed")
           return
         }
+        const writeInput = { ...plan.input }
+        // Linear ignores an empty description but accepts LF to clear it.
+        // Keep the exact desired Markdown for comparison; encode only on wire.
+        // Evidence: https://github.com/jihuanshe/linear/pull/38
+        if (writeInput.description === "") writeInput.description = "\n"
         const result = await client.request(UpdateProjectMilestone, {
           id: resolvedId,
-          input: plan.input,
+          input: writeInput,
         })
         spinner?.stop()
 
         assertMutationSuccess(result.projectMilestoneUpdate, result)
         const milestone = result.projectMilestoneUpdate.projectMilestone
         assertMutationReceipt(milestone, result, resolvedId)
+        let verification: { status: string; description: string } | undefined
+        if (plan.input.description === "") {
+          try {
+            const readBack = await readMilestone(client, resolvedId)
+            if (
+              milestone.description !== "" ||
+              readBack.projectMilestone.description !== ""
+            ) {
+              throw new CliError(
+                "Milestone description is not empty in the mutation receipt or read-back",
+              )
+            }
+            verification = { status: "verified", description: "" }
+          } catch (error) {
+            throw new WriteError(
+              "The milestone update was applied, but clearing description could not be verified.",
+              {
+                effect: "applied",
+                data: { projectMilestone: milestone },
+                cause: error,
+                details: {
+                  fields: plan.fields,
+                  verification: {
+                    status: "unverified",
+                    message: errorResult(error).error.message,
+                  },
+                },
+                suggestion:
+                  "Inspect the milestone before retrying. No automatic retry was performed.",
+              },
+            )
+          }
+        }
         if (json) {
           printWriteResult({ projectMilestone: milestone }, {
             fields: plan.fields,
+            verification,
           })
         } else {
           console.log(`✓ Updated milestone: ${milestone.name}`)

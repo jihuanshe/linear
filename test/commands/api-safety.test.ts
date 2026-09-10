@@ -87,6 +87,21 @@ function assertLocalFailure(
   return failure.error.message as string
 }
 
+for (const mutation of [false, true]) {
+  Deno.test(`API rejects explicitly empty JSON variables before transport: mutation=${mutation}`, async () => {
+    const result = await runApi(
+      mutation ? write : read,
+      [...(mutation ? ["--unprotected"] : []), "--variables-json", ""],
+    )
+    assertEquals(result.code, 1)
+    assertEquals(result.requests, [])
+    assertStringIncludes(
+      assertLocalFailure(result),
+      "Invalid JSON for --variables-json",
+    )
+  })
+}
+
 for (
   const test of [
     {

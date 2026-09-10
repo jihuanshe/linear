@@ -198,7 +198,7 @@ await cliffySnapshotTest({
       },
       {
         queryName: "LookupUser",
-        variables: { input: "lead@example.com" },
+        variables: { filter: { email: { eqIgnoreCase: "lead@example.com" } } },
         response: {
           data: {
             users: {
@@ -239,7 +239,7 @@ await cliffySnapshotTest({
       },
       {
         queryName: "LookupUser",
-        variables: { input: "jane@example.com" },
+        variables: { filter: { email: { eqIgnoreCase: "jane@example.com" } } },
         response: {
           data: {
             users: {
@@ -530,7 +530,6 @@ Deno.test("Project Create Command - rejects an unknown member", async () => {
     },
     {
       queryName: "LookupUser",
-      variables: { input: "ghostuser" },
       response: {
         data: {
           users: {

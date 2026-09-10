@@ -1,4 +1,5 @@
 import { snapshotTest as cliffySnapshotTest } from "@cliffy/testing"
+import { assertEquals } from "@std/assert"
 import { updateCommand } from "../../../src/commands/milestone/milestone-update.ts"
 import { commonDenoArgs } from "../../utils/test-helpers.ts"
 import {
@@ -22,6 +23,147 @@ const originalMilestone = {
       },
     },
   }),
+}
+
+for (
+  const scenario of [
+    { name: "clear and repeat", remote: "after", receipt: "", readBack: "" },
+    { name: "already empty", remote: "", receipt: "", readBack: "" },
+    { name: "whitespace conflict", remote: "after\n", conflict: true },
+    {
+      name: "receipt mismatch",
+      remote: "after",
+      receipt: "after",
+      readBack: "",
+    },
+    { name: "read mismatch", remote: "after", receipt: "", readBack: "after" },
+    { name: "LF is not empty", remote: "after", receipt: "", readBack: "\n" },
+    { name: "read fails", remote: "after", receipt: "", readFailure: true },
+  ]
+) {
+  Deno.test(`Milestone production clear: ${scenario.name}`, async () => {
+    const id = "550e8400-e29b-41d4-a716-446655440100"
+    const organization = { id: "workspace-1", urlKey: "test" }
+    const milestone = {
+      id,
+      name: "Milestone",
+      description: "after",
+      archivedAt: null,
+      targetDate: null,
+      sortOrder: 10,
+      project: { id: "project-123", name: "Project" },
+    }
+    let mutated = false
+    const server = new MockLinearServer([
+      {
+        queryName: "ReadMilestone",
+        response: () =>
+          mutated && scenario.readFailure
+            ? { errors: [{ message: "Read-back unavailable" }] }
+            : {
+              data: {
+                organization,
+                projectMilestone: {
+                  ...milestone,
+                  description: mutated ? scenario.readBack : scenario.remote,
+                },
+              },
+            },
+      },
+      {
+        queryName: "UpdateProjectMilestone",
+        response: () => {
+          mutated = true
+          return {
+            data: {
+              projectMilestoneUpdate: {
+                success: true,
+                projectMilestone: {
+                  ...milestone,
+                  description: scenario.receipt,
+                },
+              },
+            },
+          }
+        },
+      },
+    ])
+    const path = await Deno.makeTempFile({ suffix: ".json" })
+    try {
+      await Deno.writeTextFile(
+        path,
+        JSON.stringify({ organization, projectMilestone: milestone }),
+      )
+      await server.start()
+      const run = async () => {
+        const result = await new Deno.Command(Deno.execPath(), {
+          args: [
+            "run",
+            ...commonDenoArgs,
+            "src/main.ts",
+            "milestone",
+            "update",
+            id,
+            "--description",
+            "",
+            "--base-file",
+            path,
+            "--json",
+          ],
+          env: {
+            LINEAR_GRAPHQL_ENDPOINT: server.getEndpoint(),
+            LINEAR_API_KEY: "test-token",
+            NO_COLOR: "1",
+          },
+          stdin: "null",
+          stdout: "piped",
+          stderr: "piped",
+        }).output()
+        return {
+          code: result.code,
+          body: JSON.parse(new TextDecoder().decode(result.stdout)),
+        }
+      }
+      const result = await run()
+      const unverified = mutated &&
+        (scenario.receipt !== "" || scenario.readBack !== "" ||
+          scenario.readFailure)
+      assertEquals(result.code, scenario.conflict || unverified ? 1 : 0)
+      assertEquals(result.body.ok, !scenario.conflict && !unverified)
+      assertEquals(result.body.effect, mutated ? "applied" : "none")
+      const fields = result.body.fields ?? result.body.error.details.fields
+      assertEquals(fields[0].base, "after")
+      assertEquals(fields[0].desired, "")
+      assertEquals(fields[0].remote, scenario.remote)
+      if (mutated) {
+        assertEquals(
+          result.body.data.projectMilestone.description,
+          scenario.receipt,
+        )
+        const verification = result.body.verification ??
+          result.body.error.details.verification
+        assertEquals(
+          verification.status,
+          unverified ? "unverified" : "verified",
+        )
+        if (!unverified) {
+          const repeated = await run()
+          assertEquals(repeated.code, 0)
+          assertEquals(repeated.body.effect, "none")
+        }
+      }
+      const writes = server.graphqlRequests.filter((request) =>
+        request.query.includes("mutation ")
+      )
+      assertEquals(writes.length, mutated ? 1 : 0)
+      if (mutated) {
+        assertEquals(writes[0].variables.input, { description: "\n" })
+      }
+    } finally {
+      await server.stop()
+      await Deno.remove(path)
+    }
+  })
 }
 
 // Test help output

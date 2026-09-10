@@ -8,7 +8,44 @@ import { Checkbox, Input, Select } from "@cliffy/prompt"
 import { stub } from "@std/testing/mock"
 import { stripIgnoredCharacters } from "graphql"
 import { createCommand } from "../../../src/commands/issue/issue-create.ts"
+import { ValidationError } from "../../../src/utils/errors.ts"
 import { commonDenoArgs } from "../../utils/test-helpers.ts"
+
+for (const assignee of ["", " \n"]) {
+  Deno.test(`interactive create rejects explicit blank assignee ${JSON.stringify(assignee)} before prompts or defaults`, async () => {
+    const { server, cleanup } = await setupMockLinearServer([], {
+      LINEAR_TEAM_ID: "ENG",
+      LINEAR_ISSUE_CREATE_ASSIGN_SELF: "always",
+    })
+    const stdout = stub(
+      Object.getPrototypeOf(Deno.stdout),
+      "isTerminal",
+      () => true,
+    )
+    const stdin = stub(
+      Object.getPrototypeOf(Deno.stdin),
+      "isTerminal",
+      () => true,
+    )
+    const prompt = stub(Input, "prompt", () => {
+      throw new Error("Unexpected prompt")
+    })
+    try {
+      await assertRejects(
+        () => createCommand.parse(["--assignee", assignee]),
+        ValidationError,
+        "User reference cannot be empty",
+      )
+      assertEquals(prompt.calls.length, 0)
+      assertEquals(server.graphqlRequests, [])
+    } finally {
+      prompt.restore()
+      stdin.restore()
+      stdout.restore()
+      await cleanup()
+    }
+  })
+}
 
 for (const outcome of ["found", "missing", "error"] as const) {
   Deno.test(`Issue Create Command - UUID assignee ${outcome} overrides default self only after lookup`, async () => {
@@ -1682,7 +1719,14 @@ Deno.test("Issue Create Command - Explicit Assignee Overrides Config Self Assign
     },
     {
       queryName: "LookupUser",
-      variables: { input: "Jane Developer" },
+      variables: { filter: { email: { eqIgnoreCase: "Jane Developer" } } },
+      response: { data: { users: { nodes: [] } } },
+    },
+    {
+      queryName: "LookupUser",
+      variables: {
+        filter: { displayName: { eqIgnoreCase: "Jane Developer" } },
+      },
       response: {
         data: {
           users: {

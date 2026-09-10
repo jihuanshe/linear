@@ -57,6 +57,17 @@ Deno.test("Team delete refuses a nonempty team with no migration or deletion", a
     result.errors.some((e) => e.includes("requires an empty team")),
     true,
   )
+  for (
+    const guidance of [
+      "includes archived and trashed issues",
+      "Decide their lifecycle separately",
+      "no dedicated CLI restore command",
+      "Linear UI or an explicitly authorized API operation",
+      "freeze a new active issue scope",
+    ]
+  ) {
+    assertEquals(result.errors.some((e) => e.includes(guidance)), true)
+  }
   assertEquals(result.requests.length, 2)
   assertEquals(
     result.requests[1].includes("issueCount(includeArchived: true)"),

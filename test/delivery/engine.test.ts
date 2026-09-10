@@ -72,6 +72,75 @@ Deno.test("delivery production plan is read-only and CLI apply exposes one machi
   }
 })
 
+for (const assignee of ["", " \n"]) {
+  Deno.test(`dedicated writes and delivery reject explicit blank assignee ${JSON.stringify(assignee)} instead of defaulting to self`, async () => {
+    const original = issue()
+    const f = await fixture({ issues: [original] })
+    try {
+      await f.write(manifest([{
+        operation: "create",
+        set: { title: "Explicit assignee", team: "ENG", assignee },
+      }]))
+      const commands = [
+        [
+          "create",
+          "--title",
+          "Explicit assignee",
+          "--team",
+          "ENG",
+          "--assignee",
+          assignee,
+          "--no-interactive",
+        ],
+        [
+          "update",
+          original.identifier,
+          "--title",
+          "Changed",
+          "--assignee",
+          assignee,
+          "--unprotected",
+        ],
+        ["plan", "--file", f.path],
+        ["apply", "--file", f.path, "--confirm-workspace", WORKSPACE.urlKey],
+      ]
+      for (const args of commands) {
+        const result = await new Deno.Command(Deno.execPath(), {
+          args: [
+            "run",
+            "--allow-all",
+            "--quiet",
+            "src/main.ts",
+            "issue",
+            ...args,
+            "--json",
+          ],
+          env: {
+            LINEAR_GRAPHQL_ENDPOINT: f.server.getEndpoint(),
+            LINEAR_API_KEY: "test-token",
+            LINEAR_ISSUE_CREATE_ASSIGN_SELF: "always",
+            NO_COLOR: "1",
+          },
+          stdin: "null",
+          stdout: "piped",
+          stderr: "piped",
+        }).output()
+        const stdout = new TextDecoder().decode(result.stdout)
+        assertEquals(result.code, 1, stdout)
+        assertStringIncludes(stdout, "User reference cannot be empty")
+        assertEquals(
+          JSON.parse(stdout).effect,
+          args[0] === "plan" ? undefined : "none",
+        )
+      }
+      assertEquals(f.mutations(), [])
+      assertEquals(f.queries("GetViewerId"), [])
+    } finally {
+      await f.cleanup()
+    }
+  })
+}
+
 Deno.test("delivery plan summarizes create text and referenced files without duplicate body dumps", async () => {
   const f = await fixture({ issues: [issue(1002)] })
   try {
@@ -1108,6 +1177,53 @@ for (const mode of ["different", "unavailable"] as const) {
     }
   })
 }
+
+Deno.test("delivery reports a missing receipted comment without dumping the GraphQL request or replaying it", async () => {
+  const original = issue()
+  let missing = false
+  const f = await fixture({
+    issues: [original],
+    overrides: (state) => [{
+      queryName: "GetDeliveryCommentReceipt",
+      response: ({ variables }) =>
+        missing
+          ? {
+            errors: [{
+              message: "Entity not found: Comment",
+              extensions: {
+                userPresentableMessage: "Could not find referenced Comment.",
+              },
+            }],
+          }
+          : { data: { comment: state.comments.get(String(variables.id)) } },
+    }],
+  })
+  try {
+    const loaded = await f.load(manifest([{
+      operation: "update",
+      identifier: original.identifier,
+      comments: [{ body: "Confirmed comment" }],
+    }]))
+    assertEquals((await apply(loaded)).status, "completed")
+    missing = true
+    const result = await apply(loaded)
+    assertEquals(result.status, "applied-unverified")
+    assertEquals(result.summary.skipped, 2)
+    assertEquals(
+      result.verification[0].detail,
+      "Read-back unavailable: Could not find referenced Comment. Confirmed writes will not be repeated.",
+    )
+    assertEquals(f.mutations().length, 1)
+    assertEquals(
+      Object.values((await loadCheckpoint(f.path))!.items).map((item) =>
+        item.status
+      ),
+      ["completed", "completed"],
+    )
+  } finally {
+    await f.cleanup()
+  }
+})
 
 Deno.test("delivery retries delayed visibility reads, never the acknowledged mutation", async () => {
   const original = issue()

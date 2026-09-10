@@ -49,7 +49,7 @@ export const deleteCommand = withUsageMetadata(new Command(), {
             `Team ${team.key} has ${team.issueCount} issue(s); deletion requires an empty team`,
             {
               suggestion:
-                "Run `linear recipe migrate-team` for a workflow that freezes and migrates an explicit issue set, then inspect the team before deleting it.",
+                "The count includes archived and trashed issues. Decide their lifecycle separately; do not automatically restore, migrate, or delete them. There is no dedicated CLI restore command: use Linear UI or an explicitly authorized API operation if restoration is chosen. Then use `linear recipe migrate-team` to freeze a new active issue scope, migrate it, and recheck that the team is empty.",
             },
           )
         }

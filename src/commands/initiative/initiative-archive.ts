@@ -1,4 +1,5 @@
 import { resolveInitiativeId } from "./initiative-resolve.ts"
+import { readInitiative } from "./initiative-read.ts"
 import { Command } from "@cliffy/command"
 import { withUsageMetadata } from "../usage.ts"
 import { Confirm } from "../../utils/prompt.ts"
@@ -85,26 +86,14 @@ async function handleSingleArchive(
   const { force, json } = options
 
   // Resolve initiative ID
-  const resolvedId = await resolveInitiativeId(client, initiativeId)
+  const resolvedId = await resolveInitiativeId(client, initiativeId, true)
   if (!resolvedId) {
     throw new NotFoundError("Initiative", initiativeId)
   }
 
-  // Get initiative details for confirmation message
-  const detailsQuery = gql(`
-    query GetInitiativeForArchive($id: String!) {
-      initiative(id: $id) {
-        id
-        slugId
-        name
-        archivedAt
-      }
-    }
-  `)
-
   let initiativeDetails
   try {
-    initiativeDetails = await client.request(detailsQuery, { id: resolvedId })
+    initiativeDetails = await readInitiative(client, resolvedId)
   } catch (error) {
     handleError(error, "Failed to fetch initiative details")
   }
@@ -233,7 +222,7 @@ async function handleBulkArchive(
     idOrSlugOrName: string,
   ): Promise<InitiativeArchiveResult> => {
     // Resolve the ID
-    const resolvedId = await resolveInitiativeId(client, idOrSlugOrName)
+    const resolvedId = await resolveInitiativeId(client, idOrSlugOrName, true)
     if (!resolvedId) {
       return {
         id: idOrSlugOrName,
@@ -244,21 +233,10 @@ async function handleBulkArchive(
       }
     }
 
-    // Get initiative name for display
-    const detailsQuery = gql(`
-      query GetInitiativeNameForBulkArchive($id: String!) {
-        initiative(id: $id) {
-          id
-          name
-          archivedAt
-        }
-      }
-    `)
-
     let name = idOrSlugOrName
     let alreadyArchived = false
 
-    const details = await client.request(detailsQuery, { id: resolvedId })
+    const details = await readInitiative(client, resolvedId)
     if (!details.initiative?.id) {
       throw new NotFoundError("Initiative", idOrSlugOrName)
     }
