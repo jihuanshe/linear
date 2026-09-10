@@ -77,9 +77,55 @@ for (const hasErrors of [false, true]) {
   }
 }
 
+for (const mutation of [false, true]) {
+  Deno.test(`API HTTP boundary - malformed result fields mutation=${mutation}`, async () => {
+    for (
+      const envelope of [
+        { data: null },
+        { data: 9 },
+        { data: [] },
+        { errors: [] },
+        { errors: "bad" },
+        { data: {}, errors: [] },
+        { data: {}, errors: [null] },
+        { data: {}, errors: [{ message: 42 }] },
+      ]
+    ) {
+      const result = await runApiResponse(
+        JSON.stringify(envelope),
+        mutation ? ["--unprotected"] : [],
+      )
+      assertEquals(result.code, 1)
+      const failure = JSON.parse(result.stdout)
+      assertEquals(failure.ok, false)
+      assertEquals(failure.effect, mutation ? "unknown" : "none")
+      assertEquals(result.stderr, "")
+    }
+  })
+
+  Deno.test(`API HTTP boundary - errors without data mutation=${mutation}`, async () => {
+    for (
+      const envelope of [
+        { errors: [{ message: "Rejected" }] },
+        { data: null, errors: [{ message: "Execution failed" }] },
+      ]
+    ) {
+      const result = await runApiResponse(
+        JSON.stringify(envelope),
+        mutation ? ["--unprotected"] : [],
+      )
+      assertEquals(result.code, 1)
+      assertEquals(JSON.parse(result.stdout), envelope)
+      assertEquals(result.stderr, "")
+    }
+  })
+}
+
 async function runApiResponse(body: string, flags: string[]) {
   const root = await Deno.makeTempDir()
-  const query = flags.includes("--paginate")
+  const query = flags.includes("--unprotected")
+    ? 'mutation DeleteComment { commentDelete(id: "dummy-id") { success } }'
+    : flags.includes("--paginate")
     ? "query GetIssues($after: String) { issues(after: $after) { nodes { id } pageInfo { hasNextPage endCursor } } }"
     : "query GetViewer { viewer { id } }"
   let requests = 0

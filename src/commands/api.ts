@@ -441,6 +441,19 @@ function parseResponse(text: string): Record<string, unknown> {
   ) {
     throw new CliError("API response is not a GraphQL response object")
   }
+  if (
+    ("errors" in parsed &&
+      (!Array.isArray(parsed.errors) || parsed.errors.length === 0 ||
+        parsed.errors.some((error: unknown) =>
+          error == null || typeof error !== "object" ||
+          !("message" in error) || typeof error.message !== "string"
+        ))) ||
+    ("data" in parsed && parsed.data != null &&
+      (typeof parsed.data !== "object" || Array.isArray(parsed.data))) ||
+    (!("errors" in parsed) && (!("data" in parsed) || parsed.data == null))
+  ) {
+    throw new CliError("API response has invalid GraphQL result fields")
+  }
   return parsed as Record<string, unknown>
 }
 
