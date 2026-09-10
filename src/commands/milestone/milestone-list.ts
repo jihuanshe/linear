@@ -5,14 +5,15 @@ import { getGraphQLClient } from "../../utils/graphql.ts"
 import { padDisplay, printStyledHeader } from "../../utils/display.ts"
 import { resolveProjectId } from "../../utils/linear.ts"
 import { shouldShowSpinner } from "../../utils/hyperlink.ts"
-import { handleError } from "../../utils/errors.ts"
+import { handleError, NotFoundError } from "../../utils/errors.ts"
+import { completeConnection } from "../../utils/pagination.ts"
 
 const GetProjectMilestones = gql(`
-  query GetProjectMilestones($projectId: String!) {
+  query GetProjectMilestones($projectId: String!, $after: String) {
     project(id: $projectId) {
       id
       name
-      projectMilestones {
+      projectMilestones(first: 100, after: $after) {
         nodes {
           id
           name
@@ -23,6 +24,7 @@ const GetProjectMilestones = gql(`
             name
           }
         }
+        pageInfo { hasNextPage endCursor }
       }
     }
   }
@@ -49,10 +51,22 @@ export const listCommand = new Command()
       const client = getGraphQLClient()
       const result = await client.request(GetProjectMilestones, {
         projectId,
+        after: null,
       })
+      if (!result.project) throw new NotFoundError("Project", projectId)
+      const { nodes: milestones } = await completeConnection(
+        result.project.projectMilestones,
+        async (after) => {
+          const page = await client.request(GetProjectMilestones, {
+            projectId,
+            after,
+          })
+          if (!page.project) throw new NotFoundError("Project", projectId)
+          return page.project.projectMilestones
+        },
+        "project milestones",
+      )
       spinner?.stop()
-
-      const milestones = result.project?.projectMilestones?.nodes || []
 
       if (milestones.length === 0) {
         console.log("No milestones found for this project.")

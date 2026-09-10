@@ -81,6 +81,7 @@ export const updateCommand = withUsageMetadata(new Command(), {
   .option(
     "--base-file <path:string>",
     "Original view --json output, saved before preparing the update",
+    { preserveEmpty: true },
   )
   .option(
     "--unprotected",
@@ -120,7 +121,7 @@ export const updateCommand = withUsageMetadata(new Command(), {
       }
       if (options.color !== undefined) input.color = options.color
       if (options.icon !== undefined) input.icon = options.icon
-      let original = options.baseFile
+      let original = options.baseFile != null
         ? await loadBasisFile(options.baseFile)
         : undefined
       const interactive = options.interactive && !options.json &&

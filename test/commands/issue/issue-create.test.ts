@@ -319,6 +319,7 @@ await snapshotTest({
                   { id: "milestone-1", name: "Phase 1" },
                   { id: "milestone-2", name: "Phase 2" },
                 ],
+                pageInfo: { hasNextPage: false, endCursor: null },
               },
             },
           },

@@ -111,6 +111,7 @@ export const updateCommand = withUsageMetadata(new Command(), { writes: true })
   .option(
     "--base-file <path:string>",
     "Original view --json output, saved before preparing the update",
+    { preserveEmpty: true },
   )
   .option(
     "--unprotected",
@@ -179,7 +180,9 @@ export const updateCommand = withUsageMetadata(new Command(), { writes: true })
           description,
           descriptionFile,
         )
-        const original = baseFile ? await loadBasisFile(baseFile) : undefined
+        const original = baseFile != null
+          ? await loadBasisFile(baseFile)
+          : undefined
 
         if (startDate && !/^\d{4}-\d{2}-\d{2}$/.test(startDate)) {
           throw new ValidationError("Start date must be in YYYY-MM-DD format")

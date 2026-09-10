@@ -210,6 +210,7 @@ export const updateCommand = withUsageMetadata(new Command(), {
   .option(
     "--base-file <path:string>",
     "Original view --json output, saved before preparing the update",
+    { preserveEmpty: true },
   )
   .option(
     "--unprotected",
@@ -254,7 +255,9 @@ export const updateCommand = withUsageMetadata(new Command(), {
             "JSON mode cannot open an editor; provide --content or --content-file",
           )
         }
-        let original = baseFile ? await loadBasisFile(baseFile) : undefined
+        let original = baseFile != null
+          ? await loadBasisFile(baseFile)
+          : undefined
         if (!edit || original != null || unprotected) {
           validateReplacementOptions({
             original,

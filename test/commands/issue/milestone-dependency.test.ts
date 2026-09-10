@@ -53,6 +53,7 @@ async function runUpdate(
                     : milestoneB,
                   name: "Release",
                 }],
+                pageInfo: { hasNextPage: false, endCursor: null },
               },
             },
           },

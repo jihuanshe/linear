@@ -40,8 +40,12 @@ export const createCommand = withUsageMetadata(new Command(), {
   .description(withMarkdownHint("Create a new document"))
   .alias("c")
   .option("-t, --title <title:string>", "Document title (required)")
-  .option("-c, --content <content:string>", "Markdown content (inline)")
-  .option("-f, --content-file <path:string>", "Read content from file")
+  .option("-c, --content <content:string>", "Markdown content (inline)", {
+    preserveEmpty: true,
+  })
+  .option("-f, --content-file <path:string>", "Read content from file", {
+    preserveEmpty: true,
+  })
   .option(
     "--project <project:string>",
     "Attach to project (UUID, slug ID, or name)",
@@ -67,8 +71,11 @@ export const createCommand = withUsageMetadata(new Command(), {
             "--json cannot be combined with --interactive",
           )
         }
-        if (content !== undefined && contentFile !== undefined) {
+        if (content != null && contentFile != null) {
           throw new ValidationError("Use either --content or --content-file")
+        }
+        if (contentFile === "") {
+          throw new ValidationError("Content file path cannot be empty")
         }
         const client = getGraphQLClient()
 
@@ -76,7 +83,8 @@ export const createCommand = withUsageMetadata(new Command(), {
         let useInteractive = !json && interactive && Deno.stdout.isTerminal()
 
         // If no title and not interactive, check if we should enter interactive mode
-        const noFlagsProvided = !title && !content && !contentFile &&
+        const noFlagsProvided = !title && content == null &&
+          contentFile == null &&
           !project &&
           !issue && !icon
         if (!json && noFlagsProvided && Deno.stdout.isTerminal()) {
@@ -115,10 +123,10 @@ export const createCommand = withUsageMetadata(new Command(), {
         // Resolve content from various sources
         let finalContent: string | undefined
 
-        if (content !== undefined) {
+        if (content != null) {
           // Content provided inline via --content
           finalContent = content
-        } else if (contentFile) {
+        } else if (contentFile != null) {
           // Content from file via --content-file
           try {
             finalContent = await Deno.readTextFile(contentFile)

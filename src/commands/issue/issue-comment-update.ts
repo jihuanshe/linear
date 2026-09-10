@@ -32,6 +32,7 @@ export const commentUpdateCommand = withUsageMetadata(new Command(), {
   .option(
     "--body-file <path:string>",
     "Read comment body from a file (preferred for markdown content)",
+    { preserveEmpty: true },
   )
   .option(
     "-j, --json",
@@ -40,6 +41,7 @@ export const commentUpdateCommand = withUsageMetadata(new Command(), {
   .option(
     "--base-file <path:string>",
     "Original view --json output, saved before preparing the update",
+    { preserveEmpty: true },
   )
   .option(
     "--unprotected",
@@ -63,7 +65,10 @@ export const commentUpdateCommand = withUsageMetadata(new Command(), {
 
       // Read body from file if provided
       let newBody = body
-      if (bodyFile) {
+      if (bodyFile != null) {
+        if (bodyFile === "") {
+          throw new ValidationError("Body file path cannot be empty")
+        }
         try {
           newBody = await Deno.readTextFile(bodyFile)
         } catch (error) {
@@ -88,7 +93,7 @@ export const commentUpdateCommand = withUsageMetadata(new Command(), {
         )
       }
 
-      let original = options.baseFile
+      let original = options.baseFile != null
         ? await loadBasisFile(options.baseFile)
         : undefined
       if (newBody !== undefined || original != null || options.unprotected) {

@@ -1,11 +1,50 @@
 import { snapshotTest as cliffySnapshotTest } from "@cliffy/testing"
-import { assertEquals } from "@std/assert"
+import { assertEquals, assertStringIncludes } from "@std/assert"
 import { updateCommand } from "../../../src/commands/milestone/milestone-update.ts"
 import { commonDenoArgs } from "../../utils/test-helpers.ts"
 import {
   type MockGraphQLRequest,
   MockLinearServer,
 } from "../../utils/mock_linear_server.ts"
+
+for (const name of ["", " \n"]) {
+  Deno.test(`explicit empty input: milestone name ${JSON.stringify(name)}`, async () => {
+    const server = new MockLinearServer([])
+    try {
+      await server.start()
+      const result = await new Deno.Command(Deno.execPath(), {
+        args: [
+          "run",
+          ...commonDenoArgs,
+          "src/main.ts",
+          "milestone",
+          "update",
+          "milestone-1",
+          "--name",
+          name,
+          "--description",
+          "new",
+          "--unprotected",
+          "--json",
+        ],
+        env: {
+          LINEAR_GRAPHQL_ENDPOINT: server.getEndpoint(),
+          LINEAR_API_KEY: "test-token",
+        },
+        stdin: "null",
+        stdout: "piped",
+        stderr: "piped",
+      }).output()
+      const body = JSON.parse(new TextDecoder().decode(result.stdout))
+      assertEquals(result.code, 1)
+      assertEquals(body.effect, "none")
+      assertStringIncludes(body.error.message, "Milestone name cannot be empty")
+      assertEquals(server.graphqlRequests, [])
+    } finally {
+      await server.stop()
+    }
+  })
+}
 
 const originalMilestone = {
   queryName: "ReadMilestone",

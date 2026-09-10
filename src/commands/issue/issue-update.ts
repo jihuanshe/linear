@@ -564,6 +564,7 @@ export const updateCommand = withUsageMetadata(new Command(), { writes: true })
   .option(
     "--base-file <path:string>",
     "Original JSON read saved before deciding this replacement",
+    { preserveEmpty: true },
   )
   .option(
     "--unprotected",

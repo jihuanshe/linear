@@ -1,5 +1,5 @@
 import { snapshotTest } from "@cliffy/testing"
-import { assertEquals } from "@std/assert"
+import { assertEquals, assertStringIncludes } from "@std/assert"
 import { stub } from "@std/testing/mock"
 import { commentUpdateCommand } from "../../../src/commands/issue/issue-comment-update.ts"
 import type { MockGraphQLRequest } from "../../utils/mock_linear_server.ts"
@@ -17,6 +17,43 @@ import {
   commonDenoArgs,
   setupMockLinearServer,
 } from "../../utils/test-helpers.ts"
+
+for (
+  const args of [["--body-file", ""], ["--body", "new", "--body-file", ""]]
+) {
+  Deno.test(`explicit empty input: comment ${JSON.stringify(args)}`, async () => {
+    const { server, cleanup } = await setupMockLinearServer([])
+    try {
+      const result = await new Deno.Command(Deno.execPath(), {
+        args: [
+          "run",
+          ...commonDenoArgs,
+          "src/main.ts",
+          "issue",
+          "comment",
+          "update",
+          "comment-1",
+          "--json",
+          "--unprotected",
+          ...args,
+        ],
+        stdin: "null",
+        stdout: "piped",
+        stderr: "piped",
+      }).output()
+      const body = JSON.parse(new TextDecoder().decode(result.stdout))
+      assertEquals(result.code, 1)
+      assertEquals(body.effect, "none")
+      assertStringIncludes(
+        body.error.message,
+        args.includes("--body") ? "both" : "path cannot be empty",
+      )
+      assertEquals(server.graphqlRequests, [])
+    } finally {
+      await cleanup()
+    }
+  })
+}
 
 for (const input of ["empty", "whitespace", "file"] as const) {
   Deno.test(`comment update JSON distinguishes explicit ${input} content from an omitted body`, async () => {

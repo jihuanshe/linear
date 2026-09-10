@@ -556,6 +556,7 @@ Deno.test("resolveMilestoneId - resolves a name within the given project", async
                 { id: "ms-1", name: "Y26 Q2" },
                 { id: "ms-2", name: "Y26 Q3" },
               ],
+              pageInfo: { hasNextPage: false, endCursor: null },
             },
           },
         },
@@ -569,6 +570,100 @@ Deno.test("resolveMilestoneId - resolves a name within the given project", async
     await cleanup()
   }
 })
+
+for (
+  const scenario of [
+    "later match",
+    "duplicate",
+    "same page duplicate",
+    "missing",
+    "cycle",
+    "missing pageInfo",
+    "not found",
+  ]
+) {
+  Deno.test(`resolveMilestoneId - paginated ${scenario}`, async () => {
+    const { cleanup, server } = await setupMockLinearServer([{
+      queryName: "GetProjectMilestonesForLookup",
+      response: ({ variables }) => {
+        const later = variables.after != null
+        return {
+          data: {
+            project: {
+              projectMilestones: {
+                nodes: scenario === "same page duplicate"
+                  ? [
+                    { id: "ms-1", name: "Release" },
+                    { id: "ms-2", name: "RELEASE" },
+                  ]
+                  : [{
+                    id: later ? "ms-2" : "ms-1",
+                    name: scenario === "not found"
+                      ? "other"
+                      : later
+                      ? "RELEASE"
+                      : scenario === "later match"
+                      ? "other"
+                      : "Release",
+                  }],
+                ...(scenario === "missing pageInfo" ? {} : {
+                  pageInfo: {
+                    hasNextPage: scenario !== "same page duplicate" &&
+                      (!later || scenario === "cycle"),
+                    endCursor: scenario === "missing"
+                      ? null
+                      : later && scenario !== "cycle"
+                      ? null
+                      : "cursor-1",
+                  },
+                }),
+              },
+            },
+          },
+        }
+      },
+    }])
+    try {
+      if (scenario === "later match") {
+        assertEquals(await resolveMilestoneId("release", "proj-1"), "ms-2")
+      } else if (scenario.includes("duplicate")) {
+        const error = await assertRejects(
+          () => resolveMilestoneId("release", "proj-1"),
+          ValidationError,
+          "ambiguous",
+        )
+        assertStringIncludes(error.suggestion!, "UUID")
+      } else {
+        await assertRejects(
+          () => resolveMilestoneId("release", "proj-1"),
+          Error,
+          scenario === "not found"
+            ? "not found"
+            : "Incomplete project milestones pagination",
+        )
+      }
+      assertEquals(
+        server.graphqlRequests.length,
+        scenario === "missing" || scenario === "missing pageInfo" ||
+          scenario === "same page duplicate"
+          ? 1
+          : 2,
+      )
+      assertEquals(server.graphqlRequests[0].variables, {
+        projectId: "proj-1",
+        after: null,
+      })
+      if (server.graphqlRequests.length === 2) {
+        assertEquals(server.graphqlRequests[1].variables, {
+          projectId: "proj-1",
+          after: "cursor-1",
+        })
+      }
+    } finally {
+      await cleanup()
+    }
+  })
+}
 
 Deno.test("resolveMilestoneId - errors when a name is passed without a project", async () => {
   const { cleanup } = await setupMockLinearServer([])

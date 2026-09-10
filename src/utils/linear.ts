@@ -2388,29 +2388,43 @@ export async function getMilestoneIdByName(
 ): Promise<string> {
   const client = getGraphQLClient()
   const query = gql(/* GraphQL */ `
-    query GetProjectMilestonesForLookup($projectId: String!) {
+    query GetProjectMilestonesForLookup($projectId: String!, $after: String) {
       project(id: $projectId) {
-        projectMilestones {
+        projectMilestones(first: 100, after: $after) {
           nodes {
             id
             name
           }
+          pageInfo { hasNextPage endCursor }
         }
       }
     }
   `)
-  const data = await client.request(query, { projectId })
+  const data = await client.request(query, { projectId, after: null })
   if (!data.project) {
     throw new NotFoundError("Project", projectId)
   }
-  const milestones = data.project.projectMilestones?.nodes || []
-  const match = milestones.find(
+  const { nodes: milestones } = await completeConnection(
+    data.project.projectMilestones,
+    async (after) => {
+      const page = await client.request(query, { projectId, after })
+      if (!page.project) throw new NotFoundError("Project", projectId)
+      return page.project.projectMilestones
+    },
+    "project milestones",
+  )
+  const matches = milestones.filter(
     (m) => m.name.toLowerCase() === milestoneName.toLowerCase(),
   )
-  if (!match) {
+  if (matches.length > 1) {
+    throw new ValidationError(`Milestone name is ambiguous: ${milestoneName}`, {
+      suggestion: "Pass a milestone UUID instead of a name.",
+    })
+  }
+  if (matches.length === 0) {
     throw new NotFoundError("Milestone", milestoneName)
   }
-  return match.id
+  return matches[0]!.id
 }
 
 export async function getCycleIdByNameOrNumber(

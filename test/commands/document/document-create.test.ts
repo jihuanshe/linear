@@ -1,7 +1,82 @@
 import { snapshotTest } from "@cliffy/testing"
+import { assertEquals, assertStringIncludes } from "@std/assert"
 import { createCommand } from "../../../src/commands/document/document-create.ts"
 import { MockLinearServer } from "../../utils/mock_linear_server.ts"
 import { commonDenoArgs } from "../../utils/test-helpers.ts"
+
+for (
+  const args of [
+    ["--content", ""],
+    ["--content="],
+    ["-c", ""],
+    ["--content-file", ""],
+    ["--content", "", "--content-file", ""],
+    ["--content", "new", "--content-file", ""],
+  ]
+) {
+  Deno.test(`explicit empty input: document create ${JSON.stringify(args)}`, async () => {
+    const invalid = args.includes("--content-file")
+    const server = new MockLinearServer([{
+      queryName: "CreateDocument",
+      variables: { input: { title: "Spec", content: "" } },
+      response: {
+        data: {
+          documentCreate: {
+            success: true,
+            document: {
+              id: "doc-1",
+              title: "Spec",
+              url: "https://linear.app/test",
+            },
+          },
+        },
+      },
+    }])
+    try {
+      await server.start()
+      const child = new Deno.Command(Deno.execPath(), {
+        args: [
+          "run",
+          ...commonDenoArgs,
+          "src/main.ts",
+          "document",
+          "create",
+          "--title",
+          "Spec",
+          "--json",
+          ...args,
+        ],
+        env: {
+          LINEAR_GRAPHQL_ENDPOINT: server.getEndpoint(),
+          LINEAR_API_KEY: "test-token",
+        },
+        stdin: "piped",
+        stdout: "piped",
+        stderr: "piped",
+      }).spawn()
+      const writer = child.stdin.getWriter()
+      await writer.write(new TextEncoder().encode("Must not become content"))
+      await writer.close()
+      const result = await child.output()
+      const body = JSON.parse(new TextDecoder().decode(result.stdout))
+      assertEquals(result.code, invalid ? 1 : 0)
+      assertEquals(server.graphqlRequests.length, invalid ? 0 : 1)
+      if (invalid) {
+        assertEquals(body.effect, "none")
+        assertStringIncludes(
+          body.error.message,
+          args.includes("--content") ? "either" : "empty",
+        )
+      } else {
+        assertEquals(server.graphqlRequests[0].variables, {
+          input: { title: "Spec", content: "" },
+        })
+      }
+    } finally {
+      await server.stop()
+    }
+  })
+}
 
 // Test help output
 await snapshotTest({

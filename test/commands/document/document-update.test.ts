@@ -4,6 +4,50 @@ import { updateCommand } from "../../../src/commands/document/document-update.ts
 import { MockLinearServer } from "../../utils/mock_linear_server.ts"
 import { commonDenoArgs } from "../../utils/test-helpers.ts"
 
+for (
+  const command of [
+    ["document", "update", "doc-1", "--title", "New"],
+    ["issue", "comment", "update", "comment-1", "--body", "New"],
+    ["issue", "update", "ENG-123", "--title", "New"],
+    ["project", "update", "project-1", "--name", "New"],
+    ["initiative", "update", "initiative-1", "--name", "New"],
+    ["milestone", "update", "milestone-1", "--name", "New"],
+  ]
+) {
+  Deno.test(`explicit empty input: ${command.slice(0, -2).join(" ")} base file`, async () => {
+    const server = new MockLinearServer([])
+    try {
+      await server.start()
+      const result = await new Deno.Command(Deno.execPath(), {
+        args: [
+          "run",
+          ...commonDenoArgs,
+          "src/main.ts",
+          ...command,
+          "--base-file",
+          "",
+          "--unprotected",
+          "--json",
+        ],
+        env: {
+          LINEAR_GRAPHQL_ENDPOINT: server.getEndpoint(),
+          LINEAR_API_KEY: "test-token",
+        },
+        stdin: "null",
+        stdout: "piped",
+        stderr: "piped",
+      }).output()
+      const body = JSON.parse(new TextDecoder().decode(result.stdout))
+      assertEquals(result.code, 1)
+      assertEquals(body.effect, "none")
+      assertStringIncludes(body.error.message, "empty")
+      assertEquals(server.graphqlRequests, [])
+    } finally {
+      await server.stop()
+    }
+  })
+}
+
 const originalDocument = {
   queryName: "ReadDocument",
   response: {

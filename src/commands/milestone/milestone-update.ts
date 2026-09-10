@@ -47,7 +47,7 @@ export const updateCommand = withUsageMetadata(new Command(), { writes: true })
   .name("update")
   .description("Update an existing project milestone")
   .arguments("<id:string>")
-  .option("--name <name:string>", "Milestone name")
+  .option("--name <name:string>", "Milestone name", { preserveEmpty: true })
   .option(
     "--description <description:string>",
     "Milestone description; empty string clears it",
@@ -66,6 +66,7 @@ export const updateCommand = withUsageMetadata(new Command(), { writes: true })
   .option(
     "--base-file <path:string>",
     "Original view --json output, saved before preparing the update",
+    { preserveEmpty: true },
   )
   .option(
     "--unprotected",
@@ -97,8 +98,12 @@ export const updateCommand = withUsageMetadata(new Command(), { writes: true })
       spinner?.start()
 
       try {
+        if (name != null && !name.trim()) {
+          throw new ValidationError("Milestone name cannot be empty")
+        }
         if (
-          !name && description == null && !targetDate && sortOrder == null &&
+          name == null && description == null && !targetDate &&
+          sortOrder == null &&
           !projectIdOrSlug
         ) {
           throw new ValidationError(
@@ -112,7 +117,9 @@ export const updateCommand = withUsageMetadata(new Command(), { writes: true })
         if (targetDate && !/^\d{4}-\d{2}-\d{2}$/.test(targetDate)) {
           throw new ValidationError("Target date must be in YYYY-MM-DD format")
         }
-        const original = baseFile ? await loadBasisFile(baseFile) : undefined
+        const original = baseFile != null
+          ? await loadBasisFile(baseFile)
+          : undefined
         validateReplacementOptions({
           original,
           unprotected,
@@ -121,7 +128,7 @@ export const updateCommand = withUsageMetadata(new Command(), { writes: true })
         const client = getGraphQLClient()
         const input: ProjectMilestoneUpdateInput = {}
 
-        if (name) input.name = name
+        if (name != null) input.name = name
         if (description != null) input.description = description
         if (targetDate) input.targetDate = targetDate
         if (sortOrder != null) input.sortOrder = sortOrder
