@@ -893,6 +893,107 @@ Deno.test("Issue Query Command - exact URL returns complete paginated comments",
   })
 })
 
+Deno.test("Issue Query Command - rejects non-adjacent comment cursor cycles", async () => {
+  const targetUrl = "https://example.com/objects/comment-cycle"
+  const { server, cleanup } = await setupMockLinearServer([
+    {
+      queryName: "GetIssuesForQuery",
+      response: {
+        data: {
+          issues: {
+            nodes: [{
+              ...mockIssueNode,
+              description: "No matching description",
+              comments: {
+                nodes: [{ body: "first comment" }],
+                pageInfo: { hasNextPage: true, endCursor: "cursor-a" },
+              },
+            }],
+            pageInfo: { hasNextPage: false, endCursor: null },
+          },
+        },
+      },
+    },
+    {
+      queryName: "GetIssueCommentsForUrlLookup",
+      variables: { id: "issue-1", after: undefined },
+      response: {
+        data: {
+          issue: {
+            comments: {
+              nodes: [{ body: "first comment" }],
+              pageInfo: { hasNextPage: true, endCursor: "cursor-a" },
+            },
+          },
+        },
+      },
+    },
+    {
+      queryName: "GetIssueCommentsForUrlLookup",
+      variables: { id: "issue-1", after: "cursor-a" },
+      response: {
+        data: {
+          issue: {
+            comments: {
+              nodes: [{ body: "second comment" }],
+              pageInfo: { hasNextPage: true, endCursor: "cursor-b" },
+            },
+          },
+        },
+      },
+    },
+    {
+      queryName: "GetIssueCommentsForUrlLookup",
+      variables: { id: "issue-1", after: "cursor-b" },
+      response: {
+        data: {
+          issue: {
+            comments: {
+              nodes: [{ body: `third comment ${targetUrl}` }],
+              pageInfo: { hasNextPage: true, endCursor: "cursor-a" },
+            },
+          },
+        },
+      },
+    },
+  ], { NO_COLOR: "true" })
+  const logs: string[] = []
+  const errors: string[] = []
+  const logStub = stub(console, "log", (...args: unknown[]) => {
+    logs.push(args.map(String).join(" "))
+  })
+  const errorStub = stub(console, "error", (...args: unknown[]) => {
+    errors.push(args.map(String).join(" "))
+  })
+  const exitStub = stub(Deno, "exit", () => {
+    throw new Error("EXIT")
+  })
+
+  try {
+    try {
+      await queryCommand.parse([
+        "--all-teams",
+        "--url",
+        targetUrl,
+        "--json",
+      ])
+    } catch (error) {
+      if (!(error instanceof Error) || error.message !== "EXIT") throw error
+    }
+    assertEquals(logs, [])
+    assertStringIncludes(
+      errors.join("\n"),
+      "Incomplete comment lookup for issue-1 pagination",
+    )
+    assertEquals(server.graphqlRequests.length, 4)
+  } finally {
+    logStub.restore()
+    errorStub.restore()
+    exitStub.restore()
+    await cleanup()
+  }
+})
+
 Deno.test("Issue Query Command - exact Linear issue URL resolves by identifier", async () => {
   const targetUrl = "https://linear.app/test/issue/ENG-101/old-title"
   const { cleanup } = await setupMockLinearServer([

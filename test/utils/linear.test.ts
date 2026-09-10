@@ -1,7 +1,10 @@
 import { assertEquals, assertRejects, assertStringIncludes } from "@std/assert"
 import {
   extractIssueRelationSnapshot,
+  fetchIssuesForQuery,
   getIssueIdentifier,
+  getProjectOptionsByName,
+  getProjectsForTeam,
   isLinearUuid,
   lookupUserId,
   planIssueRelations,
@@ -418,6 +421,135 @@ Deno.test("searchIssuesByTerm - without limit fetches a single page", async () =
     await cleanup()
   }
 })
+
+Deno.test("fetchIssuesForQuery rejects non-adjacent project team cursor cycles", async () => {
+  const { server, cleanup } = await setupMockLinearServer([
+    {
+      queryName: "GetIssuesForQuery",
+      response: {
+        data: {
+          issues: {
+            nodes: [{
+              id: "issue-1",
+              project: {
+                id: "project-1",
+                teams: {
+                  nodes: [{ key: "ENG" }],
+                  pageInfo: { hasNextPage: true, endCursor: "cursor-a" },
+                },
+              },
+            }],
+            pageInfo: { hasNextPage: false, endCursor: null },
+          },
+        },
+      },
+    },
+    {
+      queryName: "GetProjectTeamsForDoctor",
+      variables: { after: "cursor-a" },
+      response: {
+        data: {
+          project: {
+            teams: {
+              nodes: [{ key: "OPS" }],
+              pageInfo: { hasNextPage: true, endCursor: "cursor-b" },
+            },
+          },
+        },
+      },
+    },
+    {
+      queryName: "GetProjectTeamsForDoctor",
+      variables: { after: "cursor-b" },
+      response: {
+        data: {
+          project: {
+            teams: {
+              nodes: [{ key: "ENG" }],
+              pageInfo: { hasNextPage: true, endCursor: "cursor-a" },
+            },
+          },
+        },
+      },
+    },
+  ])
+  try {
+    await assertRejects(
+      () => fetchIssuesForQuery({ includeProjectTeamMetadata: true }),
+      Error,
+      "empty or repeated cursor",
+    )
+    assertEquals(server.graphqlRequests.length, 3)
+  } finally {
+    await cleanup()
+  }
+})
+
+for (
+  const [name, queryName, invoke] of [
+    [
+      "project options by name",
+      "GetProjectIdOptionsByName",
+      (name: string) => getProjectOptionsByName(name),
+    ],
+    [
+      "projects for team",
+      "GetProjectsForTeam",
+      (name: string) => getProjectsForTeam(name),
+    ],
+  ] as const
+) {
+  Deno.test(`${name} rejects non-adjacent cursor cycles`, async () => {
+    const { server, cleanup } = await setupMockLinearServer([
+      {
+        queryName,
+        variables: { after: undefined },
+        response: {
+          data: {
+            projects: {
+              nodes: [{ id: "project-1", name: "First" }],
+              pageInfo: { hasNextPage: true, endCursor: "cursor-a" },
+            },
+          },
+        },
+      },
+      {
+        queryName,
+        variables: { after: "cursor-a" },
+        response: {
+          data: {
+            projects: {
+              nodes: [{ id: "project-2", name: "Second" }],
+              pageInfo: { hasNextPage: true, endCursor: "cursor-b" },
+            },
+          },
+        },
+      },
+      {
+        queryName,
+        variables: { after: "cursor-b" },
+        response: {
+          data: {
+            projects: {
+              nodes: [{ id: "project-3", name: "Third" }],
+              pageInfo: { hasNextPage: true, endCursor: "cursor-a" },
+            },
+          },
+        },
+      },
+    ])
+    try {
+      await assertRejects(
+        () => invoke(name === "projects for team" ? "ENG" : "Project"),
+        Error,
+        "empty or repeated cursor",
+      )
+      assertEquals(server.graphqlRequests.length, 3)
+    } finally {
+      await cleanup()
+    }
+  })
+}
 
 const UUID = "00000000-0000-0000-0000-000000000000"
 

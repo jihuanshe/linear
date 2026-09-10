@@ -575,9 +575,7 @@ const issueCommentsForUrlLookupQuery = gql(/* GraphQL */ `
 
 async function fetchAllIssueCommentBodies(issueId: string): Promise<string[]> {
   const client = getGraphQLClient()
-  const bodies: string[] = []
-  let after: string | null | undefined
-  while (true) {
+  const fetchPage = async (after?: string) => {
     const result = await client.request(issueCommentsForUrlLookupQuery, {
       id: issueId,
       after,
@@ -586,15 +584,14 @@ async function fetchAllIssueCommentBodies(issueId: string): Promise<string[]> {
     if (comments == null) {
       throw new CliError(`Unable to read comments for ${issueId}`)
     }
-    bodies.push(...comments.nodes.map((comment) => comment.body))
-    if (!comments.pageInfo.hasNextPage) break
-    const next = comments.pageInfo.endCursor
-    if (next == null || next === after) {
-      throw new CliError(`Incomplete comment pagination for ${issueId}`)
-    }
-    after = next
+    return comments
   }
-  return bodies
+  const comments = await completeConnection(
+    await fetchPage(),
+    fetchPage,
+    `comment lookup for ${issueId}`,
+  )
+  return comments.nodes.map((comment) => comment.body)
 }
 
 const issueDetailsQuery = gql(/* GraphQL */ `
@@ -995,29 +992,24 @@ async function fetchCompleteProjectTeams(
   initial: ProjectTeamConnection,
   includeArchived?: boolean,
 ): Promise<ProjectTeamConnection> {
-  const nodes = [...initial.nodes]
-  let pageInfo = initial.pageInfo
-  let after: string | null | undefined = initial.pageInfo.endCursor
-
-  while (pageInfo.hasNextPage) {
+  const fetchPage = async (after: string, first: number) => {
     const result: GetProjectTeamsForDoctorQuery = await getGraphQLClient()
       .request(projectTeamsQuery, {
         id: projectId,
-        first: 100,
+        first,
         after,
         includeArchived,
       })
     if (result.project == null) {
       throw new NotFoundError("Project", projectId)
     }
-
-    const connection = result.project.teams
-    nodes.push(...connection.nodes)
-    pageInfo = connection.pageInfo
-    after = connection.pageInfo.endCursor
+    return result.project.teams
   }
-
-  return { nodes, pageInfo }
+  return await completeConnection(
+    initial,
+    fetchPage,
+    `project teams for ${projectId}`,
+  )
 }
 
 async function completeDoctorProjectTeams(
@@ -1809,21 +1801,21 @@ export async function getProjectOptionsByName(
       }
     }
   `)
-  const qResults: Array<{ id: string; name: string }> = []
-  let hasNextPage = true
-  let after: string | null | undefined = undefined
-  while (hasNextPage) {
+  const fetchPage = async (after?: string, first = 100) => {
     const data: GetProjectIdOptionsByNameQuery = await client.request(query, {
       name,
-      first: 100,
+      first,
       after,
       ...(includeArchived === undefined ? {} : { includeArchived }),
     })
-    qResults.push(...(data.projects?.nodes || []))
-    hasNextPage = data.projects?.pageInfo?.hasNextPage || false
-    after = data.projects?.pageInfo?.endCursor
+    return data.projects
   }
-  return Object.fromEntries(qResults.map((t) => [t.id, t.name]))
+  const { nodes } = await completeConnection(
+    await fetchPage(),
+    fetchPage,
+    `projects matching ${name}`,
+  )
+  return Object.fromEntries(nodes.map((project) => [project.id, project.name]))
 }
 
 export async function getProjectsForTeam(
@@ -1849,24 +1841,21 @@ export async function getProjectsForTeam(
     }
   `)
 
-  const projects: Array<{ id: string; name: string }> = []
-  let hasNextPage = true
-  let after: string | null | undefined = undefined
-
-  while (hasNextPage) {
+  const fetchPage = async (after?: string, first = 100) => {
     const data: GetProjectsForTeamQuery = await client.request(query, {
       filter: {
         accessibleTeams: { some: { key: { eq: teamKey } } },
       },
-      first: 100,
+      first,
       after,
     })
-
-    const connection = data.projects
-    projects.push(...(connection?.nodes || []))
-    hasNextPage = connection?.pageInfo?.hasNextPage || false
-    after = connection?.pageInfo?.endCursor
+    return data.projects
   }
+  const { nodes: projects } = await completeConnection(
+    await fetchPage(),
+    fetchPage,
+    `projects for team ${teamKey}`,
+  )
 
   return projects.sort((a, b) =>
     a.name.toLowerCase().localeCompare(b.name.toLowerCase())
