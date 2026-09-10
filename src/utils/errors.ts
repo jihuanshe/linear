@@ -217,6 +217,22 @@ export function errorResult(error: unknown, context?: string) {
   }
 }
 
+/** Add stable operation context without discarding a mutation failure's evidence. */
+export function writeErrorFrom(
+  error: unknown,
+  fallbackData: unknown,
+): WriteError {
+  if (error instanceof WriteError) return error
+  const failure = errorResult(error)
+  return new WriteError(failure.error.message, {
+    effect: failure.effect,
+    data: Object.hasOwn(failure, "data") ? failure.data : fallbackData,
+    suggestion: failure.error.suggestion,
+    ...("details" in failure.error ? { details: failure.error.details } : {}),
+    cause: error,
+  })
+}
+
 /** Preserve confirmed earlier effects when a later step of a command fails. */
 export function withAppliedReceipts(
   error: unknown,

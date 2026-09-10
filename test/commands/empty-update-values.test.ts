@@ -49,6 +49,66 @@ for (const action of ["create", "update"]) {
   }
 }
 
+for (
+  const args of [
+    [
+      "milestone",
+      "create",
+      "--project",
+      "project-1",
+      "--name",
+      "Milestone",
+      "--target-date",
+      "",
+    ],
+    [
+      "milestone",
+      "update",
+      "milestone-1",
+      "--name",
+      "Changed",
+      "--target-date",
+      "",
+      "--unprotected",
+    ],
+    [
+      "initiative",
+      "add-project",
+      "initiative-1",
+      "project-1",
+      "--sort-order",
+      "",
+    ],
+  ]
+) {
+  Deno.test(`${args.slice(0, 2).join(" ")} rejects an explicit empty typed option before transport`, async () => {
+    const { server, cleanup } = await setupMockLinearServer([])
+    try {
+      const result = await new Deno.Command(Deno.execPath(), {
+        args: [
+          "run",
+          "--allow-all",
+          "--quiet",
+          "src/main.ts",
+          ...args,
+          "--json",
+        ],
+        stdin: "null",
+        stdout: "piped",
+        stderr: "piped",
+      }).output()
+      assertEquals(result.code, 1)
+      assertEquals(
+        JSON.parse(new TextDecoder().decode(result.stdout)).effect,
+        "none",
+      )
+      assertEquals(server.graphqlRequests, [])
+    } finally {
+      await cleanup()
+    }
+  })
+}
+
 function readResponse(
   domain: "issue" | "project",
   id: string,

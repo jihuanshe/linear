@@ -13,11 +13,11 @@ import {
 } from "../../utils/bulk.ts"
 import {
   assertMutationSuccess,
-  errorResult,
   handleError,
   NotFoundError,
   ValidationError,
   WriteError,
+  writeErrorFrom,
 } from "../../utils/errors.ts"
 
 interface DocumentDeleteResult extends BulkOperationResult {
@@ -135,11 +135,7 @@ async function handleSingleDelete(
 
   const result = await client.request(deleteMutation, { id: document.id })
     .catch((error) => {
-      throw new WriteError(errorResult(error).error.message, {
-        effect: error instanceof WriteError ? error.effect : "unknown",
-        data: { id: document.id },
-        cause: error,
-      })
+      throw writeErrorFrom(error, { id: document.id })
     })
 
   assertMutationSuccess(result?.documentDelete, {
@@ -228,11 +224,7 @@ async function handleBulkDelete(
 
     const result = await client.request(deleteMutation, { id: documentUuid })
       .catch((error) => {
-        throw new WriteError(errorResult(error).error.message, {
-          effect: error instanceof WriteError ? error.effect : "unknown",
-          data: { id: documentUuid },
-          cause: error,
-        })
+        throw writeErrorFrom(error, { id: documentUuid })
       })
 
     assertMutationSuccess(result?.documentDelete, {

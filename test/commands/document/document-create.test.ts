@@ -4,6 +4,49 @@ import { createCommand } from "../../../src/commands/document/document-create.ts
 import { MockLinearServer } from "../../utils/mock_linear_server.ts"
 import { commonDenoArgs } from "../../utils/test-helpers.ts"
 
+const parentProjectId = "11111111-1111-4111-8111-111111111111"
+
+for (
+  const parents of [
+    [],
+    ["--project", parentProjectId, "--issue", "ENG-123"],
+  ]
+) {
+  Deno.test(`document create requires exactly one parent: ${parents.length / 2}`, async () => {
+    const server = new MockLinearServer([])
+    try {
+      await server.start()
+      const result = await new Deno.Command(Deno.execPath(), {
+        args: [
+          "run",
+          ...commonDenoArgs,
+          "src/main.ts",
+          "document",
+          "create",
+          "--title",
+          "Document",
+          ...parents,
+          "--json",
+        ],
+        env: {
+          LINEAR_GRAPHQL_ENDPOINT: server.getEndpoint(),
+          LINEAR_API_KEY: "test-token",
+        },
+        stdin: "null",
+        stdout: "piped",
+        stderr: "piped",
+      }).output()
+      const body = JSON.parse(new TextDecoder().decode(result.stdout))
+      assertEquals(result.code, 1)
+      assertEquals(body.effect, "none")
+      assertStringIncludes(body.error.message, "Exactly one")
+      assertEquals(server.graphqlRequests, [])
+    } finally {
+      await server.stop()
+    }
+  })
+}
+
 for (
   const args of [
     ["--content", ""],
@@ -18,7 +61,9 @@ for (
     const invalid = args.includes("--content-file")
     const server = new MockLinearServer([{
       queryName: "CreateDocument",
-      variables: { input: { title: "Spec", content: "" } },
+      variables: {
+        input: { title: "Spec", content: "", projectId: parentProjectId },
+      },
       response: {
         data: {
           documentCreate: {
@@ -43,6 +88,8 @@ for (
           "create",
           "--title",
           "Spec",
+          "--project",
+          parentProjectId,
           "--json",
           ...args,
         ],
@@ -59,7 +106,7 @@ for (
       await writer.close()
       const result = await child.output()
       const body = JSON.parse(new TextDecoder().decode(result.stdout))
-      assertEquals(result.code, invalid ? 1 : 0)
+      assertEquals(result.code, invalid ? 1 : 0, JSON.stringify(body))
       assertEquals(server.graphqlRequests.length, invalid ? 0 : 1)
       if (invalid) {
         assertEquals(body.effect, "none")
@@ -69,7 +116,7 @@ for (
         )
       } else {
         assertEquals(server.graphqlRequests[0].variables, {
-          input: { title: "Spec", content: "" },
+          input: { title: "Spec", content: "", projectId: parentProjectId },
         })
       }
     } finally {
@@ -96,7 +143,14 @@ await snapshotTest({
   name: "Document Create Command - With Inline Content",
   meta: import.meta,
   colors: false,
-  args: ["--title", "Test Document", "--content", "# Hello\n\nWorld"],
+  args: [
+    "--title",
+    "Test Document",
+    "--project",
+    parentProjectId,
+    "--content",
+    "# Hello\n\nWorld",
+  ],
   denoArgs: commonDenoArgs,
   async fn() {
     const server = new MockLinearServer([
@@ -106,6 +160,7 @@ await snapshotTest({
           input: {
             title: "Test Document",
             content: "# Hello\n\nWorld",
+            projectId: parentProjectId,
           },
         },
         response: {
@@ -280,7 +335,16 @@ await snapshotTest({
   name: "Document Create Command - With Icon",
   meta: import.meta,
   colors: false,
-  args: ["--title", "Design Doc", "--icon", "📐", "--content", "# Design"],
+  args: [
+    "--title",
+    "Design Doc",
+    "--project",
+    parentProjectId,
+    "--icon",
+    "📐",
+    "--content",
+    "# Design",
+  ],
   denoArgs: commonDenoArgs,
   async fn() {
     const server = new MockLinearServer([
@@ -291,6 +355,7 @@ await snapshotTest({
             title: "Design Doc",
             content: "# Design",
             icon: "📐",
+            projectId: parentProjectId,
           },
         },
         response: {

@@ -112,6 +112,43 @@ async function runCli(
   }
 }
 
+for (
+  const write of [
+    {
+      name: "initiative archive",
+      args: ["initiative", "archive", id, "--force"],
+      field: "initiativeArchive",
+    },
+    {
+      name: "initiative delete",
+      args: ["initiative", "delete", id, "--force"],
+      field: "initiativeDelete",
+    },
+    {
+      name: "document delete",
+      args: ["document", "delete", id, "--yes"],
+      field: "documentDelete",
+    },
+  ]
+) {
+  Deno.test(`${write.name} retains partial success data and applied effect`, async () => {
+    const errors = [{ message: "Injected late field failure" }]
+    const mutationData = { [write.field]: { success: true } }
+    const result = await runCli(write.args, (request) => {
+      if (!/^mutation\b/.test(request.query.trim())) {
+        return readResponse(request)
+      }
+      return { data: mutationData, errors }
+    })
+    assertEquals(result.code, 1)
+    assertEquals(result.result.ok, false)
+    assertEquals(result.result.effect, "applied")
+    assertEquals(result.result.data, mutationData)
+    assertEquals(result.result.error.details.errors, errors)
+    assertEquals(result.mutations.length, 1)
+  })
+}
+
 const writes = [
   {
     args: ["label", "create", "--name", "Example"],
@@ -225,6 +262,8 @@ const writes = [
       "Example",
       "--content",
       "Document text",
+      "--project",
+      projectId,
     ],
     field: "documentCreate",
     entity: "document",

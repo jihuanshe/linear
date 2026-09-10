@@ -183,9 +183,11 @@ export const updateCommand = withUsageMetadata(new Command(), {
   ))
   .alias("u")
   .arguments("<documentId:string>")
-  .option("-t, --title <title:string>", "New title for the document", {
-    preserveEmpty: true,
-  })
+  .option(
+    "-t, --title <title:string>",
+    "New title for the document; empty string clears it",
+    { preserveEmpty: true },
+  )
   .option(
     "-c, --content <content:string>",
     "New markdown content (inline; empty string clears it)",
@@ -243,7 +245,7 @@ export const updateCommand = withUsageMetadata(new Command(), {
     ) => {
       try {
         for (
-          const [option, value] of [["--title", title], ["--icon", icon], [
+          const [option, value] of [["--icon", icon], [
             "--project",
             project,
           ]]
@@ -284,7 +286,7 @@ export const updateCommand = withUsageMetadata(new Command(), {
         const input: Record<string, string> = {}
 
         // Add title if provided
-        if (title) {
+        if (title != null) {
           input.title = title
         }
 

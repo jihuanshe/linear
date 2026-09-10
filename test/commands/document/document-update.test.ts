@@ -4,7 +4,7 @@ import { updateCommand } from "../../../src/commands/document/document-update.ts
 import { MockLinearServer } from "../../utils/mock_linear_server.ts"
 import { commonDenoArgs } from "../../utils/test-helpers.ts"
 
-for (const option of ["--title", "--icon", "--project"]) {
+for (const option of ["--icon", "--project"]) {
   for (const value of ["", " \n"]) {
     Deno.test(`document rejects invalid metadata: ${option} ${JSON.stringify(value)}`, async () => {
       const server = new MockLinearServer([])
@@ -105,6 +105,59 @@ const originalDocument = {
     },
   },
 }
+
+Deno.test("document update preserves an explicitly empty title", async () => {
+  const server = new MockLinearServer([originalDocument, {
+    queryName: "UpdateDocument",
+    variables: { id: "doc-1", input: { title: "" } },
+    response: {
+      data: {
+        documentUpdate: {
+          success: true,
+          document: {
+            id: "doc-1",
+            slugId: "document-1",
+            title: "",
+            content: "Old content",
+            url: "https://linear.app/test/document/document-1",
+            updatedAt: "2026-09-10T00:00:00Z",
+          },
+        },
+      },
+    },
+  }])
+  try {
+    await server.start()
+    const result = await new Deno.Command(Deno.execPath(), {
+      args: [
+        "run",
+        ...commonDenoArgs,
+        "src/main.ts",
+        "document",
+        "update",
+        "doc-1",
+        "--title",
+        "",
+        "--unprotected",
+        "--json",
+      ],
+      env: {
+        LINEAR_GRAPHQL_ENDPOINT: server.getEndpoint(),
+        LINEAR_API_KEY: "test-token",
+      },
+      stdin: "null",
+      stdout: "piped",
+      stderr: "piped",
+    }).output()
+    const body = JSON.parse(new TextDecoder().decode(result.stdout))
+    assertEquals(result.code, 0)
+    assertEquals(body.effect, "applied")
+    assertEquals(body.fields[0].desired, "")
+    assertEquals(server.graphqlRequests.at(-1)?.variables.input, { title: "" })
+  } finally {
+    await server.stop()
+  }
+})
 
 for (
   const scenario of [

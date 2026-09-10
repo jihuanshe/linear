@@ -59,6 +59,7 @@ export const updateCommand = withUsageMetadata(new Command(), { writes: true })
   .option(
     "--sort-order <value:number>",
     "Sort order relative to other milestones",
+    { preserveEmpty: true },
   )
   .option(
     "--project <project:string>",
@@ -120,7 +121,7 @@ export const updateCommand = withUsageMetadata(new Command(), { writes: true })
           }
         }
         if (
-          name == null && description == null && !targetDate &&
+          name == null && description == null && targetDate == null &&
           sortOrder == null &&
           !projectIdOrSlug
         ) {
@@ -145,7 +146,7 @@ export const updateCommand = withUsageMetadata(new Command(), { writes: true })
 
         if (name != null) input.name = name
         if (description != null) input.description = description
-        if (targetDate) input.targetDate = targetDate
+        if (targetDate != null) input.targetDate = targetDate
         if (sortOrder != null) input.sortOrder = sortOrder
         if (projectIdOrSlug) {
           // Resolve project slug to full UUID

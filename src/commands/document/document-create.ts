@@ -48,9 +48,12 @@ export const createCommand = withUsageMetadata(new Command(), {
   })
   .option(
     "--project <project:string>",
-    "Attach to project (UUID, slug ID, or name)",
+    "Attach to project (UUID, slug ID, or name; exactly one parent is required)",
   )
-  .option("--issue <issue:string>", "Attach to issue (identifier like TC-123)")
+  .option(
+    "--issue <issue:string>",
+    "Attach to issue (identifier like TC-123; exactly one parent is required)",
+  )
   .option("--icon <icon:string>", "Document icon (emoji)")
   .option("-i, --interactive", "Interactive mode with prompts")
   .action(
@@ -118,6 +121,12 @@ export const createCommand = withUsageMetadata(new Command(), {
           throw new ValidationError("Title is required", {
             suggestion: "Use --title or run with -i for interactive mode.",
           })
+        }
+        if ((project == null) === (issue == null)) {
+          throw new ValidationError(
+            "Exactly one document parent must be provided",
+            { suggestion: "Use either --project or --issue." },
+          )
         }
 
         // Resolve content from various sources

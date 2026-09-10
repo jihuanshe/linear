@@ -43,7 +43,9 @@ export const createCommand = withUsageMetadata(new Command(), {
   )
   .option("--name <name:string>", "Milestone name", { required: true })
   .option("--description <description:string>", "Milestone description")
-  .option("--target-date <date:string>", "Target date (YYYY-MM-DD)")
+  .option("--target-date <date:string>", "Target date (YYYY-MM-DD)", {
+    preserveEmpty: true,
+  })
   .action(
     async (
       { project: projectIdOrSlug, name, description, targetDate, json },
@@ -57,6 +59,9 @@ export const createCommand = withUsageMetadata(new Command(), {
       try {
         if (!name.trim()) {
           throw new ValidationError("Milestone name is required")
+        }
+        if (targetDate != null && !/^\d{4}-\d{2}-\d{2}$/.test(targetDate)) {
+          throw new ValidationError("Target date must be in YYYY-MM-DD format")
         }
         // Resolve project slug to full UUID
         const projectId = await resolveProjectId(projectIdOrSlug)

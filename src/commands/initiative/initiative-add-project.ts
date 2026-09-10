@@ -76,7 +76,9 @@ export const addProjectCommand = withUsageMetadata(new Command(), {
     "Link a project to an initiative. An existing direct link is unchanged, including its sort order.",
   )
   .arguments("<initiative:string> <project:string>")
-  .option("--sort-order <sortOrder:number>", "Sort order for a new link only")
+  .option("--sort-order <sortOrder:number>", "Sort order for a new link only", {
+    preserveEmpty: true,
+  })
   .action(
     async (
       { sortOrder, json },

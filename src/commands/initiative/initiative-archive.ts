@@ -16,11 +16,11 @@ import { shouldShowSpinner } from "../../utils/hyperlink.ts"
 import { printWriteResult, setMachineOutput } from "../../utils/write-result.ts"
 import {
   assertMutationSuccess,
-  errorResult,
   handleError,
   NotFoundError,
   ValidationError,
   WriteError,
+  writeErrorFrom,
 } from "../../utils/errors.ts"
 
 interface InitiativeArchiveResult extends BulkOperationResult {
@@ -149,11 +149,7 @@ async function handleSingleArchive(
   try {
     const result = await client.request(archiveMutation, { id: resolvedId })
       .catch((error) => {
-        throw new WriteError(errorResult(error).error.message, {
-          effect: error instanceof WriteError ? error.effect : "unknown",
-          data: { id: resolvedId },
-          cause: error,
-        })
+        throw writeErrorFrom(error, { id: resolvedId })
       })
 
     spinner?.stop()
@@ -265,11 +261,7 @@ async function handleBulkArchive(
 
     const result = await client.request(archiveMutation, { id: resolvedId })
       .catch((error) => {
-        throw new WriteError(errorResult(error).error.message, {
-          effect: error instanceof WriteError ? error.effect : "unknown",
-          data: { id: resolvedId },
-          cause: error,
-        })
+        throw writeErrorFrom(error, { id: resolvedId })
       })
 
     assertMutationSuccess(result?.initiativeArchive, {
