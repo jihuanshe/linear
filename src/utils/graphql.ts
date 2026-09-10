@@ -3,11 +3,35 @@ import { gray } from "@std/fmt/colors"
 import { getCliWorkspace, getOption } from "../config.ts"
 import { getCredentialApiKey } from "../credentials.ts"
 import denoConfig from "../../deno.json" with { type: "json" }
-import { extractGraphQLMessage, isDebugMode } from "./errors.ts"
+import { extractGraphQLMessage, isDebugMode, WriteError } from "./errors.ts"
+import { Kind, parse } from "graphql"
 import { LINEAR_API_ENDPOINT } from "../const.ts"
 import { withTerminalColors } from "./terminal.ts"
+import { AsyncLocalStorage } from "node:async_hooks"
 
 export { ClientError }
+
+// One invocation resolves its credentials once. A login/config change during
+// a long apply must not swap the principal after workspace verification.
+const invocationClient = new AsyncLocalStorage<
+  { active: boolean; client?: GraphQLClient }
+>()
+
+export function withGraphQLContext<T>(action: () => Promise<T>): Promise<T> {
+  const invocation: { active: boolean; client?: GraphQLClient } = {
+    active: true,
+  }
+  return invocationClient.run(invocation, async () => {
+    try {
+      return await action()
+    } finally {
+      // The cache belongs to this awaited invocation. A still-reachable async
+      // context must not lend its finished invocation's principal to later work.
+      invocation.active = false
+      invocation.client = undefined
+    }
+  })
+}
 
 // Re-export error utilities for backward compatibility
 export { isClientError } from "./errors.ts"
@@ -105,6 +129,64 @@ function createClient(apiKey?: string): GraphQLClient {
       ...(apiKey == null ? {} : { Authorization: apiKey }),
       "User-Agent": `jihuanshe-linear/${denoConfig.version}`,
     },
+    fetch: async (input, init) => {
+      // All typed requests use GraphQL JSON. Classify before transport so a
+      // fetch exception after sending a mutation is never called zero-effect.
+      let mutation = false
+      if (typeof init?.body === "string") {
+        const body = JSON.parse(init.body) as { query?: string }
+        if (typeof body.query === "string") {
+          mutation = parse(body.query).definitions.some((definition) =>
+            definition.kind === Kind.OPERATION_DEFINITION &&
+            definition.operation === "mutation"
+          )
+        }
+      }
+      try {
+        const response = await fetch(input, init)
+        if (!mutation) return response
+        // Buffer the small GraphQL receipt here as well: body interruption or
+        // invalid JSON after HTTP headers is still an unknown mutation.
+        const text = await response.text()
+        const decoded: unknown = JSON.parse(text)
+        const envelope = decoded != null && typeof decoded === "object" &&
+            !Array.isArray(decoded)
+          ? decoded as { data?: unknown; errors?: unknown }
+          : undefined
+        const hasErrors = Array.isArray(envelope?.errors) &&
+          envelope.errors.length > 0
+        if (
+          envelope == null ||
+          (!hasErrors &&
+            (envelope.data == null || typeof envelope.data !== "object" ||
+              Array.isArray(envelope.data)))
+        ) {
+          throw new WriteError(
+            "Mutation response did not contain GraphQL data",
+            {
+              effect: "unknown",
+              data: decoded,
+              suggestion:
+                "Reconcile the remote outcome before retrying this write.",
+            },
+          )
+        }
+        return new Response(text, {
+          status: response.status,
+          statusText: response.statusText,
+          headers: response.headers,
+        })
+      } catch (cause) {
+        if (!mutation) throw cause
+        if (cause instanceof WriteError) throw cause
+        throw new WriteError("Mutation response was not received", {
+          effect: "unknown",
+          cause,
+          suggestion:
+            "Reconcile the remote outcome before retrying this write.",
+        })
+      }
+    },
   })
 }
 
@@ -122,6 +204,8 @@ export function createPublicGraphQLClient(): GraphQLClient {
 }
 
 export function getGraphQLClient(): GraphQLClient {
+  const invocation = invocationClient.getStore()
+  if (invocation?.active && invocation.client != null) return invocation.client
   const apiKey = getResolvedApiKey()
   if (!apiKey) {
     throw new Error(
@@ -129,5 +213,7 @@ export function getGraphQLClient(): GraphQLClient {
     )
   }
 
-  return createGraphQLClient(apiKey)
+  const client = createGraphQLClient(apiKey)
+  if (invocation?.active) invocation.client = client
+  return client
 }

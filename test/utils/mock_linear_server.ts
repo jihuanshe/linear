@@ -11,11 +11,21 @@
  * ]);
  */
 
+export interface MockGraphQLRequest {
+  query: string
+  variables: Record<string, unknown>
+}
+
 interface MockResponse {
   queryName: string
   queryIncludes?: string
   variables?: Record<string, unknown>
-  response: Record<string, unknown>
+  response:
+    | Record<string, unknown>
+    | ((
+      request: MockGraphQLRequest,
+      history: readonly MockGraphQLRequest[],
+    ) => Record<string, unknown> | Promise<Record<string, unknown>>)
   status?: number
 }
 
@@ -33,10 +43,7 @@ export class MockLinearServer {
   /** Signed-URL file uploads received via PUT, in arrival order */
   readonly uploadRequests: UploadRequest[] = []
   /** GraphQL requests received, in arrival order. */
-  readonly graphqlRequests: Array<{
-    query: string
-    variables: Record<string, unknown>
-  }> = []
+  readonly graphqlRequests: MockGraphQLRequest[] = []
 
   constructor(responses: MockResponse[] = []) {
     this.mockResponses = responses
@@ -134,8 +141,14 @@ export class MockLinearServer {
       const mockResponse = this.findMatchingResponse(query, variables)
 
       if (mockResponse) {
+        const response = typeof mockResponse.response === "function"
+          ? await mockResponse.response(
+            { query, variables: variables ?? {} },
+            this.graphqlRequests,
+          )
+          : mockResponse.response
         return new Response(
-          JSON.stringify(mockResponse.response),
+          JSON.stringify(response),
           { status: mockResponse.status ?? 200, headers },
         )
       }

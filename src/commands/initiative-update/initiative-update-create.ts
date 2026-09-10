@@ -1,11 +1,14 @@
+import { resolveInitiativeId } from "../initiative/initiative-resolve.ts"
 import { Command } from "@cliffy/command"
 import { withUsageMetadata } from "../usage.ts"
 import { Input, Select } from "../../utils/prompt.ts"
 import { gql } from "../../__codegen__/gql.ts"
 import type { InitiativeUpdateCreateInput } from "../../__codegen__/graphql.ts"
-import { readIdsFromStdin } from "../../utils/bulk.ts"
+import { printWriteResult, setMachineOutput } from "../../utils/write-result.ts"
 import { getEditor, openEditor } from "../../utils/editor.ts"
 import {
+  assertMutationReceipt,
+  assertMutationSuccess,
   CliError,
   handleError,
   NotFoundError,
@@ -27,81 +30,29 @@ async function readContentFromStdin(): Promise<string | undefined> {
   }
 
   try {
-    const lines = await readIdsFromStdin()
-    // Join back with newlines since it's content, not IDs
-    const content = lines.join("\n")
+    const content = await new Response(Deno.stdin.readable).text()
     return content.length > 0 ? content : undefined
-  } catch {
-    return undefined
+  } catch (error) {
+    throw new CliError(
+      `Failed to read update content from stdin: ${
+        error instanceof Error ? error.message : String(error)
+      }`,
+      { cause: error },
+    )
   }
 }
 
 /**
  * Resolve initiative ID from UUID, slug, or name
  */
-async function resolveInitiativeId(
-  client: ReturnType<typeof getGraphQLClient>,
-  idOrSlugOrName: string,
-): Promise<string | undefined> {
-  // Try as UUID first
-  if (
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
-      idOrSlugOrName,
-    )
-  ) {
-    return idOrSlugOrName
-  }
-
-  // Try as slug
-  const slugQuery = gql(`
-    query GetInitiativeBySlugForStatusUpdate($slugId: String!) {
-      initiatives(filter: { slugId: { eq: $slugId } }) {
-        nodes {
-          id
-          slugId
-        }
-      }
-    }
-  `)
-
-  try {
-    const result = await client.request(slugQuery, { slugId: idOrSlugOrName })
-    if (result.initiatives?.nodes?.length > 0) {
-      return result.initiatives.nodes[0].id
-    }
-  } catch {
-    // Continue to name lookup
-  }
-
-  // Try as name (case-insensitive)
-  const nameQuery = gql(`
-    query GetInitiativeByNameForStatusUpdate($name: String!) {
-      initiatives(filter: { name: { eqIgnoreCase: $name } }) {
-        nodes {
-          id
-          name
-        }
-      }
-    }
-  `)
-
-  try {
-    const result = await client.request(nameQuery, { name: idOrSlugOrName })
-    if (result.initiatives?.nodes?.length > 0) {
-      return result.initiatives.nodes[0].id
-    }
-  } catch {
-    // Not found
-  }
-
-  return undefined
-}
 
 export const createCommand = withUsageMetadata(new Command(), {
   writes: true,
   interactive: true,
+  outputModes: ["human", "json"],
 })
   .name("create")
+  .option("--json", "Output a JSON write result")
   .description("Create a new status update for an initiative")
   .alias("c")
   .arguments("<initiativeId:string>")
@@ -112,18 +63,28 @@ export const createCommand = withUsageMetadata(new Command(), {
     "Health status (onTrack, atRisk, offTrack)",
   )
   .option("-i, --interactive", "Interactive mode with prompts")
-  .action(async ({ body, bodyFile, health, interactive }, initiativeId) => {
-    try {
-      const client = getGraphQLClient()
+  .action(
+    async ({ body, bodyFile, health, interactive, json }, initiativeId) => {
+      setMachineOutput(json ?? false)
+      try {
+        if (json && interactive) {
+          throw new ValidationError(
+            "--json cannot be combined with --interactive",
+          )
+        }
+        if (body !== undefined && bodyFile !== undefined) {
+          throw new ValidationError("Use either --body or --body-file")
+        }
+        const client = getGraphQLClient()
 
-      // Resolve initiative ID
-      const resolvedId = await resolveInitiativeId(client, initiativeId)
-      if (!resolvedId) {
-        throw new NotFoundError("Initiative", initiativeId)
-      }
+        // Resolve initiative ID
+        const resolvedId = await resolveInitiativeId(client, initiativeId)
+        if (!resolvedId) {
+          throw new NotFoundError("Initiative", initiativeId)
+        }
 
-      // Get initiative name for display
-      const initiativeQuery = gql(`
+        // Get initiative name for display
+        const initiativeQuery = gql(`
         query GetInitiativeNameForStatusUpdate($id: String!) {
           initiative(id: $id) {
             name
@@ -131,93 +92,96 @@ export const createCommand = withUsageMetadata(new Command(), {
           }
         }
       `)
-      let initiativeName = initiativeId
-      try {
-        const result = await client.request(initiativeQuery, { id: resolvedId })
-        if (result.initiative?.name) {
-          initiativeName = result.initiative.name
+        let initiativeName = initiativeId
+        try {
+          const result = await client.request(initiativeQuery, {
+            id: resolvedId,
+          })
+          if (result.initiative?.name) {
+            initiativeName = result.initiative.name
+          }
+        } catch {
+          // Use provided ID as fallback
         }
-      } catch {
-        // Use provided ID as fallback
-      }
 
-      // Determine if we should use interactive mode
-      let useInteractive = interactive && Deno.stdout.isTerminal()
+        // Determine if we should use interactive mode
+        let useInteractive = !json && interactive && Deno.stdout.isTerminal()
 
-      // If no flags provided and we have a TTY, enter interactive mode
-      const noFlagsProvided = !body && !bodyFile && !health
-      if (noFlagsProvided && Deno.stdout.isTerminal()) {
-        useInteractive = true
-      }
+        // If no flags provided and we have a TTY, enter interactive mode
+        const noFlagsProvided = !body && !bodyFile && !health
+        if (!json && noFlagsProvided && Deno.stdout.isTerminal()) {
+          useInteractive = true
+        }
 
-      // Interactive mode
-      if (useInteractive) {
-        const result = await promptInteractiveCreate(initiativeName)
+        // Interactive mode
+        if (useInteractive) {
+          const result = await promptInteractiveCreate(initiativeName)
+
+          await createInitiativeUpdate(client, {
+            initiativeId: resolvedId,
+            body: result.body,
+            health: result.health,
+          })
+          return
+        }
+
+        // Resolve body content from various sources
+        let finalBody: string | undefined
+
+        if (body !== undefined) {
+          // Content provided inline via --body
+          finalBody = body
+        } else if (bodyFile) {
+          // Content from file via --body-file
+          try {
+            finalBody = await Deno.readTextFile(bodyFile)
+          } catch (error) {
+            if (error instanceof Deno.errors.NotFound) {
+              throw new NotFoundError("File", bodyFile)
+            }
+            throw new CliError(
+              `Failed to read body file: ${
+                error instanceof Error ? error.message : String(error)
+              }`,
+              { cause: error },
+            )
+          }
+        } else if (!Deno.stdin.isTerminal()) {
+          // Try reading from stdin if piped
+          const stdinContent = await readContentFromStdin()
+          if (stdinContent) {
+            finalBody = stdinContent
+          }
+        } else if (!json && Deno.stdout.isTerminal()) {
+          // No content provided, open editor
+          console.log("Opening editor for status update content...")
+          finalBody = await openEditor()
+          if (!finalBody) {
+            console.log("No content entered.")
+          }
+        }
+
+        // Validate health value if provided
+        let validatedHealth: HealthValue | undefined
+        if (health !== undefined) {
+          if (!HEALTH_VALUES.includes(health as HealthValue)) {
+            throw new ValidationError(`Invalid health value: ${health}`, {
+              suggestion: `Valid values: ${HEALTH_VALUES.join(", ")}`,
+            })
+          }
+          validatedHealth = health as HealthValue
+        }
 
         await createInitiativeUpdate(client, {
           initiativeId: resolvedId,
-          body: result.body,
-          health: result.health,
-        })
-        return
+          body: finalBody,
+          health: validatedHealth,
+        }, json)
+      } catch (error) {
+        handleError(error, "Failed to create initiative status update")
       }
-
-      // Resolve body content from various sources
-      let finalBody: string | undefined
-
-      if (body) {
-        // Content provided inline via --body
-        finalBody = body
-      } else if (bodyFile) {
-        // Content from file via --body-file
-        try {
-          finalBody = await Deno.readTextFile(bodyFile)
-        } catch (error) {
-          if (error instanceof Deno.errors.NotFound) {
-            throw new NotFoundError("File", bodyFile)
-          }
-          throw new CliError(
-            `Failed to read body file: ${
-              error instanceof Error ? error.message : String(error)
-            }`,
-            { cause: error },
-          )
-        }
-      } else if (!Deno.stdin.isTerminal()) {
-        // Try reading from stdin if piped
-        const stdinContent = await readContentFromStdin()
-        if (stdinContent) {
-          finalBody = stdinContent
-        }
-      } else if (Deno.stdout.isTerminal()) {
-        // No content provided, open editor
-        console.log("Opening editor for status update content...")
-        finalBody = await openEditor()
-        if (!finalBody) {
-          console.log("No content entered.")
-        }
-      }
-
-      // Validate health value if provided
-      let validatedHealth: HealthValue | undefined
-      if (health) {
-        if (!HEALTH_VALUES.includes(health as HealthValue)) {
-          throw new ValidationError(`Invalid health value: ${health}`, {
-            suggestion: `Valid values: ${HEALTH_VALUES.join(", ")}`,
-          })
-        }
-        validatedHealth = health as HealthValue
-      }
-
-      await createInitiativeUpdate(client, {
-        initiativeId: resolvedId,
-        body: finalBody,
-        health: validatedHealth,
-      })
-    } catch (error) {
-      handleError(error, "Failed to create initiative status update")
-    }
-  })
+    },
+  )
 
 async function promptInteractiveCreate(initiativeName: string): Promise<{
   body?: string
@@ -298,11 +262,15 @@ async function createInitiativeUpdate(
     body?: string
     health?: HealthValue
   },
+  json = false,
 ): Promise<void> {
   const { initiativeId, body, health } = options
+  if (!body?.trim() && !health) {
+    throw new ValidationError("Provide update content or --health")
+  }
 
   const { Spinner } = await import("@std/cli/unstable-spinner")
-  const showSpinner = shouldShowSpinner()
+  const showSpinner = !json && shouldShowSpinner()
   const spinner = showSpinner ? new Spinner() : null
   spinner?.start()
 
@@ -342,13 +310,16 @@ async function createInitiativeUpdate(
 
   spinner?.stop()
 
-  if (!result.initiativeUpdateCreate.success) {
-    throw new CliError("Failed to create initiative status update")
-  }
+  assertMutationSuccess(
+    result?.initiativeUpdateCreate,
+    result?.initiativeUpdateCreate,
+  )
 
-  const update = result.initiativeUpdateCreate.initiativeUpdate
-  if (!update) {
-    throw new CliError("Initiative update creation failed - no update returned")
+  const update = result?.initiativeUpdateCreate.initiativeUpdate
+  assertMutationReceipt(update, result?.initiativeUpdateCreate)
+  if (json) {
+    printWriteResult(update)
+    return
   }
 
   const initiativeName = update.initiative?.name || "Unknown"

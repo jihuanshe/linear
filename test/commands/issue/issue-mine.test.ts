@@ -51,7 +51,7 @@ Deno.test("Issue Mine Command - Filter By Label", async () => {
       },
     },
     {
-      queryName: "GetIssuesForState",
+      queryName: "GetIssuesForQuery",
       response: {
         data: {
           issues: {
@@ -145,7 +145,7 @@ Deno.test("Issue Mine Command - Defaults To Priority Sort Without Flag Or Env Va
   // unconfigured default is covered by the subprocess test below.
   const { cleanup } = await setupMockLinearServer([
     {
-      queryName: "GetIssuesForState",
+      queryName: "GetIssuesForQuery",
       variables: {
         sort: [
           { workflowState: { order: "Descending" } },
@@ -212,7 +212,7 @@ Deno.test("Issue Mine Command - Configured Sort Order Wins Over Default", async 
   // payload, so if the default won the request would not match.
   const { cleanup } = await setupMockLinearServer([
     {
-      queryName: "GetIssuesForState",
+      queryName: "GetIssuesForQuery",
       variables: {
         sort: [
           { workflowState: { order: "Descending" } },
@@ -309,7 +309,7 @@ Deno.test("Issue Mine Command - Defaults To Priority Sort When Nothing Is Config
   // that required sort configuration exit with "Sort must be provided" here.
   const { server, cleanup } = await setupMockLinearServer([
     {
-      queryName: "GetIssuesForState",
+      queryName: "GetIssuesForQuery",
       variables: {
         sort: [
           { workflowState: { order: "Descending" } },
@@ -516,7 +516,7 @@ Deno.test("Issue Mine Command - Shows Blocked Indicator", async () => {
       response: { data: { teams: { nodes: [{ id: "team-eng-id" }] } } },
     },
     {
-      queryName: "GetIssuesForState",
+      queryName: "GetIssuesForQuery",
       response: {
         data: {
           issues: {
@@ -687,7 +687,7 @@ Deno.test("Issue Mine Command - Shows Cycle Column", async () => {
       },
     },
     {
-      queryName: "GetIssuesForState",
+      queryName: "GetIssuesForQuery",
       response: {
         data: {
           issues: {

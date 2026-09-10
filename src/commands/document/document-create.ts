@@ -7,8 +7,10 @@ import type { DocumentCreateInput } from "../../__codegen__/graphql.ts"
 import { getGraphQLClient } from "../../utils/graphql.ts"
 import { resolveProjectId } from "../../utils/linear.ts"
 import { getEditor, openEditor } from "../../utils/editor.ts"
-import { readIdsFromStdin } from "../../utils/bulk.ts"
+import { printWriteResult, setMachineOutput } from "../../utils/write-result.ts"
 import {
+  assertMutationReceipt,
+  assertMutationSuccess,
   CliError,
   handleError,
   NotFoundError,
@@ -16,7 +18,7 @@ import {
 } from "../../utils/errors.ts"
 
 /**
- * Read content from stdin if available (piped input, with timeout)
+ * Read all piped content before creating the document.
  */
 async function readContentFromStdin(): Promise<string | undefined> {
   // Check if stdin has data (not a TTY)
@@ -24,37 +26,34 @@ async function readContentFromStdin(): Promise<string | undefined> {
     return undefined
   }
 
-  try {
-    // Use timeout to avoid hanging when stdin is not a terminal but has no data
-    // (e.g., in test subprocess environments)
-    const timeoutPromise = new Promise<never>((_, reject) => {
-      setTimeout(() => reject(new Error("stdin timeout")), 100)
-    })
-
-    const lines = await Promise.race([readIdsFromStdin(), timeoutPromise])
-    // Join back with newlines since it's content, not IDs
-    const content = lines.join("\n")
-    return content.length > 0 ? content : undefined
-  } catch {
-    return undefined
-  }
+  const content = await new Response(Deno.stdin.readable).text()
+  return content.length > 0 ? content : undefined
 }
 
 export const createCommand = withUsageMetadata(new Command(), {
   writes: true,
   interactive: true,
+  outputModes: ["human", "json"],
 })
   .name("create")
+  .option("--json", "Output a JSON write result")
   .description(withMarkdownHint("Create a new document"))
   .alias("c")
   .option("-t, --title <title:string>", "Document title (required)")
-  .option("-c, --content <content:string>", "Markdown content (inline)")
-  .option("-f, --content-file <path:string>", "Read content from file")
+  .option("-c, --content <content:string>", "Markdown content (inline)", {
+    preserveEmpty: true,
+  })
+  .option("-f, --content-file <path:string>", "Read content from file", {
+    preserveEmpty: true,
+  })
   .option(
     "--project <project:string>",
-    "Attach to project (UUID, slug ID, or name)",
+    "Attach to project (UUID, slug ID, or name; exactly one parent is required)",
   )
-  .option("--issue <issue:string>", "Attach to issue (identifier like TC-123)")
+  .option(
+    "--issue <issue:string>",
+    "Attach to issue (identifier like TC-123; exactly one parent is required)",
+  )
   .option("--icon <icon:string>", "Document icon (emoji)")
   .option("-i, --interactive", "Interactive mode with prompts")
   .action(
@@ -66,18 +65,32 @@ export const createCommand = withUsageMetadata(new Command(), {
       issue,
       icon,
       interactive,
+      json,
     }) => {
+      setMachineOutput(json ?? false)
       try {
+        if (json && interactive) {
+          throw new ValidationError(
+            "--json cannot be combined with --interactive",
+          )
+        }
+        if (content != null && contentFile != null) {
+          throw new ValidationError("Use either --content or --content-file")
+        }
+        if (contentFile === "") {
+          throw new ValidationError("Content file path cannot be empty")
+        }
         const client = getGraphQLClient()
 
         // Determine if we should use interactive mode
-        let useInteractive = interactive && Deno.stdout.isTerminal()
+        let useInteractive = !json && interactive && Deno.stdout.isTerminal()
 
         // If no title and not interactive, check if we should enter interactive mode
-        const noFlagsProvided = !title && !content && !contentFile &&
+        const noFlagsProvided = !title && content == null &&
+          contentFile == null &&
           !project &&
           !issue && !icon
-        if (noFlagsProvided && Deno.stdout.isTerminal()) {
+        if (!json && noFlagsProvided && Deno.stdout.isTerminal()) {
           useInteractive = true
         }
 
@@ -104,19 +117,25 @@ export const createCommand = withUsageMetadata(new Command(), {
         }
 
         // Non-interactive mode requires title
-        if (!title) {
+        if (!title?.trim()) {
           throw new ValidationError("Title is required", {
             suggestion: "Use --title or run with -i for interactive mode.",
           })
+        }
+        if ((project == null) === (issue == null)) {
+          throw new ValidationError(
+            "Exactly one document parent must be provided",
+            { suggestion: "Use either --project or --issue." },
+          )
         }
 
         // Resolve content from various sources
         let finalContent: string | undefined
 
-        if (content) {
+        if (content != null) {
           // Content provided inline via --content
           finalContent = content
-        } else if (contentFile) {
+        } else if (contentFile != null) {
           // Content from file via --content-file
           try {
             finalContent = await Deno.readTextFile(contentFile)
@@ -137,7 +156,7 @@ export const createCommand = withUsageMetadata(new Command(), {
           if (stdinContent) {
             finalContent = stdinContent
           }
-        } else if (Deno.stdout.isTerminal()) {
+        } else if (!json && Deno.stdout.isTerminal()) {
           // No content provided, open editor
           console.log("Opening editor for document content...")
           finalContent = await openEditor()
@@ -154,7 +173,7 @@ export const createCommand = withUsageMetadata(new Command(), {
           projectId = await resolveProjectId(project)
         }
 
-        // Resolve issue ID if provided
+        // Resolve the Issue reference to its stable UUID if provided.
         let issueId: string | undefined
         if (issue) {
           issueId = await resolveIssueId(client, issue)
@@ -174,7 +193,7 @@ export const createCommand = withUsageMetadata(new Command(), {
           ...(issueId != null ? { issueId } : {}),
         }
 
-        await createDocument(client, input)
+        await createDocument(client, input, json)
       } catch (error) {
         handleError(error, "Failed to create document")
       }
@@ -319,6 +338,7 @@ async function resolveIssueId(
 async function createDocument(
   client: ReturnType<typeof getGraphQLClient>,
   input: DocumentCreateInput,
+  json = false,
 ): Promise<void> {
   const createMutation = gql(`
     mutation CreateDocument($input: DocumentCreateInput!) {
@@ -336,13 +356,13 @@ async function createDocument(
 
   const result = await client.request(createMutation, { input })
 
-  if (!result.documentCreate.success) {
-    throw new CliError("Document creation failed")
-  }
+  assertMutationSuccess(result?.documentCreate, result?.documentCreate)
 
-  const document = result.documentCreate.document
-  if (!document) {
-    throw new CliError("Document creation failed - no document returned")
+  const document = result?.documentCreate.document
+  assertMutationReceipt(document, result?.documentCreate)
+  if (json) {
+    printWriteResult(document)
+    return
   }
 
   console.log(`✓ Created document: ${document.title}`)

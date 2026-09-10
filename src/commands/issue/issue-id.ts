@@ -4,7 +4,9 @@ import { handleError, ValidationError } from "../../utils/errors.ts"
 
 export const idCommand = new Command()
   .name("id")
-  .description("Print the issue based on the current git branch")
+  .description(
+    "Print the issue identifier from the current Git or Jujutsu context",
+  )
   .action(async (_) => {
     try {
       const resolvedId = await getIssueIdentifier()
@@ -15,11 +17,11 @@ export const idCommand = new Command()
           "Could not determine issue identifier",
           {
             suggestion:
-              "Please provide an issue ID or run from a branch with an issue identifier.",
+              "Run from a Git branch or Jujutsu change containing an issue identifier such as ENG-123.",
           },
         )
       }
     } catch (error) {
-      handleError(error, "Failed to get issue ID")
+      handleError(error, "Failed to get issue identifier")
     }
   })

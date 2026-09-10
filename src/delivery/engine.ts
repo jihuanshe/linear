@@ -1,570 +1,100 @@
-import { assertProjectTeam } from "../utils/project-teams.ts"
-import { getTeamKeyFromIssueIdentifier } from "../utils/issue-identifier.ts"
 import { encodeHex } from "@std/encoding/hex"
-import { fromFileUrl } from "@std/path"
-import { print } from "graphql"
-import { CliError, ValidationError } from "../utils/errors.ts"
+import { gql } from "../__codegen__/gql.ts"
+import { getCliWorkspace, setCliWorkspace } from "../config.ts"
+import {
+  createIssue,
+  prepareIssueCreate,
+} from "../commands/issue/issue-create.ts"
+import {
+  issueReplacementFields,
+  prepareIssueUpdate,
+  updateIssue,
+} from "../commands/issue/issue-update.ts"
+import {
+  addIssueRelation,
+  assertDistinctIssueTargets,
+  readIssueRelationInventory,
+} from "../commands/issue/issue-relation.ts"
+import {
+  createIssueAttachment,
+  createIssueComment,
+  linkIssueUrl,
+} from "../operations/issue-content.ts"
+import { getGraphQLClient, withGraphQLContext } from "../utils/graphql.ts"
+import { readIssueBasis, readIssueHeader } from "../utils/issue-read.ts"
 import {
   EMPTY_ISSUE_RELATION_SNAPSHOT,
   extractIssueRelationSnapshot,
-  isLinearUuid,
   type IssueRelationPlan,
-  lookupUserId,
   planIssueRelations,
 } from "../utils/linear.ts"
-import type {
-  DeliveryAttachment,
-  DeliveryBase,
-  DeliveryIssue,
-  DeliverySet,
-  LoadedManifest,
-  ManifestFile,
+import {
+  asRecord,
+  type Comparable,
+  ConflictError,
+  type FieldReader,
+  type ReplacementFieldPlan,
+} from "../utils/replacement.ts"
+import { errorResult, ValidationError, WriteError } from "../utils/errors.ts"
+import { formatAsMarkdownLink, uploadFile } from "../utils/upload.ts"
+import { type WriteEffect } from "../utils/write-result.ts"
+import {
+  contentFrom,
+  type DeliveryIssue,
+  type LoadedManifest,
 } from "./manifest.ts"
 import {
+  type Checkpoint,
+  type CheckpointItem,
   type DeliveryReceipt,
   prepareCheckpoint,
   saveCheckpoint,
 } from "./checkpoint.ts"
 
-// Each delivery step invokes this CLI's commands so name resolution,
-// validation, and output semantics stay with their command owners.
+type ItemKind = "fields" | "upload" | "comment" | "attachment" | "relation"
+type ItemStatus = "applied" | "failed" | "unknown" | "unattempted" | "skipped"
+type IssueReceipt = Extract<DeliveryReceipt, { kind: "issue" }>
+type UploadReceipt = Extract<DeliveryReceipt, { kind: "upload" }>
 
-export interface CommandResult {
-  code: number
-  stdout: string
-  stderr: string
+interface Completion {
+  effect: "none" | "applied"
+  receipt: DeliveryReceipt
+  expected?: Record<string, Comparable>
 }
-
-export interface CommandRunner {
-  run(
-    args: string[],
-    options?: { signal?: AbortSignal },
-  ): Promise<CommandResult>
-}
-
-/** Re-invoke this CLI: the compiled binary directly, or deno + main.ts in dev. */
-export function selfExecRunner(): CommandRunner {
-  const execPath = Deno.execPath()
-  const viaDeno = /(^|[\\/])deno(\.exe)?$/.test(execPath)
-  return {
-    async run(args, options) {
-      const full = viaDeno
-        ? [
-          "run",
-          "--allow-all",
-          "--quiet",
-          fromFileUrl(Deno.mainModule),
-          ...args,
-        ]
-        : args
-      const output = await new Deno.Command(execPath, {
-        args: full,
-        stdout: "piped",
-        stderr: "piped",
-        env: { NO_COLOR: "1" },
-        signal: options?.signal,
-      }).output()
-      const decoder = new TextDecoder()
-      return {
-        code: output.code,
-        stdout: decoder.decode(output.stdout),
-        stderr: decoder.decode(output.stderr),
-      }
-    },
-  }
-}
-
-/**
- * Linear rewrites equivalent Markdown on save. Forms observed against the
- * real API (Kadoraba sandbox, 2026-08-09): trailing whitespace stripped;
- * table delimiter rows compressed with alignment colons discarded
- * (`| :--- | ---: |` → `| -- | -- |`); link destinations wrapped in angle
- * brackets (`](url)` → `](<url>)`); bare URLs autolinked into
- * `[url](<url>)`; nested bullets flipped `- ` → `* `; underscore italics
- * flipped `_x_` → `*x*`; task checkboxes capitalized `[x]` → `[X]`.
- * Comparing normalized text keeps these rewrites from reading as remote
- * drift; anything this normalization cannot reconcile is shown as a
- * difference for the caller to judge, never silently "fixed".
- */
-export function normalizeMarkdown(text: string): string {
-  return text
-    .replaceAll("\r\n", "\n")
-    .split("\n")
-    .map((line) => {
-      const trimmed = line
-        .replace(/[ \t]+$/, "")
-        .replace(/^(\s*)\* /, "$1- ")
-        .replace(/^(\s*)- \[[xX]\] /, "$1- [x] ")
-        .replace(/\]\(<([^<>\s]+)>\)/g, "]($1)")
-        .replace(/\[([^\]\s]+)\]\(\1\)/g, "$1")
-        .replace(/\b_([^_\n]+)_(?![\w])/g, "*$1*")
-      const bare = trimmed.trim()
-      if (/^\|[\s|:-]+\|$/.test(bare) && bare.includes("-")) {
-        // Linear discards column alignment colons entirely, so the canonical
-        // delimiter cell is plain dashes.
-        const cells = bare.slice(1, -1).split("|").map(() => "---")
-        return `|${cells.join("|")}|`
-      }
-      return trimmed
-    })
-    .join("\n")
-    .replace(/\n+$/, "")
-}
-
-/** Comparable field values extracted from `issue view --json`. */
-export interface RemoteFields {
-  identifier?: string
-  archivedAt?: string | null
-  trashed?: boolean | null
-  title?: string
-  description?: string | null
-  priority?: number | null
-  state?: string
-  stateAliases?: string[]
-  assignee?: { id?: string; name?: string; displayName?: string } | null
-  labels?: string[]
-  labelsComplete?: boolean
-  project?: string | null
-  projectAliases?: string[]
-  parent?: string | null
-}
-
-export function extractRemoteFields(view: unknown): RemoteFields {
-  const data = view as Record<string, unknown>
-  const nested = (value: unknown, key: string): unknown =>
-    value == null ? null : (value as Record<string, unknown>)[key]
-  const labelsNode = nested(data.labels, "nodes")
-  const labelsPageInfo = nested(data.labels, "pageInfo")
-  const stateAliases = [nested(data.state, "name"), nested(data.state, "type")]
-    .filter((value): value is string => typeof value === "string")
-  const projectAliases = [
-    nested(data.project, "name"),
-    nested(data.project, "id"),
-    nested(data.project, "slugId"),
-  ].filter((value): value is string => typeof value === "string")
-  return {
-    identifier: data.identifier as string | undefined,
-    archivedAt: (data.archivedAt ?? null) as string | null,
-    trashed: (data.trashed ?? null) as boolean | null,
-    title: data.title as string | undefined,
-    description: (data.description ?? null) as string | null,
-    priority: data.priority === 0
-      ? null
-      : (data.priority ?? null) as number | null,
-    state: stateAliases[0],
-    stateAliases,
-    assignee: (data.assignee ?? null) as RemoteFields["assignee"],
-    labels: Array.isArray(labelsNode)
-      ? labelsNode.map((node) => nested(node, "name") as string)
-      : undefined,
-    labelsComplete: labelsPageInfo == null
-      ? undefined
-      : nested(labelsPageInfo, "hasNextPage") !== true,
-    project: projectAliases[0] ?? null,
-    projectAliases,
-    parent: (nested(data.parent, "identifier") ?? null) as string | null,
-  }
-}
-
-/**
- * Object-level guards inherited from the batch-write Skill: an update must
- * target exactly the issue the manifest names — never a resolved alias
- * (rename or team move), an archived issue, or a trashed one. Field-level
- * base comparison cannot see these, so they refuse before any planning.
- * Fields absent from an older view payload skip their check instead of
- * failing closed.
- */
-export function objectDrift(
-  requested: string,
-  remote: RemoteFields,
-): string | null {
-  if (
-    remote.identifier != null &&
-    remote.identifier.toUpperCase() !== requested.toUpperCase()
-  ) {
-    return `resolved to ${remote.identifier} (renamed or moved to another team)`
-  }
-  if (remote.trashed === true) return "issue is in the trash"
-  if (remote.archivedAt != null) return "issue is archived"
-  return null
-}
-
-type FieldName = keyof DeliveryBase
-
-const MANAGED_FIELDS: FieldName[] = [
-  "title",
-  "description",
-  "priority",
-  "state",
-  "assignee",
-  "labels",
-  "project",
-  "parent",
-]
-
-function fieldEquals(
-  field: FieldName,
-  manifestValue: unknown,
-  remote: RemoteFields,
-): boolean {
-  const remoteValue = remote[field]
-  switch (field) {
-    case "description": {
-      if (manifestValue == null || remoteValue == null) {
-        return manifestValue == null && remoteValue == null
-      }
-      return normalizeMarkdown(manifestValue as string) ===
-        normalizeMarkdown(remoteValue as string)
-    }
-    case "labels": {
-      if (remote.labelsComplete === false) {
-        throw new ValidationError(
-          "Issue label set exceeds the issue view pagination boundary",
-          {
-            suggestion:
-              "Reduce the issue's labels before using a delivery manifest to replace the complete label set",
-          },
-        )
-      }
-      const a = [
-        ...new Set(
-          (manifestValue as string[] ?? []).map((label) => label.toLowerCase()),
-        ),
-      ].sort()
-      const b = [
-        ...new Set(
-          (remoteValue as string[] ?? []).map((label) => label.toLowerCase()),
-        ),
-      ].sort()
-      return a.length === b.length &&
-        a.every((label, index) => label === b[index])
-    }
-    case "state":
-      return typeof manifestValue === "string" &&
-        (remote.stateAliases ??
-          (typeof remoteValue === "string" ? [remoteValue] : [])).some((
-            alias,
-          ) => alias.toLowerCase() === manifestValue.toLowerCase())
-    case "project":
-      if (manifestValue == null || remoteValue == null) {
-        return manifestValue == null && remoteValue == null
-      }
-      return (remote.projectAliases ?? [remoteValue as string]).some((alias) =>
-        alias === manifestValue
-      )
-    case "assignee": {
-      const assignee = remote.assignee
-      if (manifestValue == null || assignee == null) {
-        return manifestValue == null && assignee == null
-      }
-      if (typeof manifestValue === "string" && isLinearUuid(manifestValue)) {
-        return manifestValue.toLowerCase() === assignee.id?.toLowerCase()
-      }
-      return manifestValue === assignee.name ||
-        manifestValue === assignee.displayName
-    }
-    default:
-      return manifestValue === (remoteValue ?? null)
-  }
-}
-
-export type FieldVerdict = "write" | "idempotent" | "conflict"
-
-export interface FieldPlan {
-  field: FieldName
-  desired: unknown
-  base?: unknown
-  remote?: unknown
-  verdict: FieldVerdict
-}
-
-/**
- * Three-way comparison inherited from the batch-write Skill: a field with a
- * base is written only while the remote still matches that base; a matching
- * remote-desired pair is idempotent and skipped; anything else means a
- * colleague edited the field since the caller read it, and this delivery
- * refuses to overwrite their work. This is an optimistic guard, not a
- * server-side compare-and-set: Linear's issueUpdate takes no version
- * precondition, so a narrow race window remains between read and write.
- */
-export function planFields(
-  set: DeliverySet,
-  base: DeliveryBase | undefined,
-  remote: RemoteFields,
-  resolveDescription: (set: DeliverySet) => unknown,
-): FieldPlan[] {
-  const plans: FieldPlan[] = []
-  for (const field of MANAGED_FIELDS) {
-    const desired = field === "description"
-      ? resolveDescription(set)
-      : set[field as keyof DeliverySet]
-    if (desired === undefined) continue
-    const hasBase = Object.hasOwn(base ?? {}, field)
-    const baseValue = base?.[field]
-    let verdict: FieldVerdict
-    if (fieldEquals(field, desired, remote)) {
-      verdict = "idempotent"
-    } else if (hasBase && fieldEquals(field, baseValue, remote)) {
-      verdict = "write"
-    } else {
-      verdict = "conflict"
-    }
-    plans.push({
-      field,
-      desired,
-      ...(hasBase ? { base: baseValue } : {}),
-      remote: remote[field] ?? null,
-      verdict,
-    })
-  }
-  return plans
-}
-
-type ItemKind = "fields" | "comment" | "attachment" | "relation"
-type ItemStatus =
-  | "applied"
-  | "failed"
-  | "unknown"
-  | "unattempted"
-  | "skipped"
-
-interface BuiltCommand {
-  args: string[]
-  cleanup?: () => Promise<void>
-}
-
 interface DeliveryItem {
   key: string
   kind: ItemKind
-  subIndex: number
-  buildCommand: (identifier: string) => BuiltCommand | Promise<BuiltCommand>
   describe: string
+  run(
+    state: ExecutionState,
+    beforeWrite: () => Promise<void>,
+  ): Promise<Completion>
 }
-
-async function itemHash(payload: unknown): Promise<string> {
-  const digest = await crypto.subtle.digest(
-    "SHA-256",
-    new TextEncoder().encode(JSON.stringify(payload)),
-  )
-  return encodeHex(digest).slice(0, 8)
+interface ExecutionState {
+  loaded: LoadedManifest
+  checkpoint: Checkpoint
+  issueIndex: number
+  target?: IssueReceipt
+  related: Map<number, Awaited<ReturnType<typeof readIssueHeader>>>
 }
-
-function fileFingerprint(
-  files: Map<string, ManifestFile>,
-  reference: string,
-): string {
-  return files.get(reference)?.sha256 ?? reference
-}
-
-/**
- * Expand one manifest issue into its ordered execution items. The fields step
- * always comes first so create issues have an identifier before comments,
- * attachments, and relations target them.
- */
-async function expandIssue(
-  issue: DeliveryIssue,
-  issueIndex: number,
-  workspace: string,
-  workspaceFlags: string[],
-  files: Map<string, ManifestFile>,
-): Promise<DeliveryItem[]> {
-  const items: DeliveryItem[] = []
-  const ws = workspaceFlags
-
-  if (issue.set != null || issue.operation === "create") {
-    const set = issue.set ?? {}
-    const hash = await itemHash({
-      workspace,
-      operation: issue.operation,
-      identifier: issue.identifier ?? null,
-      team: issue.team ?? null,
-      set,
-      base: issue.base ?? null,
-      descriptionFileSha: set.descriptionFile == null
-        ? null
-        : fileFingerprint(files, set.descriptionFile),
-    })
-    items.push({
-      key: `${issueIndex}:fields:0:${hash}`,
-      kind: "fields",
-      subIndex: 0,
-      describe: issue.operation === "create"
-        ? `create issue in team ${issue.team}`
-        : `update fields of ${issue.identifier}`,
-      buildCommand: (identifier) => {
-        const flags: string[] = []
-        if (set.title != null) flags.push("--title", set.title)
-        if (set.descriptionFile != null) {
-          flags.push(
-            "--description-file",
-            files.get(set.descriptionFile)?.resolvedPath ??
-              set.descriptionFile,
-          )
-        } else if (set.description != null) {
-          flags.push("--description", set.description)
-        }
-        if (set.priority != null) flags.push("--priority", String(set.priority))
-        if (set.state != null) flags.push("--state", set.state)
-        if (set.assignee === null) flags.push("--unassign")
-        else if (set.assignee != null) flags.push("--assignee", set.assignee)
-        for (const label of set.labels ?? []) flags.push("--label", label)
-        if (set.project != null) flags.push("--project", set.project)
-        if (set.parent != null) flags.push("--parent", set.parent)
-        if (issue.operation === "create") {
-          return {
-            args: [
-              "issue",
-              "create",
-              "--no-interactive",
-              "--team",
-              issue.team as string,
-              ...ws,
-              ...flags,
-              "--json",
-            ],
-          }
-        }
-        return {
-          args: ["issue", "update", identifier, ...ws, ...flags, "--json"],
-        }
-      },
-    })
-  }
-
-  for (const [subIndex, comment] of (issue.comments ?? []).entries()) {
-    const hash = await itemHash({
-      workspace,
-      operation: issue.operation,
-      identifier: issue.identifier ?? null,
-      team: issue.team ?? null,
-      comment,
-      bodyFileSha: comment.bodyFile == null
-        ? null
-        : fileFingerprint(files, comment.bodyFile),
-      fileShas: (comment.files ?? []).map((file) =>
-        fileFingerprint(files, file.path)
-      ),
-    })
-    items.push({
-      key: `${issueIndex}:comment:${subIndex}:${hash}`,
-      kind: "comment",
-      subIndex,
-      describe: `add comment ${subIndex + 1} with ${
-        (comment.files ?? []).length
-      } file(s)`,
-      buildCommand: async (identifier) => {
-        const args = ["issue", "comment", "add", identifier, ...ws, "--json"]
-        let temp: string | null = null
-        if (comment.bodyFile != null) {
-          args.push(
-            "--body-file",
-            files.get(comment.bodyFile)?.resolvedPath ?? comment.bodyFile,
-          )
-        } else if (comment.body != null) {
-          temp = await Deno.makeTempFile({ suffix: ".md" })
-          await Deno.writeTextFile(temp, comment.body)
-          args.push("--body-file", temp)
-        }
-        for (const file of comment.files ?? []) {
-          args.push("--attach", files.get(file.path)?.resolvedPath ?? file.path)
-        }
-        if (comment.public === true) args.push("--public")
-        return {
-          args,
-          ...(temp == null ? {} : {
-            cleanup: async () => {
-              await Deno.remove(temp).catch(() => {})
-            },
-          }),
-        }
-      },
-    })
-  }
-
-  for (const [subIndex, attachment] of (issue.attachments ?? []).entries()) {
-    const hash = await itemHash({
-      workspace,
-      operation: issue.operation,
-      identifier: issue.identifier ?? null,
-      team: issue.team ?? null,
-      attachment,
-      fileSha: attachment.kind === "file"
-        ? fileFingerprint(files, attachment.path)
-        : null,
-    })
-    items.push({
-      key: `${issueIndex}:attachment:${subIndex}:${hash}`,
-      kind: "attachment",
-      subIndex,
-      describe: attachment.kind === "url"
-        ? `link ${attachment.url}`
-        : `attach ${attachment.path}`,
-      buildCommand: (identifier) => ({
-        args: attachment.kind === "url"
-          ? [
-            "issue",
-            "link",
-            identifier,
-            attachment.url,
-            ...ws,
-            "--json",
-            ...(attachment.title == null ? [] : ["--title", attachment.title]),
-          ]
-          : [
-            "issue",
-            "attach",
-            identifier,
-            files.get(attachment.path)?.resolvedPath ?? attachment.path,
-            ...ws,
-            "--json",
-            ...(attachment.title == null ? [] : ["--title", attachment.title]),
-          ],
-      }),
-    })
-  }
-
-  for (const [subIndex, relation] of (issue.relations ?? []).entries()) {
-    const hash = await itemHash({
-      workspace,
-      operation: issue.operation,
-      identifier: issue.identifier ?? null,
-      team: issue.team ?? null,
-      relation,
-    })
-    items.push({
-      key: `${issueIndex}:relation:${subIndex}:${hash}`,
-      kind: "relation",
-      subIndex,
-      describe: `relate ${relation.type} ${relation.issue}`,
-      buildCommand: (identifier) => ({
-        args: [
-          "issue",
-          "relation",
-          "add",
-          identifier,
-          relation.type,
-          relation.issue,
-          ...ws,
-        ],
-      }),
-    })
-  }
-
-  return items
-}
-
-// ---------------------------------------------------------------------------
-// Execution
-// ---------------------------------------------------------------------------
-
 export interface ItemResult {
   key: string
   kind: ItemKind
   describe: string
   status: ItemStatus
+  effect: WriteEffect
+  receipt?: DeliveryReceipt
   detail?: string
+  error?: ReturnType<typeof errorResult>
 }
-
+export interface VerificationResult {
+  issueIndex: number
+  target: string
+  status: "verified" | "different" | "unavailable"
+  scope: "issue-fields-and-object-identities"
+  detail?: string
+  url?: string
+}
 export interface ApplyOutcome {
   status:
     | "completed"
@@ -573,1018 +103,961 @@ export interface ApplyOutcome {
     | "stopped-on-failure"
     | "stopped-on-unknown"
     | "conflict"
+  effect: WriteEffect
   items: ItemResult[]
   summary: Record<ItemStatus, number>
   createdIdentifiers: Record<string, string>
   verification: VerificationResult[]
   readBack: Record<string, unknown>
 }
-
-export interface VerificationResult {
-  issueIndex: number
-  target: string
-  status: "verified" | "failed"
-  scope?: "issue" | "fields-and-objects"
-  detail?: string
-  url?: string
-}
-
-interface ReadBackResult {
-  verification: VerificationResult
-  data?: Record<string, unknown>
-}
-
-async function readBackIssue(
-  runner: CommandRunner,
-  issueIndex: number,
-  identifier: string,
-  workspaceFlags: string[],
-  receipts: DeliveryReceipt[],
-  desired: DeliverySet,
-  legacyItems: boolean,
-  signal: AbortSignal,
-): Promise<ReadBackResult> {
-  const failed = (detail: string): ReadBackResult => ({
-    verification: {
-      issueIndex,
-      target: identifier,
-      status: "failed",
-      detail,
-    },
-  })
-
-  try {
-    signal.throwIfAborted()
-    if (desired.assignee != null && !isLinearUuid(desired.assignee)) {
-      const id = await lookupUserId(
-        desired.assignee,
-        async (document, variables) => {
-          const result = await runner.run([
-            "api",
-            print(document),
-            ...workspaceFlags,
-            "--variables-json",
-            JSON.stringify(variables),
-          ], { signal })
-          if (result.code !== 0) {
-            throw new CliError(
-              result.stderr.trim() ||
-                "Failed to resolve assignee for verification",
-            )
-          }
-          const response = JSON.parse(result.stdout)
-          if (
-            response.data == null || response.errors?.length
-          ) throw new CliError("Assignee lookup returned no usable data")
-          return response.data
-        },
-      )
-      if (typeof id !== "string" || !id) {
-        throw new ValidationError(
-          "Cannot resolve the requested assignee for verification",
-        )
-      }
-      desired.assignee = id
-    }
-    const view = await runner.run([
-      "issue",
-      "view",
-      identifier,
-      ...workspaceFlags,
-      "--json",
-    ], { signal })
-    if (view.code !== 0) {
-      return failed(
-        view.stderr.trim().split("\n")[0] ||
-          `issue view exited with code ${view.code}`,
-      )
-    }
-
-    let parsed: unknown
-    try {
-      parsed = JSON.parse(view.stdout)
-    } catch (error) {
-      return failed(
-        `issue view returned invalid JSON: ${(error as Error).message}`,
-      )
-    }
-    if (parsed == null || typeof parsed !== "object" || Array.isArray(parsed)) {
-      return failed("issue view returned no issue object")
-    }
-
-    const data = parsed as Record<string, unknown>
-    const readIdentifier = data.identifier
-    if (
-      typeof readIdentifier !== "string" ||
-      readIdentifier.toUpperCase() !== identifier.toUpperCase()
-    ) {
-      return failed(
-        `issue view returned ${
-          typeof readIdentifier === "string" ? readIdentifier : "no identifier"
-        }`,
-      )
-    }
-
-    const remote = extractRemoteFields(data)
-    const drift = objectDrift(identifier, remote)
-    if (drift != null) {
-      return failed(
-        `${drift}; applied writes were preserved and will not be repeated`,
-      )
-    }
-    const missingFields = MANAGED_FIELDS.filter((field) =>
-      desired[field] !== undefined &&
-      !fieldEquals(field, desired[field], remote)
-    )
-    const missingReceipts = receipts.filter((receipt) => {
-      const connection =
-        data[receipt.kind === "comment" ? "comments" : "attachments"]
-      if (connection == null || typeof connection !== "object") return true
-      const nodes = (connection as { nodes?: unknown }).nodes
-      return !Array.isArray(nodes) ||
-        !nodes.some((node) =>
-          node != null && typeof node === "object" && node.id === receipt.id
-        )
-    })
-    if (missingFields.length || missingReceipts.length) {
-      return {
-        ...failed(
-          "Not yet confirmed: " + [
-            ...missingFields.map((field) => "field " + field),
-            ...missingReceipts.map((receipt) =>
-              receipt.kind + " " + receipt.id
-            ),
-          ].join(", ") +
-            "; run the same apply again to verify without repeating applied writes",
-        ),
-        data,
-      }
-    }
-
-    return {
-      verification: {
-        issueIndex,
-        target: identifier,
-        status: "verified",
-        scope: legacyItems ? "issue" : "fields-and-objects",
-        ...(legacyItems
-          ? {
-            detail:
-              "Legacy checkpoint has no object receipts; only issue identity and declared fields were verified",
-          }
-          : {}),
-        ...(typeof data.url === "string" ? { url: data.url } : {}),
-      },
-      data,
-    }
-  } catch (error) {
-    return failed(
-      signal.aborted
-        ? "Read-back timed out; run the same apply again to verify without repeating applied writes"
-        : (error as Error).message,
-    )
-  }
-}
-
-function classifyFailure(result: CommandResult): "failed" | "unknown" {
-  // A launched child may have produced a remote side effect before returning
-  // an error; stderr formatting cannot prove that it did not.
-  return result.code === 0 ? "failed" : "unknown"
-}
-
 export interface ApplyContext {
   loaded: LoadedManifest
-  runner: CommandRunner
   onProgress?: (line: string) => void
-  /**
-   * True when authentication comes from the LINEAR_API_KEY environment
-   * variable. The CLI rejects --workspace in that mode (the key already pins
-   * the organization), so the engine drops the flag and instead verifies via
-   * `auth whoami --json` that the key's organization matches the manifest's
-   * workspace before any remote work — the guard survives the auth mode.
-   */
-  envAuthenticated?: boolean
-  /**
-   * Keep executing after a confirmed `failed` item (one the CLI reported as a
-   * handled error, so no remote effect landed). An `unknown` outcome always
-   * stops regardless of this flag — nothing may run past an unverified
-   * mutation.
-   */
   continueOnFailure?: boolean
-  /** Delay between bounded read-back attempts; injectable for deterministic tests. */
-  verificationDelay?: (milliseconds: number) => Promise<void>
-  /** Overall deadline for read-back only; mutations are never interrupted. */
   verificationTimeoutMs?: number
+  verificationDelay?: (milliseconds: number) => Promise<void>
+}
+export interface PlanOutcome {
+  workspace: string
+  status: "ready" | "conflict" | "failed"
+  issues: Array<{
+    operation: "create" | "update"
+    target?: string
+    fields: ReplacementFieldPlan[]
+    content: unknown
+    relations: IssueRelationPlan[]
+    items: Array<
+      { key: string; kind: ItemKind; describe: string; completed: boolean }
+    >
+    error?: ReturnType<typeof errorResult>
+  }>
+  files: Array<
+    { reference: string; size: number; contentType: string; sha256: string }
+  >
 }
 
-async function verifyWorkspaceIdentity(
-  context: ApplyContext,
-): Promise<string[]> {
-  const { manifest } = context.loaded
-  // Credential resolution can override --workspace: LINEAR_API_KEY rejects the
-  // flag outright, and a project .linear.toml api_key silently outranks it. So
-  // the guard never trusts the flag alone — it asks whoami with exactly the
-  // flags the child commands will get and requires the resolved workspace to
-  // match the manifest before any remote work.
-  const workspaceFlags = context.envAuthenticated === true
-    ? []
-    : ["--workspace", manifest.workspace]
-  const whoami = await context.runner.run([
-    "auth",
-    "whoami",
-    ...workspaceFlags,
-    "--json",
-  ])
-  if (whoami.code !== 0) {
-    throw new ValidationError(
-      `Cannot verify the resolved workspace: ${
-        whoami.stderr.trim().split("\n")[0]
-      }`,
+const Organization = gql(`
+  query GetDeliveryOrganization { organization { id urlKey } }
+`)
+const CommentReceipt = gql(`
+  query GetDeliveryCommentReceipt($id: String!) {
+    comment(id: $id) { id issue { id } }
+  }
+`)
+const AttachmentReceipt = gql(`
+  query GetDeliveryAttachmentReceipt($id: String!) {
+    attachment(id: $id) { id issue { id } }
+  }
+`)
+const RelationReceipt = gql(`
+  query GetDeliveryRelationReceipt($id: String!) {
+    issueRelation(id: $id) { id issue { id } relatedIssue { id } }
+  }
+`)
+
+async function inWorkspace<T>(
+  loaded: LoadedManifest,
+  action: (organization: Checkpoint["workspace"]) => Promise<T>,
+): Promise<T> {
+  return await withGraphQLContext(async () => {
+    const previous = getCliWorkspace()
+    if (previous != null && previous !== loaded.manifest.workspace) {
+      throw new ValidationError(
+        "CLI workspace does not match the delivery workspace",
+      )
+    }
+    if (Deno.env.get("LINEAR_API_KEY") == null) {
+      setCliWorkspace(loaded.manifest.workspace)
+    }
+    try {
+      const identity = await getGraphQLClient().request(Organization)
+      const organization = identity?.organization
+      if (
+        !organization?.id || organization.urlKey !== loaded.manifest.workspace
+      ) {
+        throw new ValidationError(
+          "Resolved credentials do not belong to delivery workspace " +
+            loaded.manifest.workspace,
+        )
+      }
+      return await action(organization)
+    } finally {
+      setCliWorkspace(previous)
+    }
+  })
+}
+
+function setOptions(loaded: LoadedManifest, issue: DeliveryIssue) {
+  const { descriptionFile, ...set } = issue.set ?? {}
+  const description = contentFrom(loaded, set.description, descriptionFile)
+  return { ...set, ...(description === undefined ? {} : { description }) }
+}
+function expectedFields(fields: unknown): Record<string, Comparable> {
+  const expected: Record<string, Comparable> = {}
+  if (!Array.isArray(fields)) return expected
+  for (const entry of fields) {
+    const field = asRecord(entry, "Field result")
+    if (typeof field.inputField !== "string") {
+      throw new ValidationError("Field result is missing its input field")
+    }
+    const reader = field.inputField === "addedLabelIds" ||
+        field.inputField === "removedLabelIds"
+      ? issueReplacementFields.labelIds
+      : (issueReplacementFields as Record<string, FieldReader>)[
+        field.inputField
+      ]
+    if (reader == null) {
+      throw new ValidationError("Unsupported field in execution result")
+    }
+    expected[field.inputField] = reader.normalize(field.desired)
+  }
+  return expected
+}
+function issueReceipt(value: unknown): IssueReceipt {
+  const issue = asRecord(value, "Issue mutation receipt")
+  if (
+    typeof issue.id !== "string" || !issue.id ||
+    typeof issue.identifier !== "string" || !issue.identifier
+  ) {
+    throw new WriteError(
+      "Issue write did not return a complete identity receipt",
+      { effect: "applied", data: value },
     )
   }
-  const identity = JSON.parse(whoami.stdout) as {
-    organization?: { urlKey?: string }
-  }
-  const urlKey = identity.organization?.urlKey
-  if (urlKey !== manifest.workspace) {
+  return { kind: "issue", id: issue.id, identifier: issue.identifier }
+}
+function requireTarget(state: ExecutionState): IssueReceipt {
+  if (state.target == null) {
     throw new ValidationError(
-      `Manifest targets workspace ${manifest.workspace} but the resolved credentials belong to ${
-        urlKey ?? "an unknown workspace"
-      }`,
-      {
-        suggestion:
-          "Check LINEAR_API_KEY and any project .linear.toml api_key before re-running",
+      "Issue target is not available; preceding creation has not completed",
+    )
+  }
+  return state.target
+}
+function uploadReceipt(state: ExecutionState, key: string): UploadReceipt {
+  const entry = state.checkpoint.items[key]
+  if (entry?.status !== "completed" || entry.receipt?.kind !== "upload") {
+    throw new ValidationError("Upload has not completed: " + key)
+  }
+  return entry.receipt
+}
+function activeTarget(
+  read: Awaited<ReturnType<typeof readIssueBasis>>,
+  organization: Checkpoint["workspace"],
+): IssueReceipt {
+  if (read.organization.id !== organization.id) {
+    throw new ValidationError("Issue read belongs to another workspace")
+  }
+  if (read.issue.archivedAt != null || read.issue.trashed) {
+    throw new ValidationError("Issue is archived or trashed")
+  }
+  if (
+    typeof read.issue.id !== "string" || !read.issue.id ||
+    typeof read.issue.identifier !== "string" || !read.issue.identifier
+  ) {
+    throw new ValidationError("Issue read returned no complete identity")
+  }
+  return { kind: "issue", id: read.issue.id, identifier: read.issue.identifier }
+}
+async function keyFor(
+  index: number,
+  kind: ItemKind,
+  slot: string,
+  payload: unknown,
+): Promise<string> {
+  const hash = encodeHex(
+    await crypto.subtle.digest(
+      "SHA-256",
+      new TextEncoder().encode(JSON.stringify(payload)),
+    ),
+  )
+  return index + ":" + kind + ":" + slot + ":" + hash
+}
+
+async function expand(loaded: LoadedManifest): Promise<DeliveryItem[][]> {
+  const { manifest } = loaded
+  const expansions: DeliveryItem[][] = []
+  for (const [index, issue] of manifest.issues.entries()) {
+    const items: DeliveryItem[] = []
+    const targetIdentity = {
+      workspace: manifest.workspace,
+      operation: issue.operation,
+      identifier: issue.identifier ?? null,
+    }
+    const addUpload = async (
+      reference: string,
+      publicValue: boolean | undefined,
+      slot: string,
+    ): Promise<string> => {
+      const file = loaded.files.get(reference)
+      if (file == null) {
+        throw new ValidationError("File was not inventoried: " + reference)
+      }
+      const key = await keyFor(index, "upload", slot, {
+        targetIdentity,
+        reference,
+        sha256: file.sha256,
+        public: publicValue === true,
+      })
+      items.push({
+        key,
+        kind: "upload",
+        describe: "upload " + reference,
+        async run(_state, beforeWrite) {
+          const result = await uploadFile(file.resolvedPath, {
+            makePublic: publicValue,
+            expectedSha256: file.sha256,
+            beforeWrite,
+          })
+          return { effect: "applied", receipt: { kind: "upload", ...result } }
+        },
+      })
+      return key
+    }
+    const fieldsKey = await keyFor(index, "fields", "0", {
+      targetIdentity,
+      set: setOptions(loaded, issue),
+      original: loaded.originals.get(index),
+      unprotected: issue.unprotected,
+      expectFields: issue.expectFields,
+    })
+    items.push({
+      key: fieldsKey,
+      kind: "fields",
+      describe: issue.operation === "create"
+        ? "create Issue in " + issue.set?.team
+        : (issue.set == null ? "check Issue " : "update Issue ") +
+          issue.identifier,
+      async run(state, beforeWrite) {
+        if (issue.operation === "create") {
+          const result = await createIssue({
+            ...setOptions(loaded, issue),
+            interactive: false,
+            beforeWrite,
+          })
+          return {
+            effect: result.effect,
+            receipt: issueReceipt(result.data.issue),
+            expected: expectedFields(result.fields),
+          }
+        }
+        const target = requireTarget(state)
+        if (issue.set == null) {
+          const current = await readIssueBasis(target.id)
+          const receipt = activeTarget(current, state.checkpoint.workspace)
+          if (receipt.id !== target.id) {
+            throw new ValidationError("Issue identity changed")
+          }
+          return { effect: "none", receipt }
+        }
+        const result = await updateIssue({
+          ...setOptions(loaded, issue),
+          original: loaded.originals.get(index),
+          unprotected: issue.unprotected,
+          expectField: issue.expectFields,
+          beforeWrite,
+        }, target.id)
+        return {
+          effect: result.effect,
+          receipt: issueReceipt(result.data.issue),
+          expected: expectedFields(result.fields),
+        }
       },
+    })
+    for (const [commentIndex, comment] of (issue.comments ?? []).entries()) {
+      const uploads: string[] = []
+      for (const [fileIndex, file] of (comment.files ?? []).entries()) {
+        uploads.push(
+          await addUpload(
+            file.path,
+            comment.public,
+            "comment-" + commentIndex + "-" + fileIndex,
+          ),
+        )
+      }
+      const body = contentFrom(loaded, comment.body, comment.bodyFile)
+      const key = await keyFor(index, "comment", String(commentIndex), {
+        targetIdentity,
+        body,
+        uploads,
+      })
+      items.push({
+        key,
+        kind: "comment",
+        describe: "add comment " + (commentIndex + 1),
+        async run(state, beforeWrite) {
+          const links = uploads.map((key) =>
+            formatAsMarkdownLink(uploadReceipt(state, key))
+          )
+          const fullBody = [body, ...links].filter((value) =>
+            value !== undefined && value !== ""
+          ).join("\n\n")
+          const { comment: created } = await createIssueComment(
+            requireTarget(state).id,
+            { body: fullBody, beforeWrite },
+          )
+          return {
+            effect: "applied",
+            receipt: { kind: "comment", id: created.id },
+          }
+        },
+      })
+    }
+    for (
+      const [attachmentIndex, attachment] of (issue.attachments ?? []).entries()
+    ) {
+      const upload = attachment.kind === "file"
+        ? await addUpload(
+          attachment.path,
+          false,
+          "attachment-" + attachmentIndex,
+        )
+        : undefined
+      const key = await keyFor(index, "attachment", String(attachmentIndex), {
+        targetIdentity,
+        attachment,
+        upload,
+      })
+      items.push({
+        key,
+        kind: "attachment",
+        describe: attachment.kind === "file"
+          ? "attach " + attachment.path
+          : "link " + attachment.url,
+        async run(state, beforeWrite) {
+          const id = requireTarget(state).id
+          const result = attachment.kind === "url"
+            ? await linkIssueUrl(id, {
+              url: attachment.url,
+              title: attachment.title,
+              beforeWrite,
+            })
+            : await (async () => {
+              const file = uploadReceipt(state, upload!)
+              return await createIssueAttachment(id, {
+                url: file.assetUrl,
+                title: attachment.title ?? file.filename,
+                beforeWrite,
+              })
+            })()
+          return {
+            effect: "applied",
+            receipt: { kind: "attachment", id: result.attachment.id },
+          }
+        },
+      })
+    }
+    for (const [relationIndex, relation] of (issue.relations ?? []).entries()) {
+      const key = await keyFor(index, "relation", String(relationIndex), {
+        targetIdentity,
+        relation,
+      })
+      items.push({
+        key,
+        kind: "relation",
+        describe: "relate " + relation.type + " " + relation.issue,
+        async run(state, beforeWrite) {
+          const related = state.related.get(relationIndex)
+          if (related == null) {
+            throw new ValidationError("Relation target was not resolved")
+          }
+          const result = await addIssueRelation(
+            requireTarget(state).id,
+            relation.type,
+            related.id,
+            { beforeWrite },
+          )
+          const id = result.data.relation?.id
+          if (!id) {
+            throw new WriteError(
+              "Relation did not return an identity receipt",
+              { effect: result.effect, data: result.data },
+            )
+          }
+          return { effect: result.effect, receipt: { kind: "relation", id } }
+        },
+      })
+    }
+    expansions.push(items)
+  }
+  return expansions
+}
+
+interface Inspection {
+  target?: IssueReceipt
+  related: Map<number, Awaited<ReturnType<typeof readIssueHeader>>>
+  relations: IssueRelationPlan[]
+  error?: unknown
+}
+async function inspect(
+  loaded: LoadedManifest,
+  expansions: DeliveryItem[][],
+  checkpoint: Checkpoint,
+): Promise<Inspection[]> {
+  const inspections: Inspection[] = []
+  const seen = new Set<string>()
+  for (const [index, issue] of loaded.manifest.issues.entries()) {
+    const result: Inspection = { related: new Map(), relations: [] }
+    try {
+      const fields = checkpoint.items[expansions[index][0].key]
+      if (fields?.status === "completed" && fields.receipt?.kind === "issue") {
+        result.target = fields.receipt
+      }
+      const pending = expansions[index].some((item) =>
+        checkpoint.items[item.key]?.status !== "completed"
+      )
+      if (pending && (result.target != null || issue.operation === "update")) {
+        const read = await readIssueBasis(
+          result.target?.id ?? issue.identifier!,
+        )
+        result.target = activeTarget(read, checkpoint.workspace)
+        const original = loaded.originals.get(index)
+        if (original != null) {
+          const object = asRecord(original.issue, "Original Issue")
+          const organization = asRecord(
+            original.organization,
+            "Original organization",
+          )
+          if (
+            object.id !== result.target.id ||
+            organization.id !== checkpoint.workspace.id
+          ) {
+            throw new ValidationError(
+              "Original read belongs to another Issue or workspace",
+            )
+          }
+        }
+      }
+      if (result.target != null) {
+        if (seen.has(result.target.id)) {
+          throw new ValidationError(
+            "Duplicate resolved Issue target: " + result.target.id,
+          )
+        }
+        seen.add(result.target.id)
+      }
+      const pendingRelations = (issue.relations ?? []).flatMap(
+        (relation, relationIndex) => {
+          const item = expansions[index].filter((item) =>
+            item.kind === "relation"
+          )[relationIndex]
+          return checkpoint.items[item.key]?.status === "completed"
+            ? []
+            : [{ relation, relationIndex }]
+        },
+      )
+      for (const { relation, relationIndex } of pendingRelations) {
+        const related = await readIssueHeader(relation.issue)
+        if (result.target != null) {
+          assertDistinctIssueTargets(result.target.id, related.id)
+        }
+        result.related.set(relationIndex, related)
+      }
+      if (pendingRelations.length > 0) {
+        const inventory = result.target == null
+          ? EMPTY_ISSUE_RELATION_SNAPSHOT
+          : extractIssueRelationSnapshot(
+            await readIssueRelationInventory(result.target.id),
+          )
+        result.relations = planIssueRelations(
+          pendingRelations.map(({ relation, relationIndex }) => ({
+            type: relation.type,
+            issue: result.related.get(relationIndex)!.identifier,
+            issueId: result.related.get(relationIndex)!.id,
+          })),
+          inventory,
+        )
+        const conflicts = result.relations.filter((plan) =>
+          plan.verdict === "conflict"
+        )
+        if (conflicts.length) {
+          throw new ValidationError(
+            "Relation conflict: " + conflicts.map((plan) =>
+              plan.detail
+            ).join("; "),
+          )
+        }
+      }
+    } catch (error) {
+      result.error = error
+    }
+    inspections.push(result)
+  }
+  // Known duplicate identities are a batch-shape error, before any effects.
+  const targets = inspections.flatMap((value) =>
+    value.target == null ? [] : [value.target.id]
+  )
+  if (new Set(targets).size !== targets.length) {
+    throw new ValidationError(
+      "Delivery resolves multiple entries to the same Issue",
     )
   }
-  return workspaceFlags
+  return inspections
+}
+
+function sameValue(a: Comparable, b: Comparable): boolean {
+  return Array.isArray(a) || Array.isArray(b)
+    ? Array.isArray(a) && Array.isArray(b) && a.length === b.length &&
+      a.every((value, index) => value === b[index])
+    : a === b
+}
+async function verifyOnce(
+  index: number,
+  target: IssueReceipt,
+  items: DeliveryItem[],
+  checkpoint: Checkpoint,
+  signal: AbortSignal,
+): Promise<{ verification: VerificationResult; data?: unknown }> {
+  const base = {
+    issueIndex: index,
+    target: target.identifier,
+    scope: "issue-fields-and-object-identities" as const,
+  }
+  try {
+    signal.throwIfAborted()
+    const read = await readIssueBasis(target.id, signal)
+    if (
+      read.issue.id !== target.id ||
+      read.organization.id !== checkpoint.workspace.id
+    ) throw new ValidationError("Read-back returned a different identity")
+    const different: string[] = []
+    if (read.issue.archivedAt != null || read.issue.trashed) {
+      different.push("Issue is archived or trashed")
+    }
+    const expected = checkpoint.items[items[0].key]?.expected ?? {}
+    for (const [name, desired] of Object.entries(expected)) {
+      if (name === "addedLabelIds" || name === "removedLabelIds") {
+        const labels = new Set(
+          issueReplacementFields.labelIds.read(read.issue) as string[],
+        )
+        const ids = issueReplacementFields.labelIds.normalize(
+          desired,
+        ) as string[]
+        if (
+          !ids.every((id) =>
+            name === "addedLabelIds" ? labels.has(id) : !labels.has(id)
+          )
+        ) {
+          different.push(name)
+        }
+        continue
+      }
+      const reader =
+        (issueReplacementFields as Record<string, FieldReader>)[name]
+      if (reader == null) {
+        throw new ValidationError(
+          "Unsupported recorded expected field: " + name,
+        )
+      }
+      if (!sameValue(reader.read(read.issue), reader.normalize(desired))) {
+        different.push(reader.field)
+      }
+    }
+    const observed: unknown[] = []
+    const client = getGraphQLClient()
+    for (const item of items) {
+      const entry = checkpoint.items[item.key]
+      if (entry?.status !== "completed" || !entry.receipt) continue
+      const receipt = entry.receipt
+      if (receipt.kind === "comment") {
+        const data = await client.request({
+          document: CommentReceipt,
+          variables: { id: receipt.id },
+          signal,
+        })
+        observed.push(data)
+        if (
+          data.comment?.id !== receipt.id ||
+          data.comment.issue?.id !== target.id
+        ) different.push("comment " + receipt.id)
+      } else if (receipt.kind === "attachment") {
+        const data = await client.request({
+          document: AttachmentReceipt,
+          variables: { id: receipt.id },
+          signal,
+        })
+        observed.push(data)
+        if (
+          data.attachment?.id !== receipt.id ||
+          data.attachment.issue?.id !== target.id
+        ) different.push("attachment " + receipt.id)
+      } else if (receipt.kind === "relation") {
+        const data = await client.request({
+          document: RelationReceipt,
+          variables: { id: receipt.id },
+          signal,
+        })
+        observed.push(data)
+        if (
+          data.issueRelation?.id !== receipt.id ||
+          (data.issueRelation.issue.id !== target.id &&
+            data.issueRelation.relatedIssue.id !== target.id)
+        ) different.push("relation " + receipt.id)
+      }
+    }
+    return {
+      verification: {
+        ...base,
+        status: different.length ? "different" : "verified",
+        url: read.issue.url,
+        ...(different.length
+          ? {
+            detail: "Read-back differs: " + different.join(", ") +
+              "; confirmed writes will not be repeated",
+          }
+          : {}),
+      },
+      data: { ...read, receipts: observed },
+    }
+  } catch (error) {
+    return {
+      verification: {
+        ...base,
+        status: "unavailable",
+        detail: signal.aborted
+          ? "Read-back timed out; confirmed writes remain recorded"
+          : `Read-back unavailable: ${
+            errorResult(error).error.message
+          } Confirmed writes will not be repeated.`,
+      },
+    }
+  }
+}
+async function verify(
+  context: ApplyContext,
+  index: number,
+  target: IssueReceipt,
+  items: DeliveryItem[],
+  checkpoint: Checkpoint,
+) {
+  const signal = AbortSignal.timeout(context.verificationTimeoutMs ?? 10_000)
+  const delay = context.verificationDelay ??
+    ((milliseconds: number) =>
+      new Promise<void>((resolve) => setTimeout(resolve, milliseconds)))
+  let result = await verifyOnce(index, target, items, checkpoint, signal)
+  for (const wait of [250, 750]) {
+    if (result.verification.status === "verified" || signal.aborted) break
+    await delay(wait)
+    result = await verifyOnce(index, target, items, checkpoint, signal)
+  }
+  return result
+}
+function combineEffect(a: WriteEffect, b: WriteEffect): WriteEffect {
+  return a === "unknown" || b === "unknown"
+    ? "unknown"
+    : a === "applied" || b === "applied"
+    ? "applied"
+    : "none"
 }
 
 export async function applyManifest(
   context: ApplyContext,
 ): Promise<ApplyOutcome> {
-  const { loaded, runner } = context
-  const { manifest, manifestPath } = loaded
-  const progress = context.onProgress ?? (() => {})
-  const workspaceFlags = await verifyWorkspaceIdentity(context)
-
-  const expansions: DeliveryItem[][] = []
-  for (const [issueIndex, issue] of manifest.issues.entries()) {
-    expansions.push(
-      await expandIssue(
-        issue,
-        issueIndex,
-        manifest.workspace,
-        workspaceFlags,
-        loaded.files,
+  return await inWorkspace(context.loaded, async (organization) => {
+    const { loaded } = context
+    const expansions = await expand(loaded)
+    const checkpoint = await prepareCheckpoint(
+      loaded.manifestPath,
+      expansions.flat(),
+      organization,
+    )
+    const inspections = await inspect(loaded, expansions, checkpoint)
+    const results: ItemResult[] = []
+    let halted = false,
+      unknownSeen = false,
+      conflictSeen = false,
+      failedSeen = false
+    let effect: WriteEffect = "none"
+    for (const [index, items] of expansions.entries()) {
+      const inspection = inspections[index]
+      const state: ExecutionState = {
+        loaded,
+        checkpoint,
+        issueIndex: index,
+        target: inspection.target,
+        related: inspection.related,
+      }
+      let issueStopped = false
+      let inspected = false
+      for (const item of items) {
+        const previous = checkpoint.items[item.key]
+        if (previous?.status === "completed") {
+          if (previous.receipt?.kind === "issue") {
+            state.target = previous.receipt
+          }
+          results.push({
+            ...itemResult(item),
+            status: "skipped",
+            effect: "none",
+            receipt: previous.receipt,
+            detail: "Already completed; recorded effects are not repeated",
+          })
+          continue
+        }
+        if (halted || issueStopped) {
+          results.push({
+            ...itemResult(item),
+            status: "unattempted",
+            effect: "none",
+          })
+          continue
+        }
+        let started = false
+        let acknowledged: Completion | undefined
+        const beforeWrite = async () => {
+          checkpoint.items[item.key] = {
+            status: "unknown",
+            effect: "unknown",
+            note: "Write is in flight; reconcile if execution does not finish",
+          }
+          await saveCheckpoint(loaded.manifestPath, checkpoint)
+          started = true
+        }
+        try {
+          if (!inspected) {
+            inspected = true
+            if (inspection.error != null) throw inspection.error
+          }
+          context.onProgress?.(item.describe)
+          const completed = await item.run(state, beforeWrite)
+          acknowledged = completed
+          const entry: CheckpointItem = { status: "completed", ...completed }
+          checkpoint.items[item.key] = entry
+          await saveCheckpoint(loaded.manifestPath, checkpoint)
+          if (completed.receipt.kind === "issue") {
+            state.target = completed.receipt
+          }
+          effect = combineEffect(effect, completed.effect)
+          results.push({
+            ...itemResult(item),
+            status: completed.effect === "none" ? "skipped" : "applied",
+            ...completed,
+          })
+        } catch (error) {
+          const parsed = errorResult(
+            acknowledged?.effect === "applied"
+              ? new WriteError(
+                "Write was acknowledged but its receipt could not be persisted",
+                {
+                  effect: "applied",
+                  data: acknowledged,
+                  receipts: [acknowledged.receipt],
+                  cause: error,
+                },
+              )
+              : error,
+          )
+          const recordedEffect = parsed.effect === "none" && started
+            ? "unknown"
+            : parsed.effect
+          const result = { ...parsed, effect: recordedEffect }
+          const unsafe = recordedEffect !== "none"
+          // A process crash after beforeWrite leaves unknown on disk. During
+          // this invocation, a proven pre-send failure may safely be failed.
+          checkpoint.items[item.key] = unsafe
+            ? {
+              status: "unknown",
+              effect: recordedEffect,
+              note: result.error.message,
+              data: result,
+            }
+            : { status: "failed", effect: "none", note: result.error.message }
+          try {
+            await saveCheckpoint(loaded.manifestPath, checkpoint)
+          } catch (saveError) {
+            // If a successful mutation's receipt could not be persisted, the
+            // pre-send unknown marker is the only safe recovery authority.
+            throw new WriteError("Cannot persist delivery outcome", {
+              effect: combineEffect(effect, recordedEffect),
+              data: {
+                result,
+                acknowledged,
+                saveError: String(saveError),
+                items: results,
+              },
+              ...(acknowledged == null
+                ? {}
+                : { receipts: [acknowledged.receipt] }),
+              cause: saveError,
+            })
+          }
+          results.push({
+            ...itemResult(item),
+            status: unsafe ? "unknown" : "failed",
+            effect: recordedEffect,
+            error: result,
+            detail: result.error.message,
+            ...(acknowledged == null ? {} : { receipt: acknowledged.receipt }),
+          })
+          effect = combineEffect(effect, recordedEffect)
+          issueStopped = true
+          if (unsafe) {
+            unknownSeen = true
+            halted = true
+          } else {
+            failedSeen = true
+            if (error instanceof ConflictError) conflictSeen = true
+            halted = !context.continueOnFailure
+          }
+        }
+      }
+      inspections[index].target = state.target
+    }
+    const verification: VerificationResult[] = []
+    const readBack: Record<string, unknown> = {}
+    for (const [index, items] of expansions.entries()) {
+      const target = inspections[index].target
+      if (
+        target == null || checkpoint.items[items[0].key]?.status !== "completed"
+      ) continue
+      const observed = await verify(context, index, target, items, checkpoint)
+      verification.push(observed.verification)
+      if (observed.data !== undefined) readBack[String(index)] = observed.data
+    }
+    const summary: Record<ItemStatus, number> = {
+      applied: 0,
+      failed: 0,
+      unknown: 0,
+      unattempted: 0,
+      skipped: 0,
+    }
+    for (const result of results) summary[result.status]++
+    const createdIdentifiers = Object.fromEntries(
+      loaded.manifest.issues.flatMap((issue, index) =>
+        issue.operation === "create" && inspections[index].target != null
+          ? [[String(index), inspections[index].target!.identifier]]
+          : []
       ),
     )
-  }
-
-  const checkpoint = await prepareCheckpoint(
-    manifestPath,
-    expansions.flat(),
-  )
-
-  const results: ItemResult[] = []
-  const verification: VerificationResult[] = []
-  const readBack: Record<string, unknown> = {}
-  // `halted` controls whether further items run; the flags remember
-  // what happened so the final status reports the strongest signal even when
-  // --continue-on-failure kept the run going.
-  let halted = false
-  let unknownSeen = false
-  let conflictSeen = false
-  let failedSeen = false
-  const continueOnFailure = context.continueOnFailure === true
-
-  for (const [issueIndex, issue] of manifest.issues.entries()) {
-    const items = expansions[issueIndex]
-
-    if (halted) {
-      for (const item of items) {
-        results.push({
-          key: item.key,
-          kind: item.kind,
-          describe: item.describe,
-          status: "unattempted",
-        })
-      }
-      continue
-    }
-
-    // Update issues with pending work need current remote values before their
-    // first mutation. An all-applied checkpoint skips this preflight and goes
-    // straight to final verification: otherwise a transient read-back failure
-    // would be misclassified as a mutation preflight failure on resume.
-    let remote: RemoteFields | null = null
-    let remoteView: unknown = null
-    let issueHalted = false
-    const hasPendingItems = items.some((item) =>
-      checkpoint.items[item.key]?.status !== "applied"
-    )
-    if (issue.operation === "update" && hasPendingItems) {
-      const view = await runner.run([
-        "issue",
-        "view",
-        issue.identifier as string,
-        ...workspaceFlags,
-        "--json",
-      ])
-      if (view.code !== 0) {
-        const status = "failed" as const
-        results.push({
-          key: `${issueIndex}:fields:0:read`,
-          kind: "fields",
-          describe: `read current state of ${issue.identifier}`,
-          status,
-          detail: view.stderr.trim().split("\n")[0],
-        })
-        failedSeen = true
-        halted = !continueOnFailure
-        issueHalted = true
-      } else {
-        remoteView = JSON.parse(view.stdout)
-        remote = extractRemoteFields(remoteView)
-        const drift = objectDrift(issue.identifier as string, remote)
-        if (drift != null) {
-          results.push({
-            key: `${issueIndex}:fields:0:guard`,
-            kind: "fields",
-            describe: `refuse update of ${issue.identifier}`,
-            status: "failed",
-            detail: drift,
-          })
-          failedSeen = true
-          halted = !continueOnFailure
-          issueHalted = true
-        }
-      }
-    }
-
-    const pendingFields = items.some((item) =>
-      item.kind === "fields" && checkpoint.items[item.key]?.status !== "applied"
-    )
-    if (!issueHalted && pendingFields) {
-      try {
-        await checkDeliveryProject(runner, issue, workspaceFlags)
-      } catch (error) {
-        results.push({
-          key: String(issueIndex) + ":fields:0:project",
-          kind: "fields",
-          describe: "check project team compatibility",
-          status: "failed",
-          detail: (error as Error).message,
-        })
-        failedSeen = true
-        halted = !continueOnFailure
-        issueHalted = true
-      }
-    }
-    const relationPlans = new Map<number, IssueRelationPlan>()
-    if (!issueHalted) {
-      const pendingRelationItems = items.filter((item) =>
-        item.kind === "relation" &&
-        checkpoint.items[item.key]?.status !== "applied"
-      )
-      if (pendingRelationItems.length > 0) {
-        const requests = pendingRelationItems.map((item) => {
-          const request = issue.relations?.[item.subIndex]
-          if (request == null) {
-            throw new CliError(
-              `Manifest relation ${item.subIndex} is missing from issue ${issueIndex}`,
-            )
-          }
-          return request
-        })
-        const snapshot = issue.operation === "create"
-          ? EMPTY_ISSUE_RELATION_SNAPSHOT
-          : extractIssueRelationSnapshot(remoteView)
-        const planned = planIssueRelations(requests, snapshot)
-        for (const [index, plan] of planned.entries()) {
-          relationPlans.set(pendingRelationItems[index].subIndex, plan)
-        }
-        if (planned.some((plan) => plan.verdict === "conflict")) {
-          conflictSeen = true
-          halted = !continueOnFailure
-          issueHalted = true
-        }
-      }
-    }
-
-    let identifier = issue.identifier ??
-      checkpoint.createdIdentifiers[String(issueIndex)] ?? null
-    // Successful mutations and checkpoint skips both need a final read-back.
-    // A verification failure never changes an applied checkpoint entry: the
-    // write is known to have succeeded and must not be repeated merely because
-    // its current view could not be fetched.
-    let issueNeedsVerification = false
-
-    for (const item of items) {
-      const recorded = checkpoint.items[item.key]
-      if (recorded?.status === "applied") {
-        issueNeedsVerification = true
-        results.push({
-          key: item.key,
-          kind: item.kind,
-          describe: item.describe,
-          status: "skipped",
-          detail: "already applied per checkpoint",
-        })
-        continue
-      }
-      const relationPlan = item.kind === "relation"
-        ? relationPlans.get(item.subIndex)
-        : undefined
-      if (relationPlan?.verdict === "conflict") {
-        results.push({
-          key: item.key,
-          kind: item.kind,
-          describe: item.describe,
-          status: "failed",
-          detail: `conflict: ${
-            relationPlan.detail ?? "relation would replace an existing edge"
-          }`,
-        })
-        continue
-      }
-      if (halted || issueHalted) {
-        results.push({
-          key: item.key,
-          kind: item.kind,
-          describe: item.describe,
-          status: "unattempted",
-        })
-        continue
-      }
-
-      if (item.kind === "fields" && issue.operation === "update") {
-        const fieldPlans = planFields(
-          issue.set ?? {},
-          issue.base,
-          remote as RemoteFields,
-          (set) =>
-            set.descriptionFile != null
-              ? readDescriptionFile(loaded, set.descriptionFile)
-              : set.description,
-        )
-        const conflicts = fieldPlans.filter((plan) =>
-          plan.verdict === "conflict"
-        )
-        if (conflicts.length > 0) {
-          results.push({
-            key: item.key,
-            kind: item.kind,
-            describe: item.describe,
-            status: "failed",
-            detail: `conflict: ${
-              conflicts.map((plan) => plan.field).join(", ")
-            } changed remotely since base`,
-          })
-          conflictSeen = true
-          halted = !continueOnFailure
-          issueHalted = true
-          continue
-        }
-        if (fieldPlans.every((plan) => plan.verdict === "idempotent")) {
-          checkpoint.items[item.key] = { status: "applied", note: "idempotent" }
-          await saveCheckpoint(manifestPath, checkpoint)
-          issueNeedsVerification = true
-          results.push({
-            key: item.key,
-            kind: item.kind,
-            describe: item.describe,
-            status: "applied",
-            detail: "idempotent: remote already matches",
-          })
-          continue
-        }
-      }
-
-      if (
-        relationPlan?.verdict === "idempotent" &&
-        relationPlan.idempotentSource === "remote"
-      ) {
-        checkpoint.items[item.key] = { status: "applied", note: "idempotent" }
-        await saveCheckpoint(manifestPath, checkpoint)
-        issueNeedsVerification = true
-        results.push({
-          key: item.key,
-          kind: item.kind,
-          describe: item.describe,
-          status: "applied",
-          detail: "idempotent: equivalent relation already exists",
-        })
-        continue
-      }
-
-      if (identifier == null && item.kind !== "fields") {
-        results.push({
-          key: item.key,
-          kind: item.kind,
-          describe: item.describe,
-          status: "unattempted",
-          detail: "no identifier: fields step did not complete",
-        })
-        continue
-      }
-
-      progress(
-        `→ issue ${issueIndex + 1}/${manifest.issues.length}: ${item.kind} ${
-          item.subIndex + 1
-        }`,
-      )
-      const command = await item.buildCommand(identifier ?? "")
-
-      // Record the launch before the mutation goes out: a hard crash while
-      // the child is in flight leaves an unknown entry, so the next run stops
-      // for reconciliation instead of repeating a write that may have landed.
-      checkpoint.items[item.key] = {
-        status: "unknown",
-        note: "in flight: launched but result not recorded",
-      }
-      await saveCheckpoint(manifestPath, checkpoint)
-      let result: CommandResult
-      try {
-        result = await runner.run(command.args)
-      } catch (error) {
-        checkpoint.items[item.key] = {
-          status: "unknown",
-          note: (error as Error).message,
-        }
-        await saveCheckpoint(manifestPath, checkpoint)
-        results.push({
-          key: item.key,
-          kind: item.kind,
-          describe: item.describe,
-          status: "unknown",
-          detail: (error as Error).message,
-        })
-        unknownSeen = true
-        halted = true
-        continue
-      } finally {
-        await command.cleanup?.()
-      }
-
-      if (result.code === 0) {
-        if (item.kind === "fields" && issue.operation === "create") {
-          const created = JSON.parse(result.stdout) as {
-            issue?: { identifier?: string }
-          }
-          const createdIdentifier = created.issue?.identifier
-          if (createdIdentifier == null) {
-            checkpoint.items[item.key] = {
-              status: "unknown",
-              note: "create succeeded but no identifier in output",
-            }
-            await saveCheckpoint(manifestPath, checkpoint)
-            results.push({
-              key: item.key,
-              kind: item.kind,
-              describe: item.describe,
-              status: "unknown",
-              detail: "create output had no identifier",
-            })
-            unknownSeen = true
-            halted = true
-            continue
-          }
-          identifier = createdIdentifier
-          checkpoint.createdIdentifiers[String(issueIndex)] = createdIdentifier
-        }
-        let receipt: DeliveryReceipt | undefined
-        if (item.kind === "comment" || item.kind === "attachment") {
-          try {
-            const output = JSON.parse(result.stdout)
-            const id = output?.[item.kind]?.id
-            if (typeof id !== "string" || !id.trim()) {
-              throw new Error("missing id")
-            }
-            receipt = { kind: item.kind, id }
-          } catch {
-            checkpoint.items[item.key] = {
-              status: "unknown",
-              note: "write succeeded but its object ID was not returned",
-            }
-            await saveCheckpoint(manifestPath, checkpoint)
-            results.push({
-              key: item.key,
-              kind: item.kind,
-              describe: item.describe,
-              status: "unknown",
-              detail:
-                "write succeeded but its object ID was not returned; reconcile before resuming",
-            })
-            unknownSeen = true
-            halted = true
-            continue
-          }
-        }
-        checkpoint.items[item.key] = {
-          status: "applied",
-          ...(receipt ? { receipt } : {}),
-        }
-        await saveCheckpoint(manifestPath, checkpoint)
-        issueNeedsVerification = true
-        results.push({
-          key: item.key,
-          kind: item.kind,
-          describe: item.describe,
-          status: "applied",
-          ...(item.kind === "fields" && identifier != null
-            ? { detail: identifier }
-            : {}),
-        })
-        continue
-      }
-
-      const status = classifyFailure(result)
-      checkpoint.items[item.key] = {
-        status,
-        note: result.stderr.trim().split("\n")[0],
-      }
-      await saveCheckpoint(manifestPath, checkpoint)
-      results.push({
-        key: item.key,
-        kind: item.kind,
-        describe: item.describe,
-        status,
-        detail: result.stderr.trim().split("\n")[0],
-      })
-      if (status === "unknown") {
-        unknownSeen = true
-        halted = true
-      } else {
-        failedSeen = true
-        halted = !continueOnFailure
-      }
-    }
-
-    if (issueNeedsVerification && identifier != null) {
-      const appliedItems = items.filter((item) =>
-        checkpoint.items[item.key]?.status === "applied"
-      )
-      const receipts = appliedItems.flatMap((item) =>
-        checkpoint.items[item.key].receipt ?? []
-      )
-      const legacyItems = appliedItems.some((item) =>
-        (item.kind === "comment" || item.kind === "attachment") &&
-        checkpoint.items[item.key].receipt == null
-      )
-      const desired: DeliverySet = appliedItems.some((item) =>
-          item.kind === "fields"
-        )
-        ? { ...issue.set }
-        : {}
-      if (desired.descriptionFile != null) {
-        desired.description = await Deno.readTextFile(
-          loaded.files.get(desired.descriptionFile)?.resolvedPath ??
-            desired.descriptionFile,
-        )
-        delete desired.descriptionFile
-      }
-      let result: ReadBackResult
-      const controller = new AbortController()
-      const timer = setTimeout(
-        () => controller.abort(),
-        context.verificationTimeoutMs ?? 30_000,
-      )
-      try {
-        for (let attempt = 0;; attempt++) {
-          result = await readBackIssue(
-            runner,
-            issueIndex,
-            identifier,
-            workspaceFlags,
-            receipts,
-            desired,
-            legacyItems,
-            controller.signal,
-          )
-          if (
-            result.verification.status === "verified" || result.data == null ||
-            attempt === 2 ||
-            controller.signal.aborted
-          ) break
-          await (context.verificationDelay ?? ((milliseconds) =>
-            new Promise<void>((resolve) => {
-              const finish = () => {
-                clearTimeout(delayTimer)
-                controller.signal.removeEventListener("abort", finish)
-                resolve()
-              }
-              const delayTimer = setTimeout(finish, milliseconds)
-              controller.signal.addEventListener("abort", finish, {
-                once: true,
-              })
-              if (controller.signal.aborted) finish()
-            })))(
-              1000 * (attempt + 1),
-            )
-        }
-      } finally {
-        clearTimeout(timer)
-      }
-      verification.push(result.verification)
-      if (result.data != null) readBack[identifier] = result.data
-    }
-  }
-
-  const summary: Record<ItemStatus, number> = {
-    applied: 0,
-    failed: 0,
-    unknown: 0,
-    unattempted: 0,
-    skipped: 0,
-  }
-  for (const item of results) summary[item.status] += 1
-
-  const status: ApplyOutcome["status"] = unknownSeen
-    ? "stopped-on-unknown"
-    : conflictSeen
-    ? "conflict"
-    : failedSeen
-    ? (halted ? "stopped-on-failure" : "completed-with-failures")
-    : verification.some((result) => result.status === "failed")
-    ? "applied-unverified"
-    : "completed"
-
-  return {
-    status,
-    items: results,
-    summary,
-    createdIdentifiers: checkpoint.createdIdentifiers,
-    verification,
-    readBack,
-  }
-}
-
-type PlanFile = Pick<
-  ManifestFile,
-  "reference" | "size" | "contentType" | "sha256"
->
-
-export type PlanContent =
-  | { source: "inline"; size: number }
-  | ({ source: "file" } & PlanFile)
-
-export type PlanSet = Omit<DeliverySet, "description" | "descriptionFile"> & {
-  description?: PlanContent
-}
-
-export interface PlanComment {
-  body?: PlanContent
-  public: boolean
-  files: PlanFile[]
-}
-
-export type PlanAttachment =
-  | Extract<DeliveryAttachment, { kind: "url" }>
-  | (Extract<DeliveryAttachment, { kind: "file" }> & { file: PlanFile })
-
-export interface IssuePlanSummary {
-  team?: string
-  set?: PlanSet
-  comments?: PlanComment[]
-  attachments?: PlanAttachment[]
-  relations?: IssueRelationPlan[]
-}
-
-export interface IssuePlan {
-  operation: DeliveryIssue["operation"]
-  target: string | null
-  /** Object-level refusal (alias, archived, trashed); null when clean. */
-  drift?: string | null
-  fields: FieldPlan[]
-  /** Concise request metadata; long Markdown is represented by source/size. */
-  summary: IssuePlanSummary
-  items: Array<{ key: string; kind: ItemKind; describe: string }>
-}
-
-export interface PlanOutcome {
-  status: "ready" | "conflict"
-  workspace: string
-  issues: IssuePlan[]
-  files: Array<
-    Pick<ManifestFile, "reference" | "size" | "contentType" | "sha256">
-  >
-}
-
-function planFile(loaded: LoadedManifest, reference: string): PlanFile {
-  const file = loaded.files.get(reference)
-  if (file == null) {
-    throw new CliError(`Manifest file inventory missing ${reference}`)
-  }
-  const { size, contentType, sha256 } = file
-  return { reference, size, contentType, sha256 }
-}
-
-function planContent(
-  loaded: LoadedManifest,
-  inline: string | undefined,
-  reference: string | undefined,
-): PlanContent | undefined {
-  if (reference != null) {
-    return { source: "file", ...planFile(loaded, reference) }
-  }
-  if (inline != null) {
     return {
-      source: "inline",
-      size: new TextEncoder().encode(inline).length,
-    }
-  }
-  return undefined
-}
-
-function summarizeIssue(
-  loaded: LoadedManifest,
-  issue: DeliveryIssue,
-  relations: IssueRelationPlan[],
-): IssuePlanSummary {
-  let set: PlanSet | undefined
-  if (issue.set != null) {
-    const { description, descriptionFile, ...otherFields } = issue.set
-    const content = planContent(loaded, description, descriptionFile)
-    set = {
-      ...otherFields,
-      ...(content == null ? {} : { description: content }),
-    }
-  }
-
-  const comments = (issue.comments ?? []).map((comment) => {
-    const body = planContent(loaded, comment.body, comment.bodyFile)
-    return {
-      ...(body == null ? {} : { body }),
-      public: comment.public === true,
-      files: (comment.files ?? []).map((file) => planFile(loaded, file.path)),
+      status: unknownSeen
+        ? "stopped-on-unknown"
+        : conflictSeen
+        ? "conflict"
+        : failedSeen
+        ? (context.continueOnFailure
+          ? "completed-with-failures"
+          : "stopped-on-failure")
+        : verification.some((result) => result.status !== "verified")
+        ? "applied-unverified"
+        : "completed",
+      effect,
+      items: results,
+      summary,
+      createdIdentifiers,
+      verification,
+      readBack,
     }
   })
-  const attachments = (issue.attachments ?? []).map((attachment) =>
-    attachment.kind === "file"
-      ? { ...attachment, file: planFile(loaded, attachment.path) }
-      : attachment
+}
+function itemResult(item: DeliveryItem) {
+  return { key: item.key, kind: item.kind, describe: item.describe }
+}
+
+function textSummary(loaded: LoadedManifest, inline?: string, file?: string) {
+  if (file != null) {
+    return { source: "file" as const, ...fileSummary(loaded.files.get(file)!) }
+  }
+  return inline == null ? undefined : {
+    source: "inline" as const,
+    size: new TextEncoder().encode(inline).byteLength,
+  }
+}
+function planContent(loaded: LoadedManifest, issue: DeliveryIssue) {
+  const set = setOptions(loaded, issue)
+  const description = textSummary(
+    loaded,
+    issue.set?.description,
+    issue.set?.descriptionFile,
   )
-
   return {
-    ...(issue.team == null ? {} : { team: issue.team }),
-    ...(set == null ? {} : { set }),
-    ...(comments.length === 0 ? {} : { comments }),
-    ...(attachments.length === 0 ? {} : { attachments }),
-    ...(relations.length === 0 ? {} : { relations }),
+    set: { ...set, ...(description == null ? {} : { description }) },
+    comments: (issue.comments ?? []).map((comment) => ({
+      body: textSummary(loaded, comment.body, comment.bodyFile),
+      public: comment.public === true,
+      files: (comment.files ?? []).map((file) =>
+        fileSummary(loaded.files.get(file.path)!)
+      ),
+    })),
+    attachments: issue.attachments ?? [],
   }
 }
-
-async function checkDeliveryProject(
-  runner: CommandRunner,
-  issue: DeliveryIssue,
-  workspaceFlags: string[],
-): Promise<void> {
-  let project = issue.set?.project
-  if (
-    project == null && issue.operation === "create" && issue.set?.parent != null
-  ) {
-    const parent = await runner.run([
-      "issue",
-      "view",
-      issue.set.parent,
-      ...workspaceFlags,
-      "--json",
-    ])
-    if (parent.code !== 0) {
-      throw new CliError(parent.stderr.trim() || "Failed to read parent issue")
-    }
-    const data = JSON.parse(parent.stdout) as {
-      project?: { id?: unknown } | null
-    }
-    if (data.project === null) return
-    if (typeof data.project?.id !== "string" || !data.project.id) {
-      throw new CliError("Parent issue returned no project identity")
-    }
-    project = data.project.id
-  }
-  if (project == null) return
-  const team = issue.team ??
-    getTeamKeyFromIssueIdentifier(issue.identifier ?? "")
-  if (!team) {
-    throw new ValidationError(
-      "Cannot determine issue team for project validation",
-    )
-  }
-  const result = await runner.run([
-    "project",
-    "teams",
-    project,
-    ...workspaceFlags,
-    "--json",
-  ])
-  if (result.code !== 0) {
-    throw new CliError(result.stderr.trim() || "Failed to read project teams")
-  }
-  assertProjectTeam(JSON.parse(result.stdout), team)
+function fileSummary(
+  file: {
+    reference: string
+    size: number
+    contentType: string
+    sha256: string
+  },
+) {
+  const { reference, size, contentType, sha256 } = file
+  return { reference, size, contentType, sha256 }
 }
-
-/**
- * The zero-write preview: read-only resolution of every update target plus
- * the full local file inventory. Optional by design — apply performs the same
- * local validation, then reads each update target immediately before that
- * Issue's first mutation. Plan is for callers that want the complete remote
- * preview before consenting to sequential execution.
- */
 export async function planManifest(
-  context: ApplyContext,
+  context: Pick<ApplyContext, "loaded">,
 ): Promise<PlanOutcome> {
-  const { loaded, runner } = context
-  const { manifest } = loaded
-  const issues: IssuePlan[] = []
-  let conflict = false
-  const workspaceFlags = await verifyWorkspaceIdentity(context)
-
-  for (const [issueIndex, issue] of manifest.issues.entries()) {
-    const items = await expandIssue(
-      issue,
-      issueIndex,
-      manifest.workspace,
-      workspaceFlags,
-      loaded.files,
+  return await inWorkspace(context.loaded, async (organization) => {
+    const { loaded } = context
+    const expansions = await expand(loaded)
+    // prepareCheckpoint only reads and validates; plan never writes the ledger.
+    const checkpoint = await prepareCheckpoint(
+      loaded.manifestPath,
+      expansions.flat(),
+      organization,
     )
-    let fields: FieldPlan[] = []
-    let drift: string | null = null
-    let remoteView: unknown = null
-    if (issue.operation === "update") {
-      const view = await runner.run([
-        "issue",
-        "view",
-        issue.identifier as string,
-        ...workspaceFlags,
-        "--json",
-      ])
-      if (view.code !== 0) {
-        throw new CliError(
-          `Failed to read ${issue.identifier}: ${
-            view.stderr.trim().split("\n")[0]
-          }`,
-        )
+    const inspections = await inspect(loaded, expansions, checkpoint)
+    const issues: PlanOutcome["issues"] = []
+    let failed = false, conflict = false
+    for (const [index, issue] of loaded.manifest.issues.entries()) {
+      const inspection = inspections[index]
+      let fields: ReplacementFieldPlan[] = []
+      let error = inspection.error
+      if (
+        error == null &&
+        checkpoint.items[expansions[index][0].key]?.status !== "completed"
+      ) {
+        try {
+          if (issue.operation === "create") {
+            await prepareIssueCreate({
+              ...setOptions(loaded, issue),
+              interactive: false,
+            })
+          } else if (issue.set != null) {
+            fields = (await prepareIssueUpdate({
+              ...setOptions(loaded, issue),
+              original: loaded.originals.get(index),
+              unprotected: issue.unprotected,
+              expectField: issue.expectFields,
+            }, inspection.target!.id)).fields
+          }
+        } catch (cause) {
+          error = cause
+        }
       }
-      remoteView = JSON.parse(view.stdout)
-      const remote = extractRemoteFields(remoteView)
-      drift = objectDrift(issue.identifier as string, remote)
-      if (drift != null) conflict = true
-      if (issue.set != null) {
-        fields = planFields(
-          issue.set,
-          issue.base,
-          remote,
-          (set) =>
-            set.descriptionFile != null
-              ? readDescriptionFile(loaded, set.descriptionFile)
-              : set.description,
-        )
-        if (fields.some((plan) => plan.verdict === "conflict")) conflict = true
+      if (error != null) {
+        if (error instanceof ConflictError) {
+          conflict = true
+          fields = error.fields
+        } else failed = true
       }
+      issues.push({
+        operation: issue.operation,
+        target: inspection.target?.identifier ?? issue.identifier,
+        fields,
+        content: planContent(loaded, issue),
+        relations: inspection.relations,
+        items: expansions[index].map((item) => ({
+          ...itemResult(item),
+          completed: checkpoint.items[item.key]?.status === "completed",
+        })),
+        ...(error == null ? {} : { error: errorResult(error) }),
+      })
     }
-    if (drift == null) {
-      try {
-        await checkDeliveryProject(runner, issue, workspaceFlags)
-      } catch (error) {
-        drift = (error as Error).message
-        conflict = true
-      }
+    return {
+      workspace: loaded.manifest.workspace,
+      status: conflict ? "conflict" : failed ? "failed" : "ready",
+      issues,
+      files: [...loaded.files.values()].map(fileSummary),
     }
-    const relations = planIssueRelations(
-      issue.relations ?? [],
-      issue.operation === "create"
-        ? EMPTY_ISSUE_RELATION_SNAPSHOT
-        : extractIssueRelationSnapshot(remoteView),
-    )
-    if (relations.some((plan) => plan.verdict === "conflict")) conflict = true
-    issues.push({
-      operation: issue.operation,
-      target: issue.identifier ?? null,
-      drift,
-      fields,
-      summary: summarizeIssue(loaded, issue, relations),
-      items: items.map(({ key, kind, describe }) => ({ key, kind, describe })),
-    })
-  }
-
-  return {
-    status: conflict ? "conflict" : "ready",
-    workspace: manifest.workspace,
-    issues,
-    files: [...loaded.files.values()].map((
-      { reference, size, contentType, sha256 },
-    ) => ({ reference, size, contentType, sha256 })),
-  }
-}
-
-function readDescriptionFile(
-  loaded: LoadedManifest,
-  reference: string,
-): string {
-  const file = loaded.files.get(reference)
-  if (file == null) {
-    throw new CliError(`Manifest file inventory missing ${reference}`)
-  }
-  return Deno.readTextFileSync(file.resolvedPath)
+  })
 }

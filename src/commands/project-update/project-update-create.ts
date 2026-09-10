@@ -5,9 +5,11 @@ import { gql } from "../../__codegen__/gql.ts"
 import { getGraphQLClient } from "../../utils/graphql.ts"
 import { getEditor, openEditor } from "../../utils/editor.ts"
 import { resolveProjectId } from "../../utils/linear.ts"
-import { readIdsFromStdin } from "../../utils/bulk.ts"
+import { printWriteResult, setMachineOutput } from "../../utils/write-result.ts"
 import { shouldShowSpinner } from "../../utils/hyperlink.ts"
 import {
+  assertMutationReceipt,
+  assertMutationSuccess,
   CliError,
   handleError,
   NotFoundError,
@@ -26,12 +28,15 @@ async function readContentFromStdin(): Promise<string | undefined> {
   }
 
   try {
-    const lines = await readIdsFromStdin()
-    // Join back with newlines since it's content, not IDs
-    const content = lines.join("\n")
+    const content = await new Response(Deno.stdin.readable).text()
     return content.length > 0 ? content : undefined
-  } catch {
-    return undefined
+  } catch (error) {
+    throw new CliError(
+      `Failed to read update content from stdin: ${
+        error instanceof Error ? error.message : String(error)
+      }`,
+      { cause: error },
+    )
   }
 }
 
@@ -57,8 +62,10 @@ const CreateProjectUpdate = gql(`
 export const createCommand = withUsageMetadata(new Command(), {
   writes: true,
   interactive: true,
+  outputModes: ["human", "json"],
 })
   .name("create")
+  .option("--json", "Output a JSON write result")
   .description("Create a new status update for a project")
   .alias("c")
   .arguments("<projectId:string>")
@@ -71,23 +78,33 @@ export const createCommand = withUsageMetadata(new Command(), {
   .option("-i, --interactive", "Interactive mode with prompts")
   .action(
     async (
-      { body, bodyFile, health, interactive },
+      { body, bodyFile, health, interactive, json },
       projectId,
     ) => {
+      setMachineOutput(json ?? false)
       const { Spinner } = await import("@std/cli/unstable-spinner")
       const client = getGraphQLClient()
 
       try {
+        if (json && interactive) {
+          throw new ValidationError(
+            "--json cannot be combined with --interactive",
+          )
+        }
+        if (body !== undefined && bodyFile !== undefined) {
+          throw new ValidationError("Use either --body or --body-file")
+        }
         // Resolve project ID
         const resolvedProjectId = await resolveProjectId(projectId)
 
         // Determine if we should use interactive mode
-        let useInteractive = interactive && Deno.stdout.isTerminal()
+        let useInteractive = !json && interactive && Deno.stdout.isTerminal()
 
         // If no flags provided and is TTY, enter interactive mode
         const noFlagsProvided = !body && !bodyFile && !health
         if (
-          noFlagsProvided && Deno.stdout.isTerminal() && Deno.stdin.isTerminal()
+          !json && noFlagsProvided && Deno.stdout.isTerminal() &&
+          Deno.stdin.isTerminal()
         ) {
           useInteractive = true
         }
@@ -119,7 +136,7 @@ export const createCommand = withUsageMetadata(new Command(), {
         // Non-interactive mode: resolve content from various sources
         let finalBody: string | undefined
 
-        if (body) {
+        if (body !== undefined) {
           // Content provided inline via --body
           finalBody = body
         } else if (bodyFile) {
@@ -143,7 +160,7 @@ export const createCommand = withUsageMetadata(new Command(), {
           if (stdinContent) {
             finalBody = stdinContent
           }
-        } else if (Deno.stdout.isTerminal()) {
+        } else if (!json && Deno.stdout.isTerminal()) {
           // No content provided, open editor
           console.log("Opening editor for update content...")
           finalBody = await openEditor()
@@ -154,7 +171,7 @@ export const createCommand = withUsageMetadata(new Command(), {
 
         // Validate health value if provided
         let validatedHealth: ProjectUpdateHealth | undefined
-        if (health) {
+        if (health !== undefined) {
           const validHealthValues = ["onTrack", "atRisk", "offTrack"]
           if (!validHealthValues.includes(health)) {
             throw new ValidationError(`Invalid health value: ${health}`, {
@@ -181,12 +198,12 @@ export const createCommand = withUsageMetadata(new Command(), {
           input.health = validatedHealth
         }
 
-        const showSpinner = shouldShowSpinner()
+        const showSpinner = !json && shouldShowSpinner()
         const spinner = showSpinner ? new Spinner() : null
         spinner?.start()
 
         try {
-          await createProjectUpdate(client, input)
+          await createProjectUpdate(client, input, json)
         } finally {
           spinner?.stop()
         }
@@ -275,17 +292,24 @@ async function createProjectUpdate(
     body?: string
     health?: ProjectUpdateHealth
   },
+  json = false,
 ): Promise<void> {
   try {
+    if (!input.body?.trim() && !input.health) {
+      throw new ValidationError("Provide update content or --health")
+    }
     const result = await client.request(CreateProjectUpdate, { input })
 
-    if (!result.projectUpdateCreate.success) {
-      throw new CliError("Failed to create project update")
-    }
+    assertMutationSuccess(
+      result?.projectUpdateCreate,
+      result?.projectUpdateCreate,
+    )
 
-    const projectUpdate = result.projectUpdateCreate.projectUpdate
-    if (!projectUpdate) {
-      throw new CliError("Project update creation failed - no update returned")
+    const projectUpdate = result?.projectUpdateCreate.projectUpdate
+    assertMutationReceipt(projectUpdate, result?.projectUpdateCreate)
+    if (json) {
+      printWriteResult(projectUpdate)
+      return
     }
 
     const projectName = projectUpdate.project?.name || "Unknown project"

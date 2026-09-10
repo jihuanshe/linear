@@ -1,6 +1,7 @@
 import { assertEquals } from "@std/assert"
 import {
   CliError,
+  errorResult,
   extractGraphQLMessage,
   isClientError,
   isDebugMode,
@@ -9,6 +10,7 @@ import {
   ValidationError,
 } from "../../src/utils/errors.ts"
 import { ClientError, type GraphQLResponse } from "graphql-request"
+import { GraphQLError } from "graphql"
 
 Deno.test("isDebugMode - returns false when LINEAR_DEBUG is not set", () => {
   Deno.env.delete("LINEAR_DEBUG")
@@ -108,4 +110,61 @@ Deno.test("isClientError - returns true for ClientError", () => {
 Deno.test("isClientError - returns false for other errors", () => {
   const error = new Error("Some error")
   assertEquals(isClientError(error), false)
+})
+
+Deno.test("errorResult - only the requested direct mutation acknowledgement proves applied", () => {
+  const query = "mutation { projectUpdate { success project { id } } }"
+  const data = { projectUpdate: { success: true } }
+  const cases = [
+    { query, data, effect: "applied" },
+    { query, data: { projectUpdate: { success: false } } },
+    { query, data: { projectUpdate: { success: "true" } } },
+    { query, data: { projectUpdate: { project: { success: true } } } },
+    { query, data: { unrelated: { success: true } } },
+    { query, data: { projectUpdate: null } },
+    { query, data: null },
+    { query: "mutation { projectUpdate { project { success } } }", data },
+    { query: "mutation { projectUpdate { success: other } }", data },
+    { query: "mutation { projectUpdate { ack: success } }", data },
+    { query: "mutation { alias: projectUpdate { success } }", data },
+    { query: "mutation { projectUpdate { success @skip(if: true) } }", data },
+    { query: "mutation { projectUpdate { success } other { success } }", data },
+    {
+      query:
+        "mutation A { projectUpdate { success } } mutation B { other { success } }",
+      data,
+    },
+    {
+      query:
+        "mutation { ...F } fragment F on Mutation { projectUpdate { success } }",
+      data,
+    },
+    {
+      query: "mutation { projectUpdate { ... on Payload { success } } }",
+      data,
+    },
+    { query: [query], data },
+    { query: "invalid", data },
+    { query: "query { projectUpdate { success } }", data, effect: "none" },
+  ]
+  for (const fixture of cases) {
+    const errors = [new GraphQLError("Late field error")]
+    const result = errorResult(
+      new ClientError({
+        status: 200,
+        headers: new Headers(),
+        body: JSON.stringify({ data: fixture.data, errors }),
+        data: fixture.data,
+        errors,
+      }, { query: fixture.query }),
+    )
+    assertEquals(
+      result.effect,
+      fixture.effect ?? "unknown",
+      String(fixture.query),
+    )
+    assertEquals(result.ok, false)
+    assertEquals("details" in result.error && result.error.details, { errors })
+    if (fixture.effect !== "none") assertEquals(result.data, fixture.data)
+  }
 })

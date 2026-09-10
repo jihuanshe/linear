@@ -1,47 +1,12 @@
 import { Command } from "@cliffy/command"
 import { renderMarkdown } from "../../utils/markdown.ts"
 import { open } from "@opensrc/deno-open"
-import { gql } from "../../__codegen__/gql.ts"
+import { readInitiative } from "./initiative-read.ts"
 import { getGraphQLClient } from "../../utils/graphql.ts"
 import { formatRelativeTime, printStyled } from "../../utils/display.ts"
 import { shouldShowSpinner } from "../../utils/hyperlink.ts"
 import { handleError, NotFoundError } from "../../utils/errors.ts"
-
-const GetInitiativeDetails = gql(`
-  query GetInitiativeDetails($id: String!) {
-    initiative(id: $id) {
-      id
-      slugId
-      name
-      description
-      status
-      targetDate
-      health
-      color
-      icon
-      url
-      archivedAt
-      createdAt
-      updatedAt
-      owner {
-        id
-        name
-        displayName
-      }
-      projects {
-        nodes {
-          id
-          slugId
-          name
-          status {
-            name
-            type
-          }
-        }
-      }
-    }
-  }
-`)
+import { resolveInitiativeId } from "./initiative-resolve.ts"
 
 // Initiative status display names
 const INITIATIVE_STATUS_DISPLAY: Record<string, string> = {
@@ -75,7 +40,7 @@ export const viewCommand = new Command()
     const client = getGraphQLClient()
 
     // Resolve initiative ID (can be UUID, slug, or name)
-    const resolvedId = await resolveInitiativeId(client, initiativeId)
+    const resolvedId = await resolveInitiativeId(client, initiativeId, true)
     if (!resolvedId) {
       throw new NotFoundError("Initiative", initiativeId)
     }
@@ -83,9 +48,7 @@ export const viewCommand = new Command()
     // Handle open in browser/app
     if (web || app) {
       // Get initiative URL
-      const result = await client.request(GetInitiativeDetails, {
-        id: resolvedId,
-      })
+      const result = await readInitiative(client, resolvedId)
       const initiative = result.initiative
       if (!initiative?.url) {
         throw new NotFoundError("Initiative", initiativeId)
@@ -103,9 +66,7 @@ export const viewCommand = new Command()
     spinner?.start()
 
     try {
-      const result = await client.request(GetInitiativeDetails, {
-        id: resolvedId,
-      })
+      const result = await readInitiative(client, resolvedId)
       spinner?.stop()
 
       const initiative = result.initiative
@@ -114,7 +75,7 @@ export const viewCommand = new Command()
       }
 
       if (json) {
-        console.log(JSON.stringify(initiative, null, 2))
+        console.log(JSON.stringify(result, null, 2))
         return
       }
 
@@ -245,64 +206,3 @@ export const viewCommand = new Command()
       handleError(error, "Failed to fetch initiative details")
     }
   })
-
-/**
- * Resolve initiative ID from UUID, slug, or name
- */
-async function resolveInitiativeId(
-  client: ReturnType<typeof getGraphQLClient>,
-  idOrSlugOrName: string,
-): Promise<string | undefined> {
-  // Try as UUID first
-  if (
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
-      idOrSlugOrName,
-    )
-  ) {
-    return idOrSlugOrName
-  }
-
-  // Try as slug
-  const slugQuery = gql(`
-    query GetInitiativeBySlugForView($slugId: String!) {
-      initiatives(filter: { slugId: { eq: $slugId } }) {
-        nodes {
-          id
-          slugId
-        }
-      }
-    }
-  `)
-
-  try {
-    const result = await client.request(slugQuery, { slugId: idOrSlugOrName })
-    if (result.initiatives?.nodes?.length > 0) {
-      return result.initiatives.nodes[0].id
-    }
-  } catch {
-    // Continue to name lookup
-  }
-
-  // Try as name (case-insensitive)
-  const nameQuery = gql(`
-    query GetInitiativeByNameForView($name: String!) {
-      initiatives(filter: { name: { eqIgnoreCase: $name } }) {
-        nodes {
-          id
-          name
-        }
-      }
-    }
-  `)
-
-  try {
-    const result = await client.request(nameQuery, { name: idOrSlugOrName })
-    if (result.initiatives?.nodes?.length > 0) {
-      return result.initiatives.nodes[0].id
-    }
-  } catch {
-    // Not found
-  }
-
-  return undefined
-}

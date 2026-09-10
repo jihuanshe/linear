@@ -14,6 +14,7 @@ import { initiativeUpdateCommand } from "./commands/initiative-update/initiative
 import { labelCommand } from "./commands/label/label.ts"
 import { documentCommand } from "./commands/document/document.ts"
 import { guideCommand } from "./commands/guide/guide.ts"
+import { recipeCommand } from "./commands/recipe.ts"
 import { configCommand } from "./commands/config.ts"
 import { schemaCommand } from "./commands/schema.ts"
 import { apiCommand } from "./commands/api.ts"
@@ -21,7 +22,6 @@ import { updateCommand } from "./commands/update.ts"
 import { downloadCommand } from "./commands/download.ts"
 import { uploadCommand } from "./commands/upload.ts"
 import { versionCommand } from "./commands/version.ts"
-import { doctorCommand } from "./commands/doctor.ts"
 import {
   createUsageAction,
   createUsageCommand,
@@ -30,6 +30,7 @@ import {
 import { guidesForCommandPath } from "./guides/guides.ts"
 import { setCliWorkspace } from "./config.ts"
 import { supportsStdoutStyling } from "./utils/terminal.ts"
+import { setMachineOutput } from "./utils/write-result.ts"
 
 // Import config and credentials setup
 import "./config.ts"
@@ -56,6 +57,9 @@ Environment Variables:
   )
   .globalAction((options) => {
     setCliWorkspace(options.workspace)
+    // Once parsing succeeded, a literal '--json' used as an option value must
+    // not select machine output. Raw api sets its always-JSON mode in action.
+    setMachineOutput((options as { json?: boolean }).json === true)
   })
   .action(createUsageAction(false))
   .command("auth", authCommand)
@@ -81,6 +85,7 @@ Environment Variables:
   .alias("l")
   .command("document", documentCommand)
   .command("guide", guideCommand)
+  .command("recipe", recipeCommand)
   .command("completions", new CompletionsCommand())
   .command("config", configCommand)
   .alias("configure")
@@ -90,7 +95,6 @@ Environment Variables:
   .command("download", downloadCommand)
   .command("update", updateCommand)
   .command("version", versionCommand)
-  .command("doctor", doctorCommand)
 
 interface UsageInjectable extends UsageCommandSource {
   hasCommands(): boolean

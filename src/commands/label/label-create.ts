@@ -5,8 +5,10 @@ import { gql } from "../../__codegen__/gql.ts"
 import { getGraphQLClient } from "../../utils/graphql.ts"
 import { getAllTeams, getTeamIdByKey, getTeamKey } from "../../utils/linear.ts"
 import { shouldShowSpinner } from "../../utils/hyperlink.ts"
+import { printWriteResult, setMachineOutput } from "../../utils/write-result.ts"
 import {
-  CliError,
+  assertMutationReceipt,
+  assertMutationSuccess,
   handleError,
   NotFoundError,
   ValidationError,
@@ -47,8 +49,10 @@ const DEFAULT_COLORS = [
 export const createCommand = withUsageMetadata(new Command(), {
   writes: true,
   interactive: true,
+  outputModes: ["human", "json"],
 })
   .name("create")
+  .option("--json", "Output a JSON write result")
   .description("Create a new issue label")
   .option("-n, --name <name:string>", "Label name (required)")
   .option(
@@ -65,7 +69,13 @@ export const createCommand = withUsageMetadata(new Command(), {
     "Interactive mode (default if no flags provided)",
   )
   .action(async (options) => {
+    setMachineOutput(options.json ?? false)
     try {
+      if (options.json && options.interactive) {
+        throw new ValidationError(
+          "--json cannot be combined with --interactive",
+        )
+      }
       const {
         name: providedName,
         color: providedColor,
@@ -83,7 +93,8 @@ export const createCommand = withUsageMetadata(new Command(), {
 
       // Determine if we should run in interactive mode
       const noFlagsProvided = !name
-      const isInteractive = (noFlagsProvided || interactiveFlag) &&
+      const isInteractive = !options.json &&
+        (noFlagsProvided || interactiveFlag) &&
         Deno.stdout.isTerminal()
 
       if (isInteractive) {
@@ -166,7 +177,7 @@ export const createCommand = withUsageMetadata(new Command(), {
       }
 
       // Validate required fields
-      if (!name) {
+      if (!name?.trim()) {
         throw new ValidationError("Label name is required", {
           suggestion: "Use --name or -n flag to specify a label name.",
         })
@@ -201,20 +212,25 @@ export const createCommand = withUsageMetadata(new Command(), {
       }
 
       const { Spinner } = await import("@std/cli/unstable-spinner")
-      const showSpinner = shouldShowSpinner()
+      const showSpinner = !options.json && shouldShowSpinner()
       const spinner = showSpinner ? new Spinner() : null
       spinner?.start()
 
       try {
         const result = await client.request(CreateIssueLabel, { input })
 
-        if (!result.issueLabelCreate.success) {
-          spinner?.stop()
-          throw new CliError("Failed to create label")
-        }
+        assertMutationSuccess(
+          result?.issueLabelCreate,
+          result?.issueLabelCreate,
+        )
 
-        const label = result.issueLabelCreate.issueLabel
+        const label = result?.issueLabelCreate.issueLabel
         spinner?.stop()
+        assertMutationReceipt(label, result?.issueLabelCreate)
+        if (options.json) {
+          printWriteResult(label)
+          return
+        }
 
         console.log(`✓ Created label: ${label.name}`)
         console.log(`  Color: ${label.color}`)

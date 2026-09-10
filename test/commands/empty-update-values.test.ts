@@ -4,6 +4,138 @@ import { stub } from "@std/testing/mock"
 import { updateCommand as issueUpdate } from "../../src/commands/issue/issue-update.ts"
 import { updateCommand as projectUpdate } from "../../src/commands/project/project-update.ts"
 import { setupMockLinearServer } from "../utils/test-helpers.ts"
+import {
+  connection,
+  issue as issueFixture,
+  WORKSPACE,
+} from "../delivery/fixture.ts"
+
+for (const action of ["create", "update"]) {
+  for (const option of ["priority", "estimate"]) {
+    Deno.test(`issue ${action} rejects an empty ${option} before transport`, async () => {
+      const { server, cleanup } = await setupMockLinearServer([])
+      try {
+        const result = await new Deno.Command(Deno.execPath(), {
+          args: [
+            "run",
+            "--allow-all",
+            "--quiet",
+            "src/main.ts",
+            "issue",
+            action,
+            ...(action === "create"
+              ? ["--team", "ENG", "--no-interactive"]
+              : ["ENG-123", "--unprotected"]),
+            "--title",
+            "Changed",
+            `--${option}`,
+            "",
+            "--json",
+          ],
+          stdin: "null",
+          stdout: "piped",
+          stderr: "piped",
+        }).output()
+        assertEquals(result.code, 1)
+        assertEquals(
+          JSON.parse(new TextDecoder().decode(result.stdout)).effect,
+          "none",
+        )
+        assertEquals(server.graphqlRequests, [])
+      } finally {
+        await cleanup()
+      }
+    })
+  }
+}
+
+for (
+  const args of [
+    [
+      "milestone",
+      "create",
+      "--project",
+      "project-1",
+      "--name",
+      "Milestone",
+      "--target-date",
+      "",
+    ],
+    [
+      "milestone",
+      "update",
+      "milestone-1",
+      "--name",
+      "Changed",
+      "--target-date",
+      "",
+      "--unprotected",
+    ],
+    [
+      "initiative",
+      "add-project",
+      "initiative-1",
+      "project-1",
+      "--sort-order",
+      "",
+    ],
+  ]
+) {
+  Deno.test(`${args.slice(0, 2).join(" ")} rejects an explicit empty typed option before transport`, async () => {
+    const { server, cleanup } = await setupMockLinearServer([])
+    try {
+      const result = await new Deno.Command(Deno.execPath(), {
+        args: [
+          "run",
+          "--allow-all",
+          "--quiet",
+          "src/main.ts",
+          ...args,
+          "--json",
+        ],
+        stdin: "null",
+        stdout: "piped",
+        stderr: "piped",
+      }).output()
+      assertEquals(result.code, 1)
+      assertEquals(
+        JSON.parse(new TextDecoder().decode(result.stdout)).effect,
+        "none",
+      )
+      assertEquals(server.graphqlRequests, [])
+    } finally {
+      await cleanup()
+    }
+  })
+}
+
+function readResponse(
+  domain: "issue" | "project",
+  id: string,
+  identifier: string,
+) {
+  return {
+    queryName: domain === "issue" ? "GetIssueForWrite" : "ReadProject",
+    response: {
+      data: {
+        organization: WORKSPACE,
+        [domain]: domain === "issue" ? issueFixture(123, { id, identifier }) : {
+          id,
+          name: "Original project",
+          description: "Original description",
+          startDate: null,
+          targetDate: null,
+          url: "https://example.com",
+          archivedAt: null,
+          status: { id: "status-1" },
+          lead: null,
+          teams: connection(),
+          labels: connection(),
+        },
+      },
+    },
+  }
+}
 
 Deno.test("selective empty values - Command parser ownership and repeated parses", async () => {
   const command = new Command()
@@ -81,11 +213,19 @@ Deno.test("selective empty values - aliases and global option positions", async 
 })
 
 for (
-  const [domain, command, id, mutation, payload] of [
-    ["issue", issueUpdate, "ENG-123", "UpdateIssue", "issueUpdate"],
+  const [domain, command, id, stableId, mutation, payload] of [
+    [
+      "issue",
+      issueUpdate,
+      "ENG-123",
+      "550e8400-e29b-41d4-a716-446655440123",
+      "UpdateIssue",
+      "issueUpdate",
+    ],
     [
       "project",
       projectUpdate,
+      "550e8400-e29b-41d4-a716-446655440000",
       "550e8400-e29b-41d4-a716-446655440000",
       "UpdateProject",
       "projectUpdate",
@@ -94,23 +234,30 @@ for (
 ) {
   Deno.test(`${domain} update - explicit empty values reach mutation; omitted stays omitted`, async () => {
     const file = await Deno.makeTempFile()
-    const { server, cleanup } = await setupMockLinearServer([{
-      queryName: mutation,
-      response: {
-        data: {
-          [payload]: {
-            success: true,
-            [domain]: {
-              id,
-              identifier: id,
-              name: "Project",
-              title: "Issue",
-              url: "https://example.com",
+    const { server, cleanup } = await setupMockLinearServer([
+      readResponse(domain, stableId, id),
+      {
+        queryName: mutation,
+        response: {
+          data: {
+            [payload]: {
+              success: true,
+              [domain]: {
+                id: stableId,
+                identifier: id,
+                name: "Project",
+                title: "Issue",
+                url: "https://example.com",
+              },
             },
           },
         },
       },
-    }])
+    ])
+    const writes = () =>
+      server.graphqlRequests.filter((request) =>
+        request.query.includes("mutation " + mutation)
+      )
     const log = stub(console, "log", () => {})
     try {
       for (
@@ -121,19 +268,31 @@ for (
           ["--description-file", file],
         ]
       ) {
-        await command.parse([id, ...args])
-        assertEquals(server.graphqlRequests.at(-1)?.variables, {
-          id,
+        await command.parse([id, "--unprotected", ...args])
+        assertEquals(writes().at(-1)?.variables, {
+          id: stableId,
           input: { description: "" },
         })
       }
+      const bytes = " \r\n# Preserve spacing\r\n\r\n "
+      await Deno.writeTextFile(file, bytes)
+      await command.parse([id, "--unprotected", "--description-file", file])
+      assertEquals(writes().at(-1)?.variables, {
+        id: stableId,
+        input: { description: bytes },
+      })
       const field = domain === "issue" ? "title" : "name"
-      await command.parse([id, `--${field}`, "Unchanged description"])
-      assertEquals(server.graphqlRequests.at(-1)?.variables, {
+      await command.parse([
         id,
+        "--unprotected",
+        `--${field}`,
+        "Unchanged description",
+      ])
+      assertEquals(writes().at(-1)?.variables, {
+        id: stableId,
         input: { [field]: "Unchanged description" },
       })
-      assertEquals(server.graphqlRequests.length, 5)
+      assertEquals(writes().length, 6)
     } finally {
       log.restore()
       await cleanup()
@@ -154,7 +313,11 @@ for (
       for (
         const args of [["--description-file", ""], ["--description-file="]]
       ) {
-        await assertRejects(() => command.parse([id, ...args]), Error, "EXIT")
+        await assertRejects(
+          () => command.parse([id, "--unprotected", ...args]),
+          Error,
+          "EXIT",
+        )
         assertStringIncludes(
           errors.join("\n"),
           "Description file path cannot be empty",
@@ -163,7 +326,14 @@ for (
       errors.length = 0
       await assertRejects(
         () =>
-          command.parse([id, "--description", "", "--description-file", ""]),
+          command.parse([
+            id,
+            "--unprotected",
+            "--description",
+            "",
+            "--description-file",
+            "",
+          ]),
         Error,
         "EXIT",
       )
@@ -178,17 +348,25 @@ for (
   })
 
   Deno.test(`${domain} update - production CLI preserves empty values through aliases`, async () => {
-    const { server, cleanup } = await setupMockLinearServer([{
-      queryName: mutation,
-      response: {
-        data: {
-          [payload]: {
-            success: true,
-            [domain]: { id, identifier: id, name: "Project", title: "Issue" },
+    const { server, cleanup } = await setupMockLinearServer([
+      readResponse(domain, stableId, id),
+      {
+        queryName: mutation,
+        response: {
+          data: {
+            [payload]: {
+              success: true,
+              [domain]: {
+                id: stableId,
+                identifier: id,
+                name: "Project",
+                title: "Issue",
+              },
+            },
           },
         },
       },
-    }])
+    ])
     const run = (args: string[]) =>
       new Deno.Command(Deno.execPath(), {
         args: ["run", "--allow-all", "--quiet", "src/main.ts", ...args],
@@ -197,19 +375,35 @@ for (
       }).output()
     try {
       const alias = domain === "issue" ? "i" : "p"
-      const result = await run([alias, "update", id, "--description="])
+      const result = await run([
+        alias,
+        "update",
+        id,
+        "--unprotected",
+        "--description=",
+      ])
       assertEquals(result.code, 0, new TextDecoder().decode(result.stderr))
       assertEquals(server.graphqlRequests.at(-1)?.variables, {
-        id,
+        id: stableId,
         input: { description: "" },
       })
+      const requestsAfterWrite = server.graphqlRequests.length
       for (
         const args of [
-          ["--workspace", "test", alias, "update", id, "--description-file="],
+          [
+            "--workspace",
+            "test",
+            alias,
+            "update",
+            id,
+            "--unprotected",
+            "--description-file=",
+          ],
           [
             alias,
             "update",
             id,
+            "--unprotected",
             "--description-file",
             "",
             "--workspace",
@@ -224,7 +418,13 @@ for (
           "Description file path cannot be empty",
         )
       }
-      assertEquals(server.graphqlRequests.length, 1)
+      assertEquals(server.graphqlRequests.length, requestsAfterWrite)
+      assertEquals(
+        server.graphqlRequests.filter((request) =>
+          request.query.includes("mutation " + mutation)
+        ).length,
+        1,
+      )
     } finally {
       await cleanup()
     }

@@ -12,11 +12,11 @@ function formatGuideList(): string {
     `  ${guide.metadata.name.padEnd(width + 2)}${guide.metadata.description}`
   )
   return [
-    "Version-matched workflow guides:",
+    "内嵌指南：",
     ...lines,
     "",
-    "read: linear guide <name>",
-    "machine-readable: linear guide --json",
+    "读取：linear guide <name>",
+    "机器输出：linear guide --json",
   ].join("\n")
 }
 
@@ -25,7 +25,7 @@ function guideListDocument() {
 }
 
 export const guideCommand = new Command()
-  .description("Read version-matched workflow guides")
+  .description("Read bundled workflow guides")
   .arguments("[name:string]")
   .option(
     "--json",

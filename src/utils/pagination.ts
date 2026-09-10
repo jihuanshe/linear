@@ -16,8 +16,13 @@ export async function completeConnection<T>(
   const seenCursors = new Set<string>()
   let page = initial
   while (true) {
+    if (!Array.isArray(page?.nodes)) {
+      throw new CliError(`Incomplete ${label} pagination: missing nodes`)
+    }
     if (
-      page?.pageInfo == null || typeof page.pageInfo.hasNextPage !== "boolean"
+      page.pageInfo == null || typeof page.pageInfo.hasNextPage !== "boolean" ||
+      !(page.pageInfo.endCursor === null ||
+        typeof page.pageInfo.endCursor === "string")
     ) {
       throw new CliError(`Incomplete ${label} pagination: missing pageInfo`)
     }

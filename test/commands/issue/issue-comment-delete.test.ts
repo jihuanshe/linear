@@ -1,6 +1,7 @@
 import { snapshotTest } from "@cliffy/testing"
 import { assertEquals } from "@std/assert"
 import { stub } from "@std/testing/mock"
+import { fromFileUrl } from "@std/path"
 import { commentDeleteCommand } from "../../../src/commands/issue/issue-comment-delete.ts"
 import {
   commonDenoArgs,
@@ -34,6 +35,73 @@ await snapshotTest({
       await cleanup()
     }
   },
+})
+
+for (const success of [true, false]) {
+  Deno.test(`Comment delete JSON preserves confirmed=${success} effects`, async () => {
+    const { server, cleanup } = await setupMockLinearServer([{
+      queryName: "DeleteComment",
+      variables: { id: "comment-id" },
+      response: { data: { commentDelete: { success } } },
+    }])
+    try {
+      const main = fromFileUrl(new URL("../../../src/main.ts", import.meta.url))
+      const result = await new Deno.Command(Deno.execPath(), {
+        args: [
+          "run",
+          ...commonDenoArgs,
+          main,
+          "issue",
+          "comment",
+          "delete",
+          "comment-id",
+          "--confirm",
+          "--json",
+        ],
+        stdout: "piped",
+        stderr: "piped",
+      }).output()
+      const stdout = new TextDecoder().decode(result.stdout)
+      assertEquals(result.code, success ? 0 : 1, stdout)
+      assertEquals(new TextDecoder().decode(result.stderr), "")
+      const output = JSON.parse(stdout)
+      assertEquals(output.ok, success)
+      assertEquals(output.effect, success ? "applied" : "unknown")
+      if (success) {
+        assertEquals(output.data, { id: "comment-id", success: true })
+      } else assertEquals(output.data.commentDelete, { success: false })
+      assertEquals(server.graphqlRequests.length, 1)
+    } finally {
+      await cleanup()
+    }
+  })
+}
+
+Deno.test("Comment delete cancellation reports no effect and never dispatches", async () => {
+  const { Confirm } = await import("../../../src/utils/prompt.ts")
+  const { server, cleanup } = await setupMockLinearServer([])
+  const terminal = stub(
+    Object.getPrototypeOf(Deno.stdin),
+    "isTerminal",
+    () => true,
+  )
+  const prompt = stub(Confirm, "prompt", () => Promise.resolve(false))
+  const output: string[] = []
+  const log = stub(console, "log", (value: string) => output.push(value))
+  try {
+    await commentDeleteCommand.parse(["comment-id", "--json"])
+    assertEquals(JSON.parse(output[0]), {
+      ok: true,
+      effect: "none",
+      data: { id: "comment-id", cancelled: true },
+    })
+    assertEquals(server.graphqlRequests.length, 0)
+  } finally {
+    terminal.restore()
+    prompt.restore()
+    log.restore()
+    await cleanup()
+  }
 })
 
 Deno.test("Issue Comment Delete Command - prompt disabled blocks deletion", async () => {

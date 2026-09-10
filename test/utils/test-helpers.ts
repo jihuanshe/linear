@@ -5,12 +5,7 @@ export const commonDenoArgs = ["--allow-all", "--quiet"]
 
 // Helper function to set up mock Linear server with common environment
 export async function setupMockLinearServer(
-  mockResponses: Array<{
-    queryName: string
-    queryIncludes?: string
-    variables?: Record<string, unknown>
-    response: Record<string, unknown>
-  }>,
+  mockResponses: ConstructorParameters<typeof MockLinearServer>[0],
   envVars?: Record<string, string>,
 ): Promise<{ server: MockLinearServer; cleanup: () => Promise<void> }> {
   const server = new MockLinearServer(mockResponses)

@@ -6,8 +6,10 @@ import type { GetLabelByNameQuery } from "../../__codegen__/graphql.ts"
 import { getGraphQLClient } from "../../utils/graphql.ts"
 import { getTeamKey } from "../../utils/linear.ts"
 import { shouldShowSpinner } from "../../utils/hyperlink.ts"
+import { completeConnection } from "../../utils/pagination.ts"
+import { printWriteResult, setMachineOutput } from "../../utils/write-result.ts"
 import {
-  CliError,
+  assertMutationSuccess,
   handleError,
   NotFoundError,
   ValidationError,
@@ -22,8 +24,10 @@ const DeleteIssueLabel = gql(`
 `)
 
 const GetLabelByName = gql(`
-  query GetLabelByName($name: String!) {
+  query GetLabelByName($name: String!, $after: String) {
     issueLabels(
+      first: 100
+      after: $after
       filter: {
         name: { eqIgnoreCase: $name }
       }
@@ -37,6 +41,7 @@ const GetLabelByName = gql(`
           name
         }
       }
+      pageInfo { hasNextPage endCursor }
     }
   }
 `)
@@ -61,6 +66,7 @@ async function resolveLabelId(
   client: ReturnType<typeof getGraphQLClient>,
   nameOrId: string,
   teamKey?: string,
+  json = false,
 ): Promise<Label | undefined> {
   // Try as UUID first
   if (
@@ -68,25 +74,24 @@ async function resolveLabelId(
       nameOrId,
     )
   ) {
-    try {
-      const result = await client.request(GetLabelById, { id: nameOrId })
-      if (result.issueLabel) {
-        return result.issueLabel
-      }
-    } catch {
-      // Continue to name lookup
-    }
+    const result = await client.request(GetLabelById, { id: nameOrId })
+    return result.issueLabel ?? undefined
   }
 
   // Try as name
-  let labels: Label[] = []
-  try {
-    const result = await client.request(GetLabelByName, { name: nameOrId })
-    labels = result.issueLabels.nodes
-  } catch {
-    // Query failed, label not found
-    return undefined
-  }
+  const result = await client.request(GetLabelByName, { name: nameOrId })
+  const connection = await completeConnection(
+    result.issueLabels,
+    async (after) => {
+      const next = await client.request(GetLabelByName, {
+        name: nameOrId,
+        after,
+      })
+      return next.issueLabels
+    },
+    "label lookup",
+  )
+  let labels: Label[] = connection.nodes
 
   if (labels.length === 0) {
     return undefined
@@ -94,23 +99,16 @@ async function resolveLabelId(
 
   // If team is specified, filter by team
   if (teamKey) {
-    const teamLabel = labels.find(
+    const teamLabels = labels.filter(
       (l) => l.team?.key?.toLowerCase() === teamKey.toLowerCase(),
     )
-    if (teamLabel) {
-      return teamLabel
-    }
-    // Also check for workspace label
-    const workspaceLabel = labels.find((l) => !l.team)
-    if (workspaceLabel) {
-      return workspaceLabel
-    }
-    return undefined
+    labels = teamLabels.length > 0 ? teamLabels : labels.filter((l) => !l.team)
+    if (labels.length === 0) return undefined
   }
 
   // If multiple labels with same name exist, let user choose
   if (labels.length > 1) {
-    if (!Deno.stdin.isTerminal()) {
+    if (json || !Deno.stdin.isTerminal()) {
       throw new ValidationError(
         `Multiple labels named "${nameOrId}" found`,
         { suggestion: "Use --team to disambiguate." },
@@ -137,8 +135,10 @@ export const deleteCommand = withUsageMetadata(new Command(), {
   writes: true,
   interactive: true,
   confirmationRequiredUnless: "--force",
+  outputModes: ["human", "json"],
 })
   .name("delete")
+  .option("--json", "Output a JSON write result")
   .description("Delete an issue label")
   .arguments("<nameOrId:string>")
   .option(
@@ -146,7 +146,8 @@ export const deleteCommand = withUsageMetadata(new Command(), {
     "Team key to disambiguate labels with same name",
   )
   .option("-f, --force", "Skip confirmation prompt")
-  .action(async ({ team: teamKey, force }, nameOrId) => {
+  .action(async ({ team: teamKey, force, json }, nameOrId) => {
+    setMachineOutput(json ?? false)
     try {
       const client = getGraphQLClient()
 
@@ -154,7 +155,12 @@ export const deleteCommand = withUsageMetadata(new Command(), {
       const effectiveTeamKey = teamKey || getTeamKey()
 
       // Resolve label
-      const label = await resolveLabelId(client, nameOrId, effectiveTeamKey)
+      const label = await resolveLabelId(
+        client,
+        nameOrId,
+        effectiveTeamKey,
+        json,
+      )
 
       if (!label) {
         const suggestion = effectiveTeamKey
@@ -167,7 +173,7 @@ export const deleteCommand = withUsageMetadata(new Command(), {
 
       // Confirmation prompt unless --force is used
       if (!force) {
-        if (!Deno.stdin.isTerminal()) {
+        if (json || !Deno.stdin.isTerminal()) {
           throw new ValidationError("Interactive confirmation required", {
             suggestion: "Use --force to skip confirmation.",
           })
@@ -184,7 +190,7 @@ export const deleteCommand = withUsageMetadata(new Command(), {
       }
 
       const { Spinner } = await import("@std/cli/unstable-spinner")
-      const showSpinner = shouldShowSpinner()
+      const showSpinner = !json && shouldShowSpinner()
       const spinner = showSpinner ? new Spinner() : null
       spinner?.start()
 
@@ -194,11 +200,15 @@ export const deleteCommand = withUsageMetadata(new Command(), {
         })
         spinner?.stop()
 
-        if (result.issueLabelDelete.success) {
-          console.log(`✓ Deleted label: ${labelDisplay}`)
-        } else {
-          throw new CliError("Failed to delete label")
+        assertMutationSuccess(result?.issueLabelDelete, {
+          id: label.id,
+          result: result?.issueLabelDelete,
+        })
+        if (json) {
+          printWriteResult({ id: label.id, success: true })
+          return
         }
+        console.log(`✓ Deleted label: ${labelDisplay}`)
       } catch (error) {
         spinner?.stop()
         throw error

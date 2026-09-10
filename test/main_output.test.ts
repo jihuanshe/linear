@@ -1,27 +1,43 @@
 import { assertEquals, assertMatch } from "@std/assert"
 import { fromFileUrl, join } from "@std/path"
 import { setupMockLinearServer } from "./utils/test-helpers.ts"
+import { issueWriteBasis, issueWriteId } from "./utils/issue-write-fixtures.ts"
 
 const main = fromFileUrl(new URL("../src/main.ts", import.meta.url))
+const { denoDir } = JSON.parse(new TextDecoder().decode(
+  (await new Deno.Command(Deno.execPath(), {
+    args: ["info", "--json"],
+    stdout: "piped",
+  }).output()).stdout,
+)) as { denoDir: string }
 
 async function run(args: string[], env: Record<string, string> = {}) {
-  const result = await new Deno.Command(Deno.execPath(), {
-    args: ["run", "--allow-all", "--quiet", main, ...args],
-    stdout: "piped",
-    stderr: "piped",
-    clearEnv: true,
-    env: {
-      HOME: Deno.env.get("HOME") ?? "",
-      PATH: Deno.env.get("PATH") ?? "",
-      TERM: "xterm-256color",
-      ...env,
-    },
-  }).output()
-  const decoder = new TextDecoder()
-  return {
-    code: result.code,
-    stdout: decoder.decode(result.stdout),
-    stderr: decoder.decode(result.stderr),
+  const root = await Deno.makeTempDir()
+  try {
+    const result = await new Deno.Command(Deno.execPath(), {
+      args: ["run", "--allow-all", "--quiet", main, ...args],
+      stdout: "piped",
+      stderr: "piped",
+      stdin: "null",
+      clearEnv: true,
+      env: {
+        HOME: root,
+        XDG_CONFIG_HOME: join(root, "config"),
+        APPDATA: join(root, "config"),
+        DENO_DIR: denoDir,
+        PATH: Deno.env.get("PATH") ?? "",
+        TERM: "xterm-256color",
+        ...env,
+      },
+    }).output()
+    const decoder = new TextDecoder()
+    return {
+      code: result.code,
+      stdout: decoder.decode(result.stdout),
+      stderr: decoder.decode(result.stderr),
+    }
+  } finally {
+    await Deno.remove(root, { recursive: true })
   }
 }
 
@@ -61,9 +77,38 @@ for (
 ) {
   Deno.test(`main sends ${name} usage errors only to stderr`, async () => {
     const result = await run([...args])
-    assertEquals(result.code, 2)
+    assertEquals(result.code, 1)
     assertEquals(result.stdout, "")
     assertMatch(result.stderr, /Unknown (option|command)/)
+  })
+}
+
+for (
+  const args of [
+    ["--not-a-real-flag", "--json"],
+    ["not-a-real-command", "--json"],
+    ["issue", "update", "ENG-123", "--priority", "not-a-number", "--json"],
+    ["issue", "update", "ENG-123", "--title", "Desired", "--json"],
+    ["issue", "create", "--json"],
+    ["api", "--variable", "badformat"],
+    ["api"],
+    ["--workspace", "sandbox", "api", "--variables-json"],
+    ["--workspace=sandbox", "api", "--operation-name"],
+  ]
+) {
+  Deno.test(`main returns one machine failure for ${args.join(" ")}`, async () => {
+    const result = await run(args, {
+      LINEAR_API_KEY: "test-token",
+      LINEAR_GRAPHQL_ENDPOINT: "http://127.0.0.1:1/graphql",
+      NO_COLOR: "1",
+    })
+    assertEquals(result.code, 1)
+    const failure = JSON.parse(result.stdout)
+    assertEquals(failure.ok, false)
+    assertEquals(failure.effect, "none")
+    assertEquals(typeof failure.error.code, "string")
+    assertEquals(typeof failure.error.message, "string")
+    assertEquals(result.stderr, "")
   })
 }
 
@@ -126,11 +171,11 @@ Deno.test("main rejects disabled prompts without reading stdin", async () => {
   }
 })
 
-Deno.test("main emits only the issueUpdate payload for issue update --json", async () => {
+Deno.test("main emits one write result for issue update --json", async () => {
   const issueUpdate = {
     success: true,
     issue: {
-      id: "issue-123",
+      id: issueWriteId,
       identifier: "ENG-123",
       url: "https://linear.app/acme/issue/ENG-123/renamed",
       title: "Renamed",
@@ -140,17 +185,21 @@ Deno.test("main emits only the issueUpdate payload for issue update --json", asy
       },
     },
   }
-  const { server, cleanup } = await setupMockLinearServer([{
-    queryName: "UpdateIssue",
-    variables: { id: "ENG-123", input: { title: "Renamed" } },
-    response: { data: { issueUpdate } },
-  }])
+  const { server, cleanup } = await setupMockLinearServer([
+    { queryName: "GetIssueForWrite", response: { data: issueWriteBasis() } },
+    {
+      queryName: "UpdateIssue",
+      variables: { id: issueWriteId, input: { title: "Renamed" } },
+      response: { data: { issueUpdate } },
+    },
+  ])
 
   try {
     const result = await run([
       "issue",
       "update",
       "ENG-123",
+      "--unprotected",
       "--title",
       "Renamed",
       "--json",
@@ -162,7 +211,10 @@ Deno.test("main emits only the issueUpdate payload for issue update --json", asy
     })
 
     assertEquals(result.code, 0, result.stderr)
-    assertEquals(JSON.parse(result.stdout), issueUpdate)
+    const parsed = JSON.parse(result.stdout)
+    assertEquals(parsed.ok, true)
+    assertEquals(parsed.effect, "applied")
+    assertEquals(parsed.data, issueUpdate)
     assertEquals(result.stderr, "")
   } finally {
     await cleanup()
@@ -274,9 +326,12 @@ Deno.test("label list rejects conflicting scopes", async () => {
   })
 
   assertEquals(result.code, 1)
-  assertEquals(result.stdout, "")
-  assertMatch(result.stderr, /Only one label scope can be specified/)
-  assertMatch(result.stderr, /--team, --workspace-labels, or --all/)
+  const failure = JSON.parse(result.stdout)
+  assertEquals(failure.ok, false)
+  assertEquals(failure.effect, "none")
+  assertMatch(failure.error.message, /Only one label scope can be specified/)
+  assertMatch(failure.error.suggestion, /--team, --workspace-labels, or --all/)
+  assertEquals(result.stderr, "")
 })
 
 Deno.test("label list rejects the old bare workspace flag with migration guidance", async () => {
@@ -287,13 +342,16 @@ Deno.test("label list rejects the old bare workspace flag with migration guidanc
     "--json",
   ])
 
-  assertEquals(result.code, 2)
-  assertEquals(result.stdout, "")
-  assertMatch(result.stderr, /Missing value for option "--workspace"/)
-  assertMatch(result.stderr, /--workspace-labels/)
+  assertEquals(result.code, 1)
+  const failure = JSON.parse(result.stdout)
+  assertEquals(failure.ok, false)
+  assertEquals(failure.effect, "none")
+  assertMatch(failure.error.message, /Missing value for option "--workspace"/)
+  assertMatch(failure.error.message, /--workspace-labels/)
+  assertEquals(result.stderr, "")
 })
 
-Deno.test("team delete dry-run never prompts when a move target is required", async () => {
+Deno.test("team delete dry-run requires an empty team and points to the migration recipe", async () => {
   const { server, cleanup } = await setupMockLinearServer([
     {
       queryName: "GetTeamIdByKey",
@@ -333,161 +391,145 @@ Deno.test("team delete dry-run never prompts when a move target is required", as
 
     assertEquals(result.code, 1)
     assertEquals(result.stdout, "")
-    assertMatch(result.stderr, /must be moved before deletion/)
-    assertMatch(result.stderr, /Use --move-issues <teamKey>/)
+    assertMatch(result.stderr, /deletion requires an empty team/)
+    assertMatch(result.stderr, /linear recipe migrate-team/)
     assertEquals(result.stderr.includes("prompt"), false)
   } finally {
     await cleanup()
   }
 })
 
-Deno.test("team delete validates an explicit move target for an empty team", async () => {
+Deno.test("team delete rejects the retired implicit migration option before requests", async () => {
+  const result = await run([
+    "team",
+    "delete",
+    "SOURCE",
+    "--move-issues",
+    "TARGET",
+    "--json",
+  ])
+  assertEquals(result.code, 1)
+  const failure = JSON.parse(result.stdout)
+  assertEquals(failure.ok, false)
+  assertEquals(failure.effect, "none")
+  assertMatch(failure.error.message, /Unknown option.*move-issues/)
+  assertEquals(result.stderr, "")
+})
+
+Deno.test("team delete rechecks current emptiness before its mutation", async () => {
+  let reads = 0
   const { server, cleanup } = await setupMockLinearServer([
     {
       queryName: "GetTeamIdByKey",
-      variables: { team: "SOURCE" },
-      response: {
-        data: { teams: { nodes: [{ id: "source-team-id" }] } },
-      },
-    },
-    {
-      queryName: "GetTeamDetails",
-      variables: { id: "source-team-id" },
       response: {
         data: {
-          team: {
-            id: "source-team-id",
-            key: "SOURCE",
-            name: "Source Team",
-            issueCount: 0,
+          teams: {
+            nodes: [{ id: "source-team-id" }],
+            pageInfo: { hasNextPage: false, endCursor: null },
           },
         },
       },
     },
     {
-      queryName: "GetTeamIdByKey",
-      variables: { team: "MISSING" },
-      response: { data: { teams: { nodes: [] } } },
+      queryName: "GetTeamDetails",
+      response: () => ({
+        data: {
+          team: {
+            id: "source-team-id",
+            key: "SOURCE",
+            name: "Source",
+            issueCount: ++reads === 1 ? 0 : 1,
+          },
+        },
+      }),
     },
   ])
-
   try {
-    const result = await run([
-      "team",
-      "delete",
-      "SOURCE",
-      "--move-issues",
-      "MISSING",
-      "--dry-run",
-    ], {
-      LINEAR_API_KEY: "Bearer test-token",
-      LINEAR_GRAPHQL_ENDPOINT: server.getEndpoint(),
-      LINEAR_PROMPT_DISABLED: "1",
-      NO_COLOR: "1",
-    })
-
+    const result = await run(
+      ["team", "delete", "SOURCE", "--force", "--json"],
+      {
+        LINEAR_API_KEY: "test-token",
+        LINEAR_GRAPHQL_ENDPOINT: server.getEndpoint(),
+        NO_COLOR: "1",
+      },
+    )
     assertEquals(result.code, 1)
-    assertEquals(result.stdout, "")
-    assertMatch(result.stderr, /Target team not found: MISSING/)
+    const failure = JSON.parse(result.stdout)
+    assertEquals(failure.effect, "none")
+    assertMatch(failure.error.message, /deletion requires an empty team/)
+    assertEquals(reads, 2)
+    assertEquals(
+      server.graphqlRequests.filter((request) =>
+        request.query.includes("mutation ")
+      ),
+      [],
+    )
   } finally {
     await cleanup()
   }
 })
 
-Deno.test("team delete preserves completed mappings on a later move failure", async () => {
-  const { server, cleanup } = await setupMockLinearServer([
-    {
-      queryName: "GetTeamIdByKey",
-      variables: { team: "SOURCE" },
-      response: {
-        data: { teams: { nodes: [{ id: "source-team-id" }] } },
-      },
-    },
-    {
-      queryName: "GetTeamDetails",
-      variables: { id: "source-team-id" },
-      response: {
-        data: {
-          team: {
-            id: "source-team-id",
-            key: "SOURCE",
-            name: "Source Team",
-            issueCount: 2,
-          },
-        },
-      },
-    },
-    {
-      queryName: "GetTeamIdByKey",
-      variables: { team: "TARGET" },
-      response: {
-        data: { teams: { nodes: [{ id: "target-team-id" }] } },
-      },
-    },
-    {
-      queryName: "GetTeamIssuesForMove",
-      variables: {
-        teamId: "source-team-id",
-        first: 100,
-        after: undefined,
-      },
-      response: {
-        data: {
-          team: {
-            issues: {
-              nodes: [
-                { id: "issue-1", identifier: "SOURCE-1" },
-                { id: "issue-2", identifier: "SOURCE-2" },
-              ],
-              pageInfo: { hasNextPage: false, endCursor: null },
+for (const payload of [{ success: false }, null]) {
+  Deno.test(
+    "team delete unconfirmed payload retains unknown effect: " +
+      JSON.stringify(payload),
+    async () => {
+      const { server, cleanup } = await setupMockLinearServer([
+        {
+          queryName: "GetTeamIdByKey",
+          response: {
+            data: {
+              teams: {
+                nodes: [{ id: "source-team-id" }],
+                pageInfo: { hasNextPage: false, endCursor: null },
+              },
             },
           },
         },
-      },
-    },
-    {
-      queryName: "MoveIssueToTeam",
-      variables: { id: "issue-1", teamId: "target-team-id" },
-      response: {
-        data: {
-          issueUpdate: {
-            success: true,
-            issue: { identifier: "TARGET-41" },
+        {
+          queryName: "GetTeamDetails",
+          response: {
+            data: {
+              team: {
+                id: "source-team-id",
+                key: "SOURCE",
+                name: "Source",
+                issueCount: 0,
+              },
+            },
           },
         },
-      },
+        {
+          queryName: "DeleteTeam",
+          response: { data: { teamDelete: payload } },
+        },
+      ])
+      try {
+        const result = await run([
+          "team",
+          "delete",
+          "SOURCE",
+          "--force",
+          "--json",
+        ], {
+          LINEAR_API_KEY: "test-token",
+          LINEAR_GRAPHQL_ENDPOINT: server.getEndpoint(),
+          NO_COLOR: "1",
+        })
+        assertEquals(result.code, 1)
+        assertEquals(JSON.parse(result.stdout).effect, "unknown")
+        assertEquals(
+          server.graphqlRequests.filter((request) =>
+            request.query.includes("mutation ")
+          ).length,
+          1,
+        )
+      } finally {
+        await cleanup()
+      }
     },
-    {
-      queryName: "MoveIssueToTeam",
-      variables: { id: "issue-2", teamId: "target-team-id" },
-      response: {
-        data: { issueUpdate: { success: false, issue: null } },
-      },
-    },
-  ])
-
-  try {
-    const result = await run([
-      "team",
-      "delete",
-      "SOURCE",
-      "--move-issues",
-      "TARGET",
-      "--force",
-    ], {
-      LINEAR_API_KEY: "Bearer test-token",
-      LINEAR_GRAPHQL_ENDPOINT: server.getEndpoint(),
-      LINEAR_PROMPT_DISABLED: "1",
-      NO_COLOR: "1",
-    })
-
-    assertEquals(result.code, 1)
-    assertEquals(result.stdout, "✓ Moved SOURCE-1 → TARGET-41\n")
-    assertMatch(result.stderr, /Failed to move issue SOURCE-2/)
-  } finally {
-    await cleanup()
-  }
-})
+  )
+}
 
 Deno.test("auth login skips post-write migration prompts when disabled", async () => {
   const root = await Deno.makeTempDir()

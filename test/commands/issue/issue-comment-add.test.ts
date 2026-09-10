@@ -1,11 +1,64 @@
 import { snapshotTest } from "@cliffy/testing"
-import { assertEquals } from "@std/assert"
+import { assertEquals, assertStringIncludes } from "@std/assert"
 import { stub } from "@std/testing/mock"
 import { commentAddCommand } from "../../../src/commands/issue/issue-comment-add.ts"
 import {
   commonDenoArgs,
   setupMockLinearServer,
 } from "../../utils/test-helpers.ts"
+
+for (
+  const args of [
+    ["--body", ""],
+    ["--body", " \n"],
+    ["--body-file", ""],
+    ["--body", "", "--body-file", "body.md"],
+    ["--body", "valid", "--parent", ""],
+    ["--body", "valid", "--attach", ""],
+    ["--body", "valid", "--attach", "valid.png", "--attach", ""],
+  ]
+) {
+  for (const json of [true, false]) {
+    Deno.test(`comment add CLI rejects explicit empty options json=${json} ${JSON.stringify(args)}`, async () => {
+      const { server, cleanup } = await setupMockLinearServer([])
+      try {
+        const result = await new Deno.Command(Deno.execPath(), {
+          args: [
+            "run",
+            ...commonDenoArgs,
+            "src/main.ts",
+            "issue",
+            "comment",
+            "add",
+            "ENG-123",
+            ...(json ? ["--json"] : []),
+            ...args,
+          ],
+          stdin: "null",
+          stdout: "piped",
+          stderr: "piped",
+        }).output()
+        assertEquals(result.code, 1)
+        const message = json
+          ? JSON.parse(new TextDecoder().decode(result.stdout)).error.message
+          : new TextDecoder().decode(result.stderr)
+        if (json) {
+          assertEquals(
+            JSON.parse(new TextDecoder().decode(result.stdout)).effect,
+            "none",
+          )
+        }
+        assertStringIncludes(
+          message,
+          args.includes("body.md") ? "both" : "empty",
+        )
+        assertEquals(server.graphqlRequests, [])
+      } finally {
+        await cleanup()
+      }
+    })
+  }
+}
 
 // Test adding a comment with body flag
 await snapshotTest({
@@ -110,9 +163,11 @@ Deno.test("Issue Comment Add Command - JSON output is machine-readable", async (
 
   assertEquals(logs.length, 1)
   const payload = JSON.parse(logs[0])
-  assertEquals(payload.comment.id, "comment-uuid-json")
+  assertEquals(payload.ok, true)
+  assertEquals(payload.effect, "applied")
+  assertEquals(payload.data.comment.id, "comment-uuid-json")
   assertEquals(
-    payload.comment.url,
+    payload.data.comment.url,
     "https://linear.app/issue/TEST-123#comment-uuid-json",
   )
 })

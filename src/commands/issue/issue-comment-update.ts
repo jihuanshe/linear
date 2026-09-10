@@ -4,28 +4,60 @@ import { withMarkdownHint } from "../../utils/markdown-help.ts"
 import { Input } from "../../utils/prompt.ts"
 import { gql } from "../../__codegen__/gql.ts"
 import { getGraphQLClient } from "../../utils/graphql.ts"
-import { CliError, handleError, ValidationError } from "../../utils/errors.ts"
+import {
+  assertMutationReceipt,
+  assertMutationSuccess,
+  handleError,
+  ValidationError,
+} from "../../utils/errors.ts"
+import {
+  loadBasisFile,
+  prepareReplacement,
+  scalarField,
+  validateReplacementOptions,
+} from "../../utils/replacement.ts"
+import { readComment } from "./issue-comment-read.ts"
+import { printWriteResult } from "../../utils/write-result.ts"
 
 export const commentUpdateCommand = withUsageMetadata(new Command(), {
   writes: true,
   interactive: true,
-  outputModes: ["human", "json"],
 })
   .name("update")
   .description(withMarkdownHint("Update an existing comment"))
   .arguments("<commentId:string>")
-  .option("-b, --body <text:string>", "New comment body text")
+  .option("-b, --body <text:string>", "New comment body text", {
+    preserveEmpty: true,
+  })
   .option(
     "--body-file <path:string>",
     "Read comment body from a file (preferred for markdown content)",
+    { preserveEmpty: true },
   )
-  .option("-j, --json", "Output {comment} as JSON")
+  .option(
+    "-j, --json",
+    "Output a JSON write result; the comment is in data.comment",
+  )
+  .option(
+    "--base-file <path:string>",
+    "Original view --json output, saved before preparing the update",
+    { preserveEmpty: true },
+  )
+  .option(
+    "--unprotected",
+    "Explicitly skip original-value comparison; domain checks still apply",
+  )
+  .option(
+    "--expect-field <field:string>",
+    "Also require this API field to match the original basis",
+    { collect: true, preserveEmpty: true },
+  )
   .action(async (options, commentId) => {
     const { body, bodyFile, json } = options
 
     try {
       // Validate that body and bodyFile are not both provided
-      if (body && bodyFile) {
+      if (body != null && bodyFile != null) {
         throw new ValidationError(
           "Cannot specify both --body and --body-file",
         )
@@ -33,7 +65,10 @@ export const commentUpdateCommand = withUsageMetadata(new Command(), {
 
       // Read body from file if provided
       let newBody = body
-      if (bodyFile) {
+      if (bodyFile != null) {
+        if (bodyFile === "") {
+          throw new ValidationError("Body file path cannot be empty")
+        }
         try {
           newBody = await Deno.readTextFile(bodyFile)
         } catch (error) {
@@ -48,7 +83,7 @@ export const commentUpdateCommand = withUsageMetadata(new Command(), {
         }
       }
 
-      if (json && !newBody?.trim()) {
+      if (json && newBody == null) {
         throw new ValidationError(
           "JSON mode requires --body or --body-file",
           {
@@ -58,33 +93,57 @@ export const commentUpdateCommand = withUsageMetadata(new Command(), {
         )
       }
 
-      let existingBody = ""
-
-      // If no body provided, fetch existing comment to show as default
-      if (!newBody) {
-        const getCommentQuery = gql(`
-          query GetComment($id: String!) {
-            comment(id: $id) {
-              body
-            }
-          }
-        `)
-
-        const client = getGraphQLClient()
-        const commentData = await client.request(getCommentQuery, {
-          id: commentId,
+      let original = options.baseFile != null
+        ? await loadBasisFile(options.baseFile)
+        : undefined
+      if (
+        newBody !== undefined || original != null || options.unprotected ||
+        options.expectField?.some((field) => !field.trim())
+      ) {
+        validateReplacementOptions({
+          original,
+          unprotected: options.unprotected,
+          expectFields: options.expectField,
         })
-
-        existingBody = commentData.comment?.body || ""
-
+      }
+      const client = getGraphQLClient()
+      if (newBody === undefined) {
+        if (!Deno.stdin.isTerminal()) {
+          throw new ValidationError(
+            "Provide --body or --body-file in non-interactive mode",
+          )
+        }
+        const initial = await readComment(client, commentId)
+        if (!options.unprotected) original ??= initial
         newBody = await Input.prompt({
           message: "New comment body",
-          default: existingBody,
+          default: initial.comment!.body,
         })
+      }
+      if (!newBody.trim()) {
+        throw new ValidationError("Comment body cannot be empty")
+      }
 
-        if (!newBody.trim()) {
-          throw new ValidationError("Comment body cannot be empty")
-        }
+      const current = await readComment(client, commentId)
+      const id = current.comment!.id
+      const plan = prepareReplacement({
+        objectKey: "comment",
+        targetId: id,
+        original,
+        current,
+        desired: { body: newBody },
+        fields: { body: scalarField("body") },
+        unprotected: options.unprotected,
+        expectFields: options.expectField,
+      })
+      if (Object.keys(plan.input).length === 0) {
+        if (json) {
+          printWriteResult({ comment: current.comment }, {
+            effect: "none",
+            fields: plan.fields,
+          })
+        } else console.log("No changes needed")
+        return
       }
 
       const mutation = gql(`
@@ -105,25 +164,17 @@ export const commentUpdateCommand = withUsageMetadata(new Command(), {
         }
       `)
 
-      const client = getGraphQLClient()
       const data = await client.request(mutation, {
-        id: commentId,
-        input: {
-          body: newBody,
-        },
+        id,
+        input: plan.input,
       })
 
-      if (!data.commentUpdate.success) {
-        throw new CliError("Failed to update comment")
-      }
-
+      assertMutationSuccess(data.commentUpdate, data)
       const comment = data.commentUpdate.comment
-      if (!comment) {
-        throw new CliError("Comment update failed - no comment returned")
-      }
+      assertMutationReceipt(comment, data, id)
 
       if (json) {
-        console.log(JSON.stringify({ comment }, null, 2))
+        printWriteResult({ comment }, { fields: plan.fields })
       } else {
         console.log("✓ Comment updated")
         console.log(comment.url)

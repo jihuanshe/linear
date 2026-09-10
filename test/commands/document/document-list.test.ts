@@ -17,14 +17,24 @@ for (const kind of ["UUID", "name", "slug", "unknown"] as const) {
         queryName: "GetProjectIdByName",
         variables: { name: project },
         response: {
-          data: { projects: { nodes: kind === "name" ? [{ id }] : [] } },
+          data: {
+            projects: {
+              nodes: kind === "name" ? [{ id }] : [],
+              pageInfo: { hasNextPage: false, endCursor: null },
+            },
+          },
         },
       },
       {
         queryName: "GetProjectIdBySlugId",
         variables: { slugId: project },
         response: {
-          data: { projects: { nodes: kind === "slug" ? [{ id }] : [] } },
+          data: {
+            projects: {
+              nodes: kind === "slug" ? [{ id }] : [],
+              pageInfo: { hasNextPage: false, endCursor: null },
+            },
+          },
         },
       },
       {
@@ -78,9 +88,12 @@ for (const kind of ["UUID", "name", "slug", "unknown"] as const) {
           : ["GetProjectIdByName", "GetProjectIdBySlugId"],
       )
       if (kind === "unknown") {
-        assertEquals(stdout, "")
-        assertStringIncludes(stderr, "not found")
-        assertStringIncludes(stderr, "Tech Debt")
+        const error = JSON.parse(stdout)
+        assertEquals(error.ok, false)
+        assertEquals(error.effect, "none")
+        assertStringIncludes(error.error.message, "not found")
+        assertStringIncludes(error.error.message, "Tech Debt")
+        assertEquals(stderr, "")
       } else {
         assertEquals(JSON.parse(stdout), {
           nodes: [],

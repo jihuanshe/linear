@@ -6,12 +6,25 @@ import { getGraphQLClient } from "../../utils/graphql.ts"
 import {
   getProjectLabelIdByName,
   getTeamIdByKey,
+  isLinearUuid,
   lookupUserId,
   resolveProjectId,
 } from "../../utils/linear.ts"
 import { shouldShowSpinner } from "../../utils/hyperlink.ts"
 import {
-  CliError,
+  connectionField,
+  loadBasisFile,
+  prepareReplacement,
+  referenceField,
+  scalarField,
+  validateReplacementOptions,
+} from "../../utils/replacement.ts"
+import { readProject } from "./project-read.ts"
+import { printWriteResult } from "../../utils/write-result.ts"
+import { completeConnection } from "../../utils/pagination.ts"
+import {
+  assertMutationReceipt,
+  assertMutationSuccess,
   handleError,
   NotFoundError,
   ValidationError,
@@ -32,19 +45,24 @@ const UpdateProject = gql(`
         description
         url
         updatedAt
+        startDate
+        targetDate
+        status { id }
+        lead { id }
       }
     }
   }
 `)
 
-const GetProjectStatuses = gql(`
-  query GetProjectStatuses {
-    projectStatuses {
+const GetProjectStatusesForUpdate = gql(`
+  query GetProjectStatusesForUpdate($after: String) {
+    projectStatuses(first: 100, after: $after) {
       nodes {
         id
         name
         type
       }
+      pageInfo { hasNextPage endCursor }
     }
   }
 `)
@@ -63,7 +81,7 @@ export const updateCommand = withUsageMetadata(new Command(), { writes: true })
   .name("update")
   .description("Update a Linear project")
   .arguments("<projectId:string>")
-  .option("-n, --name <name:string>", "Project name")
+  .option("-n, --name <name:string>", "Project name", { preserveEmpty: true })
   .option(
     "-d, --description <description:string>",
     `Project description (max ${PROJECT_DESCRIPTION_MAX_LENGTH} characters, enforced by Linear's API; empty string clears it)`,
@@ -76,23 +94,44 @@ export const updateCommand = withUsageMetadata(new Command(), { writes: true })
   )
   .option(
     "-s, --status <status:string>",
-    "Status (planned, started, paused, completed, canceled, backlog)",
+    "Status UUID or type (planned, started, paused, completed, canceled, backlog)",
+    { preserveEmpty: true },
   )
   .option(
     "-l, --lead <lead:string>",
     "Project lead (user UUID, username, name, email, 'self', or '@me')",
+    { preserveEmpty: true },
   )
-  .option("--start-date <startDate:string>", "Start date (YYYY-MM-DD)")
-  .option("--target-date <targetDate:string>", "Target date (YYYY-MM-DD)")
+  .option("--start-date <startDate:string>", "Start date (YYYY-MM-DD)", {
+    preserveEmpty: true,
+  })
+  .option("--target-date <targetDate:string>", "Target date (YYYY-MM-DD)", {
+    preserveEmpty: true,
+  })
   .option(
     "-t, --team <team:string>",
     "Replace project teams with these keys (can be repeated)",
-    { collect: true },
+    { collect: true, preserveEmpty: true },
+  )
+  .option("-j, --json", "Output the write result as JSON")
+  .option(
+    "--base-file <path:string>",
+    "Original view --json output, saved before preparing the update",
+    { preserveEmpty: true },
+  )
+  .option(
+    "--unprotected",
+    "Explicitly skip original-value comparison; domain checks still apply",
+  )
+  .option(
+    "--expect-field <field:string>",
+    "Also require this API field to match the original basis",
+    { collect: true, preserveEmpty: true },
   )
   .option(
     "--label <label:string>",
     "Replace the project's labels. May be repeated to set multiple labels.",
-    { collect: true },
+    { collect: true, preserveEmpty: true },
   )
   .action(
     async (
@@ -106,17 +145,38 @@ export const updateCommand = withUsageMetadata(new Command(), { writes: true })
         targetDate,
         team: teams,
         label: labels,
+        json,
+        baseFile,
+        unprotected,
+        expectField,
       },
       projectId,
     ) => {
       const { Spinner } = await import("@std/cli/unstable-spinner")
-      const showSpinner = shouldShowSpinner()
+      const showSpinner = shouldShowSpinner() && !json
       const spinner = showSpinner ? new Spinner() : null
 
       try {
+        for (
+          const [field, value] of Object.entries({
+            name,
+            status,
+            lead,
+            "start-date": startDate,
+            "target-date": targetDate,
+          })
+        ) {
+          if (value != null && value.trim() === "") {
+            throw new ValidationError(`--${field} cannot be empty`)
+          }
+        }
+        if (teams?.some((team) => team.trim() === "")) {
+          throw new ValidationError("--team cannot be empty")
+        }
         if (
-          !name && description == null && descriptionFile == null && !status &&
-          !lead && !startDate && !targetDate &&
+          name == null && description == null && descriptionFile == null &&
+          status == null &&
+          lead == null && startDate == null && targetDate == null &&
           (!teams || teams.length === 0) &&
           (!labels || labels.length === 0)
         ) {
@@ -143,14 +203,23 @@ export const updateCommand = withUsageMetadata(new Command(), { writes: true })
           description,
           descriptionFile,
         )
+        const original = baseFile != null
+          ? await loadBasisFile(baseFile)
+          : undefined
 
-        if (startDate && !/^\d{4}-\d{2}-\d{2}$/.test(startDate)) {
+        if (startDate != null && !/^\d{4}-\d{2}-\d{2}$/.test(startDate)) {
           throw new ValidationError("Start date must be in YYYY-MM-DD format")
         }
 
-        if (targetDate && !/^\d{4}-\d{2}-\d{2}$/.test(targetDate)) {
+        if (targetDate != null && !/^\d{4}-\d{2}-\d{2}$/.test(targetDate)) {
           throw new ValidationError("Target date must be in YYYY-MM-DD format")
         }
+
+        validateReplacementOptions({
+          original,
+          unprotected,
+          expectFields: expectField,
+        })
 
         spinner?.start()
         const client = getGraphQLClient()
@@ -158,12 +227,14 @@ export const updateCommand = withUsageMetadata(new Command(), { writes: true })
 
         const input: ProjectUpdateInput = {}
 
-        if (name) input.name = name
+        if (name != null) input.name = name
         if (resolvedDescription != null) input.description = resolvedDescription
-        if (startDate) input.startDate = startDate
-        if (targetDate) input.targetDate = targetDate
+        if (startDate != null) input.startDate = startDate
+        if (targetDate != null) input.targetDate = targetDate
 
-        if (status) {
+        if (status != null && isLinearUuid(status)) {
+          input.statusId = status.toLowerCase()
+        } else if (status != null) {
           const statusLower = status.toLowerCase()
           const apiStatusType = STATUS_TYPE_MAPPING[statusLower]
           if (!apiStatusType) {
@@ -173,11 +244,29 @@ export const updateCommand = withUsageMetadata(new Command(), { writes: true })
                 "Valid values: planned, started, paused, completed, canceled, backlog",
             })
           }
-          const statusResult = await client.request(GetProjectStatuses)
-          const projectStatuses = statusResult.projectStatuses?.nodes || []
-          const matchingStatus = projectStatuses.find(
+          const statusResult = await client.request(
+            GetProjectStatusesForUpdate,
+            {},
+          )
+          const projectStatuses = (await completeConnection(
+            statusResult.projectStatuses,
+            async (after) =>
+              (await client.request(GetProjectStatusesForUpdate, { after }))
+                .projectStatuses,
+            "project statuses",
+          )).nodes
+          const matchingStatuses = projectStatuses.filter(
             (s: { type: string }) => s.type === apiStatusType,
           )
+          if (matchingStatuses.length > 1) {
+            throw new ValidationError(
+              `Project status type is ambiguous: ${apiStatusType}`,
+              {
+                suggestion: "Use the exact Project status UUID with --status.",
+              },
+            )
+          }
+          const matchingStatus = matchingStatuses[0]
           if (!matchingStatus) {
             spinner?.stop()
             throw new NotFoundError("Project status", apiStatusType)
@@ -185,7 +274,7 @@ export const updateCommand = withUsageMetadata(new Command(), { writes: true })
           input.statusId = matchingStatus.id
         }
 
-        if (lead) {
+        if (lead != null) {
           const leadId = await lookupUserId(lead)
           if (!leadId) {
             spinner?.stop()
@@ -226,24 +315,50 @@ export const updateCommand = withUsageMetadata(new Command(), { writes: true })
           input.labelIds = labelIds
         }
 
+        const current = await readProject(client, resolvedId)
+        const plan = prepareReplacement({
+          objectKey: "project",
+          targetId: resolvedId,
+          original,
+          current,
+          desired: input,
+          fields: {
+            name: scalarField("name"),
+            description: scalarField("description"),
+            startDate: scalarField("startDate"),
+            targetDate: scalarField("targetDate"),
+            statusId: referenceField("status"),
+            leadId: referenceField("lead"),
+            teamIds: connectionField("teams"),
+            labelIds: connectionField("labels"),
+          },
+          unprotected,
+          expectFields: expectField,
+        })
+        if (Object.keys(plan.input).length === 0) {
+          spinner?.stop()
+          if (json) {
+            printWriteResult({ project: current.project }, {
+              effect: "none",
+              fields: plan.fields,
+            })
+          } else console.log("No changes needed")
+          return
+        }
         const result = await client.request(UpdateProject, {
           id: resolvedId,
-          input,
+          input: plan.input,
         })
         spinner?.stop()
 
-        if (!result.projectUpdate.success) {
-          throw new CliError("Failed to update project")
-        }
-
+        assertMutationSuccess(result.projectUpdate, result)
         const project = result.projectUpdate.project
-        if (!project) {
-          throw new CliError("Project update returned no project")
-        }
+        assertMutationReceipt(project, result, resolvedId)
 
-        console.log(`✓ Updated project: ${project.name}`)
-        if (project.url) {
-          console.log(project.url)
+        if (json) printWriteResult({ project }, { fields: plan.fields })
+        else {
+          console.log(`✓ Updated project: ${project.name}`)
+          if (project.url) console.log(project.url)
         }
       } catch (error) {
         spinner?.stop()

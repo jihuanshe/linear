@@ -5,7 +5,8 @@ stdout:
 "
 Usage: create --project <project> --name <name>
 
-Writes: true
+Writes: true            
+Output modes: human,json
 
 Description:
 
@@ -14,6 +15,7 @@ Description:
 Options:
 
   -h, --help                    - Show this help.                             
+  --json                        - Output a JSON write result                  
   --project      <project>      - Project (UUID, slug ID, or name)  (required)
   --name         <name>         - Milestone name                    (required)
   --description  <description>  - Milestone description                       

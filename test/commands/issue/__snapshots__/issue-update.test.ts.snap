@@ -31,7 +31,7 @@ Options:
   -l, --label         <label>        - Replace all issue labels. May be repeated.                                                                     
   --add-label         <label>        - Add an issue label without replacing existing labels. May be repeated.                                         
   --remove-label      <label>        - Remove an issue label without replacing other labels. May be repeated.                                         
-  --team              <team>         - Team associated with the issue (if not your default team)                                                      
+  --team              <team>         - Move the issue to this team (UUID or key)                                                                      
   --project           <project>      - Project to assign the issue to (UUID, slug ID, or name)                                                        
   -s, --state         <state>        - Workflow state for the issue (by name or type)                                                                 
   --milestone         <milestone>    - Project milestone (UUID, or name when --project is set or the issue already has a project)                     
@@ -39,7 +39,10 @@ Options:
                                        negatives). Use --clear-cycle to remove the issue from its cycle                                               
   --clear-cycle                      - Remove the issue from its cycle                                                                                
   -t, --title         <title>        - Title of the issue                                                                                             
-  -j, --json                         - Output the mutation result, including resulting priority and labels, as JSON                                   
+  --base-file         <path>         - Original JSON read saved before deciding this replacement                                                      
+  --unprotected                      - Explicitly replace without comparing original values; domain checks still apply                                
+  --expect-field      <field>        - Require another API field to remain equal to the original read (repeatable)                                    
+  -j, --json                         - Output a JSON write result; the resulting issue is in data.issue                                               
 
 "
 stderr:
@@ -48,9 +51,7 @@ stderr:
 
 snapshot[`Issue Update Command - Happy Path 1`] = `
 stdout:
-"Updating issue ENG-123
-
-✓ Updated issue ENG-123: Updated authentication bug fix
+"✓ Updated issue ENG-123: Updated authentication bug fix
 https://linear.app/test-team/issue/ENG-123/updated-authentication-bug-fix
 "
 stderr:
@@ -59,9 +60,7 @@ stderr:
 
 snapshot[`Issue Update Command - Alphanumeric Team Key 1`] = `
 stdout:
-"Updating issue PLA4-16916
-
-✓ Updated issue PLA4-16916: Test Issue
+"✓ Updated issue PLA4-16916: Test Issue
 https://linear.app/test-team/issue/PLA4-16916/test-issue
 "
 stderr:
@@ -70,9 +69,7 @@ stderr:
 
 snapshot[`Issue Update Command - With Milestone 1`] = `
 stdout:
-"Updating issue ENG-123
-
-✓ Updated issue ENG-123: Test Issue
+"✓ Updated issue ENG-123: Test Issue
 https://linear.app/test-team/issue/ENG-123/test-issue
 "
 stderr:
@@ -81,9 +78,7 @@ stderr:
 
 snapshot[`Issue Update Command - Case Insensitive Label Matching 1`] = `
 stdout:
-"Updating issue ENG-123
-
-✓ Updated issue ENG-123: Test Issue
+"✓ Updated issue ENG-123: Test Issue
 https://linear.app/test-team/issue/ENG-123/test-issue
 "
 stderr:
@@ -92,9 +87,7 @@ stderr:
 
 snapshot[`Issue Update Command - Short Flag -p Is Priority 1`] = `
 stdout:
-"Updating issue ENG-123
-
-✓ Updated issue ENG-123: Test Issue
+"✓ Updated issue ENG-123: Test Issue
 https://linear.app/test-team/issue/ENG-123/test-issue
 "
 stderr:
@@ -103,9 +96,7 @@ stderr:
 
 snapshot[`Issue Update Command - With Cycle 1`] = `
 stdout:
-"Updating issue ENG-123
-
-✓ Updated issue ENG-123: Test Issue
+"✓ Updated issue ENG-123: Test Issue
 https://linear.app/test-team/issue/ENG-123/test-issue
 "
 stderr:
@@ -114,9 +105,7 @@ stderr:
 
 snapshot[`Issue Update Command - With Project UUID 1`] = `
 stdout:
-"Updating issue ENG-123
-
-✓ Updated issue ENG-123: Test Issue
+"✓ Updated issue ENG-123: Test Issue
 https://linear.app/test-team/issue/ENG-123/test-issue
 "
 stderr:
@@ -125,9 +114,7 @@ stderr:
 
 snapshot[`Issue Update Command - With Milestone UUID (no --project required) 1`] = `
 stdout:
-"Updating issue ENG-123
-
-✓ Updated issue ENG-123: Test Issue
+"✓ Updated issue ENG-123: Test Issue
 https://linear.app/test-team/issue/ENG-123/test-issue
 "
 stderr:
@@ -145,9 +132,7 @@ stderr:
 
 snapshot[`Issue Update Command - Unassign Clears Assignee 1`] = `
 stdout:
-"Updating issue ENG-123
-
-✓ Updated issue ENG-123: Some issue
+"✓ Updated issue ENG-123: Some issue
 https://linear.app/test-team/issue/ENG-123/some-issue
 "
 stderr:
@@ -156,9 +141,7 @@ stderr:
 
 snapshot[`Issue Update Command - Unassign With Other Fields 1`] = `
 stdout:
-"Updating issue ENG-123
-
-✓ Updated issue ENG-123: Renamed
+"✓ Updated issue ENG-123: Renamed
 https://linear.app/test-team/issue/ENG-123/renamed
 "
 stderr:
@@ -167,9 +150,7 @@ stderr:
 
 snapshot[`Issue Update Command - Assignee Still Sends User Id 1`] = `
 stdout:
-"Updating issue ENG-123
-
-✓ Updated issue ENG-123: Some issue
+"✓ Updated issue ENG-123: Some issue
 https://linear.app/test-team/issue/ENG-123/some-issue
 "
 stderr:
@@ -187,9 +168,7 @@ stderr:
 
 snapshot[`Issue Update Command - Clear Cycle Sends Null 1`] = `
 stdout:
-"Updating issue ENG-123
-
-✓ Updated issue ENG-123: Some issue
+"✓ Updated issue ENG-123: Some issue
 https://linear.app/test-team/issue/ENG-123/some-issue
 "
 stderr:
@@ -198,9 +177,7 @@ stderr:
 
 snapshot[`Issue Update Command - Cycle Next Resolves Via Flag 1`] = `
 stdout:
-"Updating issue ENG-123
-
-✓ Updated issue ENG-123: Some issue
+"✓ Updated issue ENG-123: Some issue
 https://linear.app/test-team/issue/ENG-123/some-issue
 "
 stderr:
@@ -209,9 +186,7 @@ stderr:
 
 snapshot[`Issue Update Command - Cycle Relative Offset 1`] = `
 stdout:
-"Updating issue ENG-123
-
-✓ Updated issue ENG-123: Some issue
+"✓ Updated issue ENG-123: Some issue
 https://linear.app/test-team/issue/ENG-123/some-issue
 "
 stderr:
@@ -220,9 +195,7 @@ stderr:
 
 snapshot[`Issue Update Command - Cycle Lookup Paginates 1`] = `
 stdout:
-"Updating issue ENG-123
-
-✓ Updated issue ENG-123: Some issue
+"✓ Updated issue ENG-123: Some issue
 https://linear.app/test-team/issue/ENG-123/some-issue
 "
 stderr:

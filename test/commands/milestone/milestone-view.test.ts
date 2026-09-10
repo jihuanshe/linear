@@ -31,6 +31,7 @@ await snapshotTest({
         queryName: "GetMilestoneDetails",
         response: {
           data: {
+            organization: { id: "workspace-1", urlKey: "test" },
             projectMilestone: {
               id: "milestone-123",
               name: "Q1 Goals",
@@ -101,6 +102,7 @@ await snapshotTest({
         queryName: "GetMilestoneDetails",
         response: {
           data: {
+            organization: { id: "workspace-1", urlKey: "test" },
             projectMilestone: {
               id: "milestone-789",
               name: "Simple Milestone",
@@ -152,6 +154,7 @@ await snapshotTest({
         queryName: "GetMilestoneDetails",
         response: {
           data: {
+            organization: { id: "workspace-1", urlKey: "test" },
             projectMilestone: {
               id: "milestone-456",
               name: "Big Release",
@@ -217,6 +220,7 @@ await snapshotTest({
         variables: { id: "milestone-trunc", first: 50 },
         response: {
           data: {
+            organization: { id: "workspace-1", urlKey: "test" },
             projectMilestone: {
               id: "milestone-trunc",
               name: "Huge Milestone",
@@ -279,6 +283,7 @@ await snapshotTest({
         },
         response: {
           data: {
+            organization: { id: "workspace-1", urlKey: "test" },
             projectMilestone: {
               id: "milestone-trunc",
               name: "Huge Milestone",
@@ -311,6 +316,7 @@ await snapshotTest({
         variables: { id: "milestone-trunc", first: 50 },
         response: {
           data: {
+            organization: { id: "workspace-1", urlKey: "test" },
             projectMilestone: {
               id: "milestone-trunc",
               name: "Huge Milestone",
@@ -364,6 +370,7 @@ Deno.test("Milestone View Command - --all errors on inconsistent pagination", as
       variables: { id: "milestone-bad", first: 50 },
       response: {
         data: {
+          organization: { id: "workspace-1", urlKey: "test" },
           projectMilestone: {
             id: "milestone-bad",
             name: "Broken Pagination",
@@ -422,7 +429,9 @@ Deno.test("Milestone View Command - --all errors on inconsistent pagination", as
   assertEquals(exited, true)
   assertEquals(
     errorLogs.some((l) =>
-      l.includes("more issues but returned no pagination cursor")
+      l.includes(
+        "more issues but returned an empty or repeated pagination cursor",
+      )
     ),
     true,
   )

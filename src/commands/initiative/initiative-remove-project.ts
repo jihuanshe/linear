@@ -1,19 +1,23 @@
+import { resolveInitiativeId as resolveStableInitiativeId } from "./initiative-resolve.ts"
+import { resolveProjectId as resolveStableProjectId } from "../../utils/linear.ts"
 import { Command } from "@cliffy/command"
 import { withUsageMetadata } from "../usage.ts"
 import { Confirm } from "../../utils/prompt.ts"
 import { gql } from "../../__codegen__/gql.ts"
 import { getGraphQLClient } from "../../utils/graphql.ts"
 import { shouldShowSpinner } from "../../utils/hyperlink.ts"
+import { completeConnection } from "../../utils/pagination.ts"
+import { printWriteResult, setMachineOutput } from "../../utils/write-result.ts"
 import {
-  CliError,
+  assertMutationSuccess,
   handleError,
   NotFoundError,
   ValidationError,
 } from "../../utils/errors.ts"
 
 const GetInitiativeToProjects = gql(`
-  query GetInitiativeToProjects($first: Int) {
-    initiativeToProjects(first: $first) {
+  query GetInitiativeToProjects($first: Int, $after: String) {
+    initiativeToProjects(first: $first, after: $after) {
       nodes {
         id
         initiative {
@@ -23,6 +27,7 @@ const GetInitiativeToProjects = gql(`
           id
         }
       }
+      pageInfo { hasNextPage endCursor }
     }
   }
 `)
@@ -37,175 +42,52 @@ const RemoveProjectFromInitiative = gql(`
 
 async function resolveInitiativeId(
   client: ReturnType<typeof getGraphQLClient>,
-  idOrSlugOrName: string,
-): Promise<{ id: string; name: string } | undefined> {
-  // Try as UUID first
-  if (
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
-      idOrSlugOrName,
-    )
-  ) {
-    // Get the name for display
-    const nameQuery = gql(`
-      query GetInitiativeNameByIdForRemove($id: String!) {
-        initiative(id: $id) {
-          id
-          name
-        }
-      }
-    `)
-    try {
-      const result = await client.request(nameQuery, { id: idOrSlugOrName })
-      if (result.initiative) {
-        return { id: result.initiative.id, name: result.initiative.name }
-      }
-    } catch {
-      // Continue
-    }
-    return { id: idOrSlugOrName, name: idOrSlugOrName }
-  }
-
-  // Try as slug
-  const slugQuery = gql(`
-    query GetInitiativeBySlugForRemoveProject($slugId: String!) {
-      initiatives(filter: { slugId: { eq: $slugId } }) {
-        nodes {
-          id
-          slugId
-          name
-        }
-      }
+  reference: string,
+): Promise<{ id: string; name: string }> {
+  const id = await resolveStableInitiativeId(client, reference)
+  const query = gql(`
+    query GetInitiativeNameByIdForRemove($id: String!) {
+      initiative(id: $id) { id name }
     }
   `)
-
-  try {
-    const result = await client.request(slugQuery, { slugId: idOrSlugOrName })
-    if (result.initiatives?.nodes?.length > 0) {
-      const init = result.initiatives.nodes[0]
-      return { id: init.id, name: init.name }
-    }
-  } catch {
-    // Continue to name lookup
-  }
-
-  // Try as name
-  const nameQuery = gql(`
-    query GetInitiativeByNameForRemoveProject($name: String!) {
-      initiatives(filter: { name: { eqIgnoreCase: $name } }) {
-        nodes {
-          id
-          name
-        }
-      }
-    }
-  `)
-
-  try {
-    const result = await client.request(nameQuery, { name: idOrSlugOrName })
-    if (result.initiatives?.nodes?.length > 0) {
-      const init = result.initiatives.nodes[0]
-      return { id: init.id, name: init.name }
-    }
-  } catch {
-    // Not found
-  }
-
-  return undefined
+  const result = await client.request(query, { id })
+  if (!result.initiative?.id) throw new NotFoundError("Initiative", reference)
+  return result.initiative
 }
 
 async function resolveProjectId(
   client: ReturnType<typeof getGraphQLClient>,
-  idOrSlugOrName: string,
-): Promise<{ id: string; name: string } | undefined> {
-  // Try as UUID first
-  if (
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
-      idOrSlugOrName,
-    )
-  ) {
-    // Get the name for display
-    const nameQuery = gql(`
-      query GetProjectNameByIdForRemove($id: String!) {
-        project(id: $id) {
-          id
-          name
-        }
-      }
-    `)
-    try {
-      const result = await client.request(nameQuery, { id: idOrSlugOrName })
-      if (result.project) {
-        return { id: result.project.id, name: result.project.name }
-      }
-    } catch {
-      // Continue
-    }
-    return { id: idOrSlugOrName, name: idOrSlugOrName }
-  }
-
-  // Try as slug
-  const slugQuery = gql(`
-    query GetProjectBySlugForRemoveProject($slugId: String!) {
-      projects(filter: { slugId: { eq: $slugId } }) {
-        nodes {
-          id
-          slugId
-          name
-        }
-      }
+  reference: string,
+): Promise<{ id: string; name: string }> {
+  const id = await resolveStableProjectId(reference)
+  const query = gql(`
+    query GetProjectNameByIdForRemove($id: String!) {
+      project(id: $id) { id name }
     }
   `)
-
-  try {
-    const result = await client.request(slugQuery, { slugId: idOrSlugOrName })
-    if (result.projects?.nodes?.length > 0) {
-      const proj = result.projects.nodes[0]
-      return { id: proj.id, name: proj.name }
-    }
-  } catch {
-    // Continue to name lookup
-  }
-
-  // Try as name
-  const nameQuery = gql(`
-    query GetProjectByNameForRemoveProject($name: String!) {
-      projects(filter: { name: { eqIgnoreCase: $name } }) {
-        nodes {
-          id
-          name
-        }
-      }
-    }
-  `)
-
-  try {
-    const result = await client.request(nameQuery, { name: idOrSlugOrName })
-    if (result.projects?.nodes?.length > 0) {
-      const proj = result.projects.nodes[0]
-      return { id: proj.id, name: proj.name }
-    }
-  } catch {
-    // Not found
-  }
-
-  return undefined
+  const result = await client.request(query, { id })
+  if (!result.project?.id) throw new NotFoundError("Project", reference)
+  return result.project
 }
 
 export const removeProjectCommand = withUsageMetadata(new Command(), {
   writes: true,
   interactive: true,
   confirmationRequiredUnless: "--force",
+  outputModes: ["human", "json"],
 })
   .name("remove-project")
+  .option("--json", "Output a JSON write result")
   .description("Unlink a project from an initiative")
   .arguments("<initiative:string> <project:string>")
   .option("-y, --force", "Skip confirmation prompt")
   .action(
     async (
-      { force },
+      { force, json },
       initiativeArg,
       projectArg,
     ) => {
+      setMachineOutput(json ?? false)
       const client = getGraphQLClient()
 
       // Resolve initiative
@@ -228,8 +110,18 @@ export const removeProjectCommand = withUsageMetadata(new Command(), {
           first: 250,
         })
 
-        // Filter client-side for the matching link
-        const link = linkResult.initiativeToProjects?.nodes?.find(
+        const links = await completeConnection(
+          linkResult.initiativeToProjects,
+          async (after) => {
+            const next = await client.request(GetInitiativeToProjects, {
+              first: 250,
+              after,
+            })
+            return next.initiativeToProjects
+          },
+          "initiative project links",
+        )
+        const link = links.nodes.find(
           (node) =>
             node.initiative?.id === initiative.id &&
             node.project?.id === project.id,
@@ -242,6 +134,14 @@ export const removeProjectCommand = withUsageMetadata(new Command(), {
       }
 
       if (!linkId) {
+        if (json) {
+          printWriteResult({
+            initiativeId: initiative.id,
+            projectId: project.id,
+            linked: false,
+          }, { effect: "none" })
+          return
+        }
         console.log(
           `Project "${project.name}" is not linked to initiative "${initiative.name}"`,
         )
@@ -250,7 +150,7 @@ export const removeProjectCommand = withUsageMetadata(new Command(), {
 
       // Confirm removal
       if (!force) {
-        if (!Deno.stdin.isTerminal()) {
+        if (json || !Deno.stdin.isTerminal()) {
           throw new ValidationError(
             "Interactive confirmation required. Use --force to skip.",
           )
@@ -268,7 +168,7 @@ export const removeProjectCommand = withUsageMetadata(new Command(), {
       }
 
       const { Spinner } = await import("@std/cli/unstable-spinner")
-      const showSpinner = shouldShowSpinner()
+      const showSpinner = !json && shouldShowSpinner()
       const spinner = showSpinner ? new Spinner() : null
       spinner?.start()
 
@@ -279,8 +179,20 @@ export const removeProjectCommand = withUsageMetadata(new Command(), {
 
         spinner?.stop()
 
-        if (!result.initiativeToProjectDelete.success) {
-          throw new CliError("Failed to remove project from initiative")
+        assertMutationSuccess(result?.initiativeToProjectDelete, {
+          id: linkId,
+          initiativeId: initiative.id,
+          projectId: project.id,
+          result: result?.initiativeToProjectDelete,
+        })
+        if (json) {
+          printWriteResult({
+            id: linkId,
+            initiativeId: initiative.id,
+            projectId: project.id,
+            success: true,
+          })
+          return
         }
 
         console.log(

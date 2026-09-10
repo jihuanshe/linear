@@ -14,6 +14,13 @@ import {
 } from "../../src/commands/usage.ts"
 
 const main = fromFileUrl(new URL("../../src/main.ts", import.meta.url))
+// Isolate credentials/configuration while reusing the installed dependency cache.
+const { denoDir } = JSON.parse(new TextDecoder().decode(
+  (await new Deno.Command(Deno.execPath(), {
+    args: ["info", "--json"],
+    stdout: "piped",
+  }).output()).stdout,
+)) as { denoDir: string }
 
 const CANONICAL_WRITES_COMMAND_PATHS = [
   "linear api",
@@ -41,10 +48,8 @@ const CANONICAL_WRITES_COMMAND_PATHS = [
   "linear issue create",
   "linear issue delete",
   "linear issue link",
-  "linear issue pull-request",
   "linear issue relation add",
   "linear issue relation delete",
-  "linear issue start",
   "linear issue update",
   "linear label create",
   "linear label delete",
@@ -55,7 +60,6 @@ const CANONICAL_WRITES_COMMAND_PATHS = [
   "linear project delete",
   "linear project update",
   "linear project-update create",
-  "linear team autolinks",
   "linear team create",
   "linear team delete",
   "linear update",
@@ -73,6 +77,7 @@ async function run(args: string[]) {
       env: {
         HOME: root,
         XDG_CONFIG_HOME: root,
+        DENO_DIR: denoDir,
         NO_COLOR: "1",
       },
     }).output()
@@ -108,11 +113,11 @@ Deno.test("zero-argument root reuses concise usage navigation", async (t) => {
   assertEquals(result.code, 0, result.stderr)
   assertEquals(result.stderr, "")
   assertEquals(result.stdout, explicitUsage.stdout)
+  await assertSnapshot(t, result.stdout)
   assertEquals(
     new TextEncoder().encode(result.stdout).byteLength <= 2_000,
     true,
   )
-  await assertSnapshot(t, result.stdout)
 })
 
 Deno.test("zero-argument domain reuses its usage navigation", async () => {
@@ -144,7 +149,6 @@ Deno.test("usage --json exposes the top-level command tree", async () => {
   assertEquals(result.code, 0, result.stderr)
   assertEquals(result.stderr, "")
   const document = JSON.parse(result.stdout) as UsageDocument
-  assertEquals(document.schemaVersion, 1)
   assertEquals(document.command.path, "linear")
   assertEquals(
     document.globalOptions.some((option) => option.name === "workspace"),
@@ -192,10 +196,10 @@ Deno.test("domain usage includes direct command options", async () => {
   assertStringIncludes(result.stdout, "create [options]")
   assertStringIncludes(result.stdout, "create options:")
   assertStringIncludes(result.stdout, "--no-interactive")
-  assertStringIncludes(result.stdout, "[writes; interactive]")
+  assertStringIncludes(result.stdout, "[writes; interactive; json]")
   assertStringIncludes(
     result.stdout,
-    "[writes; interactive; confirm: --confirm]",
+    "[writes; interactive; confirm: --confirm; json]",
   )
   assertStringIncludes(result.stdout, "[interactive; json]")
   assertStringIncludes(
@@ -210,7 +214,7 @@ Deno.test("nested command groups expose usage recursively", async () => {
   assertEquals(result.code, 0, result.stderr)
   assertEquals(result.stderr, "")
   assertStringIncludes(result.stdout, "linear issue comment")
-  for (const command of ["add", "list", "update", "delete"]) {
+  for (const command of ["add", "list", "view", "update", "delete"]) {
     assertMatch(result.stdout, new RegExp(`\\n  ${command}(?: |\\[)`))
   }
 
@@ -218,11 +222,10 @@ Deno.test("nested command groups expose usage recursively", async () => {
   assertEquals(jsonResult.code, 0, jsonResult.stderr)
   assertEquals(jsonResult.stderr, "")
   const document = JSON.parse(jsonResult.stdout) as UsageDocument
-  assertEquals(document.schemaVersion, 1)
   assertEquals(document.command.path, "linear issue comment")
   assertEquals(
     document.subcommands.map(({ name }) => name).sort(),
-    ["add", "delete", "list", "update"],
+    ["add", "delete", "list", "update", "view"],
   )
   for (const command of document.subcommands) {
     assertEquals(command.path, `linear issue comment ${command.name}`)
@@ -394,50 +397,10 @@ Deno.test("usage omits defaults that are not static JSON values", () => {
   }
 })
 
-Deno.test("a usage JSON v1 reader ignores additive fields", () => {
-  const document = buildUsageDocument(
-    new Command()
-      .name("sample")
-      .description("Sample command")
-      .option("--count <count:number>", "Count", { default: 1 }),
-  )
-  const withAdditions = {
-    ...document,
-    futureDocumentField: true,
-    command: {
-      ...document.command,
-      futureCommandField: "new",
-      options: document.command.options.map((option) => ({
-        ...option,
-        futureOptionField: null,
-      })),
-    },
-  }
-  const readV1 = (value: unknown) => {
-    const parsed = value as UsageDocument
-    return {
-      schemaVersion: parsed.schemaVersion,
-      path: parsed.command.path,
-      writes: parsed.command.writes,
-      options: parsed.command.options.map((option) => ({
-        name: option.name,
-        default: option.default,
-      })),
-    }
-  }
-
-  assertEquals(
-    readV1(JSON.parse(JSON.stringify(withAdditions))),
-    readV1(JSON.parse(JSON.stringify(document))),
-  )
-})
-
-Deno.test("usage JSON v1 freezes its existing fields and types", async (t) => {
+Deno.test("usage JSON describes command metadata", async (t) => {
   const result = await run(["issue", "usage", "--json"])
   assertEquals(result.code, 0, result.stderr)
   assertEquals(result.stderr, "")
-  // Additive fields may update this snapshot without changing schemaVersion.
-  // Removing a field or changing its type requires a version increment.
   await assertSnapshot(t, JSON.parse(result.stdout))
 })
 
@@ -451,6 +414,49 @@ Deno.test("writes metadata exactly matches canonical write commands", () => {
   }
 
   assertEquals(actual.sort(), CANONICAL_WRITES_COMMAND_PATHS)
+})
+
+Deno.test("pruned workflows stay outside the command tree and replacement options remain discoverable", () => {
+  assertEquals(cli.getCommand("doctor"), undefined)
+  const issue = cli.getCommand("issue")!
+  for (const name of ["start", "commits", "pull-request", "pr"]) {
+    assertEquals(issue.getCommand(name), undefined)
+  }
+  const team = cli.getCommand("team")!
+  for (const name of ["id", "autolinks"]) {
+    assertEquals(team.getCommand(name), undefined)
+  }
+  assertEquals(
+    buildUsageDocument(issue.getCommand("pick")!).command.writes,
+    false,
+  )
+  assertEquals(
+    buildUsageDocument(team.getCommand("key")!).command.writes,
+    false,
+  )
+  for (
+    const path of [
+      "issue update",
+      "issue comment update",
+      "project update",
+      "initiative update",
+      "document update",
+      "milestone update",
+    ]
+  ) {
+    let command = cli
+    for (const segment of path.split(" ")) {
+      command = command.getCommand(segment)! as typeof cli
+    }
+    const metadata = buildUsageDocument(command).command
+    for (const name of ["base-file", "unprotected", "expect-field", "json"]) {
+      assertEquals(
+        metadata.options.some((option) => option.name === name),
+        true,
+        `${path} missing ${name}`,
+      )
+    }
+  }
 })
 
 Deno.test("usage metadata stays aligned with the registered command tree", () => {

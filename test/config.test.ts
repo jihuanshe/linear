@@ -3,6 +3,21 @@ import { fromFileUrl } from "@std/path"
 import { getOption, resolveIssueSort } from "../src/config.ts"
 import { ValidationError } from "../src/utils/errors.ts"
 
+// Keep runtime selection/cache independent of the HOME/XDG paths under test.
+const cacheInfo = await new Deno.Command(Deno.execPath(), {
+  args: ["info", "--json"],
+  stdout: "piped",
+  stderr: "piped",
+}).output()
+assertEquals(
+  cacheInfo.success,
+  true,
+  new TextDecoder().decode(cacheInfo.stderr),
+)
+const { denoDir: testDenoDir } = JSON.parse(
+  new TextDecoder().decode(cacheInfo.stdout),
+) as { denoDir: string }
+
 // Note: These tests use the cliValue parameter (highest precedence)
 // to avoid interference from config files that may exist in the repo
 
@@ -106,7 +121,7 @@ Deno.test("getOption - environment variables take precedence over config file", 
 
     // Run a subprocess that imports config and prints the workspace value
     // The subprocess runs from the temp directory so it loads our test config
-    const command = new Deno.Command("deno", {
+    const command = new Deno.Command(Deno.execPath(), {
       args: [
         "eval",
         `--config=${denoJsonPath}`,
@@ -114,6 +129,7 @@ Deno.test("getOption - environment variables take precedence over config file", 
       ],
       cwd: tempDir,
       env: {
+        DENO_DIR: testDenoDir,
         LINEAR_WORKSPACE: envValue,
       },
       stdout: "piped",
@@ -158,7 +174,7 @@ Deno.test("getOption - config file is used when no env var is set", async () => 
 
     // Run a subprocess without LINEAR_WORKSPACE env var
     // Include essential env vars for subprocess to work correctly
-    const command = new Deno.Command("deno", {
+    const command = new Deno.Command(Deno.execPath(), {
       args: [
         "eval",
         `--config=${denoJsonPath}`,
@@ -166,6 +182,7 @@ Deno.test("getOption - config file is used when no env var is set", async () => 
       ],
       cwd: tempDir,
       env: {
+        DENO_DIR: testDenoDir,
         PATH: Deno.env.get("PATH") ?? "",
         ...(Deno.build.os === "windows"
           ? { SystemRoot: Deno.env.get("SystemRoot") ?? "" }
@@ -219,6 +236,7 @@ Deno.test("CLI reports a malformed higher-priority config without falling back",
       cwd: tempDir,
       clearEnv: true,
       env: {
+        DENO_DIR: testDenoDir,
         HOME: tempDir,
         PATH: Deno.env.get("PATH") ?? "",
         ...(Deno.build.os === "windows"
@@ -285,7 +303,7 @@ Deno.test("getOption - home folder config is used as fallback", async () => {
       const env: Record<string, string> = isWindows
         ? { APPDATA: tempHome }
         : { HOME: tempHome, PATH: Deno.env.get("PATH") ?? "" }
-      const command = new Deno.Command("deno", {
+      const command = new Deno.Command(Deno.execPath(), {
         args: [
           "eval",
           `--config=${denoJsonPath}`,
@@ -356,7 +374,7 @@ Deno.test("getOption - project config takes precedence over home config", async 
     const env: Record<string, string> = isWindows
       ? { APPDATA: tempHome, SystemRoot: Deno.env.get("SystemRoot") ?? "" }
       : { HOME: tempHome, PATH: Deno.env.get("PATH") ?? "" }
-    const command = new Deno.Command("deno", {
+    const command = new Deno.Command(Deno.execPath(), {
       args: [
         "eval",
         `--config=${denoJsonPath}`,
@@ -421,7 +439,7 @@ Deno.test({
           new URL("../deno.json", import.meta.url),
         )
 
-        const command = new Deno.Command("deno", {
+        const command = new Deno.Command(Deno.execPath(), {
           args: [
             "eval",
             `--config=${denoJsonPath}`,
@@ -429,6 +447,7 @@ Deno.test({
           ],
           cwd: workDir,
           env: {
+            DENO_DIR: testDenoDir,
             HOME: tempHome,
             XDG_CONFIG_HOME: xdgConfigDir,
             PATH: Deno.env.get("PATH") ?? "",
@@ -437,9 +456,16 @@ Deno.test({
           stderr: "piped",
         })
 
-        const { stdout, stderr } = await command.output()
+        const { stdout, stderr, code, signal } = await command.output()
         const output = new TextDecoder().decode(stdout).trim()
         const errorOutput = new TextDecoder().decode(stderr)
+
+        assertEquals(
+          code,
+          0,
+          errorOutput ||
+            ("Configuration probe exited with " + code + " (" + signal + ")"),
+        )
 
         if (errorOutput) {
           console.error("Subprocess stderr:", errorOutput)
@@ -485,7 +511,7 @@ Deno.test({
           new URL("../deno.json", import.meta.url),
         )
 
-        const command = new Deno.Command("deno", {
+        const command = new Deno.Command(Deno.execPath(), {
           args: [
             "eval",
             `--config=${denoJsonPath}`,
@@ -493,6 +519,7 @@ Deno.test({
           ],
           cwd: workDir,
           env: {
+            DENO_DIR: testDenoDir,
             APPDATA: tempAppData,
             SystemRoot: Deno.env.get("SystemRoot") ?? "",
           },
@@ -561,7 +588,7 @@ Deno.test("getOption - global and project configs are merged", async () => {
       : { HOME: tempHome, PATH: Deno.env.get("PATH") ?? "" }
 
     // Test that both values are accessible
-    const command = new Deno.Command("deno", {
+    const command = new Deno.Command(Deno.execPath(), {
       args: [
         "eval",
         `--config=${denoJsonPath}`,
@@ -643,7 +670,7 @@ Deno.test("getOption - env var takes precedence over home config", async () => {
           LINEAR_WORKSPACE: envValue,
           PATH: Deno.env.get("PATH") ?? "",
         }
-      const command = new Deno.Command("deno", {
+      const command = new Deno.Command(Deno.execPath(), {
         args: [
           "eval",
           `--config=${denoJsonPath}`,
@@ -750,6 +777,7 @@ Deno.test("resolveIssueSort - defaults to priority when nothing is configured", 
       cwd: tempDir,
       clearEnv: true,
       env: {
+        DENO_DIR: testDenoDir,
         HOME: tempDir,
         XDG_CONFIG_HOME: `${tempDir}/.config`,
         PATH: Deno.env.get("PATH") ?? "",

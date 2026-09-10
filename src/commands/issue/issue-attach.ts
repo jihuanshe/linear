@@ -1,19 +1,19 @@
+import { createIssueAttachment } from "../../operations/issue-content.ts"
+import { printWriteResult } from "../../utils/write-result.ts"
 import { Command } from "@cliffy/command"
 import { withUsageMetadata } from "../usage.ts"
-import { gql } from "../../__codegen__/gql.ts"
-import type { AttachmentCreateInput } from "../../__codegen__/graphql.ts"
-import { getGraphQLClient } from "../../utils/graphql.ts"
-import { getIssueId, getIssueIdentifier } from "../../utils/linear.ts"
-import { uploadFile, validateFilePath } from "../../utils/upload.ts"
+import { getIssueIdentifier, requireIssueId } from "../../utils/linear.ts"
+import {
+  uploadFile,
+  type UploadResult,
+  validateFilePath,
+} from "../../utils/upload.ts"
 import { basename } from "@std/path"
 import { shouldShowSpinner } from "../../utils/hyperlink.ts"
 import {
-  CliError,
   handleError,
-  isClientError,
-  isNotFoundError,
-  NotFoundError,
   ValidationError,
+  withAppliedReceipts,
 } from "../../utils/errors.ts"
 
 /** Quote a value for safe copy-paste into a shell command. */
@@ -28,7 +28,7 @@ export const attachCommand = withUsageMetadata(new Command(), { writes: true })
     "Create a sidebar attachment on an issue (images do not render inline)",
   )
   .arguments("<issueId:string> <filepath:string>")
-  .option("--json", "Output {attachment} as JSON")
+  .option("--json", "Output a JSON write result with the attachment")
   .option("-t, --title <title:string>", "Custom title for the attachment")
   .option(
     "-c, --comment <body:string>",
@@ -41,6 +41,7 @@ export const attachCommand = withUsageMetadata(new Command(), { writes: true })
   .action(async (options, issueId, filepath) => {
     const { title, comment, public: makePublic, json } = options
 
+    let uploadResult: UploadResult | undefined
     try {
       const resolvedIdentifier = await getIssueIdentifier(issueId)
       if (!resolvedIdentifier) {
@@ -54,21 +55,10 @@ export const attachCommand = withUsageMetadata(new Command(), { writes: true })
       await validateFilePath(filepath)
 
       // Get the issue UUID (attachmentCreate needs UUID, not identifier)
-      let issueUuid: string | undefined
-      try {
-        issueUuid = await getIssueId(resolvedIdentifier)
-      } catch (error) {
-        if (isClientError(error) && isNotFoundError(error)) {
-          throw new NotFoundError("Issue", resolvedIdentifier)
-        }
-        throw error
-      }
-      if (!issueUuid) {
-        throw new NotFoundError("Issue", resolvedIdentifier)
-      }
+      const issueUuid = await requireIssueId(resolvedIdentifier)
 
       // Upload the file
-      const uploadResult = await uploadFile(filepath, {
+      uploadResult = await uploadFile(filepath, {
         showProgress: shouldShowSpinner() && !json,
         makePublic,
       })
@@ -80,39 +70,15 @@ export const attachCommand = withUsageMetadata(new Command(), { writes: true })
         )
       }
 
-      // Create the attachment
-      const mutation = gql(`
-        mutation AttachmentCreate($input: AttachmentCreateInput!) {
-          attachmentCreate(input: $input) {
-            success
-            attachment {
-              id
-              url
-              title
-            }
-          }
-        }
-      `)
-
-      const client = getGraphQLClient()
-      const attachmentTitle = title || basename(filepath)
-
-      const input: AttachmentCreateInput = {
-        issueId: issueUuid,
-        title: attachmentTitle,
+      const { attachment } = await createIssueAttachment(issueUuid, {
         url: uploadResult.assetUrl,
+        title: title || basename(filepath),
         commentBody: comment,
-      }
-
-      const data = await client.request(mutation, { input })
-
-      if (!data.attachmentCreate.success) {
-        throw new CliError("Failed to create attachment")
-      }
-
-      const attachment = data.attachmentCreate.attachment
+      })
       if (json) {
-        console.log(JSON.stringify({ attachment }, null, 2))
+        printWriteResult({ attachment }, {
+          receipts: [{ kind: "upload", ...uploadResult }],
+        })
         return
       }
       console.log(`✓ Sidebar attachment created: ${attachment.title}`)
@@ -130,6 +96,12 @@ export const attachCommand = withUsageMetadata(new Command(), { writes: true })
         )
       }
     } catch (error) {
-      handleError(error, "Failed to attach file")
+      handleError(
+        withAppliedReceipts(
+          error,
+          uploadResult == null ? [] : [{ kind: "upload", ...uploadResult }],
+        ),
+        "Failed to attach file",
+      )
     }
   })

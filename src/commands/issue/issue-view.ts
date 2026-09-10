@@ -1,15 +1,9 @@
 import { Command } from "@cliffy/command"
 import { renderMarkdown } from "../../utils/markdown.ts"
 import type { Extension } from "@littletof/charmd"
-import {
-  fetchIssueDetails,
-  fetchIssueDetailsRaw,
-  getIssueIdentifier,
-} from "../../utils/linear.ts"
-import type {
-  FetchedIssueComment,
-  FetchedIssueDetails,
-} from "../../utils/linear.ts"
+import { fetchIssueDetailsRaw, getIssueIdentifier } from "../../utils/linear.ts"
+import type { FetchedIssueComment } from "../../utils/linear.ts"
+import { Spinner } from "@std/cli/unstable-spinner"
 import { openIssuePage } from "../../utils/actions.ts"
 import {
   formatCycleShort,
@@ -77,26 +71,26 @@ export const viewCommand = new Command()
         )
       }
 
+      const spinner = shouldShowSpinner() && !json ? new Spinner() : null
+      spinner?.start()
+      let readData: Awaited<ReturnType<typeof fetchIssueDetailsRaw>>
+      try {
+        readData = await fetchIssueDetailsRaw(resolvedId, showComments, true)
+      } finally {
+        spinner?.stop()
+      }
       if (json) {
-        const issueData = await fetchIssueDetailsRaw(
-          resolvedId,
-          showComments,
-          true,
-        )
-        console.log(JSON.stringify(issueData, null, 2))
+        console.log(JSON.stringify(readData, null, 2))
         return
       }
 
-      const issueData = await fetchIssueDetails(
-        resolvedId,
-        shouldShowSpinner(),
-        showComments,
-        true,
-      )
-
+      const issueData = readData.issue
       let issueComments = "comments" in issueData
-        ? issueData.comments
+        ? issueData.comments.nodes
         : undefined
+      const attachments = issueData.attachments?.nodes ?? []
+      const documents = issueData.documents?.nodes ?? []
+      const children = issueData.children?.nodes ?? []
 
       let urlToPath: Map<string, string> | undefined
       const shouldDownload = download && getOption("download_images") !== false
@@ -116,12 +110,12 @@ export const viewCommand = new Command()
       const shouldDownloadAttachments = shouldDownload &&
         getOption("auto_download_attachments") !== false
       if (
-        shouldDownloadAttachments && issueData.attachments &&
-        issueData.attachments.length > 0
+        shouldDownloadAttachments && attachments &&
+        attachments.length > 0
       ) {
         attachmentPaths = await downloadAttachments(
           issueData.identifier,
-          issueData.attachments,
+          attachments,
         )
       }
 
@@ -207,7 +201,7 @@ export const viewCommand = new Command()
 
         const hierarchyMarkdown = formatIssueHierarchyAsMarkdown(
           issueData.parent,
-          issueData.children,
+          children,
         )
         if (hierarchyMarkdown) {
           const renderedHierarchy = renderMarkdown(hierarchyMarkdown, {
@@ -217,9 +211,9 @@ export const viewCommand = new Command()
           outputLines.push(...renderedHierarchy.split("\n"))
         }
 
-        if (issueData.attachments && issueData.attachments.length > 0) {
+        if (attachments.length > 0) {
           const attachmentsMarkdown = formatAttachmentsAsMarkdown(
-            issueData.attachments,
+            attachments,
             attachmentPaths,
           )
           const renderedAttachments = renderMarkdown(attachmentsMarkdown, {
@@ -229,9 +223,9 @@ export const viewCommand = new Command()
           outputLines.push(...renderedAttachments.split("\n"))
         }
 
-        if (issueData.documents && issueData.documents.length > 0) {
+        if (documents.length > 0) {
           const documentsMarkdown = formatDocumentsAsMarkdown(
-            issueData.documents,
+            documents,
           )
           const renderedDocuments = renderMarkdown(documentsMarkdown, {
             lineWidth: terminalWidth,
@@ -279,18 +273,18 @@ export const viewCommand = new Command()
       } else {
         markdown += formatIssueHierarchyAsMarkdown(
           issueData.parent,
-          issueData.children,
+          children,
         )
 
-        if (issueData.attachments && issueData.attachments.length > 0) {
+        if (attachments.length > 0) {
           markdown += formatAttachmentsAsMarkdown(
-            issueData.attachments,
+            attachments,
             attachmentPaths,
           )
         }
 
-        if (issueData.documents && issueData.documents.length > 0) {
-          markdown += formatDocumentsAsMarkdown(issueData.documents)
+        if (documents.length > 0) {
+          markdown += formatDocumentsAsMarkdown(documents)
         }
 
         if (
@@ -321,7 +315,11 @@ export const viewCommand = new Command()
     }
   })
 
-type IssueRef = NonNullable<FetchedIssueDetails["parent"]>
+type IssueDetails = Awaited<ReturnType<typeof fetchIssueDetailsRaw>>["issue"]
+type IssueRef = Pick<
+  NonNullable<IssueDetails["parent"]>,
+  "identifier" | "title" | "state"
+>
 
 function formatIssueHierarchyAsMarkdown(
   parent: IssueRef | null | undefined,
@@ -545,8 +543,8 @@ function formatResolvedThreadsSummary(hiddenCount: number): string {
 }
 
 // Type for attachments and documents
-type AttachmentInfo = FetchedIssueDetails["attachments"][number]
-type DocumentInfo = FetchedIssueDetails["documents"][number]
+type AttachmentInfo = IssueDetails["attachments"]["nodes"][number]
+type DocumentInfo = IssueDetails["documents"]["nodes"][number]
 
 function getAttachmentCacheDir(): string {
   const configuredDir = getOption("attachment_dir")

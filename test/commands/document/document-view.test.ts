@@ -30,10 +30,13 @@ await snapshotTest({
         variables: { id: "d4b93e3b2695" },
         response: {
           data: {
+            organization: { id: "workspace-1", urlKey: "test" },
             document: {
               id: "doc-1",
               title: "Delegation System Spec",
               slugId: "d4b93e3b2695",
+              icon: null,
+              archivedAt: null,
               content:
                 "# Delegation System\n\nThis document describes the delegation system architecture.\n\n## Overview\n\nThe system supports user-to-user delegations with time-bounded capabilities.\n\n## Implementation\n\n- UCAN-based delegation chains\n- PKH DID format for user identity\n- Session key DIDs for signing",
               url:
@@ -41,7 +44,11 @@ await snapshotTest({
               createdAt: "2026-01-15T08:00:00Z",
               updatedAt: "2026-01-18T10:30:00Z",
               creator: { name: "John Doe", email: "john@example.com" },
-              project: { name: "TinyCloud SDK", slugId: "tinycloud-sdk" },
+              project: {
+                id: "project-1",
+                name: "TinyCloud SDK",
+                slugId: "tinycloud-sdk",
+              },
               issue: null,
               comments: {
                 nodes: [
@@ -104,10 +111,13 @@ await snapshotTest({
         variables: { id: "d4b93e3b2695" },
         response: {
           data: {
+            organization: { id: "workspace-1", urlKey: "test" },
             document: {
               id: "doc-1",
               title: "Delegation System Spec",
               slugId: "d4b93e3b2695",
+              icon: null,
+              archivedAt: null,
               content:
                 "# Delegation System\n\nThis document describes the delegation system architecture.",
               url:
@@ -115,7 +125,11 @@ await snapshotTest({
               createdAt: "2026-01-15T08:00:00Z",
               updatedAt: "2026-01-18T10:30:00Z",
               creator: { name: "John Doe", email: "john@example.com" },
-              project: { name: "TinyCloud SDK", slugId: "tinycloud-sdk" },
+              project: {
+                id: "project-1",
+                name: "TinyCloud SDK",
+                slugId: "tinycloud-sdk",
+              },
               issue: null,
             },
           },
@@ -151,10 +165,13 @@ await snapshotTest({
         variables: { id: "d4b93e3b2695", commentsAfter: null },
         response: {
           data: {
+            organization: { id: "workspace-1", urlKey: "test" },
             document: {
               id: "doc-1",
               title: "Delegation System Spec",
               slugId: "d4b93e3b2695",
+              icon: null,
+              archivedAt: null,
               content:
                 "# Delegation System\n\nThis document describes the delegation system architecture.",
               url:
@@ -162,7 +179,11 @@ await snapshotTest({
               createdAt: "2026-01-15T08:00:00Z",
               updatedAt: "2026-01-18T10:30:00Z",
               creator: { name: "John Doe", email: "john@example.com" },
-              project: { name: "TinyCloud SDK", slugId: "tinycloud-sdk" },
+              project: {
+                id: "project-1",
+                name: "TinyCloud SDK",
+                slugId: "tinycloud-sdk",
+              },
               issue: null,
               comments: {
                 nodes: [
@@ -194,13 +215,16 @@ await snapshotTest({
       },
       {
         queryName: "GetDocumentWithComments",
-        variables: { id: "d4b93e3b2695", commentsAfter: "cursor-1" },
+        variables: { id: "doc-1", commentsAfter: "cursor-1" },
         response: {
           data: {
+            organization: { id: "workspace-1", urlKey: "test" },
             document: {
               id: "doc-1",
               title: "Delegation System Spec",
               slugId: "d4b93e3b2695",
+              icon: null,
+              archivedAt: null,
               content:
                 "# Delegation System\n\nThis document describes the delegation system architecture.",
               url:
@@ -208,7 +232,11 @@ await snapshotTest({
               createdAt: "2026-01-15T08:00:00Z",
               updatedAt: "2026-01-18T10:30:00Z",
               creator: { name: "John Doe", email: "john@example.com" },
-              project: { name: "TinyCloud SDK", slugId: "tinycloud-sdk" },
+              project: {
+                id: "project-1",
+                name: "TinyCloud SDK",
+                slugId: "tinycloud-sdk",
+              },
               issue: null,
               comments: {
                 nodes: [
@@ -273,10 +301,13 @@ await snapshotTest({
         variables: { id: "d4b93e3b2695" },
         response: {
           data: {
+            organization: { id: "workspace-1", urlKey: "test" },
             document: {
               id: "doc-1",
               title: "Doc With Image",
               slugId: "d4b93e3b2695",
+              icon: null,
+              archivedAt: null,
               content:
                 "# Doc\n\n![screenshot](https://uploads.linear.app/abc/screenshot.png)",
               url:
@@ -322,6 +353,7 @@ await snapshotTest({
         variables: { id: "abc123def456" },
         response: {
           data: {
+            organization: { id: "workspace-1", urlKey: "test" },
             document: {
               id: "doc-3",
               title: "Investigation Notes",

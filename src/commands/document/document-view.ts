@@ -6,6 +6,7 @@ import { getGraphQLClient } from "../../utils/graphql.ts"
 import { formatRelativeTime } from "../../utils/display.ts"
 import { shouldShowSpinner } from "../../utils/hyperlink.ts"
 import { getOption } from "../../config.ts"
+import { completeConnection } from "../../utils/pagination.ts"
 import {
   downloadMarkdownImages,
   replaceImageUrls,
@@ -19,11 +20,14 @@ import {
 
 const GetDocument = gql(`
   query GetDocument($id: String!) {
+    organization { id urlKey }
     document(id: $id) {
       id
       title
       slugId
       content
+      icon
+      archivedAt
       url
       createdAt
       updatedAt
@@ -32,6 +36,7 @@ const GetDocument = gql(`
         email
       }
       project {
+        id
         name
         slugId
       }
@@ -45,11 +50,14 @@ const GetDocument = gql(`
 
 const GetDocumentWithComments = gql(`
   query GetDocumentWithComments($id: String!, $commentsAfter: String) {
+    organization { id urlKey }
     document(id: $id) {
       id
       title
       slugId
       content
+      icon
+      archivedAt
       url
       createdAt
       updatedAt
@@ -58,6 +66,7 @@ const GetDocumentWithComments = gql(`
         email
       }
       project {
+        id
         name
         slugId
       }
@@ -103,28 +112,26 @@ async function getDocumentWithAllComments(
   })
 
   if (!firstResult.document) {
-    return undefined
+    return firstResult
   }
 
   const document = firstResult.document
-  let commentsAfter = document.comments.pageInfo.endCursor
+  document.comments = await completeConnection(
+    document.comments,
+    async (commentsAfter) => {
+      const nextResult = await client.request(GetDocumentWithComments, {
+        id: document.id,
+        commentsAfter,
+      })
 
-  while (document.comments.pageInfo.hasNextPage) {
-    const nextResult = await client.request(GetDocumentWithComments, {
-      id,
-      commentsAfter,
-    })
-
-    if (!nextResult.document) {
-      return undefined
-    }
-
-    document.comments.nodes.push(...nextResult.document.comments.nodes)
-    document.comments.pageInfo = nextResult.document.comments.pageInfo
-    commentsAfter = nextResult.document.comments.pageInfo.endCursor
-  }
-
-  return document
+      if (!nextResult.document || nextResult.document.id !== document.id) {
+        throw new NotFoundError("Document", document.id)
+      }
+      return nextResult.document.comments
+    },
+    "document comments",
+  )
+  return firstResult
 }
 
 export const viewCommand = new Command()
@@ -145,7 +152,7 @@ export const viewCommand = new Command()
     try {
       const client = getGraphQLClient()
       const result = json
-        ? { document: await getDocumentWithAllComments(client, id) }
+        ? await getDocumentWithAllComments(client, id)
         : await client.request(GetDocument, { id })
       spinner?.stop()
 
@@ -163,7 +170,7 @@ export const viewCommand = new Command()
 
       // JSON output preserves the raw GraphQL response; skip image rewrites.
       if (json) {
-        console.log(JSON.stringify(document, null, 2))
+        console.log(JSON.stringify(result, null, 2))
         return
       }
 

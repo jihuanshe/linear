@@ -52,7 +52,7 @@ Deno.test("Issue List Command - Filter By Label", async () => {
       },
     },
     {
-      queryName: "GetIssuesForState",
+      queryName: "GetIssuesForQuery",
       response: {
         data: {
           issues: {

@@ -1,15 +1,11 @@
 import { Command } from "@cliffy/command"
-import {
-  applyManifest,
-  type ApplyOutcome,
-  selfExecRunner,
-} from "../../delivery/engine.ts"
+import { applyManifest, type ApplyOutcome } from "../../delivery/engine.ts"
 import { loadManifest } from "../../delivery/manifest.ts"
 import { handleError, ValidationError } from "../../utils/errors.ts"
 import { withUsageMetadata } from "../usage.ts"
 
-// `issue apply` executes a delivery manifest sequentially through the CLI's
-// own commands, reporting applied/failed/unknown/unattempted/skipped per
+// `issue apply` calls the same typed operations as direct commands,
+// reporting applied/failed/unknown/unattempted/skipped per
 // requested item. --confirm-workspace must repeat the manifest's workspace: the flag is
 // an execution guard against pointing a prepared manifest at the wrong
 // workspace, not a substitute for the caller's authorization to write.
@@ -84,7 +80,7 @@ export const issueApplyCommand = withUsageMetadata(
     )
     .option(
       "--continue-on-failure",
-      "Keep executing after a confirmed failed item; unknown outcomes always stop",
+      "Continue with other Issues after a pre-write failure; unknown outcomes always stop",
     )
     .option(
       "--json",
@@ -98,15 +94,26 @@ export const issueApplyCommand = withUsageMetadata(
             `--confirm-workspace ${confirmWorkspace} does not match manifest workspace ${loaded.manifest.workspace}`,
           )
         }
+        let step = 0
         const outcome = await applyManifest({
           loaded,
-          runner: selfExecRunner(),
-          onProgress: (line) => console.error(line),
+          // Progress is safe for log sinks: payload URLs, text and local paths
+          // remain in the explicit result/plan instead of leaking to stderr.
+          onProgress: () => console.error(`Processing item ${++step}`),
           continueOnFailure,
-          envAuthenticated: Deno.env.get("LINEAR_API_KEY") != null,
         })
         console.log(
-          json ? JSON.stringify(outcome, null, 2) : formatApply(outcome),
+          json
+            ? JSON.stringify(
+              {
+                ok: outcome.status === "completed",
+                effect: outcome.effect,
+                data: outcome,
+              },
+              null,
+              2,
+            )
+            : formatApply(outcome),
         )
         if (outcome.status !== "completed") {
           Deno.exit(1)

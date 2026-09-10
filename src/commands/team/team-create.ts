@@ -4,13 +4,21 @@ import { Input, Select } from "../../utils/prompt.ts"
 import { gql } from "../../__codegen__/gql.ts"
 import { getGraphQLClient } from "../../utils/graphql.ts"
 import { shouldShowSpinner } from "../../utils/hyperlink.ts"
-import { CliError, handleError, ValidationError } from "../../utils/errors.ts"
+import {
+  assertMutationReceipt,
+  assertMutationSuccess,
+  handleError,
+  ValidationError,
+} from "../../utils/errors.ts"
+import { printWriteResult, setMachineOutput } from "../../utils/write-result.ts"
 
 export const createCommand = withUsageMetadata(new Command(), {
   writes: true,
   interactive: true,
+  outputModes: ["human", "json"],
 })
   .name("create")
+  .option("--json", "Output a JSON write result")
   .description("Create a linear team")
   .option("-n, --name <name:string>", "Name of the team")
   .option("-d, --description <description:string>", "Description of the team")
@@ -27,8 +35,10 @@ export const createCommand = withUsageMetadata(new Command(), {
       key,
       private: isPrivate,
       interactive,
+      json,
     }) => {
-      interactive = interactive && Deno.stdout.isTerminal()
+      setMachineOutput(json ?? false)
+      interactive = !json && interactive && Deno.stdout.isTerminal()
 
       // If no flags are provided, use interactive mode
       const noFlagsProvided = !name && !description && !key &&
@@ -96,21 +106,17 @@ export const createCommand = withUsageMetadata(new Command(), {
             },
           })
 
-          if (!data.teamCreate.success) {
-            throw new CliError("Team creation failed")
-          }
+          assertMutationSuccess(data?.teamCreate, data?.teamCreate)
 
-          const team = data.teamCreate.team
-          if (!team) {
-            throw new CliError("Team creation failed - no team returned")
-          }
+          const team = data?.teamCreate.team
+          assertMutationReceipt(team, data?.teamCreate)
 
           console.log(`✓ Created team ${team.key}: ${team.name}`)
           return
         }
 
         // Fallback to flag-based mode
-        if (!name) {
+        if (!name?.trim()) {
           throw new ValidationError(
             "Team name is required when not using interactive mode",
             {
@@ -120,7 +126,7 @@ export const createCommand = withUsageMetadata(new Command(), {
           )
         }
 
-        console.log(`Creating team "${name}"`)
+        if (!json) console.log(`Creating team "${name}"`)
         spinner?.start()
 
         const createTeamMutation = gql(`
@@ -142,16 +148,16 @@ export const createCommand = withUsageMetadata(new Command(), {
           },
         })
 
-        if (!data.teamCreate.success) {
-          throw new CliError("Team creation failed")
-        }
+        assertMutationSuccess(data?.teamCreate, data?.teamCreate)
 
-        const team = data.teamCreate.team
-        if (!team) {
-          throw new CliError("Team creation failed - no team returned")
-        }
+        const team = data?.teamCreate.team
+        assertMutationReceipt(team, data?.teamCreate)
 
         spinner?.stop()
+        if (json) {
+          printWriteResult(team)
+          return
+        }
         console.log(`✓ Created team ${team.key}: ${team.name}`)
       } catch (error) {
         spinner?.stop()

@@ -1,10 +1,7 @@
 import { assertEquals, assertStringIncludes } from "@std/assert"
 import { fromFileUrl } from "@std/path"
 import { cli } from "../../src/cli.ts"
-import {
-  versionCommand,
-  type VersionDocument,
-} from "../../src/commands/version.ts"
+import { versionCommand } from "../../src/commands/version.ts"
 
 const main = fromFileUrl(new URL("../../src/main.ts", import.meta.url))
 const configReadPaths = [
@@ -60,8 +57,7 @@ Deno.test("version reports deterministic build identity offline without authenti
   assertEquals(
     result.stdout,
     "distribution: jihuanshe/linear\n" +
-      "version: 0.0.0-dev\n" +
-      "capabilities: usage-v1, guide-v1, delivery-v1\n",
+      "version: 0.0.0-dev\n",
   )
 })
 
@@ -71,43 +67,9 @@ Deno.test("version --json reports the stable build identity contract offline", a
   assertEquals(result.code, 0, result.stderr)
   assertEquals(result.stderr, "")
   assertEquals(JSON.parse(result.stdout), {
-    schemaVersion: 1,
     distribution: "jihuanshe/linear",
     version: "0.0.0-dev",
-    capabilities: ["usage-v1", "guide-v1", "delivery-v1"],
   })
-})
-
-Deno.test("version JSON v1 readers can ignore additive fields", () => {
-  const readV1 = (value: unknown) => {
-    const document = value as VersionDocument
-    return {
-      schemaVersion: document.schemaVersion,
-      distribution: document.distribution,
-      version: document.version,
-      supportsUsageV1: document.capabilities.includes("usage-v1"),
-    }
-  }
-  const document: VersionDocument = {
-    schemaVersion: 1,
-    distribution: "jihuanshe/linear",
-    version: "0.0.0-dev",
-    capabilities: ["usage-v1"],
-  }
-
-  assertEquals(
-    readV1({
-      ...document,
-      futureField: true,
-      capabilities: [...document.capabilities, "future-v1"],
-    }),
-    {
-      schemaVersion: 1,
-      distribution: "jihuanshe/linear",
-      version: "0.0.0-dev",
-      supportsUsageV1: true,
-    },
-  )
 })
 
 Deno.test("version keeps the existing root --version output", async () => {
@@ -125,7 +87,7 @@ Deno.test("version help describes its machine-readable output", async () => {
   assertEquals(result.stderr, "")
   assertStringIncludes(
     result.stdout,
-    "Show build identity and protocol capabilities",
+    "Show the CLI distribution and build version",
   )
   assertStringIncludes(result.stdout, "--json")
   assertStringIncludes(result.stdout, "Output machine-readable build identity")

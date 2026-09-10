@@ -3,7 +3,114 @@ import { assertEquals } from "@std/assert"
 import { stub } from "@std/testing/mock"
 import { updateCommand } from "../../../src/commands/project/project-update.ts"
 import { commonDenoArgs } from "../../utils/test-helpers.ts"
-import { MockLinearServer } from "../../utils/mock_linear_server.ts"
+import {
+  type MockGraphQLRequest,
+  MockLinearServer,
+} from "../../utils/mock_linear_server.ts"
+
+for (
+  const fields of [["name", "status"], ["lead", "team", "label"], [
+    "start-date",
+    "target-date",
+    "expect-field",
+  ]]
+) {
+  Deno.test(`project update rejects empty ${fields.join("/")} alongside valid description`, async () => {
+    const server = new MockLinearServer()
+    await server.start()
+    try {
+      for (const field of fields) {
+        const result = await new Deno.Command(Deno.execPath(), {
+          args: [
+            "run",
+            "--allow-all",
+            "--quiet",
+            "src/main.ts",
+            "project",
+            "update",
+            "550e8400-e29b-41d4-a716-446655440000",
+            "--unprotected",
+            "--description",
+            "Valid",
+            `--${field}`,
+            "",
+            "--json",
+          ],
+          env: {
+            LINEAR_API_KEY: "test-token",
+            LINEAR_GRAPHQL_ENDPOINT: server.getEndpoint(),
+          },
+        }).output()
+        assertEquals(result.code, 1, new TextDecoder().decode(result.stdout))
+        assertEquals(server.graphqlRequests, [])
+      }
+    } finally {
+      await server.stop()
+    }
+  })
+}
+
+Deno.test("project update empty inline description conflicts with file before requests", async () => {
+  const server = new MockLinearServer()
+  await server.start()
+  try {
+    const result = await new Deno.Command(Deno.execPath(), {
+      args: [
+        "run",
+        "--allow-all",
+        "--quiet",
+        "src/main.ts",
+        "project",
+        "update",
+        "550e8400-e29b-41d4-a716-446655440000",
+        "--unprotected",
+        "--description",
+        "",
+        "--description-file",
+        "does-not-exist.md",
+        "--json",
+      ],
+      env: {
+        LINEAR_API_KEY: "test-token",
+        LINEAR_GRAPHQL_ENDPOINT: server.getEndpoint(),
+      },
+    }).output()
+    assertEquals(result.code, 1)
+    assertEquals(
+      new TextDecoder().decode(result.stdout).includes(
+        "Cannot use --description and --description-file together",
+      ),
+      true,
+    )
+    assertEquals(server.graphqlRequests, [])
+  } finally {
+    await server.stop()
+  }
+})
+
+const originalProject = {
+  queryName: "ReadProject",
+  response: ({ variables }: MockGraphQLRequest) => ({
+    data: {
+      organization: { id: "workspace-1", urlKey: "test" },
+      project: {
+        id: variables.id,
+        name: "Original project",
+        description: "Original description",
+        startDate: null,
+        targetDate: null,
+        archivedAt: null,
+        status: { id: "original-status" },
+        lead: null,
+        teams: { nodes: [], pageInfo: { hasNextPage: false, endCursor: null } },
+        labels: {
+          nodes: [],
+          pageInfo: { hasNextPage: false, endCursor: null },
+        },
+      },
+    },
+  }),
+}
 
 // Test help output
 await cliffySnapshotTest({
@@ -24,32 +131,31 @@ await cliffySnapshotTest({
   meta: import.meta,
   colors: false,
   args: [
+    "--unprotected",
     "550e8400-e29b-41d4-a716-446655440000",
     "--name",
     "Updated Project Name",
   ],
   denoArgs: commonDenoArgs,
   async fn() {
-    const server = new MockLinearServer([
-      {
-        queryName: "UpdateProject",
-        response: {
-          data: {
-            projectUpdate: {
-              success: true,
-              project: {
-                id: "550e8400-e29b-41d4-a716-446655440000",
-                slugId: "updated-proj",
-                name: "Updated Project Name",
-                description: null,
-                url: "https://linear.app/test/project/updated-proj",
-                updatedAt: "2024-01-20T15:30:00Z",
-              },
+    const server = new MockLinearServer([originalProject, {
+      queryName: "UpdateProject",
+      response: {
+        data: {
+          projectUpdate: {
+            success: true,
+            project: {
+              id: "550e8400-e29b-41d4-a716-446655440000",
+              slugId: "updated-proj",
+              name: "Updated Project Name",
+              description: null,
+              url: "https://linear.app/test/project/updated-proj",
+              updatedAt: "2024-01-20T15:30:00Z",
             },
           },
         },
       },
-    ])
+    }])
 
     try {
       await server.start()
@@ -71,32 +177,31 @@ await cliffySnapshotTest({
   meta: import.meta,
   colors: false,
   args: [
+    "--unprotected",
     "550e8400-e29b-41d4-a716-446655440001",
     "--description",
     "New project description",
   ],
   denoArgs: commonDenoArgs,
   async fn() {
-    const server = new MockLinearServer([
-      {
-        queryName: "UpdateProject",
-        response: {
-          data: {
-            projectUpdate: {
-              success: true,
-              project: {
-                id: "550e8400-e29b-41d4-a716-446655440001",
-                slugId: "proj-desc",
-                name: "Test Project",
-                description: "New project description",
-                url: "https://linear.app/test/project/proj-desc",
-                updatedAt: "2024-01-20T15:30:00Z",
-              },
+    const server = new MockLinearServer([originalProject, {
+      queryName: "UpdateProject",
+      response: {
+        data: {
+          projectUpdate: {
+            success: true,
+            project: {
+              id: "550e8400-e29b-41d4-a716-446655440001",
+              slugId: "proj-desc",
+              name: "Test Project",
+              description: "New project description",
+              url: "https://linear.app/test/project/proj-desc",
+              updatedAt: "2024-01-20T15:30:00Z",
             },
           },
         },
       },
-    ])
+    }])
 
     try {
       await server.start()
@@ -112,54 +217,53 @@ await cliffySnapshotTest({
   },
 })
 
-// Test project update - status (requires GetProjectStatuses)
+// Test project update - status (requires GetProjectStatusesForUpdate)
 await cliffySnapshotTest({
   name: "Project Update Command - Update Status",
   meta: import.meta,
   colors: false,
   args: [
+    "--unprotected",
     "550e8400-e29b-41d4-a716-446655440002",
     "--status",
     "completed",
   ],
   denoArgs: commonDenoArgs,
   async fn() {
-    const server = new MockLinearServer([
-      {
-        queryName: "GetProjectStatuses",
-        response: {
-          data: {
-            projectStatuses: {
-              nodes: [
-                {
-                  id: "status-completed-id",
-                  name: "Completed",
-                  type: "completed",
-                },
-              ],
-            },
-          },
-        },
-      },
-      {
-        queryName: "UpdateProject",
-        response: {
-          data: {
-            projectUpdate: {
-              success: true,
-              project: {
-                id: "550e8400-e29b-41d4-a716-446655440002",
-                slugId: "proj-status",
-                name: "Test Project",
-                description: null,
-                url: "https://linear.app/test/project/proj-status",
-                updatedAt: "2024-01-20T15:30:00Z",
+    const server = new MockLinearServer([originalProject, {
+      queryName: "GetProjectStatusesForUpdate",
+      response: {
+        data: {
+          projectStatuses: {
+            pageInfo: { hasNextPage: false, endCursor: null },
+            nodes: [
+              {
+                id: "status-completed-id",
+                name: "Completed",
+                type: "completed",
               },
+            ],
+          },
+        },
+      },
+    }, {
+      queryName: "UpdateProject",
+      response: {
+        data: {
+          projectUpdate: {
+            success: true,
+            project: {
+              id: "550e8400-e29b-41d4-a716-446655440002",
+              slugId: "proj-status",
+              name: "Test Project",
+              description: null,
+              url: "https://linear.app/test/project/proj-status",
+              updatedAt: "2024-01-20T15:30:00Z",
             },
           },
         },
       },
-    ])
+    }])
 
     try {
       await server.start()
@@ -183,6 +287,7 @@ await cliffySnapshotTest({
   meta: import.meta,
   colors: false,
   args: [
+    "--unprotected",
     "550e8400-e29b-41d4-a716-446655440003",
     "--label",
     "Frontend",
@@ -191,54 +296,52 @@ await cliffySnapshotTest({
   ],
   denoArgs: commonDenoArgs,
   async fn() {
-    const server = new MockLinearServer([
-      {
-        queryName: "GetProjectLabelIdByName",
-        variables: { name: "Frontend" },
-        response: {
-          data: {
-            projectLabels: {
-              nodes: [{ id: "project-label-frontend", name: "Frontend" }],
+    const server = new MockLinearServer([originalProject, {
+      queryName: "GetProjectLabelIdByName",
+      variables: { name: "Frontend" },
+      response: {
+        data: {
+          projectLabels: {
+            pageInfo: { hasNextPage: false, endCursor: null },
+            nodes: [{ id: "project-label-frontend", name: "Frontend" }],
+          },
+        },
+      },
+    }, {
+      queryName: "GetProjectLabelIdByName",
+      variables: { name: "Backend" },
+      response: {
+        data: {
+          projectLabels: {
+            pageInfo: { hasNextPage: false, endCursor: null },
+            nodes: [{ id: "project-label-backend", name: "Backend" }],
+          },
+        },
+      },
+    }, {
+      queryName: "UpdateProject",
+      variables: {
+        id: "550e8400-e29b-41d4-a716-446655440003",
+        input: {
+          labelIds: ["project-label-frontend", "project-label-backend"],
+        },
+      },
+      response: {
+        data: {
+          projectUpdate: {
+            success: true,
+            project: {
+              id: "550e8400-e29b-41d4-a716-446655440003",
+              slugId: "proj-labels",
+              name: "Test Project",
+              description: null,
+              url: "https://linear.app/test/project/proj-labels",
+              updatedAt: "2024-01-20T15:30:00Z",
             },
           },
         },
       },
-      {
-        queryName: "GetProjectLabelIdByName",
-        variables: { name: "Backend" },
-        response: {
-          data: {
-            projectLabels: {
-              nodes: [{ id: "project-label-backend", name: "Backend" }],
-            },
-          },
-        },
-      },
-      {
-        queryName: "UpdateProject",
-        variables: {
-          id: "550e8400-e29b-41d4-a716-446655440003",
-          input: {
-            labelIds: ["project-label-frontend", "project-label-backend"],
-          },
-        },
-        response: {
-          data: {
-            projectUpdate: {
-              success: true,
-              project: {
-                id: "550e8400-e29b-41d4-a716-446655440003",
-                slugId: "proj-labels",
-                name: "Test Project",
-                description: null,
-                url: "https://linear.app/test/project/proj-labels",
-                updatedAt: "2024-01-20T15:30:00Z",
-              },
-            },
-          },
-        },
-      },
-    ])
+    }])
 
     try {
       await server.start()
@@ -256,41 +359,39 @@ await cliffySnapshotTest({
 
 // Case-insensitive duplicate label names collapse to a single ID.
 Deno.test("Project Update Command - dedups case-insensitive labels", async () => {
-  const server = new MockLinearServer([
-    {
-      // No `variables` → matches both "Frontend" and "frontend" lookups.
-      queryName: "GetProjectLabelIdByName",
-      response: {
-        data: {
-          projectLabels: {
-            nodes: [{ id: "project-label-frontend", name: "Frontend" }],
+  const server = new MockLinearServer([originalProject, {
+    // No `variables` → matches both "Frontend" and "frontend" lookups.
+    queryName: "GetProjectLabelIdByName",
+    response: {
+      data: {
+        projectLabels: {
+          pageInfo: { hasNextPage: false, endCursor: null },
+          nodes: [{ id: "project-label-frontend", name: "Frontend" }],
+        },
+      },
+    },
+  }, {
+    queryName: "UpdateProject",
+    variables: {
+      id: "550e8400-e29b-41d4-a716-446655440004",
+      input: { labelIds: ["project-label-frontend"] },
+    },
+    response: {
+      data: {
+        projectUpdate: {
+          success: true,
+          project: {
+            id: "550e8400-e29b-41d4-a716-446655440004",
+            slugId: "proj-dedup",
+            name: "Test Project",
+            description: null,
+            url: "https://linear.app/test/project/proj-dedup",
+            updatedAt: "2024-01-20T15:30:00Z",
           },
         },
       },
     },
-    {
-      queryName: "UpdateProject",
-      variables: {
-        id: "550e8400-e29b-41d4-a716-446655440004",
-        input: { labelIds: ["project-label-frontend"] },
-      },
-      response: {
-        data: {
-          projectUpdate: {
-            success: true,
-            project: {
-              id: "550e8400-e29b-41d4-a716-446655440004",
-              slugId: "proj-dedup",
-              name: "Test Project",
-              description: null,
-              url: "https://linear.app/test/project/proj-dedup",
-              updatedAt: "2024-01-20T15:30:00Z",
-            },
-          },
-        },
-      },
-    },
-  ])
+  }])
 
   const logs: string[] = []
   const logStub = stub(console, "log", (...args: unknown[]) => {
@@ -302,6 +403,7 @@ Deno.test("Project Update Command - dedups case-insensitive labels", async () =>
     Deno.env.set("LINEAR_GRAPHQL_ENDPOINT", server.getEndpoint())
     Deno.env.set("LINEAR_API_KEY", "Bearer test-token")
     await updateCommand.parse([
+      "--unprotected",
       "550e8400-e29b-41d4-a716-446655440004",
       "--label",
       "Frontend",
@@ -322,24 +424,29 @@ Deno.test("Project Update Command - dedups case-insensitive labels", async () =>
 // An unknown --label fails before the update mutation (no UpdateProject mock is
 // configured, so a mutation attempt would surface a different error).
 Deno.test("Project Update Command - rejects an unknown label before mutating", async () => {
-  const server = new MockLinearServer([
-    {
-      queryName: "GetProjectLabelIdByName",
-      variables: { name: "Existing" },
-      response: {
-        data: {
-          projectLabels: {
-            nodes: [{ id: "project-label-existing", name: "Existing" }],
-          },
+  const server = new MockLinearServer([originalProject, {
+    queryName: "GetProjectLabelIdByName",
+    variables: { name: "Existing" },
+    response: {
+      data: {
+        projectLabels: {
+          pageInfo: { hasNextPage: false, endCursor: null },
+          nodes: [{ id: "project-label-existing", name: "Existing" }],
         },
       },
     },
-    {
-      queryName: "GetProjectLabelIdByName",
-      variables: { name: "Missing" },
-      response: { data: { projectLabels: { nodes: [] } } },
+  }, {
+    queryName: "GetProjectLabelIdByName",
+    variables: { name: "Missing" },
+    response: {
+      data: {
+        projectLabels: {
+          pageInfo: { hasNextPage: false, endCursor: null },
+          nodes: [],
+        },
+      },
     },
-  ])
+  }])
 
   const errorLogs: string[] = []
   const errorStub = stub(console, "error", (...args: unknown[]) => {
@@ -355,6 +462,7 @@ Deno.test("Project Update Command - rejects an unknown label before mutating", a
     Deno.env.set("LINEAR_GRAPHQL_ENDPOINT", server.getEndpoint())
     Deno.env.set("LINEAR_API_KEY", "Bearer test-token")
     await updateCommand.parse([
+      "--unprotected",
       "550e8400-e29b-41d4-a716-446655440005",
       "--label",
       "Existing",
@@ -393,6 +501,7 @@ Deno.test("Project Update Command - rejects an empty label", async () => {
   let exited = false
   try {
     await updateCommand.parse([
+      "--unprotected",
       "550e8400-e29b-41d4-a716-446655440006",
       "--label",
       "   ",
@@ -414,41 +523,39 @@ Deno.test("Project Update Command - rejects an empty label", async () => {
 
 // --label alone satisfies the "at least one update option" requirement.
 Deno.test("Project Update Command - label alone is a valid update", async () => {
-  const server = new MockLinearServer([
-    {
-      queryName: "GetProjectLabelIdByName",
-      variables: { name: "Frontend" },
-      response: {
-        data: {
-          projectLabels: {
-            nodes: [{ id: "project-label-frontend", name: "Frontend" }],
+  const server = new MockLinearServer([originalProject, {
+    queryName: "GetProjectLabelIdByName",
+    variables: { name: "Frontend" },
+    response: {
+      data: {
+        projectLabels: {
+          pageInfo: { hasNextPage: false, endCursor: null },
+          nodes: [{ id: "project-label-frontend", name: "Frontend" }],
+        },
+      },
+    },
+  }, {
+    queryName: "UpdateProject",
+    variables: {
+      id: "550e8400-e29b-41d4-a716-446655440007",
+      input: { labelIds: ["project-label-frontend"] },
+    },
+    response: {
+      data: {
+        projectUpdate: {
+          success: true,
+          project: {
+            id: "550e8400-e29b-41d4-a716-446655440007",
+            slugId: "proj-label-only",
+            name: "Test Project",
+            description: null,
+            url: "https://linear.app/test/project/proj-label-only",
+            updatedAt: "2024-01-20T15:30:00Z",
           },
         },
       },
     },
-    {
-      queryName: "UpdateProject",
-      variables: {
-        id: "550e8400-e29b-41d4-a716-446655440007",
-        input: { labelIds: ["project-label-frontend"] },
-      },
-      response: {
-        data: {
-          projectUpdate: {
-            success: true,
-            project: {
-              id: "550e8400-e29b-41d4-a716-446655440007",
-              slugId: "proj-label-only",
-              name: "Test Project",
-              description: null,
-              url: "https://linear.app/test/project/proj-label-only",
-              updatedAt: "2024-01-20T15:30:00Z",
-            },
-          },
-        },
-      },
-    },
-  ])
+  }])
 
   const logs: string[] = []
   const logStub = stub(console, "log", (...args: unknown[]) => {
@@ -460,6 +567,7 @@ Deno.test("Project Update Command - label alone is a valid update", async () => 
     Deno.env.set("LINEAR_GRAPHQL_ENDPOINT", server.getEndpoint())
     Deno.env.set("LINEAR_API_KEY", "Bearer test-token")
     await updateCommand.parse([
+      "--unprotected",
       "550e8400-e29b-41d4-a716-446655440007",
       "--label",
       "Frontend",
@@ -486,7 +594,10 @@ Deno.test("Project Update Command - requires at least one option", async () => {
 
   let exited = false
   try {
-    await updateCommand.parse(["550e8400-e29b-41d4-a716-446655440008"])
+    await updateCommand.parse([
+      "--unprotected",
+      "550e8400-e29b-41d4-a716-446655440008",
+    ])
   } catch (e) {
     if (!(e instanceof Error) || e.message !== "EXIT") throw e
     exited = true
@@ -506,19 +617,17 @@ Deno.test("Project Update Command - requires at least one option", async () => {
 })
 
 Deno.test("Project Update Command - rejects a missing result entity", async () => {
-  const server = new MockLinearServer([
-    {
-      queryName: "UpdateProject",
-      response: {
-        data: {
-          projectUpdate: {
-            success: true,
-            project: null,
-          },
+  const server = new MockLinearServer([originalProject, {
+    queryName: "UpdateProject",
+    response: {
+      data: {
+        projectUpdate: {
+          success: true,
+          project: null,
         },
       },
     },
-  ])
+  }])
   const errorLogs: string[] = []
   const errorStub = stub(console, "error", (...args: unknown[]) => {
     errorLogs.push(args.map(String).join(" "))
@@ -532,6 +641,7 @@ Deno.test("Project Update Command - rejects a missing result entity", async () =
     Deno.env.set("LINEAR_GRAPHQL_ENDPOINT", server.getEndpoint())
     Deno.env.set("LINEAR_API_KEY", "Bearer test-token")
     await updateCommand.parse([
+      "--unprotected",
       "550e8400-e29b-41d4-a716-446655440009",
       "--name",
       "Updated Project",
@@ -548,7 +658,7 @@ Deno.test("Project Update Command - rejects a missing result entity", async () =
 
   assertEquals(
     errorLogs.some((line) =>
-      line.includes("Project update returned no project")
+      line.includes("Mutation succeeded but returned no object identity")
     ),
     true,
   )

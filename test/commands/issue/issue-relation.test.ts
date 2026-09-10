@@ -1,13 +1,71 @@
 import { snapshotTest } from "@cliffy/testing"
-import { assertEquals, assertStringIncludes } from "@std/assert"
+import { assertEquals, assertRejects, assertStringIncludes } from "@std/assert"
 import { fromFileUrl } from "@std/path"
-import { relationCommand } from "../../../src/commands/issue/issue-relation.ts"
+import {
+  addIssueRelation,
+  prepareIssueRelation,
+  relationCommand,
+  type RelationType,
+} from "../../../src/commands/issue/issue-relation.ts"
+import { WriteError } from "../../../src/utils/errors.ts"
 import {
   commonDenoArgs,
   setupMockLinearServer,
 } from "../../utils/test-helpers.ts"
 
 const main = fromFileUrl(new URL("../../../src/main.ts", import.meta.url))
+const source = {
+  id: "11111111-1111-4111-8111-111111111111",
+  identifier: "ENG-123",
+  title: "Source",
+  url: "https://linear.app/test/issue/ENG-123",
+}
+const target = {
+  id: "22222222-2222-4222-8222-222222222222",
+  identifier: "ENG-456",
+  title: "Target",
+  url: "https://linear.app/test/issue/ENG-456",
+}
+const terminal = { hasNextPage: false, endCursor: null }
+const empty = { nodes: [], pageInfo: terminal }
+const outgoing = (type = "related") => ({
+  id: "relation-existing",
+  type,
+  relatedIssue: {
+    id: target.id,
+    identifier: target.identifier,
+    title: target.title,
+  },
+})
+const incoming = (type = "related") => ({
+  id: "relation-incoming",
+  type,
+  issue: { id: target.id, identifier: target.identifier, title: target.title },
+})
+const headers = [source, target].map((issue) => ({
+  queryName: "GetIssueHeader",
+  variables: { id: issue.identifier },
+  response: { data: { issue } },
+}))
+const inventory = (
+  relations: unknown = empty,
+  inverseRelations: unknown = empty,
+) => ({
+  queryName: "GetExistingIssueRelations",
+  variables: { issueId: source.id },
+  response: { data: { issue: { relations, inverseRelations } } },
+})
+const created = {
+  queryName: "CreateIssueRelation",
+  response: {
+    data: {
+      issueRelationCreate: {
+        success: true,
+        issueRelation: { id: "relation-created" },
+      },
+    },
+  },
+}
 
 async function runRelation(args: string[]) {
   const result = await new Deno.Command(Deno.execPath(), {
@@ -23,7 +81,6 @@ async function runRelation(args: string[]) {
   }
 }
 
-// Test help output
 await snapshotTest({
   name: "Issue Relation Add Command - Help Text",
   meta: import.meta,
@@ -36,244 +93,307 @@ await snapshotTest({
   },
 })
 
-// Test: relation add with "blocks" - success message shows original order
-await snapshotTest({
-  name: "Issue Relation Add Command - blocks",
-  meta: import.meta,
-  colors: false,
-  args: ["add", "ENG-123", "blocks", "ENG-456"],
-  denoArgs: commonDenoArgs,
-  async fn() {
-    const { cleanup } = await setupMockLinearServer([
-      {
-        queryName: "GetIssueId",
-        variables: { id: "ENG-123" },
-        response: {
-          data: { issue: { id: "issue-id-123" } },
-        },
-      },
-      {
-        queryName: "GetIssueId",
-        variables: { id: "ENG-456" },
-        response: {
-          data: { issue: { id: "issue-id-456" } },
-        },
-      },
-      {
-        queryName: "GetExistingIssueRelations",
-        variables: { issueId: "issue-id-123" },
-        response: {
-          data: {
-            issue: {
-              relations: {
-                nodes: [],
-                pageInfo: { hasNextPage: false },
-              },
-              inverseRelations: {
-                nodes: [],
-                pageInfo: { hasNextPage: false },
-              },
-            },
-          },
-        },
-      },
-      {
-        queryName: "CreateIssueRelation",
-        response: {
-          data: {
-            issueRelationCreate: {
-              success: true,
-              issueRelation: { id: "relation-id-1" },
-            },
-          },
-        },
-      },
-    ])
-
-    try {
-      await relationCommand.parse()
-    } finally {
-      await cleanup()
-    }
-  },
-})
-
-// Test: relation add with "blocked-by" - success message should show original user-specified order
-// i.e. "ENG-123 blocked-by ENG-456" NOT "ENG-456 blocked-by ENG-123"
-await snapshotTest({
-  name: "Issue Relation Add Command - blocked-by shows correct order",
-  meta: import.meta,
-  colors: false,
-  args: ["add", "ENG-123", "blocked-by", "ENG-456"],
-  denoArgs: commonDenoArgs,
-  async fn() {
-    const { cleanup } = await setupMockLinearServer([
-      {
-        queryName: "GetIssueId",
-        variables: { id: "ENG-123" },
-        response: {
-          data: { issue: { id: "issue-id-123" } },
-        },
-      },
-      {
-        queryName: "GetIssueId",
-        variables: { id: "ENG-456" },
-        response: {
-          data: { issue: { id: "issue-id-456" } },
-        },
-      },
-      {
-        queryName: "GetExistingIssueRelations",
-        variables: { issueId: "issue-id-123" },
-        response: {
-          data: {
-            issue: {
-              relations: {
-                nodes: [],
-                pageInfo: { hasNextPage: false },
-              },
-              inverseRelations: {
-                nodes: [],
-                pageInfo: { hasNextPage: false },
-              },
-            },
-          },
-        },
-      },
-      {
-        queryName: "CreateIssueRelation",
-        response: {
-          data: {
-            issueRelationCreate: {
-              success: true,
-              // API is called with swapped IDs (ENG-456 blocks ENG-123),
-              // but we should display the user-specified order in the message
-              issueRelation: { id: "relation-id-2" },
-            },
-          },
-        },
-      },
-    ])
-
-    try {
-      await relationCommand.parse()
-    } finally {
-      await cleanup()
-    }
-  },
-})
+for (
+  const [type, name] of [["blocks", "Issue Relation Add Command - blocks"], [
+    "blocked-by",
+    "Issue Relation Add Command - blocked-by shows correct order",
+  ]]
+) {
+  await snapshotTest({
+    name,
+    meta: import.meta,
+    colors: false,
+    args: ["add", "ENG-123", type, "ENG-456"],
+    denoArgs: commonDenoArgs,
+    async fn() {
+      const { cleanup } = await setupMockLinearServer([
+        ...headers,
+        inventory(),
+        created,
+      ])
+      try {
+        await relationCommand.parse()
+      } finally {
+        await cleanup()
+      }
+    },
+  })
+}
 
 Deno.test("Issue Relation Add Command - equivalent relation is idempotent", async () => {
-  const { cleanup } = await setupMockLinearServer([
-    {
-      queryName: "GetIssueId",
-      variables: { id: "ENG-123" },
-      response: { data: { issue: { id: "issue-id-123" } } },
-    },
-    {
-      queryName: "GetIssueId",
-      variables: { id: "ENG-456" },
-      response: { data: { issue: { id: "issue-id-456" } } },
-    },
-    {
-      queryName: "GetExistingIssueRelations",
-      variables: { issueId: "issue-id-123" },
-      response: {
-        data: {
-          issue: {
-            relations: {
-              nodes: [{
-                type: "related",
-                relatedIssue: {
-                  id: "issue-id-456",
-                  identifier: "ENG-456",
-                },
-              }],
-              pageInfo: { hasNextPage: false },
-            },
-            inverseRelations: {
-              nodes: [],
-              pageInfo: { hasNextPage: false },
-            },
-          },
+  const { server, cleanup } = await setupMockLinearServer([
+    ...headers,
+    inventory({ nodes: [outgoing()], pageInfo: terminal }),
+  ])
+  let writes = 0
+  try {
+    const result = await addIssueRelation(
+      source.identifier,
+      "related",
+      target.identifier,
+      {
+        beforeWrite: () => {
+          writes++
+          return Promise.resolve()
         },
       },
-    },
-  ])
-
-  try {
-    const result = await runRelation([
-      "add",
-      "ENG-123",
-      "related",
-      "ENG-456",
-    ])
-    assertEquals(result.code, 0)
-    assertEquals(result.stderr, "")
-    assertStringIncludes(
-      result.stdout,
-      "Relation already exists: ENG-123 related ENG-456",
     )
+    assertEquals(result.effect, "none")
+    assertEquals(result.data.relation.id, "relation-existing")
+    assertEquals(writes, 0)
+    assertEquals(server.graphqlRequests.length, 3)
   } finally {
     await cleanup()
   }
 })
 
 Deno.test("Issue Relation Add Command - different relation refuses replacement", async () => {
-  const { cleanup } = await setupMockLinearServer([
+  const { server, cleanup } = await setupMockLinearServer([
+    ...headers,
+    inventory({ nodes: [outgoing()], pageInfo: terminal }),
+  ])
+  let writes = 0
+  try {
+    await assertRejects(
+      () =>
+        addIssueRelation(source.identifier, "blocks", target.identifier, {
+          beforeWrite: () => {
+            writes++
+            return Promise.resolve()
+          },
+        }),
+      Error,
+      "existing: related ENG-456",
+    )
+    assertEquals(writes, 0)
+    assertEquals(
+      server.graphqlRequests.some((r) => r.query.includes("mutation")),
+      false,
+    )
+  } finally {
+    await cleanup()
+  }
+})
+
+for (
+  const type of [
+    "related",
+    "blocks",
+    "blocked-by",
+    "duplicate",
+  ] satisfies RelationType[]
+) {
+  Deno.test(`Shared relation operation ${type} calls beforeWrite after preparation and sends UUIDs`, async () => {
+    const { server, cleanup } = await setupMockLinearServer([
+      ...headers,
+      inventory(),
+      created,
+    ])
+    let writes = 0
+    try {
+      const result = await addIssueRelation(
+        source.identifier,
+        type,
+        target.identifier,
+        {
+          beforeWrite: () => {
+            assertEquals(server.graphqlRequests.length, 3)
+            writes++
+            return Promise.resolve()
+          },
+        },
+      )
+      assertEquals(result.effect, "applied")
+      assertEquals(result.data.relation.id, "relation-created")
+      assertEquals(writes, 1)
+      assertEquals(server.graphqlRequests[3].variables, {
+        input: {
+          issueId: type === "blocked-by" ? target.id : source.id,
+          relatedIssueId: type === "blocked-by" ? source.id : target.id,
+          type: type === "blocked-by" ? "blocks" : type,
+        },
+      })
+      assertEquals(
+        server.graphqlRequests.filter((r) => r.query.includes("GetIssueHeader"))
+          .length,
+        2,
+      )
+    } finally {
+      await cleanup()
+    }
+  })
+}
+
+Deno.test("Relation preparation completes incoming pages and detects a late conflict", async () => {
+  const { server, cleanup } = await setupMockLinearServer([
+    ...headers,
+    inventory(empty, {
+      nodes: [],
+      pageInfo: { hasNextPage: true, endCursor: "incoming-next" },
+    }),
     {
-      queryName: "GetIssueId",
-      variables: { id: "ENG-123" },
-      response: { data: { issue: { id: "issue-id-123" } } },
-    },
-    {
-      queryName: "GetIssueId",
-      variables: { id: "ENG-456" },
-      response: { data: { issue: { id: "issue-id-456" } } },
-    },
-    {
-      queryName: "GetExistingIssueRelations",
-      variables: { issueId: "issue-id-123" },
+      queryName: "GetIssueIncomingRelations",
+      variables: { issueId: source.id, after: "incoming-next", first: 100 },
       response: {
         data: {
           issue: {
-            relations: {
-              nodes: [{
-                type: "related",
-                relatedIssue: {
-                  id: "issue-id-456",
-                  identifier: "ENG-456",
-                },
-              }],
-              pageInfo: { hasNextPage: false },
-            },
             inverseRelations: {
-              nodes: [],
-              pageInfo: { hasNextPage: false },
+              nodes: [incoming("blocks")],
+              pageInfo: terminal,
             },
           },
         },
       },
     },
   ])
+  try {
+    await assertRejects(
+      () =>
+        prepareIssueRelation(source.identifier, "related", target.identifier),
+      Error,
+      "existing: blocked-by ENG-456",
+    )
+    assertEquals(server.graphqlRequests.length, 4)
+  } finally {
+    await cleanup()
+  }
+})
 
+Deno.test("Relation preparation rejects missing cursors before the write callback", async () => {
+  const { server, cleanup } = await setupMockLinearServer([
+    ...headers,
+    inventory({ nodes: [], pageInfo: { hasNextPage: true, endCursor: null } }),
+  ])
+  let writes = 0
+  try {
+    await assertRejects(
+      () =>
+        addIssueRelation(source.identifier, "blocks", target.identifier, {
+          beforeWrite: () => {
+            writes++
+            return Promise.resolve()
+          },
+        }),
+      Error,
+      "empty or repeated cursor",
+    )
+    assertEquals(writes, 0)
+    assertEquals(server.graphqlRequests.length, 3)
+  } finally {
+    await cleanup()
+  }
+})
+
+Deno.test("Relation callback failure prevents dispatch", async () => {
+  const { server, cleanup } = await setupMockLinearServer([
+    ...headers,
+    inventory(),
+    created,
+  ])
+  try {
+    await assertRejects(
+      () =>
+        addIssueRelation(source.identifier, "related", target.identifier, {
+          beforeWrite: () => {
+            throw new Error("Checkpoint write failed")
+          },
+        }),
+      Error,
+      "Checkpoint write failed",
+    )
+    assertEquals(server.graphqlRequests.length, 3)
+  } finally {
+    await cleanup()
+  }
+})
+
+for (
+  const payload of [{ success: false }, { success: true, issueRelation: null }]
+) {
+  Deno.test(`Relation effect preserves mutation acknowledgement success=${payload.success}`, async () => {
+    const { server, cleanup } = await setupMockLinearServer([
+      ...headers,
+      inventory(),
+      {
+        queryName: "CreateIssueRelation",
+        response: { data: { issueRelationCreate: payload } },
+      },
+    ])
+    try {
+      const error = await assertRejects(
+        () => addIssueRelation(source.identifier, "related", target.identifier),
+        WriteError,
+      )
+      assertEquals(error.effect, payload.success ? "applied" : "unknown")
+      assertEquals(
+        server.graphqlRequests.filter((r) => r.query.includes("mutation"))
+          .length,
+        1,
+      )
+    } finally {
+      await cleanup()
+    }
+  })
+}
+
+Deno.test("Relation JSON uses one result and inverse related deletion uses the existing edge ID", async () => {
+  const { server, cleanup } = await setupMockLinearServer([
+    ...headers,
+    inventory(empty, { nodes: [incoming()], pageInfo: terminal }),
+    {
+      queryName: "DeleteIssueRelation",
+      variables: { id: "relation-incoming" },
+      response: { data: { issueRelationDelete: { success: true } } },
+    },
+  ])
   try {
     const result = await runRelation([
-      "add",
-      "ENG-123",
-      "blocks",
-      "ENG-456",
+      "delete",
+      source.identifier,
+      "related",
+      target.identifier,
+      "--json",
     ])
-    assertEquals(result.code, 1)
-    assertEquals(result.stdout, "")
-    assertStringIncludes(
-      result.stderr,
-      "Cannot add ENG-123 blocks ENG-456: existing: related ENG-456",
+    assertEquals(result.code, 0, result.stdout + result.stderr)
+    assertEquals(result.stderr, "")
+    const data = JSON.parse(result.stdout)
+    assertEquals(data.effect, "applied")
+    assertEquals(data.data.relation.id, "relation-incoming")
+    assertEquals(
+      server.graphqlRequests.filter((r) => r.query.includes("mutation")).length,
+      1,
     )
-    assertStringIncludes(
-      result.stderr,
-      "Delete the existing relation explicitly",
+  } finally {
+    await cleanup()
+  }
+})
+
+Deno.test("Relation JSON no-op has no mutation and list retains complete connections", async () => {
+  const { server, cleanup } = await setupMockLinearServer([
+    ...headers,
+    inventory(empty, { nodes: [incoming()], pageInfo: terminal }),
+  ])
+  try {
+    const add = await runRelation([
+      "add",
+      source.identifier,
+      "related",
+      target.identifier,
+      "--json",
+    ])
+    assertEquals(add.code, 0, add.stdout + add.stderr)
+    assertEquals(JSON.parse(add.stdout).effect, "none")
+    const list = await runRelation(["list", source.identifier, "--json"])
+    assertEquals(list.code, 0, list.stdout + list.stderr)
+    assertEquals(
+      JSON.parse(list.stdout).issue.inverseRelations.pageInfo,
+      terminal,
     )
+    assertEquals(
+      server.graphqlRequests.some((r) => r.query.includes("mutation")),
+      false,
+    )
+    assertStringIncludes(list.stdout, "relation-incoming")
   } finally {
     await cleanup()
   }

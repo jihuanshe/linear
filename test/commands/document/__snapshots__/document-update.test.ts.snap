@@ -10,24 +10,31 @@ Interactive: true
 
 Description:
 
-  Update an existing document                                                      
-                                                                                   
-  For API Markdown bodies, prefer a bare Linear URL for mentions.                  
-  Named profile links can also mention people; \`@name\` handling varies by body.    
-  Get a person's canonical \`url\` from                                              
-  \`linear team members <TEAM> --json\` or \`linear user list --json\`.                
-  Run \`linear guide markdown\` for mentions, collapsible sections and rewrite risks.
+  Update an existing document                                                                
+                                                                                             
+  Without --content, --content-file, or --edit, read piped Markdown through EOF.             
+  Nonempty stdin can be combined with metadata updates; empty stdin leaves content unchanged.
+                                                                                             
+  For API Markdown bodies, prefer a bare Linear URL for mentions.                            
+  Named profile links can also mention people; \`@name\` handling varies by body.              
+  Get a person's canonical \`url\` from                                                        
+  \`linear team members <TEAM> --json\` or \`linear user list --json\`.                          
+  Run \`linear guide markdown\` for mentions, collapsible sections and rewrite risks.          
 
 Options:
 
-  -h, --help                     - Show this help.                                                     
-  -t, --title         <title>    - New title for the document                                          
-  -c, --content       <content>  - New markdown content (inline; empty string clears it)               
-  -f, --content-file  <path>     - Read new content from file                                          
-  --icon              <icon>     - New icon (emoji)                                                    
-  --project           <project>  - Attach to project (UUID, slug ID, or name)                          
-  -e, --edit                     - Open current content in \$EDITOR for editing                         
-  --force                        - Update content even when document comments may lose inline anchors  
+  -h, --help                     - Show this help.                                                                              
+  -t, --title         <title>    - New title for the document; empty string clears it                                           
+  -c, --content       <content>  - New markdown content (inline; empty string clears it)                                        
+  -f, --content-file  <path>     - Read new content from file                                                                   
+  --icon              <icon>     - New icon (emoji)                                                                             
+  --project           <project>  - Attach to project (UUID, slug ID, or name)                                                   
+  -e, --edit                     - Open current content in \$EDITOR for editing                                                  
+  --force                        - Update content even when document comments may lose inline anchors                           
+  --json                         - Output the write result as JSON; never open an editor                                        
+  --base-file         <path>     - Original view --json output, saved before preparing the update                               
+  --unprotected                  - Explicitly skip original-value comparison; inline-comment protection still requires --force  
+  --expect-field      <field>    - Also require this API field to match the original basis                                      
 
 "
 stderr:

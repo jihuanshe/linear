@@ -1,10 +1,10 @@
 import { Command } from "@cliffy/command"
 import { withUsageMetadata } from "../usage.ts"
+import { printWriteResult } from "../../utils/write-result.ts"
 import { Input, Select } from "../../utils/prompt.ts"
 import { gql } from "../../__codegen__/gql.ts"
 import type { ProjectCreateInput } from "../../__codegen__/graphql.ts"
 import { getGraphQLClient } from "../../utils/graphql.ts"
-import type { GraphQLClient } from "graphql-request"
 import {
   getAllTeams,
   getProjectLabelIdByName,
@@ -14,7 +14,8 @@ import {
 } from "../../utils/linear.ts"
 import { shouldShowSpinner } from "../../utils/hyperlink.ts"
 import {
-  CliError,
+  assertMutationReceipt,
+  assertMutationSuccess,
   handleError,
   NotFoundError,
   ValidationError,
@@ -50,14 +51,6 @@ const GetProjectStatuses = gql(`
   }
 `)
 
-const AddProjectToInitiative = gql(`
-  mutation AddProjectToInitiativeForCreate($input: InitiativeToProjectCreateInput!) {
-    initiativeToProjectCreate(input: $input) {
-      success
-    }
-  }
-`)
-
 const PRIORITY_MAPPING: Record<string, number> = {
   "none": 0,
   "urgent": 1,
@@ -76,64 +69,6 @@ function parsePriority(priority: string): number {
   return mapped
 }
 
-async function resolveInitiativeId(
-  client: GraphQLClient,
-  idOrSlugOrName: string,
-): Promise<string | undefined> {
-  // Try as UUID first
-  if (
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
-      idOrSlugOrName,
-    )
-  ) {
-    return idOrSlugOrName
-  }
-
-  // Try as slug
-  const slugQuery = gql(`
-    query GetInitiativeBySlugForCreate($slugId: String!) {
-      initiatives(filter: { slugId: { eq: $slugId } }) {
-        nodes {
-          id
-          slugId
-        }
-      }
-    }
-  `)
-
-  try {
-    const result = await client.request(slugQuery, { slugId: idOrSlugOrName })
-    if (result.initiatives?.nodes?.length > 0) {
-      return result.initiatives.nodes[0].id
-    }
-  } catch {
-    // Continue to name lookup
-  }
-
-  // Try as name
-  const nameQuery = gql(`
-    query GetInitiativeByNameForCreate($name: String!) {
-      initiatives(filter: { name: { eqIgnoreCase: $name } }) {
-        nodes {
-          id
-          name
-        }
-      }
-    }
-  `)
-
-  try {
-    const result = await client.request(nameQuery, { name: idOrSlugOrName })
-    if (result.initiatives?.nodes?.length > 0) {
-      return result.initiatives.nodes[0].id
-    }
-  } catch {
-    // Not found
-  }
-
-  return undefined
-}
-
 export async function resolveProjectContent(
   content: string | undefined,
   contentFile: string | undefined,
@@ -146,6 +81,9 @@ export async function resolveProjectContent(
 
   if (contentFile == null) {
     return content
+  }
+  if (contentFile === "") {
+    throw new ValidationError("Content file path cannot be empty")
   }
 
   try {
@@ -164,67 +102,119 @@ export const createCommand = withUsageMetadata(new Command(), {
   interactive: true,
 })
   .name("create")
-  .description("Create a new Linear project")
-  .option("-n, --name <name:string>", "Project name (required)")
+  .description(
+    "Create a new Linear project; link it separately with initiative add-project",
+  )
+  .option("-n, --name <name:string>", "Project name (required)", {
+    preserveEmpty: true,
+  })
   .option(
     "-d, --description <description:string>",
     `Project description (max ${PROJECT_DESCRIPTION_MAX_LENGTH} characters, enforced by Linear's API)`,
+    { preserveEmpty: true },
   )
   .option(
     "-f, --description-file <path:string>",
     `Read project description from file (still subject to the ${PROJECT_DESCRIPTION_MAX_LENGTH}-character API limit)`,
+    { preserveEmpty: true },
   )
-  .option("--content <markdown:string>", "Project overview markdown")
+  .option("--content <markdown:string>", "Project overview markdown", {
+    preserveEmpty: true,
+  })
   .option(
     "--content-file <path:string>",
     "Read project overview markdown from a file",
+    { preserveEmpty: true },
   )
   .option(
     "-t, --team <team:string>",
     "Team key (required, can be repeated for multiple teams)",
-    { collect: true },
+    { collect: true, preserveEmpty: true },
   )
   .option(
     "-l, --lead <lead:string>",
     "Project lead (user UUID, username, name, email, 'self', or '@me')",
+    { preserveEmpty: true },
   )
   .option(
     "-s, --status <status:string>",
     "Project status (planned, started, paused, completed, canceled, backlog)",
+    { preserveEmpty: true },
   )
-  .option("--start-date <startDate:string>", "Start date (YYYY-MM-DD)")
+  .option("--start-date <startDate:string>", "Start date (YYYY-MM-DD)", {
+    preserveEmpty: true,
+  })
   .option(
     "--target-date <targetDate:string>",
     "Target completion date (YYYY-MM-DD)",
+    { preserveEmpty: true },
   )
   .option(
     "--priority <priority:string>",
     "Project priority (none, urgent, high, medium, low)",
+    { preserveEmpty: true },
   )
   .option(
     "--label <label:string>",
     "Project label associated with the project. May be repeated.",
-    { collect: true },
+    { collect: true, preserveEmpty: true },
   )
   .option(
     "--member <user:string>",
     "Project member (user UUID, username, name, email, 'self', or '@me'). May be repeated.",
-    { collect: true },
+    { collect: true, preserveEmpty: true },
   )
-  .option("--icon <icon:string>", "Project icon")
-  .option("--color <color:string>", "Project color as a HEX string")
-  .option(
-    "--initiative <initiative:string>",
-    "Add to initiative immediately (ID, slug, or name)",
-  )
+  .option("--icon <icon:string>", "Project icon", { preserveEmpty: true })
+  .option("--color <color:string>", "Project color as a HEX string", {
+    preserveEmpty: true,
+  })
   .option(
     "-i, --interactive",
     "Interactive mode (default if no flags provided)",
   )
-  .option("-j, --json", "Output created project as JSON")
+  .option(
+    "-j, --json",
+    "Output a JSON write result; the created project is in data.project",
+  )
   .action(
     async (options) => {
       try {
+        if (options.interactive && options.json) {
+          throw new ValidationError(
+            "--json cannot be combined with --interactive",
+          )
+        }
+        if (
+          options.interactive &&
+          (!Deno.stdin.isTerminal() || !Deno.stdout.isTerminal())
+        ) {
+          throw new ValidationError("Interactive creation requires a terminal")
+        }
+        for (
+          const [field, value] of Object.entries({
+            name: options.name,
+            lead: options.lead,
+            status: options.status,
+            "start-date": options.startDate,
+            "target-date": options.targetDate,
+            priority: options.priority,
+          })
+        ) {
+          if (value != null && value.trim() === "") {
+            throw new ValidationError(`--${field} cannot be empty`)
+          }
+        }
+        for (
+          const [field, values] of Object.entries({
+            team: options.team,
+            label: options.label,
+            member: options.member,
+          })
+        ) {
+          if (values?.some((value) => value.trim() === "")) {
+            throw new ValidationError(`--${field} cannot be empty`)
+          }
+        }
         const {
           name: providedName,
           description: providedDescription,
@@ -241,7 +231,6 @@ export const createCommand = withUsageMetadata(new Command(), {
           member: providedMembers,
           icon: providedIcon,
           color: providedColor,
-          initiative: providedInitiative,
           interactive: interactiveFlag,
           json: jsonOutput,
         } = options
@@ -254,10 +243,12 @@ export const createCommand = withUsageMetadata(new Command(), {
           ? parsePriority(providedPriority)
           : undefined
         const client = getGraphQLClient()
-        const initiative = providedInitiative
 
         let name = providedName
-        let description = providedDescription
+        let description = await resolveProjectDescription(
+          providedDescription,
+          providedDescriptionFile,
+        )
         const descriptionFile = providedDescriptionFile
         let teams = providedTeams || []
         let lead = providedLead
@@ -269,8 +260,9 @@ export const createCommand = withUsageMetadata(new Command(), {
 
         // Determine if we should run in interactive mode
         const noFlagsProvided = !name && teams.length === 0
-        const isInteractive = (noFlagsProvided || interactiveFlag) &&
-          Deno.stdout.isTerminal()
+        const isInteractive = !jsonOutput &&
+          (noFlagsProvided || interactiveFlag) &&
+          Deno.stdin.isTerminal() && Deno.stdout.isTerminal()
 
         if (isInteractive) {
           console.log("\nCreate a new project\n")
@@ -284,7 +276,7 @@ export const createCommand = withUsageMetadata(new Command(), {
           }
 
           // Description (optional) — skip the prompt when --description-file was passed.
-          if (!description && descriptionFile == null) {
+          if (description == null && descriptionFile == null) {
             description = await Input.prompt({
               message: "Description (optional):",
             })
@@ -369,7 +361,7 @@ export const createCommand = withUsageMetadata(new Command(), {
 
         const resolvedDescription = await resolveProjectDescription(
           description,
-          descriptionFile,
+          undefined,
         )
 
         // Validate required fields
@@ -403,7 +395,7 @@ export const createCommand = withUsageMetadata(new Command(), {
 
         // Build input - resolve all optional fields first
         let leadId: string | undefined
-        if (lead) {
+        if (lead != null) {
           leadId = await lookupUserId(lead)
           if (!leadId) {
             throw new NotFoundError("Lead", lead)
@@ -411,7 +403,7 @@ export const createCommand = withUsageMetadata(new Command(), {
         }
 
         let statusId: string | undefined
-        if (status) {
+        if (status != null) {
           // Map display value to API type if needed
           const statusLower = status.toLowerCase()
           const statusTypeMapping: Record<string, string> = {
@@ -461,19 +453,11 @@ export const createCommand = withUsageMetadata(new Command(), {
           memberIds.push(memberId)
         }
 
-        let initiativeId: string | undefined
-        if (initiative) {
-          initiativeId = await resolveInitiativeId(client, initiative)
-          if (!initiativeId) {
-            throw new NotFoundError("Initiative", initiative)
-          }
-        }
-
-        if (startDate && !/^\d{4}-\d{2}-\d{2}$/.test(startDate)) {
+        if (startDate != null && !/^\d{4}-\d{2}-\d{2}$/.test(startDate)) {
           throw new ValidationError("Start date must be in YYYY-MM-DD format")
         }
 
-        if (targetDate && !/^\d{4}-\d{2}-\d{2}$/.test(targetDate)) {
+        if (targetDate != null && !/^\d{4}-\d{2}-\d{2}$/.test(targetDate)) {
           throw new ValidationError("Target date must be in YYYY-MM-DD format")
         }
 
@@ -485,8 +469,8 @@ export const createCommand = withUsageMetadata(new Command(), {
           ...(content != null && { content }),
           ...(leadId && { leadId }),
           ...(statusId && { statusId }),
-          ...(startDate && { startDate }),
-          ...(targetDate && { targetDate }),
+          ...(startDate != null && { startDate }),
+          ...(targetDate != null && { targetDate }),
           ...(priority != null && { priority }),
           ...(labelIds.length > 0 && { labelIds }),
           ...(memberIds.length > 0 && { memberIds }),
@@ -502,51 +486,13 @@ export const createCommand = withUsageMetadata(new Command(), {
         try {
           const result = await client.request(CreateProject, { input })
 
-          if (!result.projectCreate.success) {
-            spinner?.stop()
-            throw new CliError("Failed to create project")
-          }
-
+          assertMutationSuccess(result?.projectCreate, result)
           const project = result.projectCreate.project
           spinner?.stop()
-
-          if (!project) {
-            throw new CliError("Failed to create project: no project returned")
-          }
-
-          if (initiative && initiativeId) {
-            try {
-              const linkResult = await client.request(
-                AddProjectToInitiative,
-                {
-                  input: {
-                    initiativeId,
-                    projectId: project.id,
-                  },
-                },
-              )
-
-              if (!linkResult.initiativeToProjectCreate.success) {
-                throw new CliError("Linear rejected the initiative link")
-              }
-            } catch (error) {
-              throw new CliError(
-                `Project ${project.name} was created, but could not be added to initiative ${initiative}`,
-                {
-                  suggestion:
-                    `The project ID is ${project.id}. Add it to the initiative manually; do not create the project again.`,
-                  cause: error,
-                },
-              )
-            }
-
-            if (!jsonOutput) {
-              console.log(`✓ Added to initiative: ${initiative}`)
-            }
-          }
+          assertMutationReceipt(project, result)
 
           if (jsonOutput) {
-            console.log(JSON.stringify(result.projectCreate, null, 2))
+            printWriteResult(result.projectCreate)
           } else {
             console.log(`✓ Created project: ${project.name}`)
             console.log(`  Slug: ${project.slugId}`)

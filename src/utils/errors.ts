@@ -11,6 +11,8 @@
 import { ClientError } from "graphql-request"
 import { gray, red } from "@std/fmt/colors"
 import { withTerminalColors } from "./terminal.ts"
+import { Kind, parse } from "graphql"
+import { isMachineOutput, type WriteEffect } from "./write-result.ts"
 
 /**
  * Check if debug mode is enabled via LINEAR_DEBUG environment variable.
@@ -28,19 +30,229 @@ export class CliError extends Error {
   readonly userMessage: string
   /** Suggestion for how to fix the issue (optional) */
   readonly suggestion?: string
+  readonly details?: unknown
 
   constructor(
     userMessage: string,
-    options?: { suggestion?: string; cause?: unknown },
+    options?: { suggestion?: string; cause?: unknown; details?: unknown },
   ) {
     super(userMessage)
     this.name = "CliError"
     this.userMessage = userMessage
     this.suggestion = options?.suggestion
+    this.details = options?.details
     if (options?.cause) {
       this.cause = options.cause
     }
   }
+}
+
+/** A write's observed effect survives subsequent validation or read failure. */
+export class WriteError extends CliError {
+  readonly effect: WriteEffect
+  readonly data?: unknown
+  readonly receipts?: unknown
+
+  constructor(message: string, options: {
+    effect: WriteEffect
+    data?: unknown
+    receipts?: unknown
+    suggestion?: string
+    cause?: unknown
+    details?: unknown
+  }) {
+    super(message, options)
+    this.name = "WriteError"
+    this.effect = options.effect
+    this.data = options.data
+    this.receipts = options.receipts
+  }
+}
+
+/** A failed or malformed mutation payload is not proof that no effect landed. */
+export function assertMutationSuccess(payload: unknown, data: unknown): void {
+  if (
+    payload == null || typeof payload !== "object" ||
+    !Object.hasOwn(payload, "success") ||
+    (payload as { success: unknown }).success !== true
+  ) {
+    throw new WriteError("Mutation was not confirmed", {
+      effect: "unknown",
+      data,
+      suggestion: "Reconcile the remote outcome before retrying this write.",
+    })
+  }
+}
+
+/** Call after success:true; missing/wrong identity preserves that acknowledgement. */
+export function assertMutationReceipt<T extends { id?: unknown }>(
+  entity: T | null | undefined,
+  data: unknown,
+  expectedId?: string,
+): asserts entity is T & { id: string } {
+  if (entity == null || typeof entity.id !== "string" || entity.id === "") {
+    throw new WriteError("Mutation succeeded but returned no object identity", {
+      effect: "applied",
+      data,
+      suggestion:
+        "Locate the created or changed object before continuing; do not repeat the mutation.",
+    })
+  }
+  if (
+    expectedId != null && entity.id.toLowerCase() !== expectedId.toLowerCase()
+  ) {
+    throw new WriteError("Mutation returned a different object identity", {
+      effect: "applied",
+      data,
+      suggestion: "Reconcile the returned object before continuing.",
+    })
+  }
+}
+
+function requestWasMutation(error: ClientError): boolean {
+  try {
+    const query = error.request.query
+    return (Array.isArray(query) ? query : [query]).some((source) => {
+      const document = typeof source === "string" ? parse(source) : source
+      return document.definitions.some((definition) =>
+        definition.kind === Kind.OPERATION_DEFINITION &&
+        definition.operation === "mutation"
+      )
+    })
+  } catch {
+    // A received ClientError with an unclassifiable request cannot prove
+    // zero effects. Fail conservatively rather than authorizing a retry.
+    return true
+  }
+}
+
+/** Only an unambiguous, directly selected mutation acknowledgement is proof. */
+function mutationWasAcknowledged(error: ClientError): boolean {
+  try {
+    const query = error.request.query
+    if (Array.isArray(query)) return false
+    const document = typeof query === "string" ? parse(query) : query
+    if (document.definitions.length !== 1) return false
+    const operation = document.definitions[0]
+    if (
+      operation.kind !== Kind.OPERATION_DEFINITION ||
+      operation.operation !== "mutation" ||
+      operation.selectionSet.selections.length !== 1
+    ) return false
+    const field = operation.selectionSet.selections[0]
+    if (
+      field.kind !== Kind.FIELD || field.alias != null ||
+      (field.directives?.length ?? 0) !== 0
+    ) return false
+    const selections = field.selectionSet?.selections
+    if (
+      selections == null ||
+      selections.some((selection) => selection.kind !== Kind.FIELD)
+    ) return false
+    const success = selections.filter((selection) =>
+      selection.kind === Kind.FIELD &&
+      (selection.alias?.value ?? selection.name.value) === "success"
+    )
+    if (
+      success.length !== 1 || success[0].kind !== Kind.FIELD ||
+      success[0].name.value !== "success" || success[0].alias != null ||
+      (success[0].directives?.length ?? 0) !== 0
+    ) return false
+    const data: unknown = error.response.data
+    if (
+      data == null || typeof data !== "object" || Array.isArray(data) ||
+      !Object.hasOwn(data, field.name.value)
+    ) return false
+    const payload = (data as Record<string, unknown>)[field.name.value]
+    return payload != null && typeof payload === "object" &&
+      !Array.isArray(payload) && Object.hasOwn(payload, "success") &&
+      (payload as { success: unknown }).success === true
+  } catch {
+    return false
+  }
+}
+
+export function errorResult(error: unknown, context?: string) {
+  const message = error instanceof CliError
+    ? error.userMessage
+    : isClientError(error)
+    ? extractGraphQLMessage(error)
+    : error instanceof Error
+    ? error.message
+    : String(error)
+  const effect: WriteEffect = error instanceof WriteError
+    ? error.effect
+    : isClientError(error) && requestWasMutation(error)
+    ? mutationWasAcknowledged(error) ? "applied" : "unknown"
+    : "none"
+  return {
+    ok: false as const,
+    effect,
+    ...(error instanceof WriteError && error.data !== undefined
+      ? { data: error.data }
+      : isClientError(error) && requestWasMutation(error) &&
+          error.response.data !== undefined
+      ? { data: error.response.data }
+      : {}),
+    ...(error instanceof WriteError && error.receipts !== undefined
+      ? { receipts: error.receipts }
+      : {}),
+    error: {
+      code: error instanceof Error ? error.name : "Error",
+      message: context == null ? message : `${context}: ${message}`,
+      ...(error instanceof CliError && error.suggestion != null
+        ? { suggestion: error.suggestion }
+        : effect === "unknown"
+        ? {
+          suggestion:
+            "Reconcile the remote outcome before retrying this write.",
+        }
+        : {}),
+      ...(error instanceof CliError && error.details !== undefined
+        ? { details: error.details }
+        : isClientError(error)
+        ? { details: { errors: error.response.errors } }
+        : {}),
+    },
+  }
+}
+
+/** Add stable operation context without discarding a mutation failure's evidence. */
+export function writeErrorFrom(
+  error: unknown,
+  fallbackData: unknown,
+): WriteError {
+  if (error instanceof WriteError) return error
+  const failure = errorResult(error)
+  return new WriteError(failure.error.message, {
+    effect: failure.effect,
+    data: Object.hasOwn(failure, "data") ? failure.data : fallbackData,
+    suggestion: failure.error.suggestion,
+    ...("details" in failure.error ? { details: failure.error.details } : {}),
+    cause: error,
+  })
+}
+
+/** Preserve confirmed earlier effects when a later step of a command fails. */
+export function withAppliedReceipts(
+  error: unknown,
+  receipts: unknown[],
+): unknown {
+  if (receipts.length === 0) return error
+  const result = errorResult(error)
+  return new WriteError(result.error.message, {
+    effect: result.effect === "unknown" ? "unknown" : "applied",
+    cause: error,
+    suggestion: result.error.suggestion,
+    ...(result.data === undefined ? {} : { data: result.data }),
+    ...("details" in result.error ? { details: result.error.details } : {}),
+    receipts: [
+      ...receipts,
+      ...(error instanceof WriteError && Array.isArray(error.receipts)
+        ? error.receipts
+        : []),
+    ],
+  })
 }
 
 /**
@@ -133,6 +345,10 @@ export function isClientError(error: unknown): error is ClientError {
  * In debug mode (LINEAR_DEBUG=1): Also shows the full error details
  */
 export function handleError(error: unknown, context?: string): never {
+  if (isMachineOutput()) {
+    console.log(JSON.stringify(errorResult(error, context), null, 2))
+    Deno.exit(1)
+  }
   withTerminalColors(Deno.stderr, () => {
     if (error instanceof CliError) {
       printCliError(error, context)
@@ -144,6 +360,16 @@ export function handleError(error: unknown, context?: string): never {
       printUnknownError(error, context)
     }
   })
+
+  const result = errorResult(error)
+  if (result.effect !== "none") {
+    console.error(
+      `Write effect: ${result.effect}; do not blindly repeat the operation.`,
+    )
+    if (error instanceof WriteError && error.receipts !== undefined) {
+      console.error(JSON.stringify({ receipts: error.receipts }))
+    }
+  }
 
   Deno.exit(1)
 }

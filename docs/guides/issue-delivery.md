@@ -1,30 +1,35 @@
 ---
 name: issue-delivery
-description: 用 manifest 交付 Issue，处理字段冲突、checkpoint 续跑与 unknown 对账
+description: 用交付清单组合共享操作，按回执续跑并对账未知结果
 commands:
   - issue plan
   - issue apply
   - upload
 ---
 
-# 用 manifest 交付 Issue
+# 用交付清单交付 Issue
 
-一次交付包含正文、评论、文件、Attachment 或关系等多个执行项时，用 manifest 保存清单和进度。`issues[]` 可放一条或多条；单个执行项直接用专用命令。
+需要保存多项写入的范围与执行进度时使用交付清单；`issues[]` 可以只有一项。普通字段更新直接调用 `issue update --base-file`，不强制建立执行账本。原始依据、比较规则和直接调用见 `linear guide automation`，正文语法见 `linear guide markdown`。
 
-描述和评论中的真实提及、成员 URL 查找与折叠语法见 [markdown](markdown.md)。
+## 保存清单
 
-## Manifest
+先读取要修改的对象，再编写草稿和交付清单。文件路径相对交付清单所在目录：
+
+```bash
+linear issue view ENG-123 --json >original.json
+```
 
 ```json
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "workspace": "acme",
   "issues": [
     {
       "operation": "update",
       "identifier": "ENG-123",
-      "set": { "title": "新标题", "descriptionFile": "description.md" },
-      "base": { "title": "旧标题", "description": "旧正文" },
+      "baseFile": "original.json",
+      "expectFields": ["state"],
+      "set": { "title": "新标题", "descriptionFile": "desired.md" },
       "comments": [
         { "bodyFile": "evidence.md", "files": [{ "path": "screenshot.png" }] }
       ],
@@ -36,92 +41,73 @@ commands:
     },
     {
       "operation": "create",
-      "team": "ENG",
-      "set": { "title": "新建 Issue", "priority": 3 }
+      "set": { "team": "ENG", "title": "新建 Issue", "priority": 3 }
     }
   ]
 }
 ```
 
-文件路径相对 manifest 所在目录。plan 和 apply 在远端操作前检查整批文件存在和大小；MIME 由扩展名推定，公开上传等限制仍由上传命令校验。
+`original.json` 必须是原始读取产生、符合 `{organization,issue}` 结构的 JSON；其工作区、对象和所需字段必须匹配。可以用 `base` 内嵌同一结构，不能与 `baseFile` 同时使用。明确无保护替换使用 `unprotected: true`，不能附 `base`／`baseFile`；`expectFields` 必须有原始依据，且只接受该对象支持的 API 字段。
 
-`set` 支持 title、description/descriptionFile、priority（1–4）、state、assignee、labels、project、parent。description 与 descriptionFile 互斥；create 要求顶层 `team` 和 `set.title`，不接受 identifier 或 base。estimate、due date、cycle、milestone、清除 project/parent 等未覆盖操作需另选入口，见专用命令的 `--help`。
+`set` 与共享 Issue 操作的选项对应，使用 camelCase：例如 `descriptionFile`、`dueDate`、`addLabel`、`removeLabel`、`unassign` 和 `clearCycle`。团队位于 `set.team`，完整标签替换是 `set.label`。完整字段和有效值以 `issue create --help`、`issue update --help` 及清单校验为准，不另定义一套名称解析规则。
 
-update 的每个 `set` 字段都要对应 `base`，`descriptionFile` 对应 `base.description`。同一 Issue 的字段、评论、附件和关系合并为一个 update 条目；重复 identifier 不区分大小写，会被拒绝。
+`create` 要求 `set.title` 和 `set.team`，不接受已有 `identifier`、原始依据或期望字段。`update` 要求 `identifier`，可用 UUID 或完整编号。`unassign: true` 清除负责人，`clearCycle: true` 清除周期；不能分别与 `assignee`、`cycle` 同用。标签增删与完整 `label` 替换互斥；空 `label` 替换不受支持，须逐项 `removeLabel`。只追加评论、附件或关系时省略 `set` 和原始依据。
 
-- `assignee: null` 只用于 update 清除负责人；create 省略 assignee 仍可能受 `issue_create_assign_self` 配置影响。
-- `labels` 替换完整集合，update 不接受空数组。仅增删标签用 `issue update --add-label/--remove-label`，无需整集替换。
-- `comments` 接受互斥的 `body/bodyFile` 和可选 `files`；文件嵌入评论。`public: true` 适用于该评论的所有上传图片，公开访问边界见 [issue-authoring](issue-authoring.md)。
-- `attachments` 创建侧栏 Attachment；`kind: "url"` 链接外部地址，`kind: "file"` 先上传本地文件，`title` 可省略。
-- `relations[].issue` 使用完整 identifier。类型为 related、blocks、blocked-by、duplicate；blocked-by 反转 blocks 方向，duplicate 把当前条目标为所指 Issue 的重复项。同一对 Issue 同类型同方向时跳过，不同类型或方向报 conflict；替换须先用 `issue relation delete` 删除旧关系。
+`comments` 中的 `body`／`bodyFile` 互斥，`files` 嵌入评论；`public` 仅适用于该评论的上传图片。`attachments` 创建侧栏附件（Attachment）：`url` 项关联链接，`file` 项先上传再关联。关系使用完整编号或 UUID，支持 `related`、`blocks`、`blocked-by`、`duplicate`；`blocked-by` 反转 `blocks` 方向，同一边已存在时不重复写，不同类型或方向会拒绝。
 
-manifest 不修改或删除已有评论、附件和关系，这类操作用专用命令。
+现有评论的修改／删除和关系删除使用专用命令。附件删除没有专用命令，也不在清单内；先确认目标 Attachment ID 和删除授权，通过 `linear schema` 核对 `attachmentDelete(id): DeletePayload`，再使用 `linear api --unprotected`，调用边界见 `linear guide graphql`。删除后读回确认附件关联已移除，不把它当成上传资产删除。清单不包含任意脚本、循环或条件语言。
 
-## 字段冲突
-
-`base` 记录上次读取的值，只包含本次 `set` 要替换的字段。可空字段的空值写 `null`，空标签集写 `[]`；未设置优先级时，把远端的 `priority: 0` 写为 `base.priority: null`。
-
-plan 和 apply 比较 base、目标值和远端值：
-
-| verdict      | 条件与动作             |
-| ------------ | ---------------------- |
-| `idempotent` | 远端已等于目标值，跳过 |
-| `write`      | 远端仍等于 base，写入  |
-| `conflict`   | 两者都不是，拒绝覆盖   |
-
-负责人可在 `base.assignee` 与 `set.assignee` 中使用用户 UUID，按 ID 比较，不受改名影响；当前负责人的 ID 从 `issue view --json` 的 `assignee.id` 读取。标签按名称忽略大小写比较完整集合；Markdown 比较会规范化换行、行尾空格和列表符号。追加评论、附件、关系不需要字段 base，但关系仍检查冲突。
-
-描述的 `idempotent` 只表示规范化后的 API Markdown 相等，不证明富文本节点等价，也不保证原样重新提交能保留提及。服务端将成员 URL 改写为 `@name` 等形式后，同一清单写入成功再 plan 仍可能报冲突；先核对实际目标和正文，不通过强制重提或扩大文本替换来消除差异。导出与重写风险见 [markdown](markdown.md)。
-
-冲突可在授权内合并时，将 base 更新为远端值，set 改为保留同事修改的合并结果；决定冲突时请用户裁决。目标已归档、进回收站，或 identifier 解析到其他 Issue 时拒绝写入。
-
-指定 `set.project`，或 create 通过 `set.parent` 继承项目时，plan 和 apply 在该 Issue 的首笔写入前检查目标团队属于 Project；检查失败只阻止该 Issue，`--continue-on-failure` 可继续其他条目。全部已成功的条目续跑只读回，不重新检查写入条件。兼容检查不会修改 Project 团队，交接规则见 [issue-authoring](issue-authoring.md)。
-
-base 是写前乐观校验，不是服务端锁；读取与写入之间仍有竞态窗口。
-
-## 预览与执行
+## 预览和提交
 
 ```bash
-linear issue plan --file delivery.json
-linear issue apply --file delivery.json --confirm-workspace acme
+linear issue plan --file delivery.json --json >plan.json
+linear issue apply --file delivery.json --confirm-workspace acme --json \
+  >apply.json 2>apply.log
 ```
 
-plan 对远端零写入，预览整批字段 verdict、执行项与文件清单。update 的非 idempotent 字段显示完整 desired、remote 和 base；create 正文与评论仅显示大小等摘要，不能代替草稿审核。plan 可选，已有明确授权和内容时直接 apply；授权规则见 [core](core.md)。
+`plan` 对远端和执行账本都零写入；计划 JSON 包含 `workspace`、`status`、`issues`、`files`。字段判定中，`desired` 是目标值，`remote` 是当前值，`base` 是原始值，人类输出使用同一套字段名。`verdict` 为 `write`（可写）、`idempotent`（已是目标值，无需写入）或 `conflict`（冲突）。内容摘要不能替代阅读草稿。`plan` 使用与 `apply` 相同的准备逻辑；`apply` 会在提交前重新读取与比较，不把计划阶段读到的值当成新的原始依据。
 
-apply 的 `--confirm-workspace` 必须匹配 manifest，plan/apply 还用执行时的同一凭据核对实际 workspace。apply 在每个 Issue 的首笔写入前重读目标，续跑也一样。读取失败或 conflict 默认停止；`--continue-on-failure` 可继续后续条目，但不能越过 unknown。
+所有本地文件先读取、校验并记录指纹，正文使用同一份已检查字节；上传前还会核对文件是否改变。实际名称解析、项目团队校验、父 Issue 读取、上传和 mutation 由单命令共用的操作负责。`apply` 直接调用这些函数，不转换成 argv 或启动另一份 CLI。
 
-执行项状态为 applied、failed、unknown、unattempted、skipped。applied 项及从 checkpoint 跳过的项都会读回；若只有读回失败，整体为 `applied-unverified` 并非零退出，已成功项仍保留 applied。恢复访问后重跑只补读回。
+`--confirm-workspace` 必须等于清单 `workspace` 中的工作区短名；执行时还用同一凭据核对远端 `organization.id`，已有执行账本必须属于同一工作区。这个参数不构成写入授权。
 
-apply 同步等待执行与读回，进度写 stderr，最后在 stdout 输出一份结果。外层等待超时不等于进程退出；确认原进程退出前不能启动第二个执行者。
+`apply` 顺序执行，进度在 stderr，stdout 为一份 `{ok,effect,data}` 写入结果：
 
 ```bash
-code=0
-LINEAR_PROMPT_DISABLED=1 linear issue apply \
-  --file delivery.json --confirm-workspace acme --json \
-  >apply.json 2>apply.log || code=$?
-jq '{status, summary, createdIdentifiers, verification}' apply.json
-test "$code" -eq 0 &&
-  jq -e '.status == "completed" and ([.verification[].status] | all(. == "verified"))' apply.json >/dev/null
+jq '{ok, effect, status: .data.status, summary: .data.summary, verification: .data.verification}' apply.json
+jq -e '.ok == true and .data.status == "completed"' apply.json >/dev/null
 ```
 
-负责人别名在读回核验时复用单命令的解析规则，按解析后的用户 ID 比较；读取失败保留 applied，可恢复后再核验。
+`.data.items[]` 分别记录 `applied`、`failed`、`unknown`、`unattempted`、`skipped` 执行状态，并单列写入效果 `effect`。`skipped` 可以是无需修改，也可以是续跑时跳过已完成项；本次 `effect` 为 `none`。失败默认停止；`--continue-on-failure` 只越过已知无效果的写前失败，不能越过 `unknown`。部分成功不回滚。
 
-`verified` 且 `scope: "fields-and-objects"` 表示目标身份、清单声明的字段，以及本次评论和 Attachment 的返回 ID 均已读回匹配；不验证关系、文件字节或页面渲染。目标已归档或进入回收站时核验失败，保留成功记录，不重建工单。缺失字段或对象时，最多读回 3 次，间隔 1 秒、2 秒；每个 Issue 的读回总时限为 30 秒，只取消读回，不取消写入。读取错误直接报告，恢复后可重跑同一清单。`readBack` 按 identifier 保存 `issue view --json` 响应，用它核对实际内容；补读规则见 [automation](automation.md)。
+## 写入确认与读回核验
 
-## Checkpoint 与恢复
+整体状态只有在本次执行与规定范围的读回核验都成功时才是 `completed`，并返回零退出码。写入已确认但读回不匹配或不可用时，整体为 `applied-unverified`；保留写入回执，重跑只补需要的读取，不再次发送已完成写入。`effect: applied` 不因读回失败变成可重试。
 
-`<manifest>.checkpoint.json` 与 manifest 及引用文件一起交接。执行项 key 绑定位置、内容哈希、workspace、operation、identifier 和 team；续跑跳过已成功项。
+`.data.verification[].status` 是 `verified`、`different` 或 `unavailable`，`scope` 固定为 `issue-fields-and-object-identities`。核验包括目标 Issue 身份、执行账本中的预期字段，以及本次 Comment／Attachment／Relation 回执对象是否仍关联目标 Issue；不证明评论正文、关系对端与类型、上传字节、页面渲染或通知送达。Markdown 按精确 API 字符串核对；字符串一致也不证明富文本节点等价。
 
-checkpoint 包含 `schemaVersion: 1`、`items` 和 `createdIdentifiers`。`items[key].status` 只能为 applied/failed/unknown，可另附 `note` 和 `receipt: {kind, id}`；评论与 Attachment 写入保存返回的对象 ID，不按正文或 URL 猜测对象。receipt 只允许属于已 applied 的评论或 Attachment，kind 必须与原执行项一致；不匹配时拒绝续跑。旧 checkpoint 缺少 receipt 时仍跳过写入，`verification.scope` 为 `issue` 并明确仅核对身份与声明字段，不能据此宣称对象已核验；unattempted/skipped 只属于单次输出。`createdIdentifiers` 按 `issues[]` 的零起始下标记录新 Issue，如 `{"0":"ENG-700"}`，没有时仍保留 `{}`。
+读回最多尝试 3 次，默认每个 Issue 的总时限为 10 秒。仅取消读回，不能据此推断此前 mutation 被取消。`.data.readBack` 按 `issues` 的零起始下标保存 `{organization,issue,receipts}`，不是完整 `issue view`；`createdIdentifiers` 同样按下标记录新建 Issue 的编号。
 
-| 结果                             | 恢复动作                                                                   |
-| -------------------------------- | -------------------------------------------------------------------------- |
-| `failed`                         | 确认失败原因，修复后重跑；可用 `--continue-on-failure` 继续其他条目        |
-| `applied-unverified`             | 修复读取问题后重跑，补读回而不重复写入                                     |
-| `unknown` / `stopped-on-unknown` | 先核对远端结果及部分副作用；所有续跑均被阻止，包括 `--continue-on-failure` |
+## 执行账本与恢复
 
-写入子命令启动前先记录 unknown；非零退出或异常不能证明未写入。对账后，确认成功的项改为 applied；确认未执行的项才可改为 failed 或移除记录后重试。部分成功时先修订清单，避免重放已发生的副作用。评论或 Attachment 成功但缺少有效返回 ID 时也记为 unknown，不自动重发。对账确认对象后，应在 applied 项补上 `receipt`（`kind` 为 `comment` 或 `attachment`，`id` 为核实的对象 ID）。unknown create 若已成功，还须在 `createdIdentifiers` 补上原条目下标与 identifier。
+`<manifest>.checkpoint.json` 使用 `schemaVersion: 2`，包含工作区身份和 `items`。执行项 key 绑定清单位置、目标、内容及文件指纹。每次真实派发写入前先保存 `unknown`，收到有效回执后保存 `completed`；上传有独立回执，后续关联失败不会重复上传已完成资产。
 
-已有 applied key 必须继续匹配计划。保留成功项的内容、位置和目标，只原位修复失败项或末尾追加；旧版本 key 不匹配时也须先对账。确需重组时，核对远端后从新清单排除已完成内容，再重建 checkpoint，不能删除记录后重放原清单。
+执行账本中的状态与本次输出不同：
 
-checkpoint 不提供并发锁，批量也不是事务：同一 manifest 只能有一个执行者；中途停止保留成功结果，不自动回滚。
+| 执行账本状态 | 写入效果与恢复边界                                                             |
+| ------------ | ------------------------------------------------------------------------------ |
+| `completed`  | 必须有 `receipt`，`effect` 为 `none` 或 `applied`；续跑跳过此项                |
+| `failed`     | `effect` 为 `none` 且没有 `receipt`；修正失败原因后可以重跑                    |
+| `unknown`    | `effect` 为 `unknown`，或已确认 `applied` 但缺少可用回执；所有自动续跑都被阻止 |
+
+遇到 `unknown` 时保留交付清单、引用文件、执行账本和原始结果。按稳定 ID、上传 URL、回执及实际远端对象对账，确认效果后再修订执行账本：已完成项补正确类型的 `receipt` 并置 `completed`，已确认未执行的项才置 `failed` 且 `effect` 为 `none`。无法确定的项继续保留 `unknown`，不用正文相似、标题或 URL 猜测对象。需要人工修改执行账本时，保留修改前副本和对账证据。
+
+`completed` 的 Issue 回执包含 `id` 与 `identifier`，Comment／Attachment／Relation 回执包含对象 `id`，上传回执包含 `assetUrl`、`filename`、`size`、`contentType`、`public`。字段预期仅属于 Issue 回执。回执不匹配、工作区改变或已有执行项 key 从计划中消失时，拒绝续跑；不要删除执行账本来重放原意图。
+
+恢复已完成项不重新执行原始比较，但继续做读回核验。未完成项仍使用原始依据；修改目标值或重新排序可能改变执行项 key。需要新意图时先对账旧效果，再建立只含明确剩余工作的独立交付清单。同一交付清单只能有一个执行者；执行账本不提供并发锁、事务或 exactly-once。
+
+## 从旧协议迁移
+
+`schemaVersion: 1` 的交付清单和执行账本会在执行前明确拒绝。保留原文件及匹配的旧版本二进制，对账或完成旧执行后，再为明确剩余的工作读取新依据、建立 `schemaVersion: 2` 的独立清单。不自动迁移旧执行账本，不删除或覆盖它来重放。
+
+迁移时同时调整顶层 `team` → `set.team`、`labels` → `label`、旧的手抄 `base` → 原始读取 `base`／`baseFile`，以及 `apply` 结果路径 → `.data`。其他命令的当前参数以 `linear <command> --help` 为准，写入结果与读取格式见 `linear guide automation`。

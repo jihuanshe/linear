@@ -1,23 +1,149 @@
 import { assertEquals, assertRejects, assertStringIncludes } from "@std/assert"
 import {
   extractIssueRelationSnapshot,
+  fetchIssuesForQuery,
   getIssueIdentifier,
+  getProjectOptionsByName,
+  getProjectsForTeam,
   isLinearUuid,
+  lookupUserId,
   planIssueRelations,
   resolveMilestoneId,
   resolveProjectId,
   resolveWorkflowState,
   searchIssuesByTerm,
-  updateIssueState,
   type WorkflowState,
   workflowStateNotFoundError,
 } from "../../src/utils/linear.ts"
-import {
-  CliError,
-  NotFoundError,
-  ValidationError,
-} from "../../src/utils/errors.ts"
+import { NotFoundError, ValidationError } from "../../src/utils/errors.ts"
 import { setupMockLinearServer } from "../utils/test-helpers.ts"
+
+for (const input of ["", " ", "\t\n"]) {
+  Deno.test(`lookupUserId rejects empty reference ${JSON.stringify(input)}`, async () => {
+    await assertRejects(
+      () => lookupUserId(input),
+      ValidationError,
+      "User reference cannot be empty",
+    )
+  })
+}
+
+for (
+  const scenario of [
+    {
+      title: "email wins over display and fuzzy",
+      counts: [1, 1, 1, 3],
+      calls: 1,
+      id: "tier-0-0",
+    },
+    {
+      title: "unique display survives three fuzzy matches",
+      counts: [0, 1, 0, 3],
+      calls: 2,
+      id: "tier-1-0",
+    },
+    {
+      title: "exact name wins over fuzzy",
+      counts: [0, 0, 1, 3],
+      calls: 3,
+      id: "tier-2-0",
+    },
+    {
+      title: "unique fuzzy without exact",
+      counts: [0, 0, 0, 1],
+      calls: 4,
+      id: "tier-3-0",
+    },
+    { title: "missing user", counts: [0, 0, 0, 0], calls: 4, id: undefined },
+    {
+      title: "ambiguous email stops before display",
+      counts: [2, 1, 0, 0],
+      calls: 1,
+      ambiguous: true,
+    },
+    {
+      title: "ambiguous display stops before exact name",
+      counts: [0, 2, 1, 0],
+      calls: 2,
+      ambiguous: true,
+    },
+    {
+      title: "ambiguous exact name",
+      counts: [0, 0, 2, 1],
+      calls: 3,
+      ambiguous: true,
+    },
+    {
+      title: "ambiguous fuzzy first page",
+      counts: [0, 0, 0, 2],
+      calls: 4,
+      ambiguous: true,
+    },
+    {
+      title: "fuzzy next page cannot select first result",
+      counts: [0, 0, 0, 3],
+      calls: 4,
+      ambiguous: true,
+    },
+    {
+      title: "display next page cannot select first result",
+      counts: [0, 3, 1, 1],
+      calls: 2,
+      ambiguous: true,
+    },
+  ]
+) {
+  Deno.test(`lookupUserId ${scenario.title}`, async () => {
+    // Preserve significant whitespace and casing in every server-side filter.
+    const input = " Ann "
+    const filters = [
+      { email: { eqIgnoreCase: input } },
+      { displayName: { eqIgnoreCase: input } },
+      { name: { eqIgnoreCase: input } },
+      { name: { containsIgnoreCaseAndAccent: input } },
+    ]
+    const { server, cleanup } = await setupMockLinearServer(
+      filters.map((filter, tier) => ({
+        queryName: "LookupUser",
+        variables: { filter },
+        response: {
+          data: {
+            users: {
+              // A partial page with one row must still reject hasNextPage.
+              nodes: Array.from({
+                length: scenario.counts[tier] === 3 ? 1 : scenario.counts[tier],
+              }, (_, index) => ({ id: `tier-${tier}-${index}` })),
+              pageInfo: {
+                hasNextPage: scenario.counts[tier] > 2,
+                endCursor: null,
+              },
+            },
+          },
+        },
+      })),
+    )
+    try {
+      if (scenario.ambiguous) {
+        await assertRejects(
+          () => lookupUserId(input),
+          ValidationError,
+          "ambiguous",
+        )
+      } else {
+        assertEquals(await lookupUserId(input), scenario.id)
+      }
+      assertEquals(
+        server.graphqlRequests.map((request) => request.variables),
+        filters.slice(0, scenario.calls).map((filter) => ({ filter })),
+      )
+      for (const request of server.graphqlRequests) {
+        assertStringIncludes(request.query, "first: 2")
+      }
+    } finally {
+      await cleanup()
+    }
+  })
+}
 
 function relationView(
   outgoing: Array<{ type: string; identifier: string }> = [],
@@ -296,6 +422,135 @@ Deno.test("searchIssuesByTerm - without limit fetches a single page", async () =
   }
 })
 
+Deno.test("fetchIssuesForQuery rejects non-adjacent project team cursor cycles", async () => {
+  const { server, cleanup } = await setupMockLinearServer([
+    {
+      queryName: "GetIssuesForQuery",
+      response: {
+        data: {
+          issues: {
+            nodes: [{
+              id: "issue-1",
+              project: {
+                id: "project-1",
+                teams: {
+                  nodes: [{ key: "ENG" }],
+                  pageInfo: { hasNextPage: true, endCursor: "cursor-a" },
+                },
+              },
+            }],
+            pageInfo: { hasNextPage: false, endCursor: null },
+          },
+        },
+      },
+    },
+    {
+      queryName: "GetProjectTeamsForDoctor",
+      variables: { after: "cursor-a" },
+      response: {
+        data: {
+          project: {
+            teams: {
+              nodes: [{ key: "OPS" }],
+              pageInfo: { hasNextPage: true, endCursor: "cursor-b" },
+            },
+          },
+        },
+      },
+    },
+    {
+      queryName: "GetProjectTeamsForDoctor",
+      variables: { after: "cursor-b" },
+      response: {
+        data: {
+          project: {
+            teams: {
+              nodes: [{ key: "ENG" }],
+              pageInfo: { hasNextPage: true, endCursor: "cursor-a" },
+            },
+          },
+        },
+      },
+    },
+  ])
+  try {
+    await assertRejects(
+      () => fetchIssuesForQuery({ includeProjectTeamMetadata: true }),
+      Error,
+      "empty or repeated cursor",
+    )
+    assertEquals(server.graphqlRequests.length, 3)
+  } finally {
+    await cleanup()
+  }
+})
+
+for (
+  const [name, queryName, invoke] of [
+    [
+      "project options by name",
+      "GetProjectIdOptionsByName",
+      (name: string) => getProjectOptionsByName(name),
+    ],
+    [
+      "projects for team",
+      "GetProjectsForTeam",
+      (name: string) => getProjectsForTeam(name),
+    ],
+  ] as const
+) {
+  Deno.test(`${name} rejects non-adjacent cursor cycles`, async () => {
+    const { server, cleanup } = await setupMockLinearServer([
+      {
+        queryName,
+        variables: { after: undefined },
+        response: {
+          data: {
+            projects: {
+              nodes: [{ id: "project-1", name: "First" }],
+              pageInfo: { hasNextPage: true, endCursor: "cursor-a" },
+            },
+          },
+        },
+      },
+      {
+        queryName,
+        variables: { after: "cursor-a" },
+        response: {
+          data: {
+            projects: {
+              nodes: [{ id: "project-2", name: "Second" }],
+              pageInfo: { hasNextPage: true, endCursor: "cursor-b" },
+            },
+          },
+        },
+      },
+      {
+        queryName,
+        variables: { after: "cursor-b" },
+        response: {
+          data: {
+            projects: {
+              nodes: [{ id: "project-3", name: "Third" }],
+              pageInfo: { hasNextPage: true, endCursor: "cursor-a" },
+            },
+          },
+        },
+      },
+    ])
+    try {
+      await assertRejects(
+        () => invoke(name === "projects for team" ? "ENG" : "Project"),
+        Error,
+        "empty or repeated cursor",
+      )
+      assertEquals(server.graphqlRequests.length, 3)
+    } finally {
+      await cleanup()
+    }
+  })
+}
+
 const UUID = "00000000-0000-0000-0000-000000000000"
 
 Deno.test("isLinearUuid - detects UUID format", () => {
@@ -322,7 +577,12 @@ Deno.test("resolveProjectId - resolves by exact name", async () => {
       queryName: "GetProjectIdByName",
       variables: { name: "Tech Debt" },
       response: {
-        data: { projects: { nodes: [{ id: "proj-name-uuid" }] } },
+        data: {
+          projects: {
+            pageInfo: { hasNextPage: false, endCursor: null },
+            nodes: [{ id: "proj-name-uuid" }],
+          },
+        },
       },
     },
   ])
@@ -339,13 +599,25 @@ Deno.test("resolveProjectId - falls back to slug ID when name does not match", a
     {
       queryName: "GetProjectIdByName",
       variables: { name: "f-foo" },
-      response: { data: { projects: { nodes: [] } } },
+      response: {
+        data: {
+          projects: {
+            pageInfo: { hasNextPage: false, endCursor: null },
+            nodes: [],
+          },
+        },
+      },
     },
     {
       queryName: "GetProjectIdBySlugId",
       variables: { slugId: "f-foo" },
       response: {
-        data: { projects: { nodes: [{ id: "proj-slug-uuid" }] } },
+        data: {
+          projects: {
+            pageInfo: { hasNextPage: false, endCursor: null },
+            nodes: [{ id: "proj-slug-uuid" }],
+          },
+        },
       },
     },
   ])
@@ -361,11 +633,25 @@ Deno.test("resolveProjectId - throws NotFoundError when nothing matches", async 
   const { cleanup } = await setupMockLinearServer([
     {
       queryName: "GetProjectIdByName",
-      response: { data: { projects: { nodes: [] } } },
+      response: {
+        data: {
+          projects: {
+            pageInfo: { hasNextPage: false, endCursor: null },
+            nodes: [],
+          },
+        },
+      },
     },
     {
       queryName: "GetProjectIdBySlugId",
-      response: { data: { projects: { nodes: [] } } },
+      response: {
+        data: {
+          projects: {
+            pageInfo: { hasNextPage: false, endCursor: null },
+            nodes: [],
+          },
+        },
+      },
     },
   ])
   try {
@@ -402,6 +688,7 @@ Deno.test("resolveMilestoneId - resolves a name within the given project", async
                 { id: "ms-1", name: "Y26 Q2" },
                 { id: "ms-2", name: "Y26 Q3" },
               ],
+              pageInfo: { hasNextPage: false, endCursor: null },
             },
           },
         },
@@ -415,6 +702,100 @@ Deno.test("resolveMilestoneId - resolves a name within the given project", async
     await cleanup()
   }
 })
+
+for (
+  const scenario of [
+    "later match",
+    "duplicate",
+    "same page duplicate",
+    "missing",
+    "cycle",
+    "missing pageInfo",
+    "not found",
+  ]
+) {
+  Deno.test(`resolveMilestoneId - paginated ${scenario}`, async () => {
+    const { cleanup, server } = await setupMockLinearServer([{
+      queryName: "GetProjectMilestonesForLookup",
+      response: ({ variables }) => {
+        const later = variables.after != null
+        return {
+          data: {
+            project: {
+              projectMilestones: {
+                nodes: scenario === "same page duplicate"
+                  ? [
+                    { id: "ms-1", name: "Release" },
+                    { id: "ms-2", name: "RELEASE" },
+                  ]
+                  : [{
+                    id: later ? "ms-2" : "ms-1",
+                    name: scenario === "not found"
+                      ? "other"
+                      : later
+                      ? "RELEASE"
+                      : scenario === "later match"
+                      ? "other"
+                      : "Release",
+                  }],
+                ...(scenario === "missing pageInfo" ? {} : {
+                  pageInfo: {
+                    hasNextPage: scenario !== "same page duplicate" &&
+                      (!later || scenario === "cycle"),
+                    endCursor: scenario === "missing"
+                      ? null
+                      : later && scenario !== "cycle"
+                      ? null
+                      : "cursor-1",
+                  },
+                }),
+              },
+            },
+          },
+        }
+      },
+    }])
+    try {
+      if (scenario === "later match") {
+        assertEquals(await resolveMilestoneId("release", "proj-1"), "ms-2")
+      } else if (scenario.includes("duplicate")) {
+        const error = await assertRejects(
+          () => resolveMilestoneId("release", "proj-1"),
+          ValidationError,
+          "ambiguous",
+        )
+        assertStringIncludes(error.suggestion!, "UUID")
+      } else {
+        await assertRejects(
+          () => resolveMilestoneId("release", "proj-1"),
+          Error,
+          scenario === "not found"
+            ? "not found"
+            : "Incomplete project milestones pagination",
+        )
+      }
+      assertEquals(
+        server.graphqlRequests.length,
+        scenario === "missing" || scenario === "missing pageInfo" ||
+          scenario === "same page duplicate"
+          ? 1
+          : 2,
+      )
+      assertEquals(server.graphqlRequests[0].variables, {
+        projectId: "proj-1",
+        after: null,
+      })
+      if (server.graphqlRequests.length === 2) {
+        assertEquals(server.graphqlRequests[1].variables, {
+          projectId: "proj-1",
+          after: "cursor-1",
+        })
+      }
+    } finally {
+      await cleanup()
+    }
+  })
+}
 
 Deno.test("resolveMilestoneId - errors when a name is passed without a project", async () => {
   const { cleanup } = await setupMockLinearServer([])
@@ -497,24 +878,4 @@ Deno.test("workflowStateNotFoundError - handles a team with no states", () => {
     error.suggestion,
     "Team ENG has no workflow states. Run `linear team states ENG`.",
   )
-})
-
-Deno.test("updateIssueState - rejects an unsuccessful mutation", async () => {
-  const { cleanup } = await setupMockLinearServer([
-    {
-      queryName: "UpdateIssueState",
-      variables: { issueId: "issue-id", stateId: "state-id" },
-      response: { data: { issueUpdate: { success: false } } },
-    },
-  ])
-
-  try {
-    await assertRejects(
-      () => updateIssueState("issue-id", "state-id"),
-      CliError,
-      "Failed to update issue state",
-    )
-  } finally {
-    await cleanup()
-  }
 })

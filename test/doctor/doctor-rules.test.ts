@@ -1,13 +1,29 @@
 import { assertEquals } from "@std/assert"
-import { evaluateDoctorIssues } from "../../src/doctor/engine.ts"
-import { formatDoctorReport } from "../../src/doctor/output.ts"
-import { doctorRuleIds } from "../../src/doctor/rules.ts"
-import type {
-  DoctorIssue,
-  DoctorPolicy,
-  DoctorProject,
-  DoctorScope,
-} from "../../src/doctor/types.ts"
+import { doctorRuleIds, evaluateDoctorIssues } from "../../recipes/doctor.js"
+import type { FetchedQueryIssueResult as DoctorIssue } from "../../src/utils/linear.ts"
+type DoctorScope = { kind: string; target?: string }
+type DoctorPolicy = {
+  includeHistory: boolean
+  includeArchived: boolean
+  staleDays: number
+  backlogCycleRequired: false
+  selectedRules: string[]
+}
+type DoctorProject = {
+  id: string
+  name: string
+  createdAt: string
+  startedAt: string | null
+  status: { name: string; type: string }
+  health: "onTrack" | "atRisk" | "offTrack" | null
+  healthUpdatedAt: string | null
+  lastUpdate: {
+    createdAt: string
+    updatedAt: string
+    health: "onTrack" | "atRisk" | "offTrack"
+    isStale: boolean
+  } | null
+}
 
 const scope: DoctorScope = { kind: "self", target: "self" }
 
@@ -176,26 +192,6 @@ Deno.test("Doctor rules report missing execution metadata", () => {
     ["missing-cycle", "missing-estimate"],
   )
   assertEquals(report.summary.bySeverity.P2, 2)
-  assertEquals(
-    report.strategySummaries.map((strategy) => strategy.id),
-    [
-      "execution-readiness",
-      "project-pulse",
-      "ownership-and-classification",
-      "flow-progress",
-    ],
-  )
-  assertEquals(report.strategySummaries[0].findingCount, 2)
-  assertEquals(report.strategySummaries[0].affectedResourceCount, 1)
-  assertEquals(report.strategySummaries[0].bySeverity, { P0: 0, P1: 0, P2: 2 })
-  assertEquals(
-    report.strategySummaries[0].rules.map((rule) => rule.ruleId),
-    ["missing-priority", "missing-estimate", "missing-cycle"],
-  )
-  assertEquals(
-    report.strategySummaries[0].representativeFinding?.reference,
-    "JHS-2",
-  )
 })
 
 Deno.test("Doctor rules identify project and team mismatches", () => {
@@ -265,51 +261,6 @@ Deno.test("Doctor can run a selected rule only", () => {
   assertEquals(report.findings.map((finding) => finding.ruleId), [
     "missing-estimate",
   ])
-  assertEquals(report.strategySummaries[0].findingCount, 1)
-  assertEquals(report.strategySummaries[0].rules.map((rule) => rule.ruleId), [
-    "missing-estimate",
-  ])
-  assertEquals(report.strategySummaries.length, 1)
-})
-
-Deno.test("Doctor human output expands findings in a four-item batch", () => {
-  const issue = makeIssue({
-    identifier: "JHS-6",
-    stateType: "unstarted",
-    stateName: "Todo",
-    projectName: null,
-    priority: 0,
-    estimate: null,
-    cycle: null,
-  })
-  const secondIssue = makeIssue({
-    identifier: "JHS-7",
-    stateType: "unstarted",
-    stateName: "Todo",
-    projectName: null,
-    priority: 0,
-    estimate: null,
-    cycle: null,
-  })
-  const report = evaluateDoctorIssues(
-    [issue, secondIssue],
-    scope,
-    makePolicy(),
-    now,
-  )
-  const output = formatDoctorReport(report, 4).join("\n")
-
-  assertEquals(
-    output.includes("治理概览（4 项）"),
-    true,
-  )
-  assertEquals(output.includes("执行准备"), true)
-  assertEquals(output.includes("任务归属"), true)
-  assertEquals(output.includes("4×4"), false)
-  assertEquals(output.includes("治理杠杆"), false)
-  assertEquals(output.includes("Doctor 不"), false)
-  assertEquals(output.includes("展开问题：4 / 8"), true)
-  assertEquals(output.match(/建议：/g)?.length, 4)
 })
 
 Deno.test("Doctor reports missing and stale Project Updates", () => {

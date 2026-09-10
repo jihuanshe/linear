@@ -1,4 +1,4 @@
-import type { TypedDocumentNode } from "@graphql-typed-document-node/core"
+import { completeIssueLabels } from "./issue-read.ts"
 import { gql } from "../__codegen__/gql.ts"
 import type {
   GetAllTeamsQuery,
@@ -6,7 +6,6 @@ import type {
   GetIssueDetailsQuery,
   GetIssueDetailsWithCommentsQuery,
   GetIssuesForQueryQuery,
-  GetIssuesForStateQuery,
   GetOrganizationMembersQuery,
   GetProjectIdOptionsByNameQuery,
   GetProjectsForTeamQuery,
@@ -18,8 +17,13 @@ import type {
   SearchIssuesQuery,
 } from "../__codegen__/graphql.ts"
 import { Select } from "./prompt.ts"
-import { getOption, resolveIssueSort } from "../config.ts"
-import { CliError, NotFoundError, ValidationError } from "./errors.ts"
+import { getOption } from "../config.ts"
+import {
+  CliError,
+  handleNotFound,
+  NotFoundError,
+  ValidationError,
+} from "./errors.ts"
 import { getGraphQLClient } from "./graphql.ts"
 import { completeConnection } from "./pagination.ts"
 import { normalizeIssueIdentifier } from "./issue-identifier.ts"
@@ -327,13 +331,13 @@ export function getTeamKey(): string | undefined {
 }
 
 /**
- * based on loose inputs, returns a linear issue identifier like ABC-123
- *
- * formats the provided identifier, adds the team id prefix, or finds one from VCS state
+ * Resolves an Issue reference: a normalized UUID or identifier such as ABC-123.
+ * A numeric reference uses the configured team key; omitted input uses VCS context.
  */
 export async function getIssueIdentifier(
   providedId?: string,
 ): Promise<string | undefined> {
+  if (providedId && isLinearUuid(providedId)) return providedId.toLowerCase()
   if (providedId) {
     const normalizedIdentifier = normalizeIssueIdentifier(providedId)
     if (normalizedIdentifier) {
@@ -372,7 +376,24 @@ export async function getIssueId(
 
   const client = getGraphQLClient()
   const data = await client.request(query, { id: identifier })
+  if (
+    isLinearUuid(identifier) &&
+    data.issue?.id?.toLowerCase() !== identifier.toLowerCase()
+  ) {
+    throw new ValidationError(
+      "Issue lookup returned a different stable identity",
+    )
+  }
   return data.issue?.id
+}
+
+/** Resolve a required Issue UUID using the shared not-found error contract. */
+export async function requireIssueId(identifier: string): Promise<string> {
+  const id = await getIssueId(identifier).catch(
+    handleNotFound("Issue", identifier),
+  )
+  if (!id) throw new NotFoundError("Issue", identifier)
+  return id
 }
 
 export async function getWorkflowStates(
@@ -403,19 +424,6 @@ export async function getWorkflowStates(
 export type WorkflowState = Awaited<
   ReturnType<typeof getWorkflowStates>
 >[number]
-
-export async function getStartedState(
-  teamKey: string,
-): Promise<{ id: string; name: string }> {
-  const states = await getWorkflowStates(teamKey)
-  const startedStates = states.filter((s) => s.type === "started")
-
-  if (!startedStates.length) {
-    throw new Error("No 'started' state found in workflow")
-  }
-
-  return { id: startedStates[0].id, name: startedStates[0].name }
-}
 
 /**
  * Resolve a workflow state from an already-fetched list by name
@@ -460,87 +468,11 @@ export function workflowStateNotFoundError(
   )
 }
 
-export async function updateIssueState(
-  issueId: string,
-  stateId: string,
-): Promise<void> {
-  const mutation = gql(/* GraphQL */ `
-    mutation UpdateIssueState($issueId: String!, $stateId: String!) {
-      issueUpdate(id: $issueId, input: { stateId: $stateId }) {
-        success
-      }
-    }
-  `)
-
-  const client = getGraphQLClient()
-  const result = await client.request(mutation, { issueId, stateId })
-  if (!result.issueUpdate.success) {
-    throw new CliError("Failed to update issue state")
-  }
-}
-
 const issueDetailsWithCommentsQuery = gql(/* GraphQL */ `
   query GetIssueDetailsWithComments($id: String!) {
+    organization { id urlKey }
     issue(id: $id) {
-      identifier
-      archivedAt
-      trashed
-      title
-      description
-      url
-      branchName
-      state {
-        name
-        type
-        color
-      }
-      assignee {
-        id
-        name
-        displayName
-      }
-      priority
-      project {
-        id
-        name
-        slugId
-      }
-      projectMilestone {
-        name
-      }
-      cycle {
-        id
-        number
-        name
-        isActive
-        isNext
-        isPrevious
-        isFuture
-        isPast
-      }
-      team {
-        activeCycle {
-          number
-        }
-      }
-      labels(first: 250) {
-        nodes {
-          id
-          name
-          color
-        }
-        pageInfo {
-          hasNextPage
-        }
-      }
-      parent {
-        identifier
-        title
-        state {
-          name
-          color
-        }
-      }
+      ...IssueFields
       children(first: 250) {
         nodes {
           identifier
@@ -643,9 +575,7 @@ const issueCommentsForUrlLookupQuery = gql(/* GraphQL */ `
 
 async function fetchAllIssueCommentBodies(issueId: string): Promise<string[]> {
   const client = getGraphQLClient()
-  const bodies: string[] = []
-  let after: string | null | undefined
-  while (true) {
+  const fetchPage = async (after?: string) => {
     const result = await client.request(issueCommentsForUrlLookupQuery, {
       id: issueId,
       after,
@@ -654,79 +584,21 @@ async function fetchAllIssueCommentBodies(issueId: string): Promise<string[]> {
     if (comments == null) {
       throw new CliError(`Unable to read comments for ${issueId}`)
     }
-    bodies.push(...comments.nodes.map((comment) => comment.body))
-    if (!comments.pageInfo.hasNextPage) break
-    const next = comments.pageInfo.endCursor
-    if (next == null || next === after) {
-      throw new CliError(`Incomplete comment pagination for ${issueId}`)
-    }
-    after = next
+    return comments
   }
-  return bodies
+  const comments = await completeConnection(
+    await fetchPage(),
+    fetchPage,
+    `comment lookup for ${issueId}`,
+  )
+  return comments.nodes.map((comment) => comment.body)
 }
 
 const issueDetailsQuery = gql(/* GraphQL */ `
   query GetIssueDetails($id: String!) {
+    organization { id urlKey }
     issue(id: $id) {
-      identifier
-      archivedAt
-      trashed
-      title
-      description
-      url
-      branchName
-      state {
-        name
-        type
-        color
-      }
-      assignee {
-        id
-        name
-        displayName
-      }
-      priority
-      project {
-        id
-        name
-        slugId
-      }
-      projectMilestone {
-        name
-      }
-      cycle {
-        id
-        number
-        name
-        isActive
-        isNext
-        isPrevious
-        isFuture
-        isPast
-      }
-      team {
-        activeCycle {
-          number
-        }
-      }
-      labels(first: 250) {
-        nodes {
-          id
-          name
-          color
-        }
-        pageInfo {
-          hasNextPage
-        }
-      }
-      parent {
-        identifier
-        title
-        state {
-          name
-          color
-        }
-      }
+      ...IssueFields
       children(first: 250) {
         nodes {
           identifier
@@ -866,22 +738,22 @@ async function completeIssueAttachments(
 export function fetchIssueDetailsRaw(
   issueId: string,
   includeComments: true,
-  completeCommentsAndAttachments?: boolean,
-): Promise<IssueDetailsWithComments>
+  complete?: boolean,
+): Promise<GetIssueDetailsWithCommentsQuery>
 export function fetchIssueDetailsRaw(
   issueId: string,
   includeComments?: false,
-  completeCommentsAndAttachments?: boolean,
-): Promise<IssueDetailsWithoutComments>
+  complete?: boolean,
+): Promise<GetIssueDetailsQuery>
 export function fetchIssueDetailsRaw(
   issueId: string,
   includeComments: boolean,
-  completeCommentsAndAttachments?: boolean,
-): Promise<IssueDetailsWithComments | IssueDetailsWithoutComments>
+  complete?: boolean,
+): Promise<GetIssueDetailsWithCommentsQuery | GetIssueDetailsQuery>
 export async function fetchIssueDetailsRaw(
   issueId: string,
   includeComments = false,
-  completeCommentsAndAttachments = false,
+  complete = false,
 ) {
   const client = getGraphQLClient()
   if (includeComments) {
@@ -889,108 +761,25 @@ export async function fetchIssueDetailsRaw(
       id: issueId,
     })
     if (data.issue == null) throw new NotFoundError("Issue", issueId)
-    if (!completeCommentsAndAttachments) return data.issue
-    const [comments, attachments] = await Promise.all([
-      fetchIssueComments(issueId, 0, data.issue.comments),
-      completeIssueAttachments(issueId, data.issue.attachments),
+    if (!complete) return data
+    const [comments, attachments, labels] = await Promise.all([
+      fetchIssueComments(data.issue.id, 0, data.issue.comments),
+      completeIssueAttachments(data.issue.id, data.issue.attachments),
+      completeIssueLabels(data.issue.id, data.issue.labels),
     ])
-    return {
-      ...data.issue,
-      comments,
-      attachments,
-    }
+    return { ...data, issue: { ...data.issue, comments, attachments, labels } }
   }
-
   const data = await client.request(issueDetailsQuery, { id: issueId })
   if (data.issue == null) throw new NotFoundError("Issue", issueId)
-  if (!completeCommentsAndAttachments) return data.issue
-  return {
-    ...data.issue,
-    attachments: await completeIssueAttachments(
-      issueId,
-      data.issue.attachments,
-    ),
-  }
+  if (!complete) return data
+  const [attachments, labels] = await Promise.all([
+    completeIssueAttachments(data.issue.id, data.issue.attachments),
+    completeIssueLabels(data.issue.id, data.issue.labels),
+  ])
+  return { ...data, issue: { ...data.issue, attachments, labels } }
 }
-
-type IssueDetailsWithComments = GetIssueDetailsWithCommentsQuery["issue"]
-type IssueDetailsWithoutComments = GetIssueDetailsQuery["issue"]
-
-export type FetchedIssueComment = IssueDetailsWithComments["comments"]["nodes"][
-  number
-]
-
-export type FetchedIssueDetailsWithComments =
-  & Omit<
-    IssueDetailsWithComments,
-    "children" | "comments" | "attachments" | "documents"
-  >
-  & {
-    children: IssueDetailsWithComments["children"]["nodes"]
-    comments: IssueDetailsWithComments["comments"]["nodes"]
-    attachments: IssueDetailsWithComments["attachments"]["nodes"]
-    documents: IssueDetailsWithComments["documents"]["nodes"]
-  }
-
-export type FetchedIssueDetailsWithoutComments =
-  & Omit<
-    IssueDetailsWithoutComments,
-    "children" | "attachments" | "documents"
-  >
-  & {
-    children: IssueDetailsWithoutComments["children"]["nodes"]
-    attachments: IssueDetailsWithoutComments["attachments"]["nodes"]
-    documents: IssueDetailsWithoutComments["documents"]["nodes"]
-  }
-
-export type FetchedIssueDetails =
-  | FetchedIssueDetailsWithComments
-  | FetchedIssueDetailsWithoutComments
-
-export async function fetchIssueDetails(
-  issueId: string,
-  _showSpinner = false,
-  includeComments = false,
-  completeCommentsAndAttachments = false,
-): Promise<FetchedIssueDetails> {
-  const { Spinner } = await import("@std/cli/unstable-spinner")
-  const { shouldShowSpinner } = await import("./hyperlink.ts")
-  const spinner = shouldShowSpinner() ? new Spinner() : null
-  spinner?.start()
-  try {
-    if (includeComments) {
-      const data = await fetchIssueDetailsRaw(
-        issueId,
-        true,
-        completeCommentsAndAttachments,
-      )
-      spinner?.stop()
-      return {
-        ...data,
-        children: data.children?.nodes || [],
-        comments: data.comments?.nodes || [],
-        attachments: data.attachments?.nodes || [],
-        documents: data.documents?.nodes || [],
-      }
-    }
-
-    const data = await fetchIssueDetailsRaw(
-      issueId,
-      false,
-      completeCommentsAndAttachments,
-    )
-    spinner?.stop()
-    return {
-      ...data,
-      children: data.children?.nodes || [],
-      attachments: data.attachments?.nodes || [],
-      documents: data.documents?.nodes || [],
-    }
-  } catch (error) {
-    spinner?.stop()
-    throw error
-  }
-}
+export type FetchedIssueComment =
+  GetIssueDetailsWithCommentsQuery["issue"]["comments"]["nodes"][number]
 
 export async function fetchParentIssueTitle(
   parentId: string,
@@ -1018,226 +807,25 @@ export async function fetchParentIssueData(parentId: string): Promise<
     title: string
     identifier: string
     projectId: string | null
-  } | null
+  }
 > {
-  try {
-    const query = gql(/* GraphQL */ `
-      query GetParentIssueData($id: String!) {
-        issue(id: $id) {
-          title
-          identifier
-          project {
-            id
-          }
-        }
-      }
-    `)
-    const client = getGraphQLClient()
-    const data = await client.request(query, { id: parentId })
-    return {
-      title: data.issue.title,
-      identifier: data.issue.identifier,
-      projectId: data.issue.project?.id || null,
-    }
-  } catch {
-    // Silently fail for optional parent lookup - caller handles display
-    return null
-  }
-}
-
-export async function fetchIssuesForState(
-  teamKey: string,
-  state: string[] | undefined,
-  assignee?: string,
-  unassigned = false,
-  allAssignees = false,
-  limit?: number,
-  projectId?: string,
-  sortParam?: "manual" | "priority",
-  cycleId?: string,
-  milestoneId?: string,
-  projectLabel?: string,
-  labelNames?: string[],
-  createdAfter?: string,
-  updatedAfter?: string,
-) {
-  const sort = resolveIssueSort(sortParam)
-
-  const filter: IssueFilter = {
-    team: { key: { eq: teamKey } },
-  }
-
-  if (state) {
-    filter.state = { type: { in: state } }
-  }
-
-  if (unassigned) {
-    filter.assignee = { null: true }
-  } else if (allAssignees) {
-    // No assignee filter means all assignees
-  } else if (assignee) {
-    const userId = await lookupUserId(assignee)
-    if (!userId) {
-      throw new NotFoundError("User", assignee)
-    }
-    filter.assignee = { id: { eq: userId } }
-  } else {
-    filter.assignee = { isMe: { eq: true } }
-  }
-
-  if (projectId) {
-    filter.project = { id: { eq: projectId } }
-  } else if (projectLabel) {
-    filter.project = { labels: { name: { eqIgnoreCase: projectLabel } } }
-  }
-
-  if (cycleId) {
-    filter.cycle = { id: { eq: cycleId } }
-  }
-
-  if (milestoneId) {
-    filter.projectMilestone = { id: { eq: milestoneId } }
-  }
-
-  if (labelNames && labelNames.length > 0) {
-    if (labelNames.length === 1) {
-      filter.labels = { some: { name: { eqIgnoreCase: labelNames[0] } } }
-    } else {
-      filter.labels = {
-        and: labelNames.map((name) => ({
-          some: { name: { eqIgnoreCase: name } },
-        })),
-      }
-    }
-  }
-
-  if (createdAfter) {
-    filter.createdAt = { gte: parseDateFilter(createdAfter, "--created-after") }
-  }
-
-  if (updatedAfter) {
-    filter.updatedAt = { gte: parseDateFilter(updatedAfter, "--updated-after") }
-  }
-
   const query = gql(/* GraphQL */ `
-    query GetIssuesForState($sort: [IssueSortInput!], $filter: IssueFilter!, $first: Int, $after: String) {
-      issues(filter: $filter, sort: $sort, first: $first, after: $after) {
-        nodes {
+    query GetParentIssueData($id: String!) {
+      issue(id: $id) {
+        title
+        identifier
+        project {
           id
-          identifier
-          title
-          priority
-          estimate
-          assignee {
-            initials
-          }
-          state {
-            id
-            name
-            color
-            type
-          }
-          cycle {
-            id
-            number
-            name
-            isActive
-            isNext
-            isPrevious
-            isFuture
-            isPast
-          }
-          team {
-            id
-            key
-            cyclesEnabled
-            activeCycle {
-              number
-            }
-          }
-          labels {
-            nodes {
-              id
-              name
-              color
-            }
-          }
-          inverseRelations(first: 100) {
-            nodes {
-              id
-              type
-              issue {
-                id
-                identifier
-                state {
-                  type
-                }
-              }
-            }
-          }
-          updatedAt
-        }
-        pageInfo {
-          hasNextPage
-          endCursor
         }
       }
     }
   `)
-
-  let sortPayload: Array<IssueSortInput>
-  switch (sort) {
-    case "manual":
-      sortPayload = [
-        { workflowState: { order: "Descending" } },
-        { manual: { nulls: "last" as const, order: "Ascending" as const } },
-      ]
-      break
-    case "priority":
-      sortPayload = [
-        { workflowState: { order: "Descending" } },
-        { priority: { nulls: "last" as const, order: "Descending" as const } },
-        { manual: { nulls: "last" as const, order: "Ascending" as const } },
-      ]
-      break
-    default:
-      throw new ValidationError(`Unknown sort type: ${sort}`, {
-        suggestion: "Use 'manual' or 'priority'",
-      })
-  }
-
   const client = getGraphQLClient()
-
-  const pageSize = limit !== undefined ? Math.min(limit, 100) : 50
-  const fetchAll = limit === undefined || limit === 0
-
-  const allIssues = []
-  let hasNextPage = true
-  let after: string | null | undefined = undefined
-
-  while (hasNextPage) {
-    const result: GetIssuesForStateQuery = await client.request(query, {
-      sort: sortPayload,
-      filter,
-      first: pageSize,
-      after,
-    })
-
-    const issues = result.issues?.nodes || []
-    allIssues.push(...issues)
-
-    if (!fetchAll && allIssues.length >= limit!) {
-      break
-    }
-
-    hasNextPage = result.issues?.pageInfo?.hasNextPage || false
-    after = result.issues?.pageInfo?.endCursor
-  }
-
+  const data = await client.request(query, { id: parentId })
   return {
-    issues: {
-      nodes: allIssues.slice(0, limit),
-    },
+    title: data.issue.title,
+    identifier: data.issue.identifier,
+    projectId: data.issue.project?.id || null,
   }
 }
 
@@ -1404,29 +992,24 @@ async function fetchCompleteProjectTeams(
   initial: ProjectTeamConnection,
   includeArchived?: boolean,
 ): Promise<ProjectTeamConnection> {
-  const nodes = [...initial.nodes]
-  let pageInfo = initial.pageInfo
-  let after: string | null | undefined = initial.pageInfo.endCursor
-
-  while (pageInfo.hasNextPage) {
+  const fetchPage = async (after: string, first: number) => {
     const result: GetProjectTeamsForDoctorQuery = await getGraphQLClient()
       .request(projectTeamsQuery, {
         id: projectId,
-        first: 100,
+        first,
         after,
         includeArchived,
       })
     if (result.project == null) {
       throw new NotFoundError("Project", projectId)
     }
-
-    const connection = result.project.teams
-    nodes.push(...connection.nodes)
-    pageInfo = connection.pageInfo
-    after = connection.pageInfo.endCursor
+    return result.project.teams
   }
-
-  return { nodes, pageInfo }
+  return await completeConnection(
+    initial,
+    fetchPage,
+    `project teams for ${projectId}`,
+  )
 }
 
 async function completeDoctorProjectTeams(
@@ -1501,6 +1084,8 @@ export interface FetchIssuesForQueryOptions {
   exactUrl?: string
   /** Resolved once by batch callers to avoid repeating user lookup requests. */
   assigneeId?: string
+  /** Use Linear's current-principal filter without a separate viewer lookup. */
+  assigneeIsMe?: boolean
 }
 
 interface LinearIssueUrlReference {
@@ -1708,6 +1293,8 @@ export async function fetchIssuesForQuery(
 
   if (options.unassigned) {
     filter.assignee = { null: true }
+  } else if (options.assigneeIsMe) {
+    filter.assignee = { isMe: { eq: true } }
   } else if (options.assignee != null || options.assigneeId != null) {
     const userId = options.assigneeId ?? await lookupUserId(options.assignee!)
     if (!userId) {
@@ -1791,44 +1378,26 @@ export async function fetchIssuesForQuery(
   const limit = options.limit ?? 50
   const pageSize = fetchAll ? 100 : Math.min(limit, 100)
 
-  const allNodes: QueryIssuesPayload["nodes"] = []
-  let hasNextPage = true
-  let after: string | null | undefined = undefined
-  let lastPageInfo: QueryIssuesPayload["pageInfo"] = {
-    hasNextPage: false,
-    endCursor: null,
+  const fetchPage = async (after?: string, first = pageSize) => {
+    const result = await client.request(queryIssuesQuery, {
+      sort: sortPayload,
+      filter: Object.keys(filter).length > 0 ? filter : undefined,
+      first,
+      after,
+      includeArchived: options.includeArchived,
+      includeProjectTeamMetadata: options.includeProjectTeamMetadata === true,
+      includeEstimationMetadata: options.includeEstimationMetadata === true,
+      includeDescription: options.exactUrl != null,
+      includeComments: options.exactUrl != null && exactIssueReference == null,
+    })
+    return result.issues
   }
-
-  while (hasNextPage) {
-    const result: GetIssuesForQueryQuery = await client.request(
-      queryIssuesQuery,
-      {
-        sort: sortPayload,
-        filter: Object.keys(filter).length > 0 ? filter : undefined,
-        first: pageSize,
-        after,
-        includeArchived: options.includeArchived,
-        includeProjectTeamMetadata: options.includeProjectTeamMetadata === true,
-        includeEstimationMetadata: options.includeEstimationMetadata === true,
-        includeDescription: options.exactUrl != null,
-        includeComments: options.exactUrl != null &&
-          exactIssueReference == null,
-      },
-    )
-
-    allNodes.push(...result.issues.nodes)
-    lastPageInfo = result.issues.pageInfo
-    hasNextPage = result.issues.pageInfo.hasNextPage
-
-    if (!fetchAll && allNodes.length >= limit) {
-      break
-    }
-    const next = result.issues.pageInfo.endCursor
-    if (hasNextPage && (next == null || next === after)) {
-      throw new CliError("Incomplete issue pagination")
-    }
-    after = next
-  }
+  const { nodes: allNodes, pageInfo: lastPageInfo } = await completeConnection(
+    await fetchPage(),
+    fetchPage,
+    "issue",
+    fetchAll ? 0 : limit,
+  )
 
   const completedNodes = options.includeProjectTeamMetadata === true
     ? await completeDoctorProjectTeams(allNodes, options.includeArchived)
@@ -2061,53 +1630,37 @@ export async function searchIssuesByTerm(
   }
 
   const client = getGraphQLClient()
-  const fetchUnlimited = options.limit === 0
-  const allNodes: SearchIssuesPayload["nodes"] = []
   let totalCount = 0
-  let hasNextPage = true
-  let after: string | null | undefined = undefined
-  let lastPageInfo: SearchIssuesPayload["pageInfo"] = {
-    hasNextPage: false,
-    endCursor: null,
-  }
-
-  while (hasNextPage) {
-    const remaining = fetchUnlimited
-      ? 100
-      : (options.limit == null
-        ? undefined
-        : Math.min(options.limit - allNodes.length, 100))
-    if (!fetchUnlimited && remaining != null && remaining <= 0) {
-      break
-    }
-
-    const result: SearchIssuesQuery = await client.request(searchIssuesQuery, {
+  const first = options.limit === 0
+    ? 100
+    : options.limit == null
+    ? undefined
+    : Math.min(options.limit, 100)
+  const fetchPage = async (after?: string, pageSize = first) => {
+    const result = await client.request(searchIssuesQuery, {
       term,
       filter: Object.keys(filter).length > 0 ? filter : undefined,
-      first: remaining,
+      first: pageSize,
       after,
       includeArchived: options.includeArchived,
       includeComments: options.includeComments,
       orderBy: options.orderBy,
     })
-
     totalCount = result.searchIssues.totalCount
-    allNodes.push(...result.searchIssues.nodes)
-    lastPageInfo = result.searchIssues.pageInfo
-    hasNextPage = result.searchIssues.pageInfo.hasNextPage
-    after = result.searchIssues.pageInfo.endCursor
-
-    if (
-      options.limit == null ||
-      (!fetchUnlimited && allNodes.length >= options.limit)
-    ) {
-      break
-    }
+    return result.searchIssues
   }
-
+  const initial = await fetchPage()
+  // An omitted limit deliberately returns Linear's default first page. Only
+  // an explicit zero asks this helper to accumulate the complete connection.
+  const connection = options.limit == null ? initial : await completeConnection(
+    initial,
+    fetchPage,
+    "issue search",
+    options.limit,
+  )
   return {
-    nodes: allNodes,
-    pageInfo: lastPageInfo,
+    nodes: connection.nodes,
+    pageInfo: connection.pageInfo,
     totalCount,
   }
 }
@@ -2128,7 +1681,7 @@ export async function getProjectIdByName(
   input: string,
   includeArchived?: boolean,
 ): Promise<string | undefined> {
-  if (isLinearUuid(input)) return input
+  if (isLinearUuid(input)) return input.toLowerCase()
 
   const client = getGraphQLClient()
 
@@ -2138,12 +1691,14 @@ export async function getProjectIdByName(
       $includeArchived: Boolean = false
     ) {
       projects(
+        first: 2
         filter: { name: { eq: $name } }
         includeArchived: $includeArchived
       ) {
         nodes {
           id
         }
+        pageInfo { hasNextPage endCursor }
       }
     }
   `)
@@ -2151,7 +1706,7 @@ export async function getProjectIdByName(
     name: input,
     ...(includeArchived === undefined ? {} : { includeArchived }),
   })
-  const nameMatch = nameData.projects?.nodes[0]?.id
+  const nameMatch = uniqueLookupId(nameData?.projects, input, "Project")
   if (nameMatch) return nameMatch
 
   const slugQuery = gql(/* GraphQL */ `
@@ -2160,12 +1715,14 @@ export async function getProjectIdByName(
       $includeArchived: Boolean = false
     ) {
       projects(
+        first: 2
         filter: { slugId: { eq: $slugId } }
         includeArchived: $includeArchived
       ) {
         nodes {
           id
         }
+        pageInfo { hasNextPage endCursor }
       }
     }
   `)
@@ -2173,7 +1730,29 @@ export async function getProjectIdByName(
     slugId: input,
     ...(includeArchived === undefined ? {} : { includeArchived }),
   })
-  return slugData.projects?.nodes[0]?.id
+  return uniqueLookupId(slugData?.projects, input, "Project")
+}
+
+function uniqueLookupId(
+  connection: { nodes: { id: string }[]; pageInfo: { hasNextPage: boolean } },
+  input: string,
+  kind: string,
+): string | undefined {
+  if (
+    connection == null || !Array.isArray(connection.nodes) ||
+    typeof connection.pageInfo?.hasNextPage !== "boolean"
+  ) throw new CliError(kind + " lookup returned an incomplete connection")
+  if (connection.nodes.length > 1 || connection.pageInfo.hasNextPage) {
+    throw new ValidationError(kind + " name or slug is ambiguous: " + input, {
+      suggestion: "Use the exact object UUID.",
+    })
+  }
+  if (
+    connection.nodes.some((node) => typeof node.id !== "string" || !node.id)
+  ) {
+    throw new CliError(kind + " lookup returned no stable identity")
+  }
+  return connection.nodes[0]?.id
 }
 
 /**
@@ -2222,21 +1801,21 @@ export async function getProjectOptionsByName(
       }
     }
   `)
-  const qResults: Array<{ id: string; name: string }> = []
-  let hasNextPage = true
-  let after: string | null | undefined = undefined
-  while (hasNextPage) {
+  const fetchPage = async (after?: string, first = 100) => {
     const data: GetProjectIdOptionsByNameQuery = await client.request(query, {
       name,
-      first: 100,
+      first,
       after,
       ...(includeArchived === undefined ? {} : { includeArchived }),
     })
-    qResults.push(...(data.projects?.nodes || []))
-    hasNextPage = data.projects?.pageInfo?.hasNextPage || false
-    after = data.projects?.pageInfo?.endCursor
+    return data.projects
   }
-  return Object.fromEntries(qResults.map((t) => [t.id, t.name]))
+  const { nodes } = await completeConnection(
+    await fetchPage(),
+    fetchPage,
+    `projects matching ${name}`,
+  )
+  return Object.fromEntries(nodes.map((project) => [project.id, project.name]))
 }
 
 export async function getProjectsForTeam(
@@ -2262,24 +1841,21 @@ export async function getProjectsForTeam(
     }
   `)
 
-  const projects: Array<{ id: string; name: string }> = []
-  let hasNextPage = true
-  let after: string | null | undefined = undefined
-
-  while (hasNextPage) {
+  const fetchPage = async (after?: string, first = 100) => {
     const data: GetProjectsForTeamQuery = await client.request(query, {
       filter: {
         accessibleTeams: { some: { key: { eq: teamKey } } },
       },
-      first: 100,
+      first,
       after,
     })
-
-    const connection = data.projects
-    projects.push(...(connection?.nodes || []))
-    hasNextPage = connection?.pageInfo?.hasNextPage || false
-    after = connection?.pageInfo?.endCursor
+    return data.projects
   }
+  const { nodes: projects } = await completeConnection(
+    await fetchPage(),
+    fetchPage,
+    `projects for team ${teamKey}`,
+  )
 
   return projects.sort((a, b) =>
     a.name.toLowerCase().localeCompare(b.name.toLowerCase())
@@ -2331,135 +1907,142 @@ export async function searchTeamsByKeySubstring(
   )
 }
 
-export type UserLookupRequest = <T, V extends Record<string, unknown>>(
-  document: TypedDocumentNode<T, V>,
-  variables: V,
-) => Promise<T>
-
-function requestUserLookup<T, V extends Record<string, unknown>>(
-  document: TypedDocumentNode<T, V>,
-  variables: V,
-): Promise<T> {
-  return getGraphQLClient().request<T, Record<string, unknown>>(
-    document,
-    variables,
-  )
-}
-
 export async function lookupUserId(
-  /**
-   * User UUID, email, username, display name, 'self', or '@me' for viewer
-   */
   input: "self" | "@me" | string,
-  request: UserLookupRequest = requestUserLookup,
 ): Promise<string | undefined> {
-  if (input === "@me" || input === "self") {
-    const query = gql(/* GraphQL */ `
-      query GetViewerId {
-        viewer {
-          id
-        }
-      }
-    `)
-    const data = await request(query, {})
-    return data.viewer.id
-  } else if (isLinearUuid(input)) {
-    const query = gql(/* GraphQL */ `
-      query LookupUserById($id: ID!) {
-        users(filter: { id: { eq: $id } }) {
-          nodes {
-            id
-          }
-        }
-      }
-    `)
-    const data = await request(query, { id: input.toLowerCase() })
-    return data.users.nodes[0]?.id
-  } else {
-    const query = gql(/* GraphQL */ `
-      query LookupUser($input: String!) {
-        users(
-          filter: {
-            or: [
-              { email: { eqIgnoreCase: $input } }
-              { displayName: { eqIgnoreCase: $input } }
-              { name: { containsIgnoreCaseAndAccent: $input } }
-            ]
-          }
-        ) {
-          nodes {
-            id
-            email
-            displayName
-            name
-          }
-        }
-      }
-    `)
-    const data = await request(query, { input })
-
-    if (!data.users?.nodes?.length) {
-      return undefined
-    }
-
-    for (const user of data.users.nodes) {
-      if (user.email?.toLowerCase() === input.toLowerCase()) {
-        return user.id
-      }
-    }
-
-    for (const user of data.users.nodes) {
-      if (user.displayName?.toLowerCase() === input.toLowerCase()) {
-        return user.id
-      }
-    }
-
-    return data.users.nodes[0]?.id
+  if (!input.trim()) {
+    throw new ValidationError("User reference cannot be empty")
   }
+  const client = getGraphQLClient()
+  if (input === "@me" || input === "self") {
+    const query = gql(`
+      query GetViewerId { viewer { id } }
+    `)
+    const data = await client.request(query)
+    if (typeof data?.viewer?.id !== "string" || !data.viewer.id) {
+      throw new CliError("Viewer lookup returned no identity")
+    }
+    return data.viewer.id
+  }
+  if (isLinearUuid(input)) {
+    const query = gql(`
+      query LookupUserById($id: ID!) {
+        users(first: 2, filter: { id: { eq: $id } }) {
+          nodes { id }
+          pageInfo { hasNextPage endCursor }
+        }
+      }
+    `)
+    const data = await client.request(query, { id: input.toLowerCase() })
+    const id = uniqueLookupId(data?.users, input, "User")
+    if (id != null && id.toLowerCase() !== input.toLowerCase()) {
+      throw new CliError("User lookup returned a different identity")
+    }
+    return id
+  }
+  const query = gql(`
+    query LookupUser($filter: UserFilter!) {
+      users(first: 2, filter: $filter) {
+        nodes { id }
+        pageInfo { hasNextPage endCursor }
+      }
+    }
+  `)
+  for (
+    const filter of [
+      { email: { eqIgnoreCase: input } },
+      { displayName: { eqIgnoreCase: input } },
+      { name: { eqIgnoreCase: input } },
+      { name: { containsIgnoreCaseAndAccent: input } },
+    ]
+  ) {
+    const data = await client.request(query, { filter })
+    const id = uniqueLookupId(data?.users, input, "User")
+    if (id != null) return id
+  }
+  return undefined
 }
 
 export async function getIssueLabelIdByNameForTeam(
   name: string,
-  teamKey: string,
+  team: string,
 ): Promise<string | undefined> {
   const client = getGraphQLClient()
-  const query = gql(/* GraphQL */ `
-    query GetIssueLabelIdByNameForTeam($name: String!, $teamKey: String!) {
+  if (isLinearUuid(name)) {
+    const byId = gql(`
+      query GetIssueLabelForWrite($id: String!) {
+        issueLabel(id: $id) { id isGroup team { id key } }
+      }
+    `)
+    const data = await client.request(byId, { id: name.toLowerCase() })
+    const label = data?.issueLabel
+    if (label == null) return undefined
+    if (label.id?.toLowerCase() !== name.toLowerCase()) {
+      throw new CliError("Issue label lookup returned a different identity")
+    }
+    const matches = label.team == null ||
+      (isLinearUuid(team)
+        ? label.team.id.toLowerCase() === team.toLowerCase()
+        : label.team.key.toLowerCase() === team.toLowerCase())
+    if (label.isGroup || !matches) {
+      throw new ValidationError(
+        "Issue label is not assignable in the target team",
+      )
+    }
+    return label.id
+  }
+  const query = gql(`
+    query GetIssueLabelIdByNameForTeam($name: String!, $team: NullableTeamFilter!) {
       issueLabels(
+        first: 2
         filter: {
           name: { eqIgnoreCase: $name }
-          or: [{ team: { key: { eq: $teamKey } } }, { team: { null: true } }]
+          isGroup: { eq: false }
+          or: [{ team: $team }, { team: { null: true } }]
         }
       ) {
-        nodes {
-          id
-          name
-        }
+        nodes { id name }
+        pageInfo { hasNextPage endCursor }
       }
     }
   `)
-  const data = await client.request(query, { name, teamKey })
-  return data.issueLabels?.nodes[0]?.id
+  const scope = isLinearUuid(team)
+    ? { id: { eq: team } }
+    : { key: { eq: team } }
+  const data = await client.request(query, { name, team: scope })
+  return uniqueLookupId(data?.issueLabels, name, "Issue label")
 }
 
 export async function getProjectLabelIdByName(
   name: string,
 ): Promise<string | undefined> {
   const client = getGraphQLClient()
-  const query = gql(/* GraphQL */ `
+  if (isLinearUuid(name)) {
+    const byId = gql(`
+      query GetProjectLabelForWrite($id: String!) {
+        projectLabel(id: $id) { id isGroup }
+      }
+    `)
+    const data = await client.request(byId, { id: name.toLowerCase() })
+    if (data?.projectLabel == null) return undefined
+    if (data.projectLabel.id?.toLowerCase() !== name.toLowerCase()) {
+      throw new CliError("Project label lookup returned a different identity")
+    }
+    if (data.projectLabel.isGroup) {
+      throw new ValidationError("A Project label group cannot be assigned")
+    }
+    return data.projectLabel.id
+  }
+  const query = gql(`
     query GetProjectLabelIdByName($name: String!) {
-      projectLabels(
-        filter: { name: { eqIgnoreCase: $name }, isGroup: { eq: false } }
-      ) {
-        nodes {
-          id
-          name
-        }
+      projectLabels(first: 2, filter: { name: { eqIgnoreCase: $name }, isGroup: { eq: false } }) {
+        nodes { id name }
+        pageInfo { hasNextPage endCursor }
       }
     }
   `)
   const data = await client.request(query, { name })
-  return data.projectLabels?.nodes[0]?.id
+  return uniqueLookupId(data?.projectLabels, name, "Project label")
 }
 
 export async function getIssueLabelOptionsByNameForTeam(
@@ -2794,29 +2377,43 @@ export async function getMilestoneIdByName(
 ): Promise<string> {
   const client = getGraphQLClient()
   const query = gql(/* GraphQL */ `
-    query GetProjectMilestonesForLookup($projectId: String!) {
+    query GetProjectMilestonesForLookup($projectId: String!, $after: String) {
       project(id: $projectId) {
-        projectMilestones {
+        projectMilestones(first: 100, after: $after) {
           nodes {
             id
             name
           }
+          pageInfo { hasNextPage endCursor }
         }
       }
     }
   `)
-  const data = await client.request(query, { projectId })
+  const data = await client.request(query, { projectId, after: null })
   if (!data.project) {
     throw new NotFoundError("Project", projectId)
   }
-  const milestones = data.project.projectMilestones?.nodes || []
-  const match = milestones.find(
+  const { nodes: milestones } = await completeConnection(
+    data.project.projectMilestones,
+    async (after) => {
+      const page = await client.request(query, { projectId, after })
+      if (!page.project) throw new NotFoundError("Project", projectId)
+      return page.project.projectMilestones
+    },
+    "project milestones",
+  )
+  const matches = milestones.filter(
     (m) => m.name.toLowerCase() === milestoneName.toLowerCase(),
   )
-  if (!match) {
+  if (matches.length > 1) {
+    throw new ValidationError(`Milestone name is ambiguous: ${milestoneName}`, {
+      suggestion: "Pass a milestone UUID instead of a name.",
+    })
+  }
+  if (matches.length === 0) {
     throw new NotFoundError("Milestone", milestoneName)
   }
-  return match.id
+  return matches[0]!.id
 }
 
 export async function getCycleIdByNameOrNumber(

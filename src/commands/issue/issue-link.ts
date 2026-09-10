@@ -1,16 +1,9 @@
+import { linkIssueUrl } from "../../operations/issue-content.ts"
+import { printWriteResult } from "../../utils/write-result.ts"
 import { Command } from "@cliffy/command"
 import { withUsageMetadata } from "../usage.ts"
-import { gql } from "../../__codegen__/gql.ts"
-import { getGraphQLClient } from "../../utils/graphql.ts"
-import { getIssueId, getIssueIdentifier } from "../../utils/linear.ts"
-import {
-  CliError,
-  handleError,
-  isClientError,
-  isNotFoundError,
-  NotFoundError,
-  ValidationError,
-} from "../../utils/errors.ts"
+import { getIssueIdentifier, requireIssueId } from "../../utils/linear.ts"
+import { handleError, ValidationError } from "../../utils/errors.ts"
 
 function looksLikeUrl(value: string): boolean {
   return value.startsWith("http://") || value.startsWith("https://")
@@ -20,7 +13,7 @@ export const linkCommand = withUsageMetadata(new Command(), { writes: true })
   .name("link")
   .description("Link a URL to an issue")
   .arguments("<urlOrIssueId:string> [url:string]")
-  .option("--json", "Output {attachment} as JSON")
+  .option("--json", "Output a JSON write result with the attachment")
   .option("-t, --title <title:string>", "Custom title for the link")
   .example(
     "Link a URL to issue detected from branch",
@@ -42,7 +35,7 @@ export const linkCommand = withUsageMetadata(new Command(), { writes: true })
       let linkUrl: string
 
       if (url != null) {
-        // Two args: first is issue ID, second is URL
+        // Two args: first is an Issue reference (identifier or UUID), second is URL.
         issueIdInput = urlOrIssueId
         linkUrl = url
       } else if (looksLikeUrl(urlOrIssueId)) {
@@ -75,46 +68,14 @@ export const linkCommand = withUsageMetadata(new Command(), { writes: true })
       }
 
       // attachmentLinkURL needs a UUID
-      let issueUuid: string | undefined
-      try {
-        issueUuid = await getIssueId(resolvedIdentifier)
-      } catch (error) {
-        if (isClientError(error) && isNotFoundError(error)) {
-          throw new NotFoundError("Issue", resolvedIdentifier)
-        }
-        throw error
-      }
-      if (!issueUuid) {
-        throw new NotFoundError("Issue", resolvedIdentifier)
-      }
+      const issueUuid = await requireIssueId(resolvedIdentifier)
 
-      const mutation = gql(`
-        mutation AttachmentLinkURL($issueId: String!, $url: String!, $title: String) {
-          attachmentLinkURL(issueId: $issueId, url: $url, title: $title) {
-            success
-            attachment {
-              id
-              title
-              url
-            }
-          }
-        }
-      `)
-
-      const client = getGraphQLClient()
-      const data = await client.request(mutation, {
-        issueId: issueUuid,
+      const { attachment } = await linkIssueUrl(issueUuid, {
         url: linkUrl,
         title,
       })
-
-      if (!data.attachmentLinkURL.success) {
-        throw new CliError("Failed to link URL to issue")
-      }
-
-      const attachment = data.attachmentLinkURL.attachment
       if (json) {
-        console.log(JSON.stringify({ attachment }, null, 2))
+        printWriteResult({ attachment })
         return
       }
       console.log(`✓ Linked to ${resolvedIdentifier}: ${attachment.title}`)

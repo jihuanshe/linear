@@ -12,12 +12,14 @@ const LIST_PREVIEW = 10
 
 const GetMilestoneDetails = gql(`
   query GetMilestoneDetails($id: String!, $first: Int!, $after: String) {
+    organization { id urlKey }
     projectMilestone(id: $id) {
       id
       name
       description
       targetDate
       sortOrder
+      archivedAt
       createdAt
       updatedAt
       project {
@@ -63,9 +65,13 @@ export const viewCommand = new Command()
     "--project <project:string>",
     "Project for resolving a milestone name (UUID, slug ID, or name)",
   )
-  .action(async ({ all, project }, milestoneInput) => {
+  .option(
+    "-j, --json",
+    "Output {organization, projectMilestone} for --base-file; --all completes issues",
+  )
+  .action(async ({ all, project, json }, milestoneInput) => {
     const { Spinner } = await import("@std/cli/unstable-spinner")
-    const showSpinner = shouldShowSpinner()
+    const showSpinner = shouldShowSpinner() && !json
     const spinner = showSpinner ? new Spinner() : null
     spinner?.start()
 
@@ -94,28 +100,30 @@ export const viewCommand = new Command()
 
       const issues = [...milestone.issues.nodes]
       let pageInfo = milestone.issues.pageInfo
+      const seen = new Set<string>()
 
       if (all) {
         // Paginate the full set. Fail loudly on inconsistent pagination rather
         // than silently returning a partial list — silently dropping issues is
         // the exact bug --all exists to prevent.
         while (pageInfo.hasNextPage) {
-          if (!pageInfo.endCursor) {
+          if (!pageInfo.endCursor || seen.has(pageInfo.endCursor)) {
             throw new CliError(
-              "Linear reported more issues but returned no pagination cursor",
+              "Linear reported more issues but returned an empty or repeated pagination cursor",
               {
                 suggestion:
                   `Retry, or use \`linear issue query --milestone ${milestone.id} --json\` for the full list.`,
               },
             )
           }
+          seen.add(pageInfo.endCursor)
           const nextPage = await client.request(GetMilestoneDetails, {
-            id: milestoneId,
+            id: milestone.id,
             first: PAGE_SIZE,
             after: pageInfo.endCursor,
           })
           const next = nextPage.projectMilestone
-          if (next == null) {
+          if (next == null || next.id !== milestone.id) {
             throw new NotFoundError("Milestone", milestoneInput)
           }
           issues.push(...next.issues.nodes)
@@ -124,6 +132,21 @@ export const viewCommand = new Command()
       }
 
       spinner?.stop()
+
+      if (json) {
+        console.log(JSON.stringify(
+          {
+            organization: firstPage.organization,
+            projectMilestone: {
+              ...milestone,
+              issues: { nodes: issues, pageInfo },
+            },
+          },
+          null,
+          2,
+        ))
+        return
+      }
 
       const truncated = !all && pageInfo.hasNextPage
 

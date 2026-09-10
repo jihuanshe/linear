@@ -23,9 +23,15 @@ for (const paginate of [false, true]) {
         ...(silent ? ["--silent"] : []),
       ])
       assertEquals(result.code, 1)
-      assertEquals(result.stdout, "")
-      assertStringIncludes(result.stderr, "API response is not valid JSON")
-      assertEquals(result.stderr.includes("<html>"), false)
+      const failure = JSON.parse(result.stdout)
+      assertEquals(failure.ok, false)
+      assertEquals(failure.effect, "none")
+      assertStringIncludes(
+        failure.error.message,
+        "API response is not valid JSON",
+      )
+      assertEquals(result.stderr, "")
+      assertEquals(result.stdout.includes("<html>"), false)
     })
     Deno.test(`API HTTP boundary - invalid envelope paginate=${paginate} silent=${silent}`, async () => {
       for (const value of [null, [], "invalid", 42, {}]) {
@@ -34,11 +40,15 @@ for (const paginate of [false, true]) {
           ...(silent ? ["--silent"] : []),
         ])
         assertEquals(result.code, 1)
-        assertEquals(result.stdout, "")
+        const failure = JSON.parse(result.stdout)
+        assertEquals(failure.ok, false)
+        assertEquals(failure.effect, "none")
+        assertEquals(failure.data, undefined)
         assertStringIncludes(
-          result.stderr,
+          failure.error.message,
           "API response is not a GraphQL response object",
         )
+        assertEquals(result.stderr, "")
       }
     })
   }
@@ -67,8 +77,57 @@ for (const hasErrors of [false, true]) {
   }
 }
 
+for (const mutation of [false, true]) {
+  Deno.test(`API HTTP boundary - malformed result fields mutation=${mutation}`, async () => {
+    for (
+      const envelope of [
+        { data: null },
+        { data: 9 },
+        { data: [] },
+        { errors: [] },
+        { errors: "bad" },
+        { data: {}, errors: [] },
+        { data: {}, errors: [null] },
+        { data: {}, errors: [{ message: 42 }] },
+      ]
+    ) {
+      const result = await runApiResponse(
+        JSON.stringify(envelope),
+        mutation ? ["--unprotected"] : [],
+      )
+      assertEquals(result.code, 1)
+      const failure = JSON.parse(result.stdout)
+      assertEquals(failure.ok, false)
+      assertEquals(failure.effect, mutation ? "unknown" : "none")
+      assertEquals(result.stderr, "")
+    }
+  })
+
+  Deno.test(`API HTTP boundary - errors without data mutation=${mutation}`, async () => {
+    for (
+      const envelope of [
+        { errors: [{ message: "Rejected" }] },
+        { data: null, errors: [{ message: "Execution failed" }] },
+      ]
+    ) {
+      const result = await runApiResponse(
+        JSON.stringify(envelope),
+        mutation ? ["--unprotected"] : [],
+      )
+      assertEquals(result.code, 1)
+      assertEquals(JSON.parse(result.stdout), envelope)
+      assertEquals(result.stderr, "")
+    }
+  })
+}
+
 async function runApiResponse(body: string, flags: string[]) {
   const root = await Deno.makeTempDir()
+  const query = flags.includes("--unprotected")
+    ? 'mutation DeleteComment { commentDelete(id: "dummy-id") { success } }'
+    : flags.includes("--paginate")
+    ? "query GetIssues($after: String) { issues(after: $after) { nodes { id } pageInfo { hasNextPage endCursor } } }"
+    : "query GetViewer { viewer { id } }"
   let requests = 0
   const server = Deno.serve(
     { hostname: "127.0.0.1", port: 0, onListen() {} },
@@ -76,7 +135,7 @@ async function runApiResponse(body: string, flags: string[]) {
       assertEquals(request.method, "POST")
       assertEquals(
         (await request.json()).query,
-        "query GetViewer { viewer { id } }",
+        query,
       )
       requests++
       return new Response(body, { status: 200 })
@@ -90,7 +149,7 @@ async function runApiResponse(body: string, flags: string[]) {
         "--quiet",
         fromFileUrl(new URL("../../src/main.ts", import.meta.url)),
         "api",
-        "query GetViewer { viewer { id } }",
+        query,
         ...flags,
       ],
       stdin: "null",
@@ -612,6 +671,7 @@ await cliffySnapshotTest({
     "--paginate",
   ],
   denoArgs,
+  canFail: true,
   async fn() {
     const server = new MockLinearServer([
       {

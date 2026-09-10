@@ -21,7 +21,6 @@ Description:
 Options:
 
   -h, --help                                - Show this help.                                                                                         
-  --start                                   - Start the issue after creation                                                                          
   -a, --assignee             <assignee>     - Assignee (user UUID, username, name, email, 'self', or '@me')                                           
   --due-date                 <dueDate>      - Due date of the issue                                                                                   
   --parent                   <parent>       - Parent issue (if any) as a team_number code                                                             
@@ -39,7 +38,7 @@ Options:
   --no-use-default-template                 - Do not use default template for the issue                                                               
   --no-interactive                          - Disable interactive prompts                                                                             
   -t, --title                <title>        - Title of the issue                                                                                      
-  -j, --json                                - Output {success, issue: {id, identifier, url, team}} as JSON (non-interactive only)                     
+  -j, --json                                - Output a JSON write result; the created issue is in data.issue (non-interactive only)                   
 
 "
 stderr:
@@ -48,9 +47,7 @@ stderr:
 
 snapshot[`Issue Create Command - Happy Path 1`] = `
 stdout:
-"Creating issue in ENG
-
-✓ Created issue ENG-123: Fix authentication bug
+"✓ Created issue ENG-123: Fix authentication bug
 https://linear.app/test-team/issue/ENG-123/fix-authentication-bug
 "
 stderr:
@@ -59,9 +56,7 @@ stderr:
 
 snapshot[`Issue Create Command - With Milestone 1`] = `
 stdout:
-"Creating issue in ENG
-
-✓ Created issue ENG-789: Test milestone feature
+"✓ Created issue ENG-789: Test milestone feature
 https://linear.app/test-team/issue/ENG-789/test-milestone-feature
 "
 stderr:
@@ -70,9 +65,7 @@ stderr:
 
 snapshot[`Issue Create Command - Case Insensitive Label Matching 1`] = `
 stdout:
-"Creating issue in ENG
-
-✓ Created issue ENG-456: Test case insensitive labels
+"✓ Created issue ENG-456: Test case insensitive labels
 https://linear.app/test-team/issue/ENG-456/test-case-insensitive-labels
 "
 stderr:
@@ -81,9 +74,7 @@ stderr:
 
 snapshot[`Issue Create Command - Short Flag -p Is Priority 1`] = `
 stdout:
-"Creating issue in ENG
-
-✓ Created issue ENG-999: Test priority flag
+"✓ Created issue ENG-999: Test priority flag
 https://linear.app/test-team/issue/ENG-999/test-priority-flag
 "
 stderr:
@@ -92,9 +83,7 @@ stderr:
 
 snapshot[`Issue Create Command - With Cycle 1`] = `
 stdout:
-"Creating issue in ENG
-
-✓ Created issue ENG-890: Test cycle feature
+"✓ Created issue ENG-890: Test cycle feature
 https://linear.app/test-team/issue/ENG-890/test-cycle-feature
 "
 stderr:

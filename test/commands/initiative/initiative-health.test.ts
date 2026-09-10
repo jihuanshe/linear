@@ -8,6 +8,8 @@ import { MockLinearServer } from "../../utils/mock_linear_server.ts"
 import { setupMockLinearServer } from "../../utils/test-helpers.ts"
 
 const id = "550e8400-e29b-41d4-a716-446655440000"
+const organization = { id: "workspace-test", urlKey: "test" }
+const pageInfo = { hasNextPage: false, endCursor: null }
 const initiative = {
   id,
   slugId: "example",
@@ -50,11 +52,317 @@ async function runCli(server: MockLinearServer, args: string[]) {
 }
 
 for (const command of ["create", "update"]) {
-  Deno.test(`initiative ${command} normalizes supported status casing`, async () => {
+  Deno.test(`initiative ${command} rejects explicit empty input before requests or prompts`, async () => {
+    const server = new MockLinearServer()
+    await server.start()
+    try {
+      for (const field of ["name", "status", "owner", "target-date"]) {
+        for (const interactive of [false, true]) {
+          const result = await runCli(server, [
+            command,
+            ...(command === "create"
+              ? (field === "name" ? [] : ["--name", "Example"])
+              : [id, "--unprotected"]),
+            `--${field}`,
+            "",
+            ...(interactive ? ["--interactive"] : ["--json"]),
+          ])
+          assertEquals(result.code, 1)
+          assertStringIncludes(
+            result.stdout + result.stderr,
+            `--${field} cannot be empty`,
+          )
+          assertEquals(server.graphqlRequests, [])
+        }
+      }
+    } finally {
+      await server.stop()
+    }
+  })
+
+  Deno.test(`initiative ${command} preserves empty description in mutation`, async () => {
     const server = new MockLinearServer([
       {
-        queryName: "GetInitiativeForUpdate",
-        response: { data: { initiative } },
+        queryName: "ReadInitiative",
+        response: {
+          data: {
+            organization,
+            initiatives: {
+              nodes: [{ ...initiative, description: "Original" }],
+              pageInfo,
+            },
+          },
+        },
+      },
+      {
+        queryName: command === "create"
+          ? "CreateInitiative"
+          : "UpdateInitiative",
+        response: {
+          data: {
+            [command === "create" ? "initiativeCreate" : "initiativeUpdate"]: {
+              success: true,
+              initiative,
+            },
+          },
+        },
+      },
+    ])
+    await server.start()
+    try {
+      const result = await runCli(server, [
+        command,
+        ...(command === "create"
+          ? ["--name", "Example"]
+          : [id, "--unprotected"]),
+        "--description",
+        "",
+        "--json",
+      ])
+      assertEquals(result.code, 0, result.stdout + result.stderr)
+      assertEquals(
+        server.graphqlRequests.at(-1)?.variables.input,
+        command === "create"
+          ? { name: "Example", description: "" }
+          : { description: "" },
+      )
+    } finally {
+      await server.stop()
+    }
+  })
+}
+
+Deno.test("initiative update validates protection even without update fields", async () => {
+  const server = new MockLinearServer()
+  const basis = await Deno.makeTempFile()
+  await Deno.writeTextFile(basis, JSON.stringify({ organization, initiative }))
+  await server.start()
+  try {
+    for (
+      const args of [
+        ["--expect-field", ""],
+        ["--base-file", basis, "--expect-field", ""],
+        ["--base-file", basis, "--expect-field", "name"],
+        ["--base-file", basis, "--unprotected"],
+        ["--unprotected", "--description", "Changed", "--expect-field", ""],
+      ]
+    ) {
+      const result = await runCli(server, ["update", id, ...args, "--json"])
+      assertEquals(result.code, 1, result.stdout)
+      assertEquals(server.graphqlRequests, [])
+    }
+    const noop = await runCli(server, ["update", id, "--json"])
+    assertEquals(noop.code, 0)
+    assertEquals(JSON.parse(noop.stdout).effect, "none")
+    assertEquals(server.graphqlRequests, [])
+  } finally {
+    await server.stop()
+    await Deno.remove(basis)
+  }
+})
+
+for (const reference of [id, "example", "Example"]) {
+  for (const archived of [false, true]) {
+    Deno.test(`initiative lifecycle reads ${archived ? "archived" : "active"} ${reference} through the ID-filtered connection`, async () => {
+      const remote = {
+        ...initiative,
+        archivedAt: archived ? "2026-01-01T00:00:00Z" : null,
+        trashed: false,
+      }
+      const server = new MockLinearServer([
+        {
+          queryName: "FindInitiative",
+          variables: { includeArchived: true },
+          response: (request) => ({
+            data: {
+              initiatives: {
+                nodes: reference === "Example" &&
+                    "slugId" in (request.variables.filter as object)
+                  ? []
+                  : [{ id }],
+                pageInfo,
+              },
+            },
+          }),
+        },
+        {
+          queryName: "ReadInitiative",
+          variables: { id },
+          response: {
+            data: { organization, initiatives: { nodes: [remote], pageInfo } },
+          },
+        },
+        ...[
+          "ArchiveInitiative",
+          "BulkArchiveInitiative",
+          "DeleteInitiative",
+          "BulkDeleteInitiative",
+          "UnarchiveInitiative",
+        ].map((queryName) => ({
+          queryName,
+          variables: { id },
+          response: {
+            data: {
+              initiativeArchive: { success: true },
+              initiativeDelete: { success: true },
+              initiativeUnarchive: { success: true, entity: remote },
+            },
+          },
+        })),
+      ])
+      await server.start()
+      try {
+        const view = await runCli(server, ["view", reference, "--json"])
+        assertEquals(view.code, 0, view.stderr)
+        assertEquals(JSON.parse(view.stdout), {
+          organization,
+          initiative: remote,
+        })
+        for (const command of ["archive", "delete", "unarchive"]) {
+          for (
+            const bulk of command === "unarchive" ? [false] : [false, true]
+          ) {
+            const before = server.graphqlRequests.length
+            const result = await runCli(server, [
+              command,
+              ...(bulk ? ["--bulk", reference] : [reference]),
+              "--force",
+              "--json",
+            ])
+            assertEquals(result.code, 0, result.stdout + result.stderr)
+            const noop = command === "archive"
+              ? archived
+              : command === "unarchive" && !archived
+            assertEquals(
+              JSON.parse(result.stdout).effect,
+              noop ? "none" : "applied",
+            )
+            const writes = server.graphqlRequests.slice(before).filter((
+              request,
+            ) => /mutation\s/.test(request.query))
+            assertEquals(writes.length, noop ? 0 : 1)
+            if (!noop) assertEquals(writes[0].variables, { id })
+          }
+        }
+        for (const request of server.graphqlRequests) {
+          assertEquals(/\binitiative\s*\(id:/.test(request.query), false)
+          if (request.query.includes("query ReadInitiative")) {
+            assertMatch(request.query, /includeArchived:\s*true/)
+            assertMatch(request.query, /filter:\s*\{\s*id:\s*\{\s*eq:\s*\$id/)
+          }
+        }
+        if (reference === "Example") {
+          assertEquals(server.graphqlRequests[1].variables, {
+            filter: { name: { eqIgnoreCase: "Example" } },
+            includeArchived: true,
+          })
+        }
+      } finally {
+        await server.stop()
+      }
+    })
+  }
+}
+
+for (const ambiguous of [false, true]) {
+  Deno.test(`initiative lifecycle refuses ${ambiguous ? "ambiguous names" : "missing UUIDs"} without mutation`, async () => {
+    const server = new MockLinearServer([{
+      queryName: ambiguous ? "FindInitiative" : "ReadInitiative",
+      response: {
+        data: {
+          organization,
+          initiatives: {
+            nodes: ambiguous ? [{ id }, { id: "other" }] : [],
+            pageInfo,
+          },
+        },
+      },
+    }])
+    await server.start()
+    try {
+      for (const command of ["view", "archive", "delete", "unarchive"]) {
+        for (
+          const bulk of ["archive", "delete"].includes(command)
+            ? [false, true]
+            : [false]
+        ) {
+          const result = await runCli(server, [
+            command,
+            ...(bulk ? ["--bulk"] : []),
+            ambiguous ? "Duplicate" : id,
+            ...(command === "view" ? [] : ["--force"]),
+            "--json",
+          ])
+          assertEquals(result.code, 1, result.stdout + result.stderr)
+          assertMatch(
+            result.stdout + result.stderr,
+            ambiguous ? /ambiguous/ : /not found/i,
+          )
+        }
+      }
+      assertEquals(
+        server.graphqlRequests.some((request) =>
+          /mutation\s/.test(request.query)
+        ),
+        false,
+      )
+    } finally {
+      await server.stop()
+    }
+  })
+}
+
+for (
+  const state of [{ archivedAt: "2026-01-01T00:00:00Z", trashed: false }, {
+    archivedAt: null,
+    trashed: true,
+  }]
+) {
+  Deno.test(`initiative update preserves domain guard ${JSON.stringify(state)}`, async () => {
+    const server = new MockLinearServer([{
+      queryName: "ReadInitiative",
+      queryIncludes: "trashed",
+      response: {
+        data: {
+          organization,
+          initiatives: { nodes: [{ ...initiative, ...state }], pageInfo },
+        },
+      },
+    }])
+    await server.start()
+    try {
+      const result = await runCli(server, [
+        "update",
+        id,
+        "--name",
+        "Changed",
+        "--unprotected",
+        "--json",
+      ])
+      assertEquals(result.code, 1)
+      assertStringIncludes(result.stdout, "archived or trashed")
+      assertEquals(server.graphqlRequests.length, 1)
+    } finally {
+      await server.stop()
+    }
+  })
+}
+
+for (const command of ["create", "update"]) {
+  Deno.test(`initiative ${command} normalizes supported status casing`, async () => {
+    let currentStatus = "Active"
+    const server = new MockLinearServer([
+      {
+        queryName: "ReadInitiative",
+        response: () => ({
+          data: {
+            organization,
+            initiatives: {
+              nodes: [{ ...initiative, status: currentStatus }],
+              pageInfo,
+            },
+          },
+        }),
       },
       {
         queryName: command === "create"
@@ -91,15 +399,25 @@ for (const command of ["create", "update"]) {
             canonical.toUpperCase(),
           ]
         ) {
+          currentStatus = canonical === "Active" ? "Planned" : "Active"
+          const before = server.graphqlRequests.filter((request) =>
+            /mutation\s/.test(request.query)
+          ).length
           const result = await runCli(server, [
             command,
-            ...(command === "create" ? ["--name", "Example"] : [id]),
+            ...(command === "create"
+              ? ["--name", "Example"]
+              : [id, "--unprotected"]),
             "--status",
             status,
           ])
           assertEquals(result.code, 0, result.stderr)
+          const mutations = server.graphqlRequests.filter((request) =>
+            /mutation\s/.test(request.query)
+          )
+          assertEquals(mutations.length, before + 1)
           assertEquals(
-            server.graphqlRequests.at(-1)?.variables.input,
+            mutations.at(-1)?.variables.input,
             command === "create"
               ? { name: "Example", status: canonical }
               : { status: canonical },
@@ -158,8 +476,13 @@ for (const command of ["create", "update"]) {
   Deno.test(`initiative ${command} interactive choices send canonical status`, async () => {
     const { server, cleanup } = await setupMockLinearServer([
       {
-        queryName: "GetInitiativeForUpdate",
-        response: { data: { initiative } },
+        queryName: "ReadInitiative",
+        response: {
+          data: {
+            organization,
+            initiatives: { nodes: [initiative], pageInfo },
+          },
+        },
       },
       {
         queryName: command === "create"
@@ -177,6 +500,11 @@ for (const command of ["create", "update"]) {
     ])
     const terminal = stub(
       Object.getPrototypeOf(Deno.stdout),
+      "isTerminal",
+      () => true,
+    )
+    const stdinTerminal = stub(
+      Object.getPrototypeOf(Deno.stdin),
       "isTerminal",
       () => true,
     )
@@ -230,6 +558,7 @@ for (const command of ["create", "update"]) {
       select.restore()
       input.restore()
       terminal.restore()
+      stdinTerminal.restore()
       await cleanup()
     }
   })
@@ -239,12 +568,13 @@ for (const bulk of [false, true]) {
   Deno.test(`initiative delete ${bulk ? "bulk" : "single"} preserves confirmation and reports trash`, async () => {
     const server = new MockLinearServer([
       {
-        queryName: "GetInitiativeForDelete",
-        response: { data: { initiative } },
-      },
-      {
-        queryName: "GetInitiativeNameForBulkDelete",
-        response: { data: { initiative } },
+        queryName: "ReadInitiative",
+        response: {
+          data: {
+            organization,
+            initiatives: { nodes: [initiative], pageInfo },
+          },
+        },
       },
       {
         queryName: bulk ? "BulkDeleteInitiative" : "DeleteInitiative",
@@ -285,7 +615,12 @@ for (const bulk of [false, true]) {
 
 Deno.test("initiative delete requires affirmative confirmation and exact name", async () => {
   const { server, cleanup } = await setupMockLinearServer([
-    { queryName: "GetInitiativeForDelete", response: { data: { initiative } } },
+    {
+      queryName: "ReadInitiative",
+      response: {
+        data: { organization, initiatives: { nodes: [initiative], pageInfo } },
+      },
+    },
     {
       queryName: "DeleteInitiative",
       response: { data: { initiativeDelete: { success: true } } },

@@ -1,13 +1,11 @@
 import { Command } from "@cliffy/command"
-import { handleError, ValidationError } from "../utils/errors.ts"
+import { handleError, withAppliedReceipts } from "../utils/errors.ts"
+import { printWriteResult } from "../utils/write-result.ts"
 import {
   formatAsMarkdownLink,
-  getMimeType,
-  MAX_FILE_SIZE,
-  resolveMakePublic,
+  prepareUploads,
   uploadFile,
   type UploadResult,
-  validateFilePath,
 } from "../utils/upload.ts"
 import { withUsageMetadata } from "./usage.ts"
 
@@ -36,31 +34,24 @@ export const uploadCommand = withUsageMetadata(
     )
     .option("--json", "Output upload results as JSON")
     .action(async (options, ...files: string[]) => {
+      const results: UploadResult[] = []
       try {
-        for (const file of files) {
-          await validateFilePath(file)
-          const info = await Deno.stat(file)
-          if (info.size > MAX_FILE_SIZE) {
-            throw new ValidationError(
-              `File too large: ${file} (max ${MAX_FILE_SIZE / 1024 / 1024}MB)`,
-              { suggestion: "Please upload a file smaller than 100MB" },
-            )
-          }
-          resolveMakePublic(getMimeType(file), options.public)
-        }
+        const prepared = await prepareUploads(files, {
+          makePublic: options.public,
+        })
 
-        const results: UploadResult[] = []
-        for (const file of files) {
+        for (const file of prepared) {
           results.push(
-            await uploadFile(file, {
+            await uploadFile(file.filepath, {
               makePublic: options.public,
               showProgress: !options.json,
+              expectedSha256: file.sha256,
             }),
           )
         }
 
         if (options.json) {
-          console.log(JSON.stringify(results, null, 2))
+          printWriteResult(results)
           return
         }
         for (const result of results) {
@@ -72,7 +63,13 @@ export const uploadCommand = withUsageMetadata(
           )
         }
       } catch (error) {
-        handleError(error, "Failed to upload files")
+        handleError(
+          withAppliedReceipts(
+            error,
+            results.map((result) => ({ kind: "upload", ...result })),
+          ),
+          "Failed to upload files",
+        )
       }
     }),
   { writes: true },

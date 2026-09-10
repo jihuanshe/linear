@@ -1,8 +1,7 @@
 ---
 name: automation
-description: 无人值守脚本的输出、分页、URL 查重与写后验证
+description: 保存原始依据、执行受保护更新并解释 JSON 写入效果与分页
 commands:
-  - doctor
   - api
   - auth whoami
   - auth token
@@ -13,63 +12,107 @@ commands:
   - issue update
   - issue comment add
   - issue comment update
+  - issue comment view
   - issue comment list
+  - project view
+  - project update
+  - initiative view
+  - initiative update
   - document view
+  - document update
+  - milestone view
+  - milestone update
 ---
 
 # 无人值守执行与写入验证
 
-## 脚本输入与输出
+## 保存讨论开始时的依据
 
-`--json`、`--no-pager` 不是全局选项，以目标命令的 `--help` 为准。机器处理使用结构化输出，分开 stdout 与 stderr，并检查退出码和所需 JSON 字段：
+替换字段前先保存原始读取，再讨论或编辑目标内容。六类字段替换入口共用 `--base-file`；不要收到目标内容后才读取新值冒充原始依据。
 
 ```bash
-NO_COLOR=1 LINEAR_PROMPT_DISABLED=1 linear issue view ENG-123 --json \
-  >result.json 2>error.log &&
-  jq -e '.identifier == "ENG-123"' result.json >/dev/null
+# 在新目录中执行；noclobber 防止意外覆盖已有依据。
+mkdir issue-edit
+cd issue-edit
+(set -C; linear issue view ENG-123 --json > original.json)
+jq -e '.organization.id and .issue.id and .issue.identifier == "ENG-123"' original.json >/dev/null
+# 阅读 original.json 后编写 desired.md。
+LINEAR_PROMPT_DISABLED=1 linear issue update ENG-123 \
+  --base-file original.json --description-file desired.md --json \
+  > result.json 2> result.log
 ```
 
-`LINEAR_PROMPT_DISABLED=1` 禁用交互；缺少必需输入时命令失败。显式传入 Issue 标识，避免 `issue view` 等命令从当前 Git branch 推断出错误目标。
+直接保存读取输出，不手抄旧字段。各入口的 JSON 根对象如下；`organization` 均包含稳定 `id` 和 `urlKey`。
 
-多行 Markdown 使用 `issue create/update --description-file`、`issue comment add/update --body-file`，避免 shell 转义破坏正文。`document view --raw` 返回未渲染正文，`--json` 同时返回元数据和内容。
+| 读取入口                         | 对象路径            | 对应更新入口           |
+| -------------------------------- | ------------------- | ---------------------- |
+| `issue view <ID> --json`         | `.issue`            | `issue update`         |
+| `issue comment view <ID> --json` | `.comment`          | `issue comment update` |
+| `project view <ID> --json`       | `.project`          | `project update`       |
+| `initiative view <ID> --json`    | `.initiative`       | `initiative update`    |
+| `document view <ID> --json`      | `.document`         | `document update`      |
+| `milestone view <ID> --json`     | `.projectMilestone` | `milestone update`     |
 
-人类输出不是稳定协议，`NO_COLOR=1` 不能代替 JSON。专用命令没有结构化输出时，用覆盖目标字段的 `view/list` 或只读 `linear api` 验证；只能核对人类输出时，注明结果未经结构化验证。
+ID、字段名以及字段是否存在均保留 API 语义：缺字段不同于 `null`、`""`、`0` 或空集合。不同对象或工作区的依据会被拒绝。需要额外条件时，可重复传 `--expect-field`，名称使用该对象支持的 API 响应字段，例如 Issue 的 `state`；不会监控任意查询或整个评论集合。
+
+提交前完成名称解析，再按同一 UUID 最后读取。额外依赖变化时拒绝，即使目标字段已等于目标值。其他字段按精确值判断：当前值等于目标值时无需写入；当前值等于原始值时可写；其余为冲突。一个对象内存在冲突就不发送更新；其余情况只提交需要写的字段。引用按稳定 ID、明确的 ID 集合按集合语义比较；Markdown 字符串不做泛化规范化。
+
+冲突后保留原始文件，读取当前对象并重新决定如何保留并发修改。重新讨论得到新意图时，保存新的依据与草稿；不要只更新依据文件来消除错误。最后读取之后仍可能发生竞争；该检查不提供服务器 CAS、事务、锁或 ABA 检测。
+
+确实要无保护覆盖时显式使用 `--unprotected`，并移除 `--base-file`；它只跳过旧值比较，身份、文件及领域校验继续执行。Document 的开放行内评论锚点另受 `--force` 保护，两个参数互不代替。交互式编辑会在展示旧值前冻结依据；`--json` 不打开编辑器。
+
+创建、评论追加、侧栏关联和原生标签增删不要求不存在的旧值；Issue 的 `--add-label` / `--remove-label` 使用上游增量操作，不转换为完整集合覆盖。关系新增仍检查是否会替换已有关系。
+
+完整 JavaScript 示例及最小 Python 调用见 `linear recipe guarded-edit`。批量执行和自动续跑使用 `linear guide issue-delivery` 说明的执行账本。
+
+## 机器输出与写入效果
+
+`--json`、`--no-pager` 不是全局选项，以目标命令的 `--help` 为准。显式传入目标编号或 UUID，并使用 `LINEAR_PROMPT_DISABLED=1` 禁用提示。人类输出和 `NO_COLOR=1` 都不能代替机器协议。
+
+业务写命令的 `--json` 在 stdout 输出一份 `{ok,effect,data,...}`，可附 `fields`、`verification` 或回执。失败使用 `ok: false` 和 `error`，即使参数解析或认证失败也遵循此通道。退出码为零只表示本次调用完整成功；`effect` 单独说明写入效果：
+
+| 写入效果 `effect` | 可据此决定的下一步                                                    |
+| ----------------- | --------------------------------------------------------------------- |
+| `none`            | 本次没有远端写入，可能是无需修改或写前拒绝；查看 `ok`、字段判定和错误 |
+| `applied`         | 写入已得到确认；后续读回或回执处理失败也不能据此重发                  |
+| `unknown`         | 无法确认最终效果；停止自动后续写入，按稳定 ID 和已保存回执对账        |
+
+`success: false`、GraphQL 部分错误和不可读结果都不自动证明零效果。复合写入保留已经确认的上传或对象回执；批量删除在 `unknown` 后停止，`unattempted` 列出未执行的对象。
+
+```bash
+code=0
+linear issue update ENG-123 --base-file original.json \
+  --description-file desired.md --json >result.json 2>result.log || code=$?
+jq '{ok, effect, data, fields, verification, error}' result.json
+test "$code" -eq 0 && jq -e '.ok == true' result.json >/dev/null
+```
+
+多行 Markdown 用文件参数；`document view --raw` 只输出正文，不能替代带身份的原始读取。原生 `linear api` 保留 GraphQL 响应，属于 `linear guide graphql` 中的明确例外。
 
 ## 分页与详情
 
-`issue query --json` 返回 `{nodes,pageInfo}`，`--limit 0` 读完全部页；有限 `--limit` 只读到指定数量。CLI 拼接 `nodes` 并保留连接形状：
+`issue query --json` 返回 `{nodes,pageInfo}`；`--limit 0` 读到终页，有限的 `--limit` 保留真实后续分页信息。要使用完整集合，检查 `pageInfo.hasNextPage == false`，不能只检查退出码或 JSON 语法。
 
 ```bash
-jq -e '.pageInfo.hasNextPage == false and (.nodes | type == "array")' issues.json >/dev/null &&
-  jq '.nodes[] | {identifier, title, priority}' issues.json
+linear issue query --all-teams --assignee self --limit 0 --json >issues.json
+jq -e '.pageInfo.hasNextPage == false and (.nodes | type == "array")' issues.json >/dev/null
+jq '.nodes[] | {id, identifier, title, priority}' issues.json
 ```
 
-需要完整集合时检查 `hasNextPage`，不能把成功退出或有效 JSON 当成读全。
+`issue view --json` 完整读取 `.issue.comments`、`.issue.attachments` 和 `.issue.labels`；`--no-comments` 跳过评论。PR 等链接位于 `.issue.attachments.nodes`。`children`、`documents` 和详情中的 `relations` 等集合仍是有限预览；完整关系用 `issue relation list <ID> --json`，其他完整集合按 `linear guide graphql` 单独分页。完整分页不代表跨页数据库快照。
 
-`issue view --json` 读完 `.comments` 和 `.attachments` 连接；`--no-comments` 跳过评论。PR 等链接可从 `.attachments.nodes` 的 `url`、`sourceType`、`metadata` 核对。其他嵌套集合仍是有限预览，完整读取见 [graphql](graphql.md)。
+只读评论用 `issue comment list <ID> --limit 0 --json`，默认最多 50 条并返回 `{nodes,pageInfo}`；变更经过用 `issue history <ID> --json`。评论追加与更新的写结果对象位于 `.data.comment`。
 
-只读评论用 `issue comment list <id> --limit 0 --json`（默认最多 50 条）；变更经过用 `issue history <id> --json`。评论列表返回 `{nodes,pageInfo}`，评论新增和更新的 JSON 返回 `{comment}`。
-
-## 按 URL 查重
+## 按 URL 查重与复查
 
 ```bash
 linear issue query --all-teams --url 'https://example.com/objects/123' --json
-linear issue query --all-teams --url-file object-urls.txt --json >url-lookups.json &&
-  jq '.lookups[] | {url, identifiers: [.nodes[].identifier]}' url-lookups.json
+linear issue query --all-teams --url-file object-urls.txt --json >url-lookups.json
+jq '.lookups[] | {url, identifiers: [.nodes[].identifier]}' url-lookups.json
 ```
 
-Linear Issue URL 按 identifier 和 workspace 定位；其他 URL 在候选 Issue 正文或评论中核对完整 URL 边界，不搜索侧栏 Attachment。成功响应中的空 `nodes` 只表示当前凭据可见、指定筛选范围内没有命中。
+Linear Issue URL 按 Issue 编号和工作区定位；其他 URL 核对候选正文或评论中的完整 URL 边界，不搜索侧栏附件（Attachment）。URL 模式完整读取候选并返回全部精确命中，不受 `--limit` 截断；空 `nodes` 只证明当前凭据可见且所选筛选范围内没有命中。`--url-file` 忽略空行与 `#` 注释，去重后按首次出现顺序返回 `lookups`。
 
-URL 模式读完候选分页并返回全部精确命中，不受有限 `--limit` 截断；`pageInfo` 为 `{hasNextPage:false,endCursor:null}`。`--url` 返回 `{nodes,pageInfo}`；`--url-file` 每行一个 URL，忽略空行和 `#` 注释，去重后按首次出现顺序返回 `{lookups:[{url,nodes,pageInfo}]}`。
+验收复用实际返回的读回字段。`apply` 的 `.data.verification` 标明范围，`.data.readBack` 保存读取内容；缺字段、读回失败或对象再次变化时才补读。需要比较查询集合时，保存相同范围的前后快照，比较 ID 集合与字段；新增对象不自动进入原写入范围。
 
-## 批量执行与验收
-
-按 [core](core.md) 核对身份和授权，固定 workspace、目标标识与写入范围。简单组合用 Bash 和 `jq`；跨调用保存状态时用临时脚本；多个交付项用 [delivery manifest](issue-delivery.md)。
-
-多步写入前重读目标。基线变化时保留同事更新：授权内可合并的继续处理，决定冲突的留待确认。写入结果未知时停止后续写入并对账，不按「未写入」重试。
-
-用写后的结构化结果逐个核对目标字段。`issue apply --json` 的 `verification` 标明核验结果与范围，具体合同见 [issue-delivery](issue-delivery.md)；`readBack` 保留实际读回内容。已有所需字段时复用结果；只有字段缺失、读回失败或对象再次变化时补读。
-
-验收还要求查询集合变化时，保存前后相同范围的快照，比较标识集合及字段，不能只比数量。新增标识先调查，不自动纳入原写入范围；移出范围不算修复。
-
-健康治理候选用 [doctor](doctor.md) 发现；已知目标直接读取。治理报告区分已修复、仍命中、新增、忽略及待确认项，并保留忽略原因。
+只读健康检查使用 `linear recipe doctor`，规则留在可编辑脚本中；候选解释见 `linear guide doctor`。报告保留忽略原因与待确认事项，候选数减少不能单独证明修复。

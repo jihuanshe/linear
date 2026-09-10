@@ -8,6 +8,7 @@ Usage: delete [documentId]
 Writes: true                       
 Interactive: true                  
 Confirmation required unless: --yes
+Output modes: human,json           
 
 Description:
 
@@ -16,6 +17,7 @@ Description:
 Options:
 
   -h, --help              - Show this help.                                     
+  --json                  - Output a JSON write result                          
   -y, --yes               - Skip confirmation prompt                            
   --bulk        <ids...>  - Delete multiple documents by slug or ID             
   --bulk-file   <file>    - Read document slugs/IDs from a file (one per line)  

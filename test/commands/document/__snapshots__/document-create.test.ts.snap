@@ -5,8 +5,9 @@ stdout:
 "
 Usage: create
 
-Writes: true     
-Interactive: true
+Writes: true            
+Interactive: true       
+Output modes: human,json
 
 Description:
 
@@ -20,14 +21,15 @@ Description:
 
 Options:
 
-  -h, --help                     - Show this help.                             
-  -t, --title         <title>    - Document title (required)                   
-  -c, --content       <content>  - Markdown content (inline)                   
-  -f, --content-file  <path>     - Read content from file                      
-  --project           <project>  - Attach to project (UUID, slug ID, or name)  
-  --issue             <issue>    - Attach to issue (identifier like TC-123)    
-  --icon              <icon>     - Document icon (emoji)                       
-  -i, --interactive              - Interactive mode with prompts               
+  -h, --help                     - Show this help.                                                             
+  --json                         - Output a JSON write result                                                  
+  -t, --title         <title>    - Document title (required)                                                   
+  -c, --content       <content>  - Markdown content (inline)                                                   
+  -f, --content-file  <path>     - Read content from file                                                      
+  --project           <project>  - Attach to project (UUID, slug ID, or name; exactly one parent is required)  
+  --issue             <issue>    - Attach to issue (identifier like TC-123; exactly one parent is required)    
+  --icon              <icon>     - Document icon (emoji)                                                       
+  -i, --interactive              - Interactive mode with prompts                                               
 
 "
 stderr:

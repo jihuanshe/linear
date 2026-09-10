@@ -58,7 +58,7 @@ Description:
 Options:
 
   -h, --help              - Show this help.                                                                            
-  --json                  - Output {attachment} as JSON                                                                
+  --json                  - Output a JSON write result with the attachment                                             
   -t, --title    <title>  - Custom title for the attachment                                                            
   -c, --comment  <body>   - Create a linked comment with this body; the file remains a sidebar attachment              
   --public                - Upload images to a public, unauthenticated URL (default: private, workspace-members only)  
@@ -71,11 +71,25 @@ stderr:
 snapshot[`Issue Attach Command - JSON preserves attachment receipt 1`] = `
 stdout:
 '{
-  "attachment": {
-    "id": "attachment-uuid-1",
-    "url": "https://uploads.linear.app/fake/proof.png",
-    "title": "proof.png"
-  }
+  "ok": true,
+  "effect": "applied",
+  "data": {
+    "attachment": {
+      "id": "attachment-uuid-1",
+      "url": "https://uploads.linear.app/fake/proof.png",
+      "title": "proof.png"
+    }
+  },
+  "receipts": [
+    {
+      "kind": "upload",
+      "assetUrl": "https://uploads.linear.app/fake/proof.png",
+      "filename": "proof.png",
+      "size": 67,
+      "contentType": "image/png",
+      "public": false
+    }
+  ]
 }
 '
 stderr:

@@ -3,6 +3,7 @@ import { withUsageMetadata } from "../usage.ts"
 import { Confirm } from "../../utils/prompt.ts"
 import { gql } from "../../__codegen__/gql.ts"
 import { getGraphQLClient } from "../../utils/graphql.ts"
+import { printWriteResult, setMachineOutput } from "../../utils/write-result.ts"
 import {
   type BulkOperationResult,
   collectBulkIds,
@@ -11,10 +12,12 @@ import {
   printBulkSummary,
 } from "../../utils/bulk.ts"
 import {
-  CliError,
+  assertMutationSuccess,
   handleError,
   NotFoundError,
   ValidationError,
+  WriteError,
+  writeErrorFrom,
 } from "../../utils/errors.ts"
 
 interface DocumentDeleteResult extends BulkOperationResult {
@@ -25,8 +28,10 @@ export const deleteCommand = withUsageMetadata(new Command(), {
   writes: true,
   interactive: true,
   confirmationRequiredUnless: "--yes",
+  outputModes: ["human", "json"],
 })
   .name("delete")
+  .option("--json", "Output a JSON write result")
   .description("Delete a document (moves to trash)")
   .alias("d")
   .arguments("[documentId:string]")
@@ -42,9 +47,10 @@ export const deleteCommand = withUsageMetadata(new Command(), {
   .option("--bulk-stdin", "Read document slugs/IDs from stdin")
   .action(
     async (
-      { yes, bulk, bulkFile, bulkStdin },
+      { yes, bulk, bulkFile, bulkStdin, json },
       documentId,
     ) => {
+      setMachineOutput(json ?? false)
       try {
         const client = getGraphQLClient()
 
@@ -55,6 +61,7 @@ export const deleteCommand = withUsageMetadata(new Command(), {
             bulkFile,
             bulkStdin,
             yes,
+            json,
           })
           return
         }
@@ -66,7 +73,7 @@ export const deleteCommand = withUsageMetadata(new Command(), {
           })
         }
 
-        await handleSingleDelete(client, documentId, { yes })
+        await handleSingleDelete(client, documentId, { yes, json })
       } catch (error) {
         handleError(error, "Failed to delete document")
       }
@@ -76,9 +83,9 @@ export const deleteCommand = withUsageMetadata(new Command(), {
 async function handleSingleDelete(
   client: ReturnType<typeof getGraphQLClient>,
   documentId: string,
-  options: { yes?: boolean },
+  options: { yes?: boolean; json?: boolean },
 ): Promise<void> {
-  const { yes } = options
+  const { yes, json } = options
 
   // Get document details for confirmation message
   const detailsQuery = gql(`
@@ -101,7 +108,7 @@ async function handleSingleDelete(
 
   // Confirm deletion
   if (!yes) {
-    if (!Deno.stdin.isTerminal()) {
+    if (json || !Deno.stdin.isTerminal()) {
       throw new ValidationError("Interactive confirmation required", {
         suggestion: "Use --yes to skip.",
       })
@@ -127,9 +134,17 @@ async function handleSingleDelete(
   `)
 
   const result = await client.request(deleteMutation, { id: document.id })
+    .catch((error) => {
+      throw writeErrorFrom(error, { id: document.id })
+    })
 
-  if (!result.documentDelete.success) {
-    throw new CliError("Delete operation failed")
+  assertMutationSuccess(result?.documentDelete, {
+    id: document.id,
+    result: result?.documentDelete,
+  })
+  if (json) {
+    printWriteResult({ id: document.id, success: true })
+    return
   }
 
   console.log(`✓ Deleted document: ${document.title}`)
@@ -142,9 +157,10 @@ async function handleBulkDelete(
     bulkFile?: string
     bulkStdin?: boolean
     yes?: boolean
+    json?: boolean
   },
 ): Promise<void> {
-  const { yes } = options
+  const { yes, json } = options
 
   // Collect all IDs
   const ids = await collectBulkIds({
@@ -157,11 +173,11 @@ async function handleBulkDelete(
     throw new ValidationError("No document IDs provided for bulk delete")
   }
 
-  console.log(`Found ${ids.length} document(s) to delete.`)
+  if (!json) console.log(`Found ${ids.length} document(s) to delete.`)
 
   // Confirm bulk operation
   if (!yes) {
-    if (!Deno.stdin.isTerminal()) {
+    if (json || !Deno.stdin.isTerminal()) {
       throw new ValidationError("Interactive confirmation required", {
         suggestion: "Use --yes to skip.",
       })
@@ -192,23 +208,10 @@ async function handleBulkDelete(
       }
     `)
 
-    let documentUuid = docId
-    let title = docId
-
-    try {
-      const details = await client.request(detailsQuery, { id: docId })
-      if (details?.document) {
-        documentUuid = details.document.id
-        title = details.document.title
-      }
-    } catch {
-      return {
-        id: docId,
-        title: docId,
-        success: false,
-        error: "Document not found",
-      }
-    }
+    const details = await client.request(detailsQuery, { id: docId })
+    if (!details.document?.id) throw new NotFoundError("Document", docId)
+    const documentUuid = details.document.id
+    const title = details.document.title
 
     // Delete the document
     const deleteMutation = gql(`
@@ -220,39 +223,49 @@ async function handleBulkDelete(
     `)
 
     const result = await client.request(deleteMutation, { id: documentUuid })
+      .catch((error) => {
+        throw writeErrorFrom(error, { id: documentUuid })
+      })
 
-    if (!result.documentDelete.success) {
-      return {
-        id: documentUuid,
-        name: title,
-        title,
-        success: false,
-        error: "Delete operation failed",
-      }
-    }
+    assertMutationSuccess(result?.documentDelete, {
+      id: documentUuid,
+      result: result?.documentDelete,
+    })
 
     return {
       id: documentUuid,
       name: title,
       title,
       success: true,
+      effect: "applied",
     }
   }
 
   // Execute bulk operation
   const summary = await executeBulkOperations(ids, deleteOperation, {
-    showProgress: true,
+    showProgress: !json,
   })
 
   // Print summary
-  printBulkSummary(summary, {
-    entityName: "document",
-    operationName: "deleted",
-    showDetails: true,
-  })
+  if (!json) {
+    printBulkSummary(summary, {
+      entityName: "document",
+      operationName: "deleted",
+      showDetails: true,
+    })
+  }
 
   // Exit with error code if any failed
   if (summary.failed > 0) {
-    Deno.exit(1)
+    throw new WriteError("Bulk delete did not complete successfully", {
+      effect: summary.effect,
+      data: summary,
+      receipts: summary.results,
+    })
+  }
+  if (json) {
+    printWriteResult(summary, {
+      effect: summary.effect === "applied" ? "applied" : "none",
+    })
   }
 }

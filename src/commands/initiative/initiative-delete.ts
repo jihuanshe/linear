@@ -1,3 +1,5 @@
+import { resolveInitiativeId } from "./initiative-resolve.ts"
+import { readInitiative } from "./initiative-read.ts"
 import { Command } from "@cliffy/command"
 import { withUsageMetadata } from "../usage.ts"
 import { Confirm, Input } from "../../utils/prompt.ts"
@@ -11,11 +13,14 @@ import {
   printBulkSummary,
 } from "../../utils/bulk.ts"
 import { shouldShowSpinner } from "../../utils/hyperlink.ts"
+import { printWriteResult, setMachineOutput } from "../../utils/write-result.ts"
 import {
-  CliError,
+  assertMutationSuccess,
   handleError,
   NotFoundError,
   ValidationError,
+  WriteError,
+  writeErrorFrom,
 } from "../../utils/errors.ts"
 
 interface InitiativeDeleteResult extends BulkOperationResult {
@@ -26,8 +31,10 @@ export const deleteCommand = withUsageMetadata(new Command(), {
   writes: true,
   interactive: true,
   confirmationRequiredUnless: "--force",
+  outputModes: ["human", "json"],
 })
   .name("delete")
+  .option("--json", "Output a JSON write result")
   .description("Move a Linear initiative to trash")
   .arguments("[initiativeId:string]")
   .option("-y, --force", "Skip confirmation prompt")
@@ -42,9 +49,10 @@ export const deleteCommand = withUsageMetadata(new Command(), {
   .option("--bulk-stdin", "Read initiative IDs from stdin")
   .action(
     async (
-      { force, bulk, bulkFile, bulkStdin },
+      { force, bulk, bulkFile, bulkStdin, json },
       initiativeId,
     ) => {
+      setMachineOutput(json ?? false)
       const client = getGraphQLClient()
 
       // Check if bulk mode
@@ -54,6 +62,7 @@ export const deleteCommand = withUsageMetadata(new Command(), {
           bulkFile,
           bulkStdin,
           force,
+          json,
         })
         return
       }
@@ -65,42 +74,26 @@ export const deleteCommand = withUsageMetadata(new Command(), {
         )
       }
 
-      await handleSingleDelete(client, initiativeId, { force })
+      await handleSingleDelete(client, initiativeId, { force, json })
     },
   )
 
 async function handleSingleDelete(
   client: ReturnType<typeof getGraphQLClient>,
   initiativeId: string,
-  options: { force?: boolean },
+  options: { force?: boolean; json?: boolean },
 ): Promise<void> {
-  const { force } = options
+  const { force, json } = options
 
   // Resolve initiative ID
-  const resolvedId = await resolveInitiativeId(client, initiativeId)
+  const resolvedId = await resolveInitiativeId(client, initiativeId, true)
   if (!resolvedId) {
     throw new NotFoundError("Initiative", initiativeId)
   }
 
-  // Get initiative details for confirmation message
-  const detailsQuery = gql(`
-    query GetInitiativeForDelete($id: String!) {
-      initiative(id: $id) {
-        id
-        slugId
-        name
-        projects {
-          nodes {
-            id
-          }
-        }
-      }
-    }
-  `)
-
   let initiativeDetails
   try {
-    initiativeDetails = await client.request(detailsQuery, { id: resolvedId })
+    initiativeDetails = await readInitiative(client, resolvedId)
   } catch (error) {
     handleError(error, "Failed to fetch initiative details")
   }
@@ -113,7 +106,7 @@ async function handleSingleDelete(
   const projectCount = initiative.projects?.nodes?.length || 0
 
   // Warn about linked projects
-  if (projectCount > 0) {
+  if (!json && projectCount > 0) {
     console.log(
       `\n⚠️  Initiative "${initiative.name}" has ${projectCount} linked project(s).`,
     )
@@ -122,7 +115,7 @@ async function handleSingleDelete(
 
   // Confirm deletion with typed confirmation for safety
   if (!force) {
-    if (!Deno.stdin.isTerminal()) {
+    if (json || !Deno.stdin.isTerminal()) {
       throw new ValidationError(
         "Interactive confirmation required. Use --force to skip.",
       )
@@ -151,7 +144,7 @@ async function handleSingleDelete(
   }
 
   const { Spinner } = await import("@std/cli/unstable-spinner")
-  const showSpinner = shouldShowSpinner()
+  const showSpinner = !json && shouldShowSpinner()
   const spinner = showSpinner ? new Spinner() : null
   spinner?.start()
 
@@ -166,11 +159,19 @@ async function handleSingleDelete(
 
   try {
     const result = await client.request(deleteMutation, { id: resolvedId })
+      .catch((error) => {
+        throw writeErrorFrom(error, { id: resolvedId })
+      })
 
     spinner?.stop()
 
-    if (!result.initiativeDelete.success) {
-      throw new CliError("Failed to delete initiative")
+    assertMutationSuccess(result?.initiativeDelete, {
+      id: resolvedId,
+      result: result?.initiativeDelete,
+    })
+    if (json) {
+      printWriteResult({ id: resolvedId, success: true })
+      return
     }
 
     console.log(`✓ Moved initiative to trash: ${initiative.name}`)
@@ -187,9 +188,10 @@ async function handleBulkDelete(
     bulkFile?: string
     bulkStdin?: boolean
     force?: boolean
+    json?: boolean
   },
 ): Promise<void> {
-  const { force } = options
+  const { force, json } = options
 
   // Collect all IDs
   const ids = await collectBulkIds({
@@ -202,12 +204,14 @@ async function handleBulkDelete(
     throw new ValidationError("No initiative IDs provided for bulk delete.")
   }
 
-  console.log(`Found ${ids.length} initiative(s) to delete.`)
-  console.log(`\n⚠️  This action moves the initiatives to trash.\n`)
+  if (!json) {
+    console.log(`Found ${ids.length} initiative(s) to delete.`)
+    console.log(`\n⚠️  This action moves the initiatives to trash.\n`)
+  }
 
   // Confirm bulk operation
   if (!force) {
-    if (!Deno.stdin.isTerminal()) {
+    if (json || !Deno.stdin.isTerminal()) {
       throw new ValidationError(
         "Interactive confirmation required. Use --force to skip.",
       )
@@ -228,36 +232,24 @@ async function handleBulkDelete(
     idOrSlugOrName: string,
   ): Promise<InitiativeDeleteResult> => {
     // Resolve the ID
-    const resolvedId = await resolveInitiativeId(client, idOrSlugOrName)
+    const resolvedId = await resolveInitiativeId(client, idOrSlugOrName, true)
     if (!resolvedId) {
       return {
         id: idOrSlugOrName,
         name: idOrSlugOrName,
         success: false,
+        effect: "none",
         error: "Initiative not found",
       }
     }
 
-    // Get initiative name for display
-    const detailsQuery = gql(`
-      query GetInitiativeNameForBulkDelete($id: String!) {
-        initiative(id: $id) {
-          id
-          name
-        }
-      }
-    `)
-
     let name = idOrSlugOrName
 
-    try {
-      const details = await client.request(detailsQuery, { id: resolvedId })
-      if (details?.initiative) {
-        name = details.initiative.name
-      }
-    } catch {
-      // Continue with default name
+    const details = await readInitiative(client, resolvedId)
+    if (!details.initiative?.id) {
+      throw new NotFoundError("Initiative", idOrSlugOrName)
     }
+    name = details.initiative.name
 
     // Delete the initiative
     const deleteMutation = gql(`
@@ -269,95 +261,48 @@ async function handleBulkDelete(
     `)
 
     const result = await client.request(deleteMutation, { id: resolvedId })
+      .catch((error) => {
+        throw writeErrorFrom(error, { id: resolvedId })
+      })
 
-    if (!result.initiativeDelete.success) {
-      return {
-        id: resolvedId,
-        name,
-        success: false,
-        error: "Delete operation failed",
-      }
-    }
+    assertMutationSuccess(result?.initiativeDelete, {
+      id: resolvedId,
+      result: result?.initiativeDelete,
+    })
 
     return {
       id: resolvedId,
       name,
       success: true,
+      effect: "applied",
     }
   }
 
   // Execute bulk operation
   const summary = await executeBulkOperations(ids, deleteOperation, {
-    showProgress: true,
+    showProgress: !json,
   })
 
   // Print summary
-  printBulkSummary(summary, {
-    entityName: "initiative",
-    operationName: "moved to trash",
-    showDetails: true,
-  })
+  if (!json) {
+    printBulkSummary(summary, {
+      entityName: "initiative",
+      operationName: "moved to trash",
+      showDetails: true,
+    })
+  }
 
   // Exit with error code if any failed
   if (summary.failed > 0) {
-    Deno.exit(1)
+    throw new WriteError("Bulk delete did not complete successfully", {
+      effect: summary.effect,
+      data: summary,
+      receipts: summary.results,
+    })
   }
-}
-
-async function resolveInitiativeId(
-  client: ReturnType<typeof getGraphQLClient>,
-  idOrSlugOrName: string,
-): Promise<string | undefined> {
-  // Try as UUID first
-  if (
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
-      idOrSlugOrName,
-    )
-  ) {
-    return idOrSlugOrName
+  if (json) {
+    printWriteResult(summary, {
+      effect: summary.effect === "applied" ? "applied" : "none",
+    })
   }
-
-  // Try as slug (including archived - user might want to delete archived initiative)
-  const slugQuery = gql(`
-    query GetInitiativeBySlugForDelete($slugId: String!) {
-      initiatives(filter: { slugId: { eq: $slugId } }, includeArchived: true) {
-        nodes {
-          id
-          slugId
-        }
-      }
-    }
-  `)
-
-  try {
-    const result = await client.request(slugQuery, { slugId: idOrSlugOrName })
-    if (result.initiatives?.nodes?.length > 0) {
-      return result.initiatives.nodes[0].id
-    }
-  } catch {
-    // Continue to name lookup
-  }
-
-  // Try as name (including archived)
-  const nameQuery = gql(`
-    query GetInitiativeByNameForDelete($name: String!) {
-      initiatives(filter: { name: { eqIgnoreCase: $name } }, includeArchived: true) {
-        nodes {
-          id
-          name
-        }
-      }
-    }
-  `)
-
-  try {
-    const result = await client.request(nameQuery, { name: idOrSlugOrName })
-    if (result.initiatives?.nodes?.length > 0) {
-      return result.initiatives.nodes[0].id
-    }
-  } catch {
-    // Not found
-  }
-
-  return undefined
 }

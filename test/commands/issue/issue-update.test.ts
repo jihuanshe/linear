@@ -1,12 +1,124 @@
+import {
+  issueWriteId,
+  setupIssueWriteServer as setupMockLinearServer,
+  teamWriteIds,
+} from "../../utils/issue-write-fixtures.ts"
 import { snapshotTest } from "@cliffy/testing"
 import { assertEquals, assertRejects, assertStringIncludes } from "@std/assert"
 import { stub } from "@std/testing/mock"
 import { stripIgnoredCharacters } from "graphql"
 import { updateCommand } from "../../../src/commands/issue/issue-update.ts"
-import {
-  commonDenoArgs,
-  setupMockLinearServer,
-} from "../../utils/test-helpers.ts"
+import { commonDenoArgs } from "../../utils/test-helpers.ts"
+
+for (
+  const args of [
+    ...[
+      "assignee",
+      "due-date",
+      "parent",
+      "team",
+      "project",
+      "state",
+      "milestone",
+      "cycle",
+      "title",
+      "label",
+      "add-label",
+      "remove-label",
+      "description-file",
+      "base-file",
+      "expect-field",
+    ].map((flag) => [`--${flag}`, ""]),
+    ["--add-label", "valid", "--add-label", ""],
+    ["--description", "", "--description-file", "body.md"],
+  ]
+) {
+  Deno.test(`update CLI rejects explicit empty options ${JSON.stringify(args)}`, async () => {
+    const { server, cleanup } = await setupMockLinearServer([])
+    try {
+      const result = await new Deno.Command(Deno.execPath(), {
+        args: [
+          "run",
+          ...commonDenoArgs,
+          "src/main.ts",
+          "issue",
+          "update",
+          "ENG-123",
+          "--json",
+          "--unprotected",
+          "--priority",
+          "2",
+          ...args,
+        ],
+        stdin: "null",
+        stdout: "piped",
+        stderr: "piped",
+      }).output()
+      const body = JSON.parse(new TextDecoder().decode(result.stdout))
+      assertEquals(result.code, 1)
+      assertEquals(body.effect, "none")
+      assertStringIncludes(
+        body.error.message,
+        args.includes("--description")
+          ? "both"
+          : args.includes("--expect-field")
+          ? "--expect-field"
+          : "empty",
+      )
+      assertEquals(server.graphqlRequests, [])
+    } finally {
+      await cleanup()
+    }
+  })
+}
+
+Deno.test("update CLI preserves a legal explicit empty description", async () => {
+  const { server, cleanup } = await setupMockLinearServer([
+    {
+      queryName: "UpdateIssue",
+      response: {
+        data: {
+          issueUpdate: {
+            success: true,
+            issue: {
+              id: issueWriteId,
+              identifier: "ENG-123",
+              title: "Existing issue",
+              url: "https://linear.app/test/issue/ENG-123",
+            },
+          },
+        },
+      },
+    },
+  ])
+  try {
+    const result = await new Deno.Command(Deno.execPath(), {
+      args: [
+        "run",
+        ...commonDenoArgs,
+        "src/main.ts",
+        "issue",
+        "update",
+        "ENG-123",
+        "--json",
+        "--unprotected",
+        "--description",
+        "",
+      ],
+      stdin: "null",
+      stdout: "piped",
+      stderr: "piped",
+    }).output()
+    assertEquals(result.code, 0, new TextDecoder().decode(result.stdout))
+    const writes = server.graphqlRequests.filter((request) =>
+      request.query.includes("mutation UpdateIssue")
+    )
+    assertEquals(writes.length, 1)
+    assertEquals(writes[0].variables.input, { description: "" })
+  } finally {
+    await cleanup()
+  }
+})
 
 for (const outcome of ["found", "missing", "error"] as const) {
   Deno.test(`Issue Update Command - UUID assignee ${outcome} never falls back to a name`, async () => {
@@ -15,7 +127,7 @@ for (const outcome of ["found", "missing", "error"] as const) {
       {
         queryName: "GetTeamIdByKey",
         variables: { team: "ENG" },
-        response: { data: { teams: { nodes: [{ id: "team-eng-id" }] } } },
+        response: { data: { teams: { nodes: [{ id: teamWriteIds.ENG }] } } },
       },
       {
         queryName: "LookupUserById",
@@ -35,7 +147,7 @@ for (const outcome of ["found", "missing", "error"] as const) {
             issueUpdate: {
               success: true,
               issue: {
-                id: "issue-id",
+                id: issueWriteId,
                 identifier: "ENG-123",
                 title: "Existing issue",
                 url: "https://linear.app/test/issue/ENG-123",
@@ -56,7 +168,13 @@ for (const outcome of ["found", "missing", "error"] as const) {
       throw new Error("EXIT")
     })
     try {
-      const args = ["ENG-123", "--assignee", userId.toUpperCase(), "--json"]
+      const args = [
+        "--unprotected",
+        "ENG-123",
+        "--assignee",
+        userId.toUpperCase(),
+        "--json",
+      ]
       if (outcome === "found") await updateCommand.parse(args)
       else {
         await assertRejects(() => updateCommand.parse(args), Error, "EXIT")
@@ -71,7 +189,7 @@ for (const outcome of ["found", "missing", "error"] as const) {
       assertEquals(lookup?.variables, { id: userId })
       assertStringIncludes(
         stripIgnoredCharacters(lookup?.query ?? ""),
-        "users(filter:{id:{eq:$id}})",
+        "filter:{id:{eq:$id}}",
       )
       assertEquals(
         server.graphqlRequests.some((request) =>
@@ -85,7 +203,7 @@ for (const outcome of ["found", "missing", "error"] as const) {
       assertEquals(mutations.length, outcome === "found" ? 1 : 0)
       if (outcome === "found") {
         assertEquals(mutations[0].variables, {
-          id: "ENG-123",
+          id: issueWriteId,
           input: { assigneeId: userId },
         })
       }
@@ -99,50 +217,33 @@ for (const outcome of ["found", "missing", "error"] as const) {
 }
 
 for (
-  const { input, expectedId } of [
-    { input: "JANE@EXAMPLE.COM", expectedId: "email-match" },
-    { input: "JANE", expectedId: "display-match" },
-    { input: "Developer", expectedId: "first-name-match" },
+  const { input, expectedId, matchField } of [
+    {
+      input: "JANE@EXAMPLE.COM",
+      expectedId: "email-match",
+      matchField: "email",
+    },
+    { input: "JANE", expectedId: "display-match", matchField: "displayName" },
+    { input: "Developer", expectedId: "first-name-match", matchField: "name" },
   ]
 ) {
-  Deno.test(`Issue Update Command - name assignee preserves lookup precedence for ${input}`, async () => {
+  Deno.test(`Issue Update Command - exact assignee preserves lookup precedence for ${input}`, async () => {
     const { server, cleanup } = await setupMockLinearServer([
       {
         queryName: "GetTeamIdByKey",
-        response: { data: { teams: { nodes: [{ id: "team-eng-id" }] } } },
+        response: { data: { teams: { nodes: [{ id: teamWriteIds.ENG }] } } },
       },
-      {
+      ...["email", "displayName", "name"].map((field) => ({
         queryName: "LookupUser",
-        variables: { input },
+        variables: { filter: { [field]: { eqIgnoreCase: input } } },
         response: {
           data: {
             users: {
-              nodes: [
-                {
-                  id: "first-name-match",
-                  name: "Developer Jane",
-                  displayName: "other",
-                  email: "other@example.com",
-                },
-                {
-                  id: "display-match",
-                  name: "Jane Developer",
-                  displayName: input === "JANE@EXAMPLE.COM"
-                    ? "jane@example.com"
-                    : "jane",
-                  email: "another@example.com",
-                },
-                {
-                  id: "email-match",
-                  name: "Jane Developer",
-                  displayName: "third",
-                  email: "jane@example.com",
-                },
-              ],
+              nodes: field === matchField ? [{ id: expectedId }] : [],
             },
           },
         },
-      },
+      })),
       {
         queryName: "UpdateIssue",
         response: {
@@ -150,7 +251,7 @@ for (
             issueUpdate: {
               success: true,
               issue: {
-                id: "issue-id",
+                id: issueWriteId,
                 identifier: "ENG-123",
                 title: "Existing issue",
                 url: "https://linear.app/test/issue/ENG-123",
@@ -162,12 +263,18 @@ for (
     ], { LINEAR_TEAM_ID: "ENG" })
     const logStub = stub(console, "log", () => {})
     try {
-      await updateCommand.parse(["ENG-123", "--assignee", input, "--json"])
+      await updateCommand.parse([
+        "--unprotected",
+        "ENG-123",
+        "--assignee",
+        input,
+        "--json",
+      ])
       const mutation = server.graphqlRequests.find((request) =>
         request.query.includes("mutation UpdateIssue")
       )
       assertEquals(mutation?.variables, {
-        id: "ENG-123",
+        id: issueWriteId,
         input: { assigneeId: expectedId },
       })
       assertEquals(
@@ -202,6 +309,7 @@ await snapshotTest({
   meta: import.meta,
   colors: false,
   args: [
+    "--unprotected",
     "ENG-123",
     "--title",
     "Updated authentication bug fix",
@@ -224,7 +332,7 @@ await snapshotTest({
         response: {
           data: {
             teams: {
-              nodes: [{ id: "team-eng-id" }],
+              nodes: [{ id: teamWriteIds.ENG }],
             },
           },
         },
@@ -249,7 +357,7 @@ await snapshotTest({
             issueUpdate: {
               success: true,
               issue: {
-                id: "issue-existing-123",
+                id: issueWriteId,
                 identifier: "ENG-123",
                 url:
                   "https://linear.app/test-team/issue/ENG-123/updated-authentication-bug-fix",
@@ -275,6 +383,7 @@ await snapshotTest({
   meta: import.meta,
   colors: false,
   args: [
+    "--unprotected",
     "PLA4-16916",
     "--description",
     "new description",
@@ -289,7 +398,7 @@ await snapshotTest({
         response: {
           data: {
             teams: {
-              nodes: [{ id: "team-pla4-id" }],
+              nodes: [{ id: teamWriteIds.PLA4 }],
             },
           },
         },
@@ -302,7 +411,7 @@ await snapshotTest({
             issueUpdate: {
               success: true,
               issue: {
-                id: "issue-pla4-16916",
+                id: issueWriteId,
                 identifier: "PLA4-16916",
                 url: "https://linear.app/test-team/issue/PLA4-16916/test-issue",
                 title: "Test Issue",
@@ -327,6 +436,7 @@ await snapshotTest({
   meta: import.meta,
   colors: false,
   args: [
+    "--unprotected",
     "ENG-123",
     "--project",
     "My Project",
@@ -339,7 +449,7 @@ await snapshotTest({
       {
         queryName: "GetIssueTeam",
         response: {
-          data: { issue: { team: { id: "team-eng-id", key: "ENG" } } },
+          data: { issue: { team: { id: teamWriteIds.ENG, key: "ENG" } } },
         },
       },
       {
@@ -350,7 +460,11 @@ await snapshotTest({
               id: "project-id",
               name: "Project",
               teams: {
-                nodes: [{ id: "team-eng-id", key: "ENG", name: "Engineering" }],
+                nodes: [{
+                  id: teamWriteIds.ENG,
+                  key: "ENG",
+                  name: "Engineering",
+                }],
                 pageInfo: { hasNextPage: false, endCursor: null },
               },
             },
@@ -364,7 +478,7 @@ await snapshotTest({
         response: {
           data: {
             teams: {
-              nodes: [{ id: "team-eng-id" }],
+              nodes: [{ id: teamWriteIds.ENG }],
             },
           },
         },
@@ -393,6 +507,7 @@ await snapshotTest({
                   { id: "milestone-1", name: "Phase 1" },
                   { id: "milestone-2", name: "Phase 2" },
                 ],
+                pageInfo: { hasNextPage: false, endCursor: null },
               },
             },
           },
@@ -406,7 +521,7 @@ await snapshotTest({
             issueUpdate: {
               success: true,
               issue: {
-                id: "issue-existing-123",
+                id: issueWriteId,
                 identifier: "ENG-123",
                 url: "https://linear.app/test-team/issue/ENG-123/test-issue",
                 title: "Test Issue",
@@ -431,6 +546,7 @@ await snapshotTest({
   meta: import.meta,
   colors: false,
   args: [
+    "--unprotected",
     "ENG-123",
     "--label",
     "FRONTEND", // uppercase label that should match "frontend" label
@@ -445,7 +561,7 @@ await snapshotTest({
         response: {
           data: {
             teams: {
-              nodes: [{ id: "team-eng-id" }],
+              nodes: [{ id: teamWriteIds.ENG }],
             },
           },
         },
@@ -453,7 +569,7 @@ await snapshotTest({
       // Mock response for getIssueLabelIdByNameForTeam("FRONTEND", "ENG") - case insensitive
       {
         queryName: "GetIssueLabelIdByNameForTeam",
-        variables: { name: "FRONTEND", teamKey: "ENG" },
+        variables: { name: "FRONTEND", team: { id: { eq: teamWriteIds.ENG } } },
         response: {
           data: {
             issueLabels: {
@@ -473,7 +589,7 @@ await snapshotTest({
             issueUpdate: {
               success: true,
               issue: {
-                id: "issue-existing-123",
+                id: issueWriteId,
                 identifier: "ENG-123",
                 url: "https://linear.app/test-team/issue/ENG-123/test-issue",
                 title: "Test Issue",
@@ -498,6 +614,7 @@ await snapshotTest({
   meta: import.meta,
   colors: false,
   args: [
+    "--unprotected",
     "ENG-123",
     "-p",
     "2",
@@ -514,7 +631,7 @@ await snapshotTest({
         response: {
           data: {
             teams: {
-              nodes: [{ id: "team-eng-id" }],
+              nodes: [{ id: teamWriteIds.ENG }],
             },
           },
         },
@@ -539,7 +656,7 @@ await snapshotTest({
             issueUpdate: {
               success: true,
               issue: {
-                id: "issue-existing-123",
+                id: issueWriteId,
                 identifier: "ENG-123",
                 url: "https://linear.app/test-team/issue/ENG-123/test-issue",
                 title: "Test Issue",
@@ -564,6 +681,7 @@ await snapshotTest({
   meta: import.meta,
   colors: false,
   args: [
+    "--unprotected",
     "ENG-123",
     "--cycle",
     "Sprint 7",
@@ -578,7 +696,7 @@ await snapshotTest({
         response: {
           data: {
             teams: {
-              nodes: [{ id: "team-eng-id" }],
+              nodes: [{ id: teamWriteIds.ENG }],
             },
           },
         },
@@ -586,7 +704,7 @@ await snapshotTest({
       // Mock response for getCycleIdByNameOrNumber()
       {
         queryName: "GetTeamCyclesForLookup",
-        variables: { teamId: "team-eng-id" },
+        variables: { teamId: teamWriteIds.ENG },
         response: {
           data: {
             team: {
@@ -626,7 +744,7 @@ await snapshotTest({
             issueUpdate: {
               success: true,
               issue: {
-                id: "issue-existing-123",
+                id: issueWriteId,
                 identifier: "ENG-123",
                 url: "https://linear.app/test-team/issue/ENG-123/test-issue",
                 title: "Test Issue",
@@ -654,14 +772,14 @@ await snapshotTest({
   name: "Issue Update Command - With Project UUID",
   meta: import.meta,
   colors: false,
-  args: ["ENG-123", "--project", PROJECT_UUID],
+  args: ["--unprotected", "ENG-123", "--project", PROJECT_UUID],
   denoArgs: commonDenoArgs,
   async fn() {
     const { cleanup } = await setupMockLinearServer([
       {
         queryName: "GetIssueTeam",
         response: {
-          data: { issue: { team: { id: "team-eng-id", key: "ENG" } } },
+          data: { issue: { team: { id: teamWriteIds.ENG, key: "ENG" } } },
         },
       },
       {
@@ -672,7 +790,11 @@ await snapshotTest({
               id: "project-id",
               name: "Project",
               teams: {
-                nodes: [{ id: "team-eng-id", key: "ENG", name: "Engineering" }],
+                nodes: [{
+                  id: teamWriteIds.ENG,
+                  key: "ENG",
+                  name: "Engineering",
+                }],
                 pageInfo: { hasNextPage: false, endCursor: null },
               },
             },
@@ -682,7 +804,7 @@ await snapshotTest({
       {
         queryName: "GetTeamIdByKey",
         variables: { team: "ENG" },
-        response: { data: { teams: { nodes: [{ id: "team-eng-id" }] } } },
+        response: { data: { teams: { nodes: [{ id: teamWriteIds.ENG }] } } },
       },
       {
         queryName: "UpdateIssue",
@@ -691,7 +813,7 @@ await snapshotTest({
             issueUpdate: {
               success: true,
               issue: {
-                id: "issue-existing-123",
+                id: issueWriteId,
                 identifier: "ENG-123",
                 url: "https://linear.app/test-team/issue/ENG-123/test-issue",
                 title: "Test Issue",
@@ -714,14 +836,14 @@ await snapshotTest({
   name: "Issue Update Command - With Milestone UUID (no --project required)",
   meta: import.meta,
   colors: false,
-  args: ["ENG-123", "--milestone", MILESTONE_UUID],
+  args: ["--unprotected", "ENG-123", "--milestone", MILESTONE_UUID],
   denoArgs: commonDenoArgs,
   async fn() {
     const { cleanup } = await setupMockLinearServer([
       {
         queryName: "GetTeamIdByKey",
         variables: { team: "ENG" },
-        response: { data: { teams: { nodes: [{ id: "team-eng-id" }] } } },
+        response: { data: { teams: { nodes: [{ id: teamWriteIds.ENG }] } } },
       },
       {
         queryName: "UpdateIssue",
@@ -730,7 +852,7 @@ await snapshotTest({
             issueUpdate: {
               success: true,
               issue: {
-                id: "issue-existing-123",
+                id: issueWriteId,
                 identifier: "ENG-123",
                 url: "https://linear.app/test-team/issue/ENG-123/test-issue",
                 title: "Test Issue",
@@ -755,7 +877,7 @@ await snapshotTest({
   name: "Issue Update Command - Unknown State Lists Valid States",
   meta: import.meta,
   colors: false,
-  args: ["ENG-123", "--state", "Nope"],
+  args: ["--unprotected", "ENG-123", "--state", "Nope"],
   denoArgs: commonDenoArgs,
   canFail: true,
   async fn() {
@@ -763,10 +885,11 @@ await snapshotTest({
       {
         queryName: "GetTeamIdByKey",
         variables: { team: "ENG" },
-        response: { data: { teams: { nodes: [{ id: "team-eng-id" }] } } },
+        response: { data: { teams: { nodes: [{ id: teamWriteIds.ENG }] } } },
       },
       {
         queryName: "GetWorkflowStates",
+        variables: { teamKey: teamWriteIds.ENG },
         response: {
           data: {
             team: {
@@ -816,20 +939,20 @@ await snapshotTest({
   name: "Issue Update Command - Unassign Clears Assignee",
   meta: import.meta,
   colors: false,
-  args: ["ENG-123", "--unassign"],
+  args: ["--unprotected", "ENG-123", "--unassign"],
   denoArgs: commonDenoArgs,
   async fn() {
     const { cleanup } = await setupMockLinearServer([
       {
         queryName: "GetTeamIdByKey",
         variables: { team: "ENG" },
-        response: { data: { teams: { nodes: [{ id: "team-eng-id" }] } } },
+        response: { data: { teams: { nodes: [{ id: teamWriteIds.ENG }] } } },
       },
       // No GetViewerId mock: --unassign must not perform a user lookup.
       {
         queryName: "UpdateIssue",
         variables: {
-          id: "ENG-123",
+          id: issueWriteId,
           input: { assigneeId: null },
         },
         response: {
@@ -837,7 +960,7 @@ await snapshotTest({
             issueUpdate: {
               success: true,
               issue: {
-                id: "issue-existing-123",
+                id: issueWriteId,
                 identifier: "ENG-123",
                 url: "https://linear.app/test-team/issue/ENG-123/some-issue",
                 title: "Some issue",
@@ -862,19 +985,19 @@ await snapshotTest({
   name: "Issue Update Command - Unassign With Other Fields",
   meta: import.meta,
   colors: false,
-  args: ["ENG-123", "--unassign", "--title", "Renamed"],
+  args: ["--unprotected", "ENG-123", "--unassign", "--title", "Renamed"],
   denoArgs: commonDenoArgs,
   async fn() {
     const { cleanup } = await setupMockLinearServer([
       {
         queryName: "GetTeamIdByKey",
         variables: { team: "ENG" },
-        response: { data: { teams: { nodes: [{ id: "team-eng-id" }] } } },
+        response: { data: { teams: { nodes: [{ id: teamWriteIds.ENG }] } } },
       },
       {
         queryName: "UpdateIssue",
         variables: {
-          id: "ENG-123",
+          id: issueWriteId,
           input: {
             title: "Renamed",
             assigneeId: null,
@@ -885,7 +1008,7 @@ await snapshotTest({
             issueUpdate: {
               success: true,
               issue: {
-                id: "issue-existing-123",
+                id: issueWriteId,
                 identifier: "ENG-123",
                 url: "https://linear.app/test-team/issue/ENG-123/renamed",
                 title: "Renamed",
@@ -911,14 +1034,14 @@ await snapshotTest({
   name: "Issue Update Command - Assignee Still Sends User Id",
   meta: import.meta,
   colors: false,
-  args: ["ENG-123", "--assignee", "self"],
+  args: ["--unprotected", "ENG-123", "--assignee", "self"],
   denoArgs: commonDenoArgs,
   async fn() {
     const { cleanup } = await setupMockLinearServer([
       {
         queryName: "GetTeamIdByKey",
         variables: { team: "ENG" },
-        response: { data: { teams: { nodes: [{ id: "team-eng-id" }] } } },
+        response: { data: { teams: { nodes: [{ id: teamWriteIds.ENG }] } } },
       },
       {
         queryName: "GetViewerId",
@@ -928,7 +1051,7 @@ await snapshotTest({
       {
         queryName: "UpdateIssue",
         variables: {
-          id: "ENG-123",
+          id: issueWriteId,
           input: { assigneeId: "user-self-123" },
         },
         response: {
@@ -936,7 +1059,7 @@ await snapshotTest({
             issueUpdate: {
               success: true,
               issue: {
-                id: "issue-existing-123",
+                id: issueWriteId,
                 identifier: "ENG-123",
                 url: "https://linear.app/test-team/issue/ENG-123/some-issue",
                 title: "Some issue",
@@ -964,7 +1087,7 @@ await snapshotTest({
   name: "Issue Update Command - Assignee And Unassign Conflict",
   meta: import.meta,
   colors: false,
-  args: ["ENG-123", "--assignee", "self", "--unassign"],
+  args: ["--unprotected", "ENG-123", "--assignee", "self", "--unassign"],
   denoArgs: commonDenoArgs,
   canFail: true,
   async fn() {
@@ -981,19 +1104,19 @@ await snapshotTest({
   name: "Issue Update Command - Clear Cycle Sends Null",
   meta: import.meta,
   colors: false,
-  args: ["ENG-123", "--clear-cycle"],
+  args: ["--unprotected", "ENG-123", "--clear-cycle"],
   denoArgs: commonDenoArgs,
   async fn() {
     const { cleanup } = await setupMockLinearServer([
       {
         queryName: "GetTeamIdByKey",
         variables: { team: "ENG" },
-        response: { data: { teams: { nodes: [{ id: "team-eng-id" }] } } },
+        response: { data: { teams: { nodes: [{ id: teamWriteIds.ENG }] } } },
       },
       {
         queryName: "UpdateIssue",
         variables: {
-          id: "ENG-123",
+          id: issueWriteId,
           input: { cycleId: null },
         },
         response: {
@@ -1001,7 +1124,7 @@ await snapshotTest({
             issueUpdate: {
               success: true,
               issue: {
-                id: "issue-existing-123",
+                id: issueWriteId,
                 identifier: "ENG-123",
                 url: "https://linear.app/test-team/issue/ENG-123/some-issue",
                 title: "Some issue",
@@ -1025,14 +1148,14 @@ await snapshotTest({
   name: "Issue Update Command - Cycle Next Resolves Via Flag",
   meta: import.meta,
   colors: false,
-  args: ["ENG-123", "--cycle", "next"],
+  args: ["--unprotected", "ENG-123", "--cycle", "next"],
   denoArgs: commonDenoArgs,
   async fn() {
     const { cleanup } = await setupMockLinearServer([
       {
         queryName: "GetTeamIdByKey",
         variables: { team: "ENG" },
-        response: { data: { teams: { nodes: [{ id: "team-eng-id" }] } } },
+        response: { data: { teams: { nodes: [{ id: teamWriteIds.ENG }] } } },
       },
       {
         queryName: "GetTeamCyclesForLookup",
@@ -1082,7 +1205,7 @@ await snapshotTest({
       {
         queryName: "UpdateIssue",
         variables: {
-          id: "ENG-123",
+          id: issueWriteId,
           input: { cycleId: "cycle-7-id" },
         },
         response: {
@@ -1090,7 +1213,7 @@ await snapshotTest({
             issueUpdate: {
               success: true,
               issue: {
-                id: "issue-existing-123",
+                id: issueWriteId,
                 identifier: "ENG-123",
                 url: "https://linear.app/test-team/issue/ENG-123/some-issue",
                 title: "Some issue",
@@ -1114,14 +1237,14 @@ await snapshotTest({
   name: "Issue Update Command - Cycle Relative Offset",
   meta: import.meta,
   colors: false,
-  args: ["ENG-123", "--cycle", "+2"],
+  args: ["--unprotected", "ENG-123", "--cycle", "+2"],
   denoArgs: commonDenoArgs,
   async fn() {
     const { cleanup } = await setupMockLinearServer([
       {
         queryName: "GetTeamIdByKey",
         variables: { team: "ENG" },
-        response: { data: { teams: { nodes: [{ id: "team-eng-id" }] } } },
+        response: { data: { teams: { nodes: [{ id: teamWriteIds.ENG }] } } },
       },
       {
         queryName: "GetTeamCyclesForLookup",
@@ -1163,7 +1286,7 @@ await snapshotTest({
       {
         queryName: "UpdateIssue",
         variables: {
-          id: "ENG-123",
+          id: issueWriteId,
           input: { cycleId: "cycle-7-id" },
         },
         response: {
@@ -1171,7 +1294,7 @@ await snapshotTest({
             issueUpdate: {
               success: true,
               issue: {
-                id: "issue-existing-123",
+                id: issueWriteId,
                 identifier: "ENG-123",
                 url: "https://linear.app/test-team/issue/ENG-123/some-issue",
                 title: "Some issue",
@@ -1202,7 +1325,13 @@ Deno.test("Issue Update Command - rejects --cycle with --clear-cycle", async () 
   })
 
   try {
-    await updateCommand.parse(["ENG-123", "--cycle", "next", "--clear-cycle"])
+    await updateCommand.parse([
+      "--unprotected",
+      "ENG-123",
+      "--cycle",
+      "next",
+      "--clear-cycle",
+    ])
   } catch (e) {
     if (!(e instanceof Error) || e.message !== "EXIT") throw e
   } finally {
@@ -1225,7 +1354,7 @@ Deno.test("Issue Update Command - relative cycle offset requires an active cycle
     {
       queryName: "GetTeamIdByKey",
       variables: { team: "ENG" },
-      response: { data: { teams: { nodes: [{ id: "team-eng-id" }] } } },
+      response: { data: { teams: { nodes: [{ id: teamWriteIds.ENG }] } } },
     },
     {
       queryName: "GetTeamCyclesForLookup",
@@ -1262,7 +1391,7 @@ Deno.test("Issue Update Command - relative cycle offset requires an active cycle
   })
 
   try {
-    await updateCommand.parse(["ENG-123", "--cycle", "+2"])
+    await updateCommand.parse(["--unprotected", "ENG-123", "--cycle", "+2"])
   } catch (e) {
     if (!(e instanceof Error) || e.message !== "EXIT") throw e
   } finally {
@@ -1283,18 +1412,18 @@ await snapshotTest({
   name: "Issue Update Command - Cycle Lookup Paginates",
   meta: import.meta,
   colors: false,
-  args: ["ENG-123", "--cycle", "1"],
+  args: ["--unprotected", "ENG-123", "--cycle", "1"],
   denoArgs: commonDenoArgs,
   async fn() {
     const { cleanup } = await setupMockLinearServer([
       {
         queryName: "GetTeamIdByKey",
         variables: { team: "ENG" },
-        response: { data: { teams: { nodes: [{ id: "team-eng-id" }] } } },
+        response: { data: { teams: { nodes: [{ id: teamWriteIds.ENG }] } } },
       },
       {
         queryName: "GetTeamCyclesForLookup",
-        variables: { teamId: "team-eng-id", after: null },
+        variables: { teamId: teamWriteIds.ENG, after: null },
         response: {
           data: {
             team: {
@@ -1320,7 +1449,7 @@ await snapshotTest({
       },
       {
         queryName: "GetTeamCyclesForLookup",
-        variables: { teamId: "team-eng-id", after: "cursor-1" },
+        variables: { teamId: teamWriteIds.ENG, after: "cursor-1" },
         response: {
           data: {
             team: {
@@ -1347,7 +1476,7 @@ await snapshotTest({
       {
         queryName: "UpdateIssue",
         variables: {
-          id: "ENG-123",
+          id: issueWriteId,
           input: { cycleId: "cycle-1-id" },
         },
         response: {
@@ -1355,7 +1484,7 @@ await snapshotTest({
             issueUpdate: {
               success: true,
               issue: {
-                id: "issue-existing-123",
+                id: issueWriteId,
                 identifier: "ENG-123",
                 url: "https://linear.app/test-team/issue/ENG-123/some-issue",
                 title: "Some issue",
@@ -1381,7 +1510,7 @@ Deno.test("Issue Update Command - --cycle errors when team has cycles disabled",
     {
       queryName: "GetTeamIdByKey",
       variables: { team: "ENG" },
-      response: { data: { teams: { nodes: [{ id: "team-eng-id" }] } } },
+      response: { data: { teams: { nodes: [{ id: teamWriteIds.ENG }] } } },
     },
     {
       queryName: "GetTeamCyclesForLookup",
@@ -1410,7 +1539,7 @@ Deno.test("Issue Update Command - --cycle errors when team has cycles disabled",
   })
 
   try {
-    await updateCommand.parse(["ENG-123", "--cycle", "next"])
+    await updateCommand.parse(["--unprotected", "ENG-123", "--cycle", "next"])
   } catch (e) {
     if (!(e instanceof Error) || e.message !== "EXIT") throw e
   } finally {
@@ -1432,7 +1561,7 @@ Deno.test("Issue Update Command - --cycle now errors helpfully when no cycle is 
     {
       queryName: "GetTeamIdByKey",
       variables: { team: "ENG" },
-      response: { data: { teams: { nodes: [{ id: "team-eng-id" }] } } },
+      response: { data: { teams: { nodes: [{ id: teamWriteIds.ENG }] } } },
     },
     {
       queryName: "GetTeamCyclesForLookup",
@@ -1470,7 +1599,7 @@ Deno.test("Issue Update Command - --cycle now errors helpfully when no cycle is 
   })
 
   try {
-    await updateCommand.parse(["ENG-123", "--cycle", "now"])
+    await updateCommand.parse(["--unprotected", "ENG-123", "--cycle", "now"])
   } catch (e) {
     if (!(e instanceof Error) || e.message !== "EXIT") throw e
   } finally {
@@ -1489,11 +1618,11 @@ Deno.test("Issue Update Command - --cycle now errors helpfully when no cycle is 
   )
 })
 
-Deno.test("Issue Update Command - JSON output contains only the mutation payload", async () => {
+Deno.test("Issue Update Command - JSON output contains one write result with its mutation payload", async () => {
   const issueUpdate = {
     success: true,
     issue: {
-      id: "issue-existing-123",
+      id: issueWriteId,
       identifier: "ENG-123",
       url: "https://linear.app/test-team/issue/ENG-123/renamed",
       title: "Renamed",
@@ -1505,7 +1634,7 @@ Deno.test("Issue Update Command - JSON output contains only the mutation payload
   }
   const { cleanup } = await setupMockLinearServer([{
     queryName: "UpdateIssue",
-    variables: { id: "ENG-123", input: { title: "Renamed" } },
+    variables: { id: issueWriteId, input: { title: "Renamed" } },
     response: { data: { issueUpdate } },
   }])
   const logs: string[] = []
@@ -1514,20 +1643,30 @@ Deno.test("Issue Update Command - JSON output contains only the mutation payload
   })
 
   try {
-    await updateCommand.parse(["ENG-123", "--title", "Renamed", "--json"])
+    await updateCommand.parse([
+      "--unprotected",
+      "ENG-123",
+      "--title",
+      "Renamed",
+      "--json",
+    ])
   } finally {
     logStub.restore()
     await cleanup()
   }
 
-  assertEquals(logs, [JSON.stringify(issueUpdate, null, 2)])
+  assertEquals(logs.length, 1)
+  const result = JSON.parse(logs[0])
+  assertEquals(result.ok, true)
+  assertEquals(result.effect, "applied")
+  assertEquals(result.data, issueUpdate)
 })
 
 Deno.test("Issue Update Command - JSON output includes resulting priority", async () => {
   const issueUpdate = {
     success: true,
     issue: {
-      id: "issue-existing-123",
+      id: issueWriteId,
       identifier: "ENG-123",
       url: "https://linear.app/test-team/issue/ENG-123/existing-title",
       title: "Existing title",
@@ -1541,7 +1680,7 @@ Deno.test("Issue Update Command - JSON output includes resulting priority", asyn
   const { cleanup } = await setupMockLinearServer([{
     queryName: "UpdateIssue",
     queryIncludes: "priority",
-    variables: { id: "ENG-123", input: { priority: 3 } },
+    variables: { id: issueWriteId, input: { priority: 3 } },
     response: { data: { issueUpdate } },
   }])
   const logs: string[] = []
@@ -1550,13 +1689,23 @@ Deno.test("Issue Update Command - JSON output includes resulting priority", asyn
   })
 
   try {
-    await updateCommand.parse(["ENG-123", "--priority", "3", "--json"])
+    await updateCommand.parse([
+      "--unprotected",
+      "ENG-123",
+      "--priority",
+      "3",
+      "--json",
+    ])
   } finally {
     logStub.restore()
     await cleanup()
   }
 
-  assertEquals(logs, [JSON.stringify(issueUpdate, null, 2)])
+  assertEquals(logs.length, 1)
+  const result = JSON.parse(logs[0])
+  assertEquals(result.ok, true)
+  assertEquals(result.effect, "applied")
+  assertEquals(result.data, issueUpdate)
 })
 
 Deno.test("Issue Update Command - teamId is sent only for an explicit team move", async () => {
@@ -1568,20 +1717,20 @@ Deno.test("Issue Update Command - teamId is sent only for an explicit team move"
     {
       queryName: "GetTeamIdByKey",
       variables: { team: "OPS" },
-      response: { data: { teams: { nodes: [{ id: "team-ops-id" }] } } },
+      response: { data: { teams: { nodes: [{ id: teamWriteIds.OPS }] } } },
     },
     {
       queryName: "UpdateIssue",
       variables: {
-        id: "ENG-123",
-        input: { title: "Moved", teamId: "team-ops-id" },
+        id: issueWriteId,
+        input: { title: "Moved", teamId: teamWriteIds.OPS },
       },
       response: {
         data: {
           issueUpdate: {
             success: true,
             issue: {
-              id: "issue-existing-123",
+              id: issueWriteId,
               identifier: "OPS-456",
               url: "https://linear.app/test-team/issue/OPS-456/moved",
               title: "Moved",
@@ -1594,6 +1743,7 @@ Deno.test("Issue Update Command - teamId is sent only for an explicit team move"
 
   try {
     await updateCommand.parse([
+      "--unprotected",
       "ENG-123",
       "--title",
       "Moved",
@@ -1609,7 +1759,7 @@ Deno.test("Issue Update Command - label additions and removals stay incremental"
   const { cleanup } = await setupMockLinearServer([
     {
       queryName: "GetIssueLabelIdByNameForTeam",
-      variables: { name: "frontend", teamKey: "ENG" },
+      variables: { name: "frontend", team: { id: { eq: teamWriteIds.ENG } } },
       response: {
         data: {
           issueLabels: { nodes: [{ id: "label-frontend", name: "frontend" }] },
@@ -1618,7 +1768,7 @@ Deno.test("Issue Update Command - label additions and removals stay incremental"
     },
     {
       queryName: "GetIssueLabelIdByNameForTeam",
-      variables: { name: "backend", teamKey: "ENG" },
+      variables: { name: "backend", team: { id: { eq: teamWriteIds.ENG } } },
       response: {
         data: {
           issueLabels: { nodes: [{ id: "label-backend", name: "backend" }] },
@@ -1628,7 +1778,7 @@ Deno.test("Issue Update Command - label additions and removals stay incremental"
     {
       queryName: "UpdateIssue",
       variables: {
-        id: "ENG-123",
+        id: issueWriteId,
         input: {
           addedLabelIds: ["label-frontend"],
           removedLabelIds: ["label-backend"],
@@ -1639,7 +1789,7 @@ Deno.test("Issue Update Command - label additions and removals stay incremental"
           issueUpdate: {
             success: true,
             issue: {
-              id: "issue-existing-123",
+              id: issueWriteId,
               identifier: "ENG-123",
               url: "https://linear.app/test-team/issue/ENG-123/labels",
               title: "Labels",
@@ -1652,6 +1802,7 @@ Deno.test("Issue Update Command - label additions and removals stay incremental"
 
   try {
     await updateCommand.parse([
+      "--unprotected",
       "ENG-123",
       "--add-label",
       "frontend",
@@ -1675,7 +1826,7 @@ Deno.test("Issue Update Command - requires an update option", async () => {
   })
 
   try {
-    await updateCommand.parse(["ENG-123"])
+    await updateCommand.parse(["--unprotected", "ENG-123"])
   } catch (error) {
     if (!(error instanceof Error) || error.message !== "EXIT") throw error
   } finally {
@@ -1702,6 +1853,7 @@ Deno.test("Issue Update Command - replacement and incremental labels conflict", 
 
   try {
     await updateCommand.parse([
+      "--unprotected",
       "ENG-123",
       "--label",
       "frontend",
@@ -1726,7 +1878,7 @@ Deno.test("Issue Update Command - replacement and incremental labels conflict", 
 Deno.test("Issue Update Command - cannot add and remove the same label", async () => {
   const { cleanup } = await setupMockLinearServer([{
     queryName: "GetIssueLabelIdByNameForTeam",
-    variables: { name: "frontend", teamKey: "ENG" },
+    variables: { name: "frontend", team: { id: { eq: teamWriteIds.ENG } } },
     response: {
       data: {
         issueLabels: { nodes: [{ id: "label-frontend", name: "frontend" }] },
@@ -1743,6 +1895,7 @@ Deno.test("Issue Update Command - cannot add and remove the same label", async (
 
   try {
     await updateCommand.parse([
+      "--unprotected",
       "ENG-123",
       "--add-label",
       "frontend",

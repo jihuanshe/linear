@@ -1,24 +1,26 @@
+import { createIssueComment } from "../../operations/issue-content.ts"
+import { printWriteResult } from "../../utils/write-result.ts"
 import { Command } from "@cliffy/command"
 import { withUsageMetadata } from "../usage.ts"
 import { withMarkdownHint } from "../../utils/markdown-help.ts"
 import { Input } from "../../utils/prompt.ts"
-import { gql } from "../../__codegen__/gql.ts"
-import { getGraphQLClient } from "../../utils/graphql.ts"
-import { getIssueIdentifier } from "../../utils/linear.ts"
+import { getIssueIdentifier, requireIssueId } from "../../utils/linear.ts"
 import {
   formatAsMarkdownLink,
-  getMimeType,
-  resolveMakePublic,
+  prepareUploads,
   uploadFile,
-  validateFilePath,
+  type UploadResult,
 } from "../../utils/upload.ts"
 import { shouldShowSpinner } from "../../utils/hyperlink.ts"
-import { CliError, handleError, ValidationError } from "../../utils/errors.ts"
+import {
+  handleError,
+  ValidationError,
+  withAppliedReceipts,
+} from "../../utils/errors.ts"
 
 export const commentAddCommand = withUsageMetadata(new Command(), {
   writes: true,
   interactive: true,
-  outputModes: ["human", "json"],
 })
   .name("add")
   .description(
@@ -27,22 +29,27 @@ export const commentAddCommand = withUsageMetadata(new Command(), {
     ),
   )
   .arguments("[issueId:string]")
-  .option("-b, --body <text:string>", "Comment body text")
+  .option("-b, --body <text:string>", "Comment body text", {
+    preserveEmpty: true,
+  })
   .option(
     "--body-file <path:string>",
     "Read comment body from a file (preferred for markdown content)",
+    { preserveEmpty: true },
   )
-  .option("-p, --parent <id:string>", "Parent comment ID for replies")
+  .option("-p, --parent <id:string>", "Parent comment ID for replies", {
+    preserveEmpty: true,
+  })
   .option(
     "-a, --attach <filepath:string>",
     "Upload a file and add its Markdown link to the comment (images render inline; repeatable)",
-    { collect: true },
+    { collect: true, preserveEmpty: true },
   )
   .option(
     "--public",
     "Upload attached images to a public, unauthenticated URL (default: private, workspace-members only)",
   )
-  .option("-j, --json", "Output {comment} as JSON")
+  .option("-j, --json", "Output a JSON write result with the comment")
   .action(async (options, issueId) => {
     const {
       body,
@@ -53,9 +60,10 @@ export const commentAddCommand = withUsageMetadata(new Command(), {
       json,
     } = options
 
+    const uploadedFiles: UploadResult[] = []
     try {
       // Validate that body and bodyFile are not both provided
-      if (body && bodyFile) {
+      if (body != null && bodyFile != null) {
         throw new ValidationError(
           "Cannot specify both --body and --body-file",
         )
@@ -63,7 +71,16 @@ export const commentAddCommand = withUsageMetadata(new Command(), {
 
       // Read body from file if provided
       let commentBody = body
-      if (bodyFile) {
+      if (bodyFile === "") {
+        throw new ValidationError("Body file path cannot be empty")
+      }
+      if (parent != null && !parent.trim()) {
+        throw new ValidationError("Parent comment reference cannot be empty")
+      }
+      if (attach?.some((path) => path === "")) {
+        throw new ValidationError("Attachment file path cannot be empty")
+      }
+      if (bodyFile != null) {
         try {
           commentBody = await Deno.readTextFile(bodyFile)
         } catch (error) {
@@ -89,12 +106,11 @@ export const commentAddCommand = withUsageMetadata(new Command(), {
       // Validate and upload attachments first
       const attachments = attach || []
       if (
-        json && attachments.length === 0 && commentBody != null &&
+        attachments.length === 0 && commentBody != null &&
         !commentBody.trim()
       ) {
         throw new ValidationError("Comment body cannot be empty", {
-          suggestion:
-            "Provide non-whitespace content when producing machine-readable output.",
+          suggestion: "Provide non-whitespace content or attach a file.",
         })
       }
       if (makePublic && attachments.length === 0) {
@@ -103,32 +119,28 @@ export const commentAddCommand = withUsageMetadata(new Command(), {
           { suggestion: "Add --attach <file> to upload, or remove --public." },
         )
       }
-      const uploadedFiles: {
-        filename: string
-        assetUrl: string
-        isImage: boolean
-      }[] = []
+      if (json && attachments.length === 0 && commentBody == null) {
+        throw new ValidationError(
+          "--json requires --body, --body-file, or --attach",
+          {
+            suggestion:
+              "Provide the comment content explicitly when producing machine-readable output.",
+          },
+        )
+      }
 
-      if (attachments.length > 0) {
-        // Validate all files exist and, if --public, that every file may be
-        // uploaded publicly — before uploading any, so a mixed batch cannot
-        // publish some files before failing on an unsupported one.
-        for (const filepath of attachments) {
-          await validateFilePath(filepath)
-          resolveMakePublic(getMimeType(filepath), makePublic)
-        }
+      const prepared = await prepareUploads(attachments, { makePublic })
+      const issueUuid = await requireIssueId(resolvedIdentifier)
 
+      if (prepared.length > 0) {
         // Upload files
-        for (const filepath of attachments) {
-          const result = await uploadFile(filepath, {
+        for (const file of prepared) {
+          const result = await uploadFile(file.filepath, {
+            expectedSha256: file.sha256,
             showProgress: shouldShowSpinner() && !json,
             makePublic,
           })
-          uploadedFiles.push({
-            filename: result.filename,
-            assetUrl: result.assetUrl,
-            isImage: result.contentType.startsWith("image/"),
-          })
+          uploadedFiles.push(result)
           const uploadMessage = `✓ Uploaded ${result.filename}`
           if (json) console.error(uploadMessage)
           else console.log(uploadMessage)
@@ -142,15 +154,6 @@ export const commentAddCommand = withUsageMetadata(new Command(), {
 
       // If no body provided and no attachments, prompt for it
       if (!commentBody && uploadedFiles.length === 0) {
-        if (json) {
-          throw new ValidationError(
-            "--json requires --body, --body-file, or --attach",
-            {
-              suggestion:
-                "Provide the comment content explicitly when producing machine-readable output.",
-            },
-          )
-        }
         commentBody = await Input.prompt({
           message: "Comment body",
           default: "",
@@ -167,9 +170,7 @@ export const commentAddCommand = withUsageMetadata(new Command(), {
           return formatAsMarkdownLink({
             filename: file.filename,
             assetUrl: file.assetUrl,
-            contentType: file.isImage
-              ? "image/png"
-              : "application/octet-stream",
+            contentType: file.contentType,
           })
         })
 
@@ -180,55 +181,26 @@ export const commentAddCommand = withUsageMetadata(new Command(), {
         }
       }
 
-      const mutation = gql(`
-        mutation AddComment($input: CommentCreateInput!) {
-          commentCreate(input: $input) {
-            success
-            comment {
-              id
-              body
-              createdAt
-              url
-              user {
-                name
-                displayName
-              }
-            }
-          }
-        }
-      `)
-
-      const client = getGraphQLClient()
-      const input: Record<string, unknown> = {
-        body: commentBody,
-        issueId: resolvedIdentifier,
-      }
-
-      if (parent) {
-        input.parentId = parent
-      }
-
-      const data = await client.request(mutation, {
-        input,
+      const { comment } = await createIssueComment(issueUuid, {
+        body: commentBody ?? "",
+        parentId: parent,
       })
-
-      if (!data.commentCreate.success) {
-        throw new CliError("Failed to create comment")
-      }
-
-      const comment = data.commentCreate.comment
-      if (!comment) {
-        throw new CliError("Comment creation failed - no comment returned")
-      }
-
       if (json) {
-        console.log(JSON.stringify({ comment }, null, 2))
+        printWriteResult({ comment }, {
+          receipts: uploadedFiles.map((file) => ({ kind: "upload", ...file })),
+        })
         return
       }
 
       console.log(`✓ Comment added to ${resolvedIdentifier}`)
       console.log(comment.url)
     } catch (error) {
-      handleError(error, "Failed to add comment")
+      handleError(
+        withAppliedReceipts(
+          error,
+          uploadedFiles.map((file) => ({ kind: "upload", ...file })),
+        ),
+        "Failed to add comment",
+      )
     }
   })
