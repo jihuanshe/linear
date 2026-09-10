@@ -53,7 +53,9 @@ export const updateCommand = withUsageMetadata(new Command(), { writes: true })
     "Milestone description; empty string clears it",
     { preserveEmpty: true },
   )
-  .option("--target-date <date:string>", "Target date (YYYY-MM-DD)")
+  .option("--target-date <date:string>", "Target date (YYYY-MM-DD)", {
+    preserveEmpty: true,
+  })
   .option(
     "--sort-order <value:number>",
     "Sort order relative to other milestones",
@@ -61,6 +63,7 @@ export const updateCommand = withUsageMetadata(new Command(), { writes: true })
   .option(
     "--project <project:string>",
     "Move to a different project (UUID, slug ID, or name)",
+    { preserveEmpty: true },
   )
   .option("-j, --json", "Output the write result as JSON")
   .option(
@@ -101,6 +104,21 @@ export const updateCommand = withUsageMetadata(new Command(), { writes: true })
         if (name != null && !name.trim()) {
           throw new ValidationError("Milestone name cannot be empty")
         }
+        if (projectIdOrSlug != null && !projectIdOrSlug.trim()) {
+          throw new ValidationError("Project cannot be empty")
+        }
+        if (targetDate != null) {
+          const date = new Date(targetDate)
+          if (
+            !/^\d{4}-\d{2}-\d{2}$/.test(targetDate) ||
+            !Number.isFinite(date.getTime()) ||
+            date.toISOString().slice(0, 10) !== targetDate
+          ) {
+            throw new ValidationError(
+              "Target date must be a valid calendar date in YYYY-MM-DD format",
+            )
+          }
+        }
         if (
           name == null && description == null && !targetDate &&
           sortOrder == null &&
@@ -113,9 +131,6 @@ export const updateCommand = withUsageMetadata(new Command(), { writes: true })
                 "Use --name, --description, --target-date, --sort-order, or --project",
             },
           )
-        }
-        if (targetDate && !/^\d{4}-\d{2}-\d{2}$/.test(targetDate)) {
-          throw new ValidationError("Target date must be in YYYY-MM-DD format")
         }
         const original = baseFile != null
           ? await loadBasisFile(baseFile)

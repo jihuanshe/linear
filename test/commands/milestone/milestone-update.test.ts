@@ -7,8 +7,24 @@ import {
   MockLinearServer,
 } from "../../utils/mock_linear_server.ts"
 
-for (const name of ["", " \n"]) {
-  Deno.test(`explicit empty input: milestone name ${JSON.stringify(name)}`, async () => {
+for (
+  const [option, value, message] of [
+    ["--name", "", "Milestone name cannot be empty"],
+    ["--name", " \n", "Milestone name cannot be empty"],
+    ["--project", "", "Project cannot be empty"],
+    ["--project", " \n", "Project cannot be empty"],
+    ...[
+      "",
+      "2026-02-30",
+      "2026-02-29",
+      "2100-02-29",
+      "2026-04-31",
+      "2026-13-01",
+    ]
+      .map((value) => ["--target-date", value, "Target date must be a valid"]),
+  ]
+) {
+  Deno.test(`milestone rejects invalid input: ${option} ${JSON.stringify(value)}`, async () => {
     const server = new MockLinearServer([])
     try {
       await server.start()
@@ -20,8 +36,8 @@ for (const name of ["", " \n"]) {
           "milestone",
           "update",
           "milestone-1",
-          "--name",
-          name,
+          option,
+          value,
           "--description",
           "new",
           "--unprotected",
@@ -38,7 +54,7 @@ for (const name of ["", " \n"]) {
       const body = JSON.parse(new TextDecoder().decode(result.stdout))
       assertEquals(result.code, 1)
       assertEquals(body.effect, "none")
-      assertStringIncludes(body.error.message, "Milestone name cannot be empty")
+      assertStringIncludes(body.error.message, message)
       assertEquals(server.graphqlRequests, [])
     } finally {
       await server.stop()
@@ -62,6 +78,59 @@ const originalMilestone = {
       },
     },
   }),
+}
+
+for (const targetDate of ["2028-02-29", "2000-02-29", "2026-04-30"]) {
+  Deno.test(`milestone accepts valid calendar date ${targetDate}`, async () => {
+    const server = new MockLinearServer([
+      originalMilestone,
+      {
+        queryName: "UpdateProjectMilestone",
+        response: ({ variables }: MockGraphQLRequest) => {
+          assertEquals(variables.input, { targetDate })
+          return {
+            data: {
+              projectMilestoneUpdate: {
+                success: true,
+                projectMilestone: { id: "milestone-1", targetDate },
+              },
+            },
+          }
+        },
+      },
+    ])
+    try {
+      await server.start()
+      const result = await new Deno.Command(Deno.execPath(), {
+        args: [
+          "run",
+          ...commonDenoArgs,
+          "src/main.ts",
+          "milestone",
+          "update",
+          "milestone-1",
+          "--target-date",
+          targetDate,
+          "--unprotected",
+          "--json",
+        ],
+        env: {
+          LINEAR_GRAPHQL_ENDPOINT: server.getEndpoint(),
+          LINEAR_API_KEY: "test-token",
+        },
+        stdin: "null",
+        stdout: "piped",
+        stderr: "piped",
+      }).output()
+      const body = JSON.parse(new TextDecoder().decode(result.stdout))
+      assertEquals(result.code, 0)
+      assertEquals(body.effect, "applied")
+      assertEquals(body.data.projectMilestone.targetDate, targetDate)
+      assertEquals(server.graphqlRequests.length, 2)
+    } finally {
+      await server.stop()
+    }
+  })
 }
 
 for (

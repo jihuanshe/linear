@@ -183,7 +183,9 @@ export const updateCommand = withUsageMetadata(new Command(), {
   ))
   .alias("u")
   .arguments("<documentId:string>")
-  .option("-t, --title <title:string>", "New title for the document")
+  .option("-t, --title <title:string>", "New title for the document", {
+    preserveEmpty: true,
+  })
   .option(
     "-c, --content <content:string>",
     "New markdown content (inline; empty string clears it)",
@@ -196,10 +198,11 @@ export const updateCommand = withUsageMetadata(new Command(), {
     "Read new content from file",
     { preserveEmpty: true },
   )
-  .option("--icon <icon:string>", "New icon (emoji)")
+  .option("--icon <icon:string>", "New icon (emoji)", { preserveEmpty: true })
   .option(
     "--project <project:string>",
     "Attach to project (UUID, slug ID, or name)",
+    { preserveEmpty: true },
   )
   .option("-e, --edit", "Open current content in $EDITOR for editing")
   .option(
@@ -239,6 +242,16 @@ export const updateCommand = withUsageMetadata(new Command(), {
       documentId,
     ) => {
       try {
+        for (
+          const [option, value] of [["--title", title], ["--icon", icon], [
+            "--project",
+            project,
+          ]]
+        ) {
+          if (value != null && !value.trim()) {
+            throw new ValidationError(`${option} cannot be empty`)
+          }
+        }
         if (
           [content != null, contentFile != null, !!edit].filter(Boolean)
             .length > 1
