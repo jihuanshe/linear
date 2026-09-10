@@ -36,7 +36,11 @@ function readResponse(request: RequestBody, archived = false) {
         nodes: [initiative],
         pageInfo: finalPage,
       },
-      project: { id: target, name: "Example project" },
+      project: {
+        id: target,
+        name: "Example project",
+        initiativeToProjects: { nodes: [], pageInfo: finalPage },
+      },
       issueLabel: {
         id: target,
         name: "Example label",
@@ -411,6 +415,92 @@ Deno.test("write result remove-project reads later pages before treating the lin
     2,
   )
 })
+
+for (
+  const scenario of [
+    "existing",
+    "absent",
+    "bad-page",
+    "other-initiative",
+    "other-project",
+  ]
+) {
+  Deno.test(`write result add-project checks complete direct links: ${scenario}`, async () => {
+    const result = await runCli(
+      ["initiative", "add-project", id, projectId, "--sort-order", "42"],
+      (request, requests) => {
+        if (/^mutation\b/.test(request.query.trim())) {
+          assertEquals(
+            requests.filter((item) =>
+              item.query.includes("GetProjectInitiativeLinksForAdd")
+            ).length,
+            2,
+          )
+          return {
+            data: {
+              initiativeToProjectCreate: {
+                success: true,
+                initiativeToProject: { id: linkId },
+              },
+            },
+          }
+        }
+        if (request.query.includes("GetProjectInitiativeLinksForAdd")) {
+          assertEquals(request.variables.id, projectId)
+          assertStringIncludes(request.query, "includeArchived: true")
+          const later = request.variables.after === "next"
+          return {
+            data: {
+              project: {
+                initiativeToProjects: {
+                  nodes: later && scenario !== "absent"
+                    ? [{
+                      id: linkId,
+                      initiative: {
+                        id: scenario === "other-initiative" ? nextId : id,
+                      },
+                      project: {
+                        id: scenario === "other-project" ? nextId : projectId,
+                      },
+                    }]
+                    : [],
+                  pageInfo: later
+                    ? (scenario === "bad-page" ? null : finalPage)
+                    : { hasNextPage: true, endCursor: "next" },
+                },
+              },
+            },
+          }
+        }
+        return readResponse(request)
+      },
+    )
+    const creates = !["existing", "bad-page"].includes(scenario)
+    assertEquals(result.code, scenario === "bad-page" ? 1 : 0, result.stdout)
+    assertEquals(result.result.effect, creates ? "applied" : "none")
+    assertEquals(result.mutations.length, creates ? 1 : 0)
+    assertEquals(
+      result.requests.filter((request) =>
+        request.query.includes("GetProjectInitiativeLinksForAdd")
+      ).length,
+      2,
+    )
+    if (scenario !== "bad-page") {
+      assertEquals(result.result.data.id, linkId)
+      assertEquals(result.result.data.initiativeId, id)
+      assertEquals(result.result.data.projectId, projectId)
+    } else {
+      assertStringIncludes(result.result.error.message, "pagination")
+    }
+    if (creates) {
+      assertEquals(result.mutations[0].variables.input, {
+        initiativeId: id,
+        projectId,
+        sortOrder: 42,
+      })
+    }
+  })
+}
 
 Deno.test("write result add-project does not infer no-op from a duplicate error string", async () => {
   const result = await runCli(

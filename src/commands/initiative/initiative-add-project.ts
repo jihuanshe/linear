@@ -5,6 +5,7 @@ import { withUsageMetadata } from "../usage.ts"
 import { gql } from "../../__codegen__/gql.ts"
 import { getGraphQLClient } from "../../utils/graphql.ts"
 import { shouldShowSpinner } from "../../utils/hyperlink.ts"
+import { completeConnection } from "../../utils/pagination.ts"
 import {
   assertMutationReceipt,
   assertMutationSuccess,
@@ -12,6 +13,17 @@ import {
   NotFoundError,
 } from "../../utils/errors.ts"
 import { printWriteResult, setMachineOutput } from "../../utils/write-result.ts"
+
+const GetProjectInitiativeLinksForAdd = gql(`
+  query GetProjectInitiativeLinksForAdd($id: String!, $after: String) {
+    project(id: $id) {
+      initiativeToProjects(first: 250, after: $after, includeArchived: true) {
+        nodes { id initiative { id } project { id } }
+        pageInfo { hasNextPage endCursor }
+      }
+    }
+  }
+`)
 
 const AddProjectToInitiative = gql(`
   mutation AddProjectToInitiative($input: InitiativeToProjectCreateInput!) {
@@ -60,9 +72,11 @@ export const addProjectCommand = withUsageMetadata(new Command(), {
 })
   .name("add-project")
   .option("--json", "Output a JSON write result")
-  .description("Link a project to an initiative")
+  .description(
+    "Link a project to an initiative. An existing direct link is unchanged, including its sort order.",
+  )
   .arguments("<initiative:string> <project:string>")
-  .option("--sort-order <sortOrder:number>", "Sort order within initiative")
+  .option("--sort-order <sortOrder:number>", "Sort order for a new link only")
   .action(
     async (
       { sortOrder, json },
@@ -82,6 +96,40 @@ export const addProjectCommand = withUsageMetadata(new Command(), {
       const project = await resolveProjectId(client, projectArg)
       if (!project) {
         throw new NotFoundError("Project", projectArg)
+      }
+
+      try {
+        const readLinks = async (after?: string) => {
+          const result = await client.request(GetProjectInitiativeLinksForAdd, {
+            id: project.id,
+            after,
+          })
+          return result.project.initiativeToProjects
+        }
+        const links = await completeConnection(
+          await readLinks(),
+          readLinks,
+          "initiative project links",
+        )
+        const link = links.nodes.find((node) =>
+          node.initiative.id === initiative.id && node.project.id === project.id
+        )
+        if (link) {
+          if (json) {
+            printWriteResult({
+              id: link.id,
+              initiativeId: initiative.id,
+              projectId: project.id,
+            }, { effect: "none" })
+          } else {
+            console.log(
+              `Project "${project.name}" is already linked to initiative "${initiative.name}"`,
+            )
+          }
+          return
+        }
+      } catch (error) {
+        handleError(error, "Failed to find project link")
       }
 
       const { Spinner } = await import("@std/cli/unstable-spinner")
