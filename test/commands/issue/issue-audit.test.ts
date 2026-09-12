@@ -130,7 +130,7 @@ Deno.test("issue audit JSON is a self-describing envelope", async () => {
     historyResponse(
       [historyEntry("history-1", "2026-09-05T00:00:00Z")],
       { hasNextPage: false, endCursor: null },
-      { id: "TEST-123", first: 1 },
+      { id: issue.id, first: 1 },
     ),
   ])
   await server.start()
@@ -174,7 +174,7 @@ Deno.test("issue audit human output has Current Snapshot and Change Log", async 
     historyResponse(
       [historyEntry("history-1", "2026-09-05T00:00:00Z")],
       { hasNextPage: false, endCursor: null },
-      { id: "TEST-123", first: 50 },
+      { id: issue.id, first: 50 },
     ),
   ])
   await server.start()
@@ -186,6 +186,13 @@ Deno.test("issue audit human output has Current Snapshot and Change Log", async 
       result.stdout,
       "Issue: TEST-123 (11111111-1111-4111-8111-000000000123)",
     )
+    assertStringIncludes(result.stdout, "Priority: 2")
+    assertStringIncludes(result.stdout, "Estimate: 3")
+    assertStringIncludes(result.stdout, "Due Date: 2026-09-30")
+    assertStringIncludes(result.stdout, "Project Milestone: -")
+    assertStringIncludes(result.stdout, "Cycle: -")
+    assertStringIncludes(result.stdout, "Archived At: -")
+    assertStringIncludes(result.stdout, "Trashed: false")
     assertStringIncludes(result.stdout, "Created: 2026-09-01T00:00:00Z")
     assertStringIncludes(result.stdout, "Change Log")
     assertStringIncludes(result.stdout, "title: Old title -> New title")
@@ -204,12 +211,12 @@ Deno.test("issue audit paginates history and requests only the remaining limit",
     historyResponse(
       [firstEntry],
       { hasNextPage: true, endCursor: "history-next" },
-      { id: "TEST-123", first: 2 },
+      { id: issue.id, first: 2 },
     ),
     historyResponse(
       [secondEntry],
       { hasNextPage: false, endCursor: "history-last" },
-      { id: "TEST-123", first: 1, after: "history-next" },
+      { id: issue.id, first: 1, after: "history-next" },
     ),
   ])
   await server.start()
@@ -237,7 +244,7 @@ Deno.test("issue audit paginates history and requests only the remaining limit",
     })
     assertEquals(server.graphqlRequests.length, 3)
     assertEquals(server.graphqlRequests[2].variables, {
-      id: "TEST-123",
+      id: issue.id,
       first: 1,
       after: "history-next",
     })
@@ -252,12 +259,12 @@ Deno.test("issue audit fails without partial JSON on a repeated history cursor",
     historyResponse(
       [historyEntry("history-1", "2026-09-05T00:00:00Z")],
       { hasNextPage: true, endCursor: "history-loop" },
-      { id: "TEST-123", first: 100 },
+      { id: issue.id, first: 100 },
     ),
     historyResponse(
       [historyEntry("history-2", "2026-09-06T00:00:00Z")],
       { hasNextPage: true, endCursor: "history-loop" },
-      { id: "TEST-123", first: 100, after: "history-loop" },
+      { id: issue.id, first: 100, after: "history-loop" },
     ),
   ])
   await server.start()

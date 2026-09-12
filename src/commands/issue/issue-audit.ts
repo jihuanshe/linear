@@ -106,10 +106,11 @@ export async function readIssueAudit(issueId: string, limit: number) {
     )
   }
 
+  const historyIssueId = current.issue.id
   const first = limit > 0 ? Math.min(100, limit) : 100
   const fetchHistoryPage = async (after?: string, pageSize = first) => {
     const result = await client.request(issueAuditHistoryQuery, {
-      id: issueId,
+      id: historyIssueId,
       first: pageSize,
       after,
     })
@@ -257,6 +258,15 @@ function printHumanAudit(audit: AuditEnvelope): void {
   console.log(`Assignee: ${formatAuditValue(issue.assignee)}`)
   console.log(`Team: ${formatAuditValue(issue.team)}`)
   console.log(`Project: ${formatAuditValue(issue.project)}`)
+  console.log(`Priority: ${formatAuditValue(issue.priority)}`)
+  console.log(`Estimate: ${formatAuditValue(issue.estimate)}`)
+  console.log(`Due Date: ${formatAuditValue(issue.dueDate)}`)
+  console.log(
+    `Project Milestone: ${formatAuditValue(issue.projectMilestone)}`,
+  )
+  console.log(`Cycle: ${formatAuditValue(issue.cycle)}`)
+  console.log(`Archived At: ${formatAuditValue(issue.archivedAt)}`)
+  console.log(`Trashed: ${formatAuditValue(issue.trashed)}`)
   console.log(`Created: ${issue.createdAt}`)
   console.log(`Updated: ${issue.updatedAt}`)
   console.log(`URL: ${issue.url}`)
