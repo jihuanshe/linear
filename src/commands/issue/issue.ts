@@ -14,6 +14,7 @@ import { agentSessionCommand } from "./issue-agent-session.ts"
 import { issueApplyCommand } from "./issue-apply.ts"
 import { issuePlanCommand } from "./issue-plan.ts"
 import { historyCommand } from "./issue-history.ts"
+import { auditCommand } from "./issue-audit.ts"
 import { pickCommand } from "./issue-pick.ts"
 import { titleCommand } from "./issue-title.ts"
 import { updateCommand } from "./issue-update.ts"
@@ -33,6 +34,7 @@ export const issueCommand = new Command()
   .command("pick", pickCommand)
   .command("view", viewCommand)
   .command("history", historyCommand)
+  .command("audit", auditCommand)
   .command("url", urlCommand)
   .command("describe", describeCommand)
   .command("delete", deleteCommand)
