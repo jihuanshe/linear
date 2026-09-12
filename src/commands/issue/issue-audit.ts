@@ -244,13 +244,23 @@ function formatHistoryChanges(entry: HistoryEntry): string {
 }
 
 function historyActor(entry: HistoryEntry): string {
-  return entry.actor?.displayName || entry.actor?.name ||
-    entry.botActor?.userDisplayName || entry.botActor?.name ||
-    (entry.botActor?.type ? `bot:${entry.botActor.type}` : "system")
+  if (entry.botActor != null) {
+    const botType = entry.botActor.type ? `bot:${entry.botActor.type}` : "bot"
+    const bot = entry.botActor.name
+      ? `${entry.botActor.name}${entry.botActor.type ? ` (${botType})` : ""}`
+      : botType
+    return entry.botActor.userDisplayName
+      ? `${bot} [user: ${entry.botActor.userDisplayName}]`
+      : bot
+  }
+  return entry.actor?.displayName || entry.actor?.name || "system"
 }
 
 function printHumanAudit(audit: AuditEnvelope): void {
   const issue = audit.issue
+  console.log(`Warning: audit.consistency=${audit.audit.consistency}`)
+  console.log(`Note: ${audit.audit.note}`)
+  console.log("")
   console.log("Current Snapshot")
   console.log(`Issue: ${issue.identifier} (${issue.id})`)
   console.log(`Title: ${issue.title}`)
@@ -272,6 +282,11 @@ function printHumanAudit(audit: AuditEnvelope): void {
   console.log(`URL: ${issue.url}`)
   console.log("")
   console.log("Change Log")
+  if (audit.history.pageInfo.hasNextPage) {
+    console.log(
+      "Warning: history is truncated (Change Log is incomplete); increase --limit or use --limit 0 to fetch all history.",
+    )
+  }
   if (audit.history.nodes.length === 0) {
     console.log("No history found.")
     return

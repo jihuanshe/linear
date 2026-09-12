@@ -32,13 +32,21 @@ const issue = {
   cycle: null,
 }
 
-function historyEntry(id: string, createdAt: string) {
+function historyEntry(
+  id: string,
+  createdAt: string,
+  options: { actor?: unknown; botActor?: unknown } = {},
+) {
   return {
     id,
     createdAt,
     updatedAt: createdAt,
-    actor: { id: "user-1", name: "alex", displayName: "Alex" },
-    botActor: null,
+    actor: options.actor ?? {
+      id: "user-1",
+      name: "alex",
+      displayName: "Alex",
+    },
+    botActor: options.botActor ?? null,
     changes: { priority: { from: 1, to: 2 } },
     archived: null,
     trashed: null,
@@ -182,6 +190,11 @@ Deno.test("issue audit human output has Current Snapshot and Change Log", async 
     const result = await runCli(server, ["issue", "audit", "TEST-123"])
     assertEquals(result.code, 0, result.stderr)
     assertStringIncludes(result.stdout, "Current Snapshot")
+    assertStringIncludes(result.stdout, "Warning: audit.consistency=non-atomic")
+    assertStringIncludes(
+      result.stdout,
+      "Note: The current issue and history were read through separate GraphQL requests",
+    )
     assertStringIncludes(
       result.stdout,
       "Issue: TEST-123 (11111111-1111-4111-8111-000000000123)",
@@ -198,6 +211,72 @@ Deno.test("issue audit human output has Current Snapshot and Change Log", async 
     assertStringIncludes(result.stdout, "title: Old title -> New title")
     assertStringIncludes(result.stdout, "state: Todo -> In Progress")
     assertEquals(server.graphqlRequests.length, 2)
+  } finally {
+    await server.stop()
+  }
+})
+
+Deno.test("issue audit human output warns when history is truncated", async () => {
+  const server = new MockLinearServer([
+    currentResponse(),
+    historyResponse(
+      Array.from({ length: 50 }, (_, index) =>
+        historyEntry(
+          `history-${index + 1}`,
+          "2026-09-05T00:00:00Z",
+        )),
+      { hasNextPage: true, endCursor: "history-next" },
+      { id: issue.id, first: 50 },
+    ),
+  ])
+  await server.start()
+  try {
+    const result = await runCli(server, ["issue", "audit", "TEST-123"])
+    assertEquals(result.code, 0, result.stderr)
+    assertStringIncludes(
+      result.stdout,
+      "Warning: history is truncated",
+    )
+    assertStringIncludes(result.stdout, "increase --limit")
+    assertStringIncludes(result.stdout, "--limit 0")
+  } finally {
+    await server.stop()
+  }
+})
+
+Deno.test("issue audit human output identifies bot history actors", async () => {
+  const server = new MockLinearServer([
+    currentResponse(),
+    historyResponse(
+      [
+        historyEntry("history-1", "2026-09-05T00:00:00Z", {
+          actor: {
+            id: "external-user",
+            name: "external",
+            displayName: "External Human",
+          },
+          botActor: {
+            id: "bot-1",
+            name: "Automation Bot",
+            type: "integration",
+            subType: "workflow",
+            userDisplayName: "Jordan",
+          },
+        }),
+      ],
+      { hasNextPage: false, endCursor: null },
+      { id: issue.id, first: 50 },
+    ),
+  ])
+  await server.start()
+  try {
+    const result = await runCli(server, ["issue", "audit", "TEST-123"])
+    assertEquals(result.code, 0, result.stderr)
+    assertStringIncludes(
+      result.stdout,
+      "Automation Bot (bot:integration) [user: Jordan]:",
+    )
+    assertEquals(result.stdout.includes("External Human:"), false)
   } finally {
     await server.stop()
   }
