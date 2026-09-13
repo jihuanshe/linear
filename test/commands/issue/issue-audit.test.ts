@@ -75,6 +75,8 @@ function historyEntry(
     },
     fromProject: null,
     toProject: { id: "project-1", name: "Audit", slugId: "audit-1" },
+    toConvertedProject: null,
+    toConvertedProjectId: null,
     fromProjectMilestone: null,
     toProjectMilestone: null,
     fromCycle: null,
@@ -91,11 +93,71 @@ function historyEntry(
   }
 }
 
-function currentResponse() {
+function currentResponse(
+  labels?: {
+    nodes: Array<{ id: string; name: string }>
+    pageInfo: { hasNextPage: boolean; endCursor: string | null }
+  },
+) {
   return {
     queryName: "GetIssueAuditCurrent",
-    variables: { id: "TEST-123" },
-    response: { data: { organization, issue } },
+    variables: { id: "TEST-123", labelsAfter: null },
+    response: {
+      data: { organization, issue: labels ? { ...issue, labels } : issue },
+    },
+  }
+}
+
+function conversionHistoryEntry() {
+  return {
+    ...historyEntry("history-conversion", "2026-09-07T00:00:00Z"),
+    changes: null,
+    archived: null,
+    trashed: null,
+    updatedDescription: null,
+    fromTitle: null,
+    toTitle: null,
+    fromPriority: null,
+    toPriority: null,
+    fromEstimate: null,
+    toEstimate: null,
+    fromDueDate: null,
+    toDueDate: null,
+    fromAssignee: null,
+    toAssignee: null,
+    fromState: null,
+    toState: null,
+    fromProject: null,
+    toProject: null,
+    toConvertedProject: {
+      id: "project-converted",
+      name: "Converted Project",
+      slugId: "converted-project",
+    },
+    toConvertedProjectId: "project-converted",
+    fromProjectMilestone: null,
+    toProjectMilestone: null,
+    fromCycle: null,
+    toCycle: null,
+    fromParent: null,
+    toParent: null,
+    fromTeam: null,
+    toTeam: null,
+    fromDelegate: null,
+    toDelegate: null,
+    fromSlaBreached: null,
+    toSlaBreached: null,
+    fromSlaBreachesAt: null,
+    toSlaBreachesAt: null,
+    fromSlaStartedAt: null,
+    toSlaStartedAt: null,
+    fromSlaType: null,
+    toSlaType: null,
+    addedToReleaseIds: [],
+    removedFromReleaseIds: [],
+    addedLabelIds: [],
+    removedLabelIds: [],
+    relationChanges: [],
   }
 }
 
@@ -282,6 +344,57 @@ Deno.test("issue audit human output identifies bot history actors", async () => 
   }
 })
 
+Deno.test("issue audit renders conversion history with converted project details", async () => {
+  const entry = conversionHistoryEntry()
+  const server = new MockLinearServer([
+    currentResponse(),
+    historyResponse(
+      [entry],
+      { hasNextPage: false, endCursor: null },
+      { id: issue.id, first: 1 },
+    ),
+  ])
+  await server.start()
+  try {
+    const jsonResult = await runCli(server, [
+      "issue",
+      "audit",
+      "TEST-123",
+      "--limit",
+      "1",
+      "--json",
+    ])
+    assertEquals(jsonResult.code, 0, jsonResult.stderr)
+    const output = JSON.parse(jsonResult.stdout)
+    assertEquals(
+      output.history.nodes[0].toConvertedProject,
+      entry.toConvertedProject,
+    )
+    assertEquals(
+      output.history.nodes[0].toConvertedProjectId,
+      entry.toConvertedProjectId,
+    )
+    assertMatch(server.graphqlRequests[1].query, /toConvertedProject/)
+    assertMatch(server.graphqlRequests[1].query, /toConvertedProjectId/)
+
+    const humanResult = await runCli(server, [
+      "issue",
+      "audit",
+      "TEST-123",
+      "--limit",
+      "1",
+    ])
+    assertEquals(humanResult.code, 0, humanResult.stderr)
+    assertStringIncludes(
+      humanResult.stdout,
+      "converted to project: Converted Project (project-converted)",
+    )
+    assertEquals(humanResult.stdout.includes("metadata changed"), false)
+  } finally {
+    await server.stop()
+  }
+})
+
 Deno.test("issue audit paginates history and requests only the remaining limit", async () => {
   const firstEntry = historyEntry("history-1", "2026-09-05T00:00:00Z")
   const secondEntry = historyEntry("history-2", "2026-09-06T00:00:00Z")
@@ -362,6 +475,50 @@ Deno.test("issue audit fails without partial JSON on a repeated history cursor",
     assertEquals(error.effect, "none")
     assertStringIncludes(error.error.message, "empty or repeated cursor")
     assertEquals(result.stderr, "")
+  } finally {
+    await server.stop()
+  }
+})
+
+Deno.test("issue audit fails without partial JSON on a repeated label cursor", async () => {
+  const server = new MockLinearServer([
+    currentResponse({
+      nodes: [{ id: "label-1", name: "First label" }],
+      pageInfo: { hasNextPage: true, endCursor: "label-loop" },
+    }),
+    {
+      queryName: "GetIssueAuditCurrent",
+      variables: { id: issue.id, labelsAfter: "label-loop" },
+      response: {
+        data: {
+          organization,
+          issue: {
+            ...issue,
+            labels: {
+              nodes: [{ id: "label-2", name: "Second label" }],
+              pageInfo: { hasNextPage: true, endCursor: "label-loop" },
+            },
+          },
+        },
+      },
+    },
+  ])
+  await server.start()
+  try {
+    const result = await runCli(server, [
+      "issue",
+      "audit",
+      "TEST-123",
+      "--json",
+    ])
+    assertEquals(result.code, 1)
+    const error = JSON.parse(result.stdout)
+    assertEquals(error.ok, false)
+    assertEquals(error.effect, "none")
+    assertStringIncludes(error.error.message, "empty or repeated cursor")
+    assertEquals(result.stdout.includes('"kind": "issue-audit"'), false)
+    assertEquals(result.stderr, "")
+    assertEquals(server.graphqlRequests.length, 2)
   } finally {
     await server.stop()
   }

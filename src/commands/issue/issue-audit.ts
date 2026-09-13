@@ -74,6 +74,8 @@ const issueAuditHistoryQuery = gql(`
           toState { id name type color }
           fromProject { id name slugId }
           toProject { id name slugId }
+          toConvertedProject { id name slugId }
+          toConvertedProjectId
           fromProjectMilestone { id name }
           toProjectMilestone { id name }
           fromCycle { id number name }
@@ -129,30 +131,25 @@ export async function readIssueAudit(issueId: string, limit: number) {
     )
   }
 
-  let labels = current.issue.labels ?? {
-    nodes: [],
-    pageInfo: { hasNextPage: false, endCursor: null },
-  }
-  let labelsAfter: string | null = null
-  while (labels.pageInfo.hasNextPage) {
-    labelsAfter = labels.pageInfo.endCursor
-    if (labelsAfter == null) {
-      throw new ValidationError(
-        "Issue audit labels pagination returned no cursor",
-      )
-    }
-    const page = await client.request(issueAuditCurrentQuery, {
-      id: current.issue.id,
-      labelsAfter,
-    })
-    if (page.issue == null || page.issue.id !== current.issue.id) {
-      throw new ValidationError(`Issue audit labels changed target: ${issueId}`)
-    }
-    labels = {
-      nodes: [...labels.nodes, ...page.issue.labels.nodes],
-      pageInfo: page.issue.labels.pageInfo,
-    }
-  }
+  const labels = await completeConnection(
+    current.issue.labels ?? {
+      nodes: [],
+      pageInfo: { hasNextPage: false, endCursor: null },
+    },
+    async (after) => {
+      const page = await client.request(issueAuditCurrentQuery, {
+        id: current.issue.id,
+        labelsAfter: after,
+      })
+      if (page.issue == null || page.issue.id !== current.issue.id) {
+        throw new ValidationError(
+          `Issue audit labels changed target: ${issueId}`,
+        )
+      }
+      return page.issue.labels
+    },
+    `labels for ${issueId}`,
+  )
   const currentIssue = { ...current.issue, labels }
   const historyIssueId = currentIssue.id
   const first = limit > 0 ? Math.min(100, limit) : 100
@@ -263,6 +260,15 @@ function formatHistoryChanges(entry: HistoryEntry): string {
   appendHistoryPair(changes, "assignee", entry.fromAssignee, entry.toAssignee)
   appendHistoryPair(changes, "state", entry.fromState, entry.toState)
   appendHistoryPair(changes, "project", entry.fromProject, entry.toProject)
+  if (entry.toConvertedProject != null || entry.toConvertedProjectId != null) {
+    const convertedProjectId = entry.toConvertedProjectId ??
+      entry.toConvertedProject?.id
+    changes.push(
+      `converted to project: ${formatAuditValue(entry.toConvertedProject)}${
+        convertedProjectId == null ? "" : ` (${convertedProjectId})`
+      }`,
+    )
+  }
   appendHistoryPair(
     changes,
     "milestone",
