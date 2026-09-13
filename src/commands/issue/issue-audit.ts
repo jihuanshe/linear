@@ -17,6 +17,7 @@ const issueAuditCurrentQuery = gql(`
       id
       identifier
       title
+      description
       url
       createdAt
       updatedAt
@@ -298,6 +299,7 @@ function printHumanAudit(audit: AuditEnvelope): void {
   console.log("Current Snapshot")
   console.log(`Issue: ${issue.identifier} (${issue.id})`)
   console.log(`Title: ${issue.title}`)
+  console.log(`Description: ${formatAuditValue(issue.description)}`)
   console.log(`State: ${formatAuditValue(issue.state)}`)
   console.log(`Assignee: ${formatAuditValue(issue.assignee)}`)
   console.log(`Team: ${formatAuditValue(issue.team)}`)
