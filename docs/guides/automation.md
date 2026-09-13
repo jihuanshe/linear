@@ -101,6 +101,10 @@ jq '.nodes[] | {id, identifier, title, priority}' issues.json
 
 `issue view --json` 完整读取 `.issue.comments`、`.issue.attachments` 和 `.issue.labels`；`--no-comments` 跳过评论。PR 等链接位于 `.issue.attachments.nodes`。`children`、`documents` 和详情中的 `relations` 等集合仍是有限预览；完整关系用 `issue relation list <ID> --json`，其他完整集合按 `linear guide graphql` 单独分页。完整分页不代表跨页数据库快照。
 
+`initiative view --json` 默认读取 Initiative 的短描述和关联 Project 的稳定字段；需要读取用于任务路由的 Initiative Markdown 正文和关联文档入口时，显式使用 `--include-content`。该选项返回 `initiative.content`、每个关联 Project 的 `description`，以及有限分页的 `initiative.documents.nodes`。文档正文继续用 `document view` 读取；`documents.pageInfo.hasNextPage` 为 `true` 时不能把返回列表当作完整集合。
+
+用于人类和 AI 共同维护的路由提示词，放在 Initiative Content 或 Project Description 的唯一 `<!-- ai-routing-context:start -->` 与 `<!-- ai-routing-context:end -->` 块中。更新前保存原始读取，用文件准备完整字段，只替换标记之间的内容；保留块外的人类说明和链接。Change log 是蒸馏输入，不是未经确认的规则来源；回写后重新读取验证块边界和正文未丢失。Initiative Content 可用 `linear initiative update <ID> --content-file <path> --base-file <original.json>` 受保护替换，Project Description 沿用 `linear project update --description-file`。
+
 只读评论用 `issue comment list <ID> --limit 0 --json`，默认最多 50 条并返回 `{nodes,pageInfo}`；变更经过用 `issue history <ID> --json`。评论追加与更新的写结果对象位于 `.data.comment`。
 
 ## 按 URL 查重与复查

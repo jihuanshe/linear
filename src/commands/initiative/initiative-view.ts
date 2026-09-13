@@ -34,8 +34,12 @@ export const viewCommand = new Command()
   .option("-w, --web", "Open in web browser")
   .option("-a, --app", "Open in Linear.app")
   .option("-j, --json", "Output as JSON")
+  .option(
+    "--include-content",
+    "Include the initiative's markdown content and associated document links",
+  )
   .action(async (options, initiativeId) => {
-    const { web, app, json } = options
+    const { web, app, json, includeContent } = options
 
     const client = getGraphQLClient()
 
@@ -48,7 +52,9 @@ export const viewCommand = new Command()
     // Handle open in browser/app
     if (web || app) {
       // Get initiative URL
-      const result = await readInitiative(client, resolvedId)
+      const result = await readInitiative(client, resolvedId, {
+        includeContent,
+      })
       const initiative = result.initiative
       if (!initiative?.url) {
         throw new NotFoundError("Initiative", initiativeId)
@@ -66,7 +72,9 @@ export const viewCommand = new Command()
     spinner?.start()
 
     try {
-      const result = await readInitiative(client, resolvedId)
+      const result = await readInitiative(client, resolvedId, {
+        includeContent,
+      })
       spinner?.stop()
 
       const initiative = result.initiative
@@ -136,6 +144,22 @@ export const viewCommand = new Command()
         lines.push("## Description")
         lines.push("")
         lines.push(initiative.description)
+      }
+
+      if (includeContent && initiative.content) {
+        lines.push("")
+        lines.push("## Content")
+        lines.push("")
+        lines.push(initiative.content)
+      }
+
+      if (includeContent && initiative.documents?.nodes.length) {
+        lines.push("")
+        lines.push("## Documents")
+        lines.push("")
+        for (const document of initiative.documents.nodes) {
+          lines.push(`- [${document.title}](${document.url})`)
+        }
       }
 
       // Projects

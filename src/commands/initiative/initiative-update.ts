@@ -32,7 +32,7 @@ const UpdateInitiative = gql(`
     initiativeUpdate(id: $id, input: $input) {
       success
       initiative {
-        id slugId name description status targetDate color icon url
+        id slugId name description content status targetDate color icon url
         owner { id displayName }
       }
     }
@@ -42,6 +42,7 @@ const UpdateInitiative = gql(`
 const fields = {
   name: scalarField("name"),
   description: scalarField("description"),
+  content: scalarField("content"),
   status: scalarField("status"),
   targetDate: scalarField("targetDate"),
   color: scalarField("color"),
@@ -62,6 +63,11 @@ export const updateCommand = withUsageMetadata(new Command(), {
   .option(
     "-d, --description <description:string>",
     "New description; empty string clears it",
+    { preserveEmpty: true },
+  )
+  .option(
+    "--content-file <path:string>",
+    "Read the initiative's Markdown content from a file; replaces the full content",
     { preserveEmpty: true },
   )
   .option(
@@ -103,6 +109,9 @@ export const updateCommand = withUsageMetadata(new Command(), {
   )
   .action(async (options, initiativeId) => {
     try {
+      const content = options.contentFile !== undefined
+        ? await Deno.readTextFile(options.contentFile)
+        : undefined
       for (
         const [field, value] of Object.entries({
           name: options.name,
@@ -131,6 +140,7 @@ export const updateCommand = withUsageMetadata(new Command(), {
       if (options.description !== undefined) {
         input.description = options.description
       }
+      if (content !== undefined) input.content = content
       if (options.status !== undefined) {
         input.status = parseInitiativeStatus(options.status)
       }
@@ -189,7 +199,9 @@ export const updateCommand = withUsageMetadata(new Command(), {
       if (
         interactive
       ) {
-        const initial = await readInitiative(client, resolvedId)
+        const initial = await readInitiative(client, resolvedId, {
+          includeContent: true,
+        })
         if (!options.unprotected) original ??= initial
         const initiative = initial.initiative!
         console.log(`\nUpdating initiative: ${initiative.name}\n`)
@@ -244,7 +256,9 @@ export const updateCommand = withUsageMetadata(new Command(), {
         else console.log("No changes specified")
         return
       }
-      const current = await readInitiative(client, resolvedId)
+      const current = await readInitiative(client, resolvedId, {
+        includeContent: content !== undefined,
+      })
       const plan = prepareReplacement({
         objectKey: "initiative",
         targetId: resolvedId,
