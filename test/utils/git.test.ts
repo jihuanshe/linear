@@ -58,6 +58,9 @@ Deno.test("getCurrentBranch - returns null for detached HEAD", async () => {
     await new Deno.Command("git", {
       args: ["config", "user.name", "Test User"],
     }).output()
+    await new Deno.Command("git", {
+      args: ["config", "commit.gpgsign", "false"],
+    }).output()
 
     // Create a commit
     await Deno.writeTextFile("test.txt", "test")

@@ -7,7 +7,11 @@ await cliffySnapshotTest({
   name: "Initiative View Command - JSON Output",
   meta: import.meta,
   colors: false,
-  args: ["550e8400-e29b-41d4-a716-446655440000", "--json"],
+  args: [
+    "550e8400-e29b-41d4-a716-446655440000",
+    "--json",
+    "--include-content",
+  ],
   denoArgs: commonDenoArgs,
   async fn() {
     const server = new MockLinearServer([
@@ -24,6 +28,8 @@ await cliffySnapshotTest({
                 slugId: "alpha",
                 name: "Alpha Initiative",
                 description: "Top-level initiative description.",
+                content:
+                  "<!-- ai-routing-context:start -->\nroute by project\n<!-- ai-routing-context:end -->",
                 status: "active",
                 targetDate: "2026-05-01",
                 health: "onTrack",
@@ -45,12 +51,23 @@ await cliffySnapshotTest({
                       id: "project-1",
                       slugId: "project-a",
                       name: "Project A",
+                      description: "Project routing description.",
+                      url: "https://linear.app/test/project/project-a",
                       status: {
                         name: "In Progress",
                         type: "started",
                       },
                     },
                   ],
+                },
+                documents: {
+                  pageInfo: { hasNextPage: false, endCursor: null },
+                  nodes: [{
+                    id: "document-1",
+                    slugId: "routing-doc",
+                    title: "Routing notes",
+                    url: "https://linear.app/test/document/routing-doc",
+                  }],
                 },
               }],
             },
