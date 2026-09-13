@@ -195,6 +195,10 @@ export const viewCommand = new Command()
             for (const project of statusProjects) {
               const statusName = project.status?.name || "Unknown"
               lines.push(`- **${project.name}** (${statusName})`)
+              if (includeContent && project.description) {
+                lines.push("")
+                lines.push(project.description)
+              }
             }
           }
         }
@@ -207,6 +211,10 @@ export const viewCommand = new Command()
             for (const project of statusProjects) {
               const statusName = project.status?.name || "Unknown"
               lines.push(`- **${project.name}** (${statusName})`)
+              if (includeContent && project.description) {
+                lines.push("")
+                lines.push(project.description)
+              }
             }
           }
         }

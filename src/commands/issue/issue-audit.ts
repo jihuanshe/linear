@@ -34,6 +34,9 @@ const issueAuditCurrentQuery = gql(`
       cycle { id number name }
       parent { id identifier title }
       delegate { id name displayName }
+      slaBreachesAt
+      slaStartedAt
+      slaType
       labels(first: 100, after: $labelsAfter) {
         nodes { id name }
         pageInfo { hasNextPage endCursor }
@@ -81,6 +84,14 @@ const issueAuditHistoryQuery = gql(`
           toTeam { id key name }
           fromDelegate { id name displayName }
           toDelegate { id name displayName }
+          fromSlaBreached
+          toSlaBreached
+          fromSlaBreachesAt
+          toSlaBreachesAt
+          fromSlaStartedAt
+          toSlaStartedAt
+          fromSlaType
+          toSlaType
           addedLabelIds
           removedLabelIds
           relationChanges { identifier type }
@@ -129,7 +140,7 @@ export async function readIssueAudit(issueId: string, limit: number) {
       )
     }
     const page = await client.request(issueAuditCurrentQuery, {
-      id: issueId,
+      id: current.issue.id,
       labelsAfter,
     })
     if (page.issue == null || page.issue.id !== current.issue.id) {
@@ -260,6 +271,25 @@ function formatHistoryChanges(entry: HistoryEntry): string {
   appendHistoryPair(changes, "parent", entry.fromParent, entry.toParent)
   appendHistoryPair(changes, "team", entry.fromTeam, entry.toTeam)
   appendHistoryPair(changes, "delegate", entry.fromDelegate, entry.toDelegate)
+  appendHistoryPair(
+    changes,
+    "SLA breached",
+    entry.fromSlaBreached,
+    entry.toSlaBreached,
+  )
+  appendHistoryPair(
+    changes,
+    "SLA breaches at",
+    entry.fromSlaBreachesAt,
+    entry.toSlaBreachesAt,
+  )
+  appendHistoryPair(
+    changes,
+    "SLA started at",
+    entry.fromSlaStartedAt,
+    entry.toSlaStartedAt,
+  )
+  appendHistoryPair(changes, "SLA type", entry.fromSlaType, entry.toSlaType)
   if (entry.archived != null) changes.push(`archived: ${entry.archived}`)
   if (entry.trashed != null) changes.push(`trashed: ${entry.trashed}`)
   if (entry.updatedDescription === true) changes.push("description updated")
@@ -313,7 +343,14 @@ function printHumanAudit(audit: AuditEnvelope): void {
   console.log(`Cycle: ${formatAuditValue(issue.cycle)}`)
   console.log(`Parent: ${formatAuditValue(issue.parent)}`)
   console.log(`Delegate: ${formatAuditValue(issue.delegate)}`)
-  console.log(`Labels: ${formatAuditValue(issue.labels?.nodes)}`)
+  console.log(
+    `Labels: ${
+      formatAuditValue(issue.labels?.nodes.map((label) => label.name))
+    }`,
+  )
+  console.log(`SLA Breaches At: ${formatAuditValue(issue.slaBreachesAt)}`)
+  console.log(`SLA Started At: ${formatAuditValue(issue.slaStartedAt)}`)
+  console.log(`SLA Type: ${formatAuditValue(issue.slaType)}`)
   console.log(`Archived At: ${formatAuditValue(issue.archivedAt)}`)
   console.log(`Trashed: ${formatAuditValue(issue.trashed)}`)
   console.log(`Created: ${issue.createdAt}`)

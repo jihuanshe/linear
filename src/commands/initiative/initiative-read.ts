@@ -70,11 +70,13 @@ export async function readInitiative(
   }
   let projectsAfter: string | null = null
   let documentsAfter: string | null = null
+  let projectsComplete = !projectsPageInfo.hasNextPage
+  let documentsComplete = !documentsPageInfo.hasNextPage
   while (projectsPageInfo.hasNextPage || documentsPageInfo?.hasNextPage) {
-    projectsAfter = projectsPageInfo.hasNextPage
+    projectsAfter = !projectsComplete && projectsPageInfo.hasNextPage
       ? projectsPageInfo.endCursor
       : null
-    documentsAfter = documentsPageInfo?.hasNextPage
+    documentsAfter = !documentsComplete && documentsPageInfo?.hasNextPage
       ? documentsPageInfo.endCursor
       : null
     if (projectsAfter == null && projectsPageInfo.hasNextPage) {
@@ -97,14 +99,20 @@ export async function readInitiative(
     if (!pageInitiative || pageInitiative.id !== id) {
       throw new ValidationError(`Initiative pagination changed target: ${id}`)
     }
-    projects.push(...pageInitiative.projects.nodes)
-    if (documents && pageInitiative.documents) {
+    if (!projectsComplete) projects.push(...pageInitiative.projects.nodes)
+    if (!documentsComplete && documents && pageInitiative.documents) {
       documents.push(...pageInitiative.documents.nodes)
     }
-    projectsPageInfo = pageInitiative.projects.pageInfo
-    documentsPageInfo = pageInitiative.documents?.pageInfo ?? {
-      hasNextPage: false,
-      endCursor: null,
+    if (!projectsComplete) {
+      projectsPageInfo = pageInitiative.projects.pageInfo
+      projectsComplete = !projectsPageInfo.hasNextPage
+    }
+    if (!documentsComplete) {
+      documentsPageInfo = pageInitiative.documents?.pageInfo ?? {
+        hasNextPage: false,
+        endCursor: null,
+      }
+      documentsComplete = !documentsPageInfo.hasNextPage
     }
   }
   return {
