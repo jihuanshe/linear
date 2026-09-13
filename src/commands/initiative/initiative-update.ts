@@ -269,7 +269,8 @@ export const updateCommand = withUsageMetadata(new Command(), {
         return
       }
       const current = await readInitiative(client, resolvedId, {
-        includeContent: content !== undefined,
+        includeContent: content !== undefined ||
+          options.expectField?.includes("content"),
       })
       const plan = prepareReplacement({
         objectKey: "initiative",

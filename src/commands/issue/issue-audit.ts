@@ -92,6 +92,8 @@ const issueAuditHistoryQuery = gql(`
           toSlaStartedAt
           fromSlaType
           toSlaType
+          addedToReleaseIds
+          removedFromReleaseIds
           addedLabelIds
           removedLabelIds
           relationChanges { identifier type }
@@ -290,6 +292,12 @@ function formatHistoryChanges(entry: HistoryEntry): string {
     entry.toSlaStartedAt,
   )
   appendHistoryPair(changes, "SLA type", entry.fromSlaType, entry.toSlaType)
+  if (entry.addedToReleaseIds?.length) {
+    changes.push(`releases added: ${entry.addedToReleaseIds.join(", ")}`)
+  }
+  if (entry.removedFromReleaseIds?.length) {
+    changes.push(`releases removed: ${entry.removedFromReleaseIds.join(", ")}`)
+  }
   if (entry.archived != null) changes.push(`archived: ${entry.archived}`)
   if (entry.trashed != null) changes.push(`trashed: ${entry.trashed}`)
   if (entry.updatedDescription === true) changes.push("description updated")

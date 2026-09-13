@@ -72,6 +72,8 @@ export async function readInitiative(
   let documentsAfter: string | null = null
   let projectsComplete = !projectsPageInfo.hasNextPage
   let documentsComplete = !documentsPageInfo.hasNextPage
+  const seenProjectsCursors = new Set<string>()
+  const seenDocumentsCursors = new Set<string>()
   while (projectsPageInfo.hasNextPage || documentsPageInfo?.hasNextPage) {
     projectsAfter = !projectsComplete && projectsPageInfo.hasNextPage
       ? projectsPageInfo.endCursor
@@ -88,6 +90,22 @@ export async function readInitiative(
       throw new ValidationError(
         "Initiative documents pagination returned no cursor",
       )
+    }
+    if (projectsAfter != null) {
+      if (seenProjectsCursors.has(projectsAfter)) {
+        throw new ValidationError(
+          "Initiative projects pagination returned a repeated cursor",
+        )
+      }
+      seenProjectsCursors.add(projectsAfter)
+    }
+    if (documentsAfter != null) {
+      if (seenDocumentsCursors.has(documentsAfter)) {
+        throw new ValidationError(
+          "Initiative documents pagination returned a repeated cursor",
+        )
+      }
+      seenDocumentsCursors.add(documentsAfter)
     }
     const page = await client.request(ReadInitiative, {
       id,
