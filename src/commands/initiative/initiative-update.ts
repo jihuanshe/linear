@@ -32,6 +32,18 @@ const UpdateInitiative = gql(`
     initiativeUpdate(id: $id, input: $input) {
       success
       initiative {
+        id slugId name description status targetDate color icon url
+        owner { id displayName }
+      }
+    }
+  }
+`)
+
+const UpdateInitiativeWithContent = gql(`
+  mutation UpdateInitiativeWithContent($id: String!, $input: InitiativeUpdateInput!) {
+    initiativeUpdate(id: $id, input: $input) {
+      success
+      initiative {
         id slugId name description content status targetDate color icon url
         owner { id displayName }
       }
@@ -278,10 +290,15 @@ export const updateCommand = withUsageMetadata(new Command(), {
         } else console.log("No changes needed")
         return
       }
-      const result = await client.request(UpdateInitiative, {
-        id: resolvedId,
-        input: plan.input,
-      })
+      const result = content !== undefined
+        ? await client.request(UpdateInitiativeWithContent, {
+          id: resolvedId,
+          input: plan.input,
+        })
+        : await client.request(UpdateInitiative, {
+          id: resolvedId,
+          input: plan.input,
+        })
       assertMutationSuccess(result.initiativeUpdate, result)
       const updated = result.initiativeUpdate.initiative
       assertMutationReceipt(updated, result, resolvedId)

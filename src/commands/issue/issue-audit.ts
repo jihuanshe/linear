@@ -11,7 +11,7 @@ import {
 import { withUsageMetadata } from "../usage.ts"
 
 const issueAuditCurrentQuery = gql(`
-  query GetIssueAuditCurrent($id: String!) {
+  query GetIssueAuditCurrent($id: String!, $labelsAfter: String) {
     organization { id urlKey }
     issue(id: $id) {
       id
@@ -31,6 +31,12 @@ const issueAuditCurrentQuery = gql(`
       project { id name slugId }
       projectMilestone { id name }
       cycle { id number name }
+      parent { id identifier title }
+      delegate { id name displayName }
+      labels(first: 100, after: $labelsAfter) {
+        nodes { id name }
+        pageInfo { hasNextPage endCursor }
+      }
     }
   }
 `)
@@ -92,7 +98,10 @@ type HistoryEntry = AuditEnvelope["history"]["nodes"][number]
 /** Read the current issue and its history with separate GraphQL requests. */
 export async function readIssueAudit(issueId: string, limit: number) {
   const client = getGraphQLClient()
-  const current = await client.request(issueAuditCurrentQuery, { id: issueId })
+  const current = await client.request(issueAuditCurrentQuery, {
+    id: issueId,
+    labelsAfter: null,
+  })
   if (current.organization == null) {
     throw new ValidationError("Issue audit snapshot returned no organization")
   }
@@ -106,7 +115,32 @@ export async function readIssueAudit(issueId: string, limit: number) {
     )
   }
 
-  const historyIssueId = current.issue.id
+  let labels = current.issue.labels ?? {
+    nodes: [],
+    pageInfo: { hasNextPage: false, endCursor: null },
+  }
+  let labelsAfter: string | null = null
+  while (labels.pageInfo.hasNextPage) {
+    labelsAfter = labels.pageInfo.endCursor
+    if (labelsAfter == null) {
+      throw new ValidationError(
+        "Issue audit labels pagination returned no cursor",
+      )
+    }
+    const page = await client.request(issueAuditCurrentQuery, {
+      id: issueId,
+      labelsAfter,
+    })
+    if (page.issue == null || page.issue.id !== current.issue.id) {
+      throw new ValidationError(`Issue audit labels changed target: ${issueId}`)
+    }
+    labels = {
+      nodes: [...labels.nodes, ...page.issue.labels.nodes],
+      pageInfo: page.issue.labels.pageInfo,
+    }
+  }
+  const currentIssue = { ...current.issue, labels }
+  const historyIssueId = currentIssue.id
   const first = limit > 0 ? Math.min(100, limit) : 100
   const fetchHistoryPage = async (after?: string, pageSize = first) => {
     const result = await client.request(issueAuditHistoryQuery, {
@@ -130,7 +164,7 @@ export async function readIssueAudit(issueId: string, limit: number) {
     schemaVersion: 1,
     kind: "issue-audit" as const,
     organization: current.organization,
-    issue: current.issue,
+    issue: currentIssue,
     history,
     audit: {
       consistency: "non-atomic" as const,
@@ -275,6 +309,9 @@ function printHumanAudit(audit: AuditEnvelope): void {
     `Project Milestone: ${formatAuditValue(issue.projectMilestone)}`,
   )
   console.log(`Cycle: ${formatAuditValue(issue.cycle)}`)
+  console.log(`Parent: ${formatAuditValue(issue.parent)}`)
+  console.log(`Delegate: ${formatAuditValue(issue.delegate)}`)
+  console.log(`Labels: ${formatAuditValue(issue.labels?.nodes)}`)
   console.log(`Archived At: ${formatAuditValue(issue.archivedAt)}`)
   console.log(`Trashed: ${formatAuditValue(issue.trashed)}`)
   console.log(`Created: ${issue.createdAt}`)
