@@ -28,7 +28,8 @@ await cliffySnapshotTest({
                 slugId: "alpha",
                 name: "Alpha Initiative",
                 description: "Top-level initiative description.",
-                content: "<!-- ai-routing-context:start -->\nroute by project\n<!-- ai-routing-context:end -->",
+                content:
+                  "<!-- ai-routing-context:start -->\nroute by project\n<!-- ai-routing-context:end -->",
                 status: "active",
                 targetDate: "2026-05-01",
                 health: "onTrack",
