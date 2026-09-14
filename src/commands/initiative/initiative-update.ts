@@ -39,9 +39,22 @@ const UpdateInitiative = gql(`
   }
 `)
 
+const UpdateInitiativeWithContent = gql(`
+  mutation UpdateInitiativeWithContent($id: String!, $input: InitiativeUpdateInput!) {
+    initiativeUpdate(id: $id, input: $input) {
+      success
+      initiative {
+        id slugId name description content status targetDate color icon url
+        owner { id displayName }
+      }
+    }
+  }
+`)
+
 const fields = {
   name: scalarField("name"),
   description: scalarField("description"),
+  content: scalarField("content"),
   status: scalarField("status"),
   targetDate: scalarField("targetDate"),
   color: scalarField("color"),
@@ -62,6 +75,11 @@ export const updateCommand = withUsageMetadata(new Command(), {
   .option(
     "-d, --description <description:string>",
     "New description; empty string clears it",
+    { preserveEmpty: true },
+  )
+  .option(
+    "--content-file <path:string>",
+    "Read the initiative's Markdown content from a file; replaces the full content",
     { preserveEmpty: true },
   )
   .option(
@@ -103,6 +121,9 @@ export const updateCommand = withUsageMetadata(new Command(), {
   )
   .action(async (options, initiativeId) => {
     try {
+      const content = options.contentFile !== undefined
+        ? await Deno.readTextFile(options.contentFile)
+        : undefined
       for (
         const [field, value] of Object.entries({
           name: options.name,
@@ -131,6 +152,7 @@ export const updateCommand = withUsageMetadata(new Command(), {
       if (options.description !== undefined) {
         input.description = options.description
       }
+      if (content !== undefined) input.content = content
       if (options.status !== undefined) {
         input.status = parseInitiativeStatus(options.status)
       }
@@ -189,7 +211,9 @@ export const updateCommand = withUsageMetadata(new Command(), {
       if (
         interactive
       ) {
-        const initial = await readInitiative(client, resolvedId)
+        const initial = await readInitiative(client, resolvedId, {
+          includeContent: true,
+        })
         if (!options.unprotected) original ??= initial
         const initiative = initial.initiative!
         console.log(`\nUpdating initiative: ${initiative.name}\n`)
@@ -244,7 +268,10 @@ export const updateCommand = withUsageMetadata(new Command(), {
         else console.log("No changes specified")
         return
       }
-      const current = await readInitiative(client, resolvedId)
+      const current = await readInitiative(client, resolvedId, {
+        includeContent: content !== undefined ||
+          options.expectField?.includes("content"),
+      })
       const plan = prepareReplacement({
         objectKey: "initiative",
         targetId: resolvedId,
@@ -264,10 +291,15 @@ export const updateCommand = withUsageMetadata(new Command(), {
         } else console.log("No changes needed")
         return
       }
-      const result = await client.request(UpdateInitiative, {
-        id: resolvedId,
-        input: plan.input,
-      })
+      const result = content !== undefined
+        ? await client.request(UpdateInitiativeWithContent, {
+          id: resolvedId,
+          input: plan.input,
+        })
+        : await client.request(UpdateInitiative, {
+          id: resolvedId,
+          input: plan.input,
+        })
       assertMutationSuccess(result.initiativeUpdate, result)
       const updated = result.initiativeUpdate.initiative
       assertMutationReceipt(updated, result, resolvedId)

@@ -118,6 +118,7 @@ Deno.test("Start recipe preserves the created Git branch when state update is un
         ["init", "-b", "main"],
         ["config", "user.name", "Recipe test"],
         ["config", "user.email", "recipe@example.test"],
+        ["config", "commit.gpgsign", "false"],
         ["commit", "--allow-empty", "-m", "initial"],
       ]
     ) assertEquals((await git(args)).success, true)
