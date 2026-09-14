@@ -54,6 +54,8 @@ function historyEntry(
     changes: { priority: { from: 1, to: 2 } },
     archived: null,
     trashed: null,
+    autoArchived: null,
+    autoClosed: null,
     attachment: null,
     attachmentId: null,
     updatedDescription: null,
@@ -105,6 +107,8 @@ const noPropertyChanges = {
   changes: null,
   archived: null,
   trashed: null,
+  autoArchived: null,
+  autoClosed: null,
   updatedDescription: null,
   fromTitle: null,
   toTitle: null,
@@ -600,6 +604,45 @@ Deno.test("issue audit renders description editors separately from the history a
       humanResult.stdout.includes("Description Editor: description updated"),
       false,
     )
+  } finally {
+    await server.stop()
+  }
+})
+
+Deno.test("issue audit preserves automatic lifecycle history flags", async () => {
+  const entry = historyEntry(
+    "history-automatic-lifecycle",
+    "2026-09-08T00:00:00Z",
+    {
+      overrides: {
+        ...noPropertyChanges,
+        autoArchived: true,
+        autoClosed: true,
+      },
+    },
+  )
+  const server = new MockLinearServer([
+    currentResponse(),
+    historyResponse(
+      [entry],
+      { hasNextPage: false, endCursor: null },
+      { id: issue.id, first: 1 },
+    ),
+  ])
+  await server.start()
+  try {
+    const result = await runCli(server, [
+      "issue",
+      "audit",
+      "TEST-123",
+      "--limit",
+      "1",
+    ])
+    assertEquals(result.code, 0, result.stderr)
+    assertStringIncludes(result.stdout, "automatically archived")
+    assertStringIncludes(result.stdout, "automatically closed")
+    assertMatch(server.graphqlRequests[1].query, /autoArchived/)
+    assertMatch(server.graphqlRequests[1].query, /autoClosed/)
   } finally {
     await server.stop()
   }

@@ -59,6 +59,8 @@ const issueAuditHistoryQuery = gql(`
           changes
           archived
           trashed
+          autoArchived
+          autoClosed
           attachment { id title url }
           attachmentId
           updatedDescription
@@ -345,6 +347,8 @@ function formatHistoryChanges(entry: HistoryEntry): string {
   }
   if (entry.archived != null) changes.push(`archived: ${entry.archived}`)
   if (entry.trashed != null) changes.push(`trashed: ${entry.trashed}`)
+  if (entry.autoArchived === true) changes.push("automatically archived")
+  if (entry.autoClosed === true) changes.push("automatically closed")
   if (entry.attachment != null || entry.attachmentId != null) {
     changes.push(
       `attachment: ${formatAttachment(entry.attachment, entry.attachmentId)}`,
