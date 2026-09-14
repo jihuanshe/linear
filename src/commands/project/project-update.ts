@@ -26,9 +26,11 @@ import { completeConnection } from "../../utils/pagination.ts"
 import {
   assertMutationReceipt,
   assertMutationSuccess,
+  CliError,
   handleError,
   NotFoundError,
   ValidationError,
+  WriteError,
 } from "../../utils/errors.ts"
 import {
   PROJECT_DESCRIPTION_MAX_LENGTH,
@@ -365,9 +367,15 @@ export const updateCommand = withUsageMetadata(new Command(), { writes: true })
           } else console.log("No changes needed")
           return
         }
+        const writeInput = { ...plan.input }
+        // Linear currently requires LF to clear Markdown content. Keep the
+        // desired empty string in the replacement plan, but encode only the
+        // actual mutation payload.
+        if (writeInput.content === "") writeInput.content = "\n"
+
         const result = await client.request(UpdateProject, {
           id: resolvedId,
-          input: plan.input,
+          input: writeInput,
         })
         spinner?.stop()
 
@@ -375,10 +383,45 @@ export const updateCommand = withUsageMetadata(new Command(), { writes: true })
         const project = result.projectUpdate.project
         assertMutationReceipt(project, result, resolvedId)
 
-        if (json) printWriteResult({ project }, { fields: plan.fields })
-        else {
-          console.log(`✓ Updated project: ${project.name}`)
-          if (project.url) console.log(project.url)
+        let outputProject = project
+        if (plan.input.content === "") {
+          try {
+            const readBack = await readProject(client, resolvedId)
+            if (
+              readBack.project.content != null &&
+              readBack.project.content !== ""
+            ) {
+              throw new CliError("Project content is not empty on read-back")
+            }
+            outputProject = { ...project, content: readBack.project.content }
+          } catch (error) {
+            throw new WriteError(
+              "The project update was applied, but clearing content could not be verified.",
+              {
+                effect: "applied",
+                data: { project },
+                cause: error,
+                details: {
+                  fields: plan.fields,
+                  verification: {
+                    status: "unverified",
+                    message: error instanceof Error
+                      ? error.message
+                      : String(error),
+                  },
+                },
+                suggestion:
+                  "Inspect the project before retrying. No automatic retry was performed.",
+              },
+            )
+          }
+        }
+
+        if (json) {
+          printWriteResult({ project: outputProject }, { fields: plan.fields })
+        } else {
+          console.log(`✓ Updated project: ${outputProject.name}`)
+          if (outputProject.url) console.log(outputProject.url)
         }
       } catch (error) {
         spinner?.stop()

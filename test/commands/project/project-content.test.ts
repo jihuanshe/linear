@@ -62,7 +62,13 @@ Deno.test("Project content uses the view basis, rejects concurrent edits, preser
       queryName: "UpdateProject",
       queryIncludes: "content",
       response: ({ variables }) => {
-        remote = { ...remote, ...variables.input as Record<string, unknown> }
+        const input = variables.input as Record<string, unknown>
+        remote = {
+          ...remote,
+          ...input,
+          // Linear normalizes LF to an empty Markdown body on write.
+          ...(input.content === "\n" && { content: "" }),
+        }
         return {
           data: { projectUpdate: { success: true, project: remote } },
         }
@@ -142,7 +148,7 @@ Deno.test("Project content uses the view basis, rejects concurrent edits, preser
     ])
     assertEquals(clear.code, 0, clear.stdout + clear.stderr)
     assertEquals(clear.json().data.project.content, "")
-    assertEquals(mutations()[1].variables, { id, input: { content: "" } })
+    assertEquals(mutations()[1].variables, { id, input: { content: "\n" } })
   } finally {
     await server.stop()
     await Deno.remove(directory, { recursive: true })
