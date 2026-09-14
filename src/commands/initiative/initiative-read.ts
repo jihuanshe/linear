@@ -48,6 +48,7 @@ export async function readInitiative(
   if (!initiative || initiative.id !== id) {
     throw new NotFoundError("Initiative", id)
   }
+  let latestInitiative = initiative
   const initialProjects = {
     ...(initiative.projects ?? {}),
     nodes: initiative.projects?.nodes ?? [],
@@ -117,6 +118,9 @@ export async function readInitiative(
     if (!pageInitiative || pageInitiative.id !== id) {
       throw new ValidationError(`Initiative pagination changed target: ${id}`)
     }
+    // Each page includes scalar fields. Use their latest read for replacement
+    // checks after completing the collections; the pages are not atomic.
+    latestInitiative = pageInitiative
     if (!projectsComplete) projects.push(...pageInitiative.projects.nodes)
     if (!documentsComplete && documents && pageInitiative.documents) {
       documents.push(...pageInitiative.documents.nodes)
@@ -136,7 +140,7 @@ export async function readInitiative(
   return {
     organization: result.organization,
     initiative: {
-      ...initiative,
+      ...latestInitiative,
       projects: {
         ...initialProjects,
         nodes: projects,

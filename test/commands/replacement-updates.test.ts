@@ -568,6 +568,97 @@ Deno.test("Initiative JSON mode refuses interactive flags before reading an obje
   }
 })
 
+Deno.test("Initiative update rejects content drift returned by its last collection page", async () => {
+  const original = {
+    ...metadata,
+    content: "Original content",
+    projects: emptyConnection(),
+    documents: emptyConnection(),
+  }
+  let updating = false
+  const server = new MockLinearServer([
+    {
+      queryName: "ReadInitiative",
+      response: ({ variables }) => ({
+        data: {
+          organization,
+          initiatives: {
+            ...emptyConnection(),
+            nodes: [{
+              ...original,
+              content: variables.projectsAfter != null
+                ? "Concurrent edit returned by the last page"
+                : original.content,
+              projects: updating && variables.projectsAfter == null
+                ? {
+                  nodes: [],
+                  pageInfo: { hasNextPage: true, endCursor: "next-projects" },
+                }
+                : emptyConnection(),
+            }],
+          },
+        },
+      }),
+    },
+    {
+      queryName: "UpdateInitiativeWithContent",
+      response: {
+        data: {
+          initiativeUpdate: {
+            success: true,
+            initiative: { ...original, content: "Desired content" },
+          },
+        },
+      },
+    },
+  ])
+  const directory = await Deno.makeTempDir()
+  try {
+    await server.start()
+    const read = await cli(server, [
+      "initiative",
+      "view",
+      id,
+      "--include-content",
+    ])
+    assertEquals(read.code, 0, read.stdout + read.stderr)
+    await Deno.writeTextFile(`${directory}/original.json`, read.stdout)
+    await Deno.writeTextFile(`${directory}/desired.md`, "Desired content")
+    updating = true
+
+    const result = await cli(server, [
+      "initiative",
+      "update",
+      id,
+      "--content-file",
+      `${directory}/desired.md`,
+      "--base-file",
+      `${directory}/original.json`,
+    ])
+    assertEquals(result.code, 1, result.stdout + result.stderr)
+    assertEquals(result.json().effect, "none")
+    assertStringIncludes(
+      result.json().error.message,
+      "Original values changed: content",
+    )
+    assertEquals(
+      server.graphqlRequests.filter((request) =>
+        request.query.includes("query ReadInitiative")
+      ).map((request) => request.variables.projectsAfter),
+      [null, null, "next-projects"],
+    )
+    assertEquals(
+      server.graphqlRequests.filter((request) =>
+        request.query.includes("mutation ")
+      ).length,
+      0,
+    )
+  } finally {
+    await server.stop()
+    await Deno.remove(directory, { recursive: true })
+  }
+})
+
 Deno.test("Project basis completes teams and labels, then final scalar read catches drift during pagination", async () => {
   const project = {
     ...metadata,
