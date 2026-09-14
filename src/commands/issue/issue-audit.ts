@@ -59,7 +59,10 @@ const issueAuditHistoryQuery = gql(`
           changes
           archived
           trashed
+          attachment { id title url }
+          attachmentId
           updatedDescription
+          descriptionUpdatedBy { id name displayName }
           fromTitle
           toTitle
           fromPriority
@@ -239,15 +242,45 @@ function formatAuditValue(value: unknown): string {
   return JSON.stringify(value)
 }
 
+function formatCycle(value: unknown): string {
+  if (value != null && typeof value === "object" && !Array.isArray(value)) {
+    const cycle = value as Record<string, unknown>
+    if (typeof cycle.name === "string" && cycle.name.length > 0) {
+      return cycle.name
+    }
+    if (typeof cycle.number === "number") return `Cycle ${cycle.number}`
+  }
+  return formatAuditValue(value)
+}
+
+function formatAttachment(attachment: unknown, attachmentId: unknown): string {
+  const details = attachment != null && typeof attachment === "object" &&
+      !Array.isArray(attachment)
+    ? attachment as Record<string, unknown>
+    : null
+  const id = typeof attachmentId === "string"
+    ? attachmentId
+    : typeof details?.id === "string"
+    ? details.id
+    : null
+  const title = typeof details?.title === "string" ? details.title : null
+  const url = typeof details?.url === "string" ? details.url : null
+  const label = title ?? id ?? "unknown attachment"
+  const identity = title != null && id != null ? ` (${id})` : ""
+  const location = url == null ? "" : ` - ${url}`
+  return `${label}${identity}${location}`
+}
+
 function appendHistoryPair(
   changes: string[],
   label: string,
   before: unknown,
   after: unknown,
+  formatValue: (value: unknown) => string = formatAuditValue,
 ): void {
   if (before == null && after == null) return
   changes.push(
-    `${label}: ${formatAuditValue(before)} -> ${formatAuditValue(after)}`,
+    `${label}: ${formatValue(before)} -> ${formatValue(after)}`,
   )
 }
 
@@ -275,7 +308,13 @@ function formatHistoryChanges(entry: HistoryEntry): string {
     entry.fromProjectMilestone,
     entry.toProjectMilestone,
   )
-  appendHistoryPair(changes, "cycle", entry.fromCycle, entry.toCycle)
+  appendHistoryPair(
+    changes,
+    "cycle",
+    entry.fromCycle,
+    entry.toCycle,
+    formatCycle,
+  )
   appendHistoryPair(changes, "parent", entry.fromParent, entry.toParent)
   appendHistoryPair(changes, "team", entry.fromTeam, entry.toTeam)
   appendHistoryPair(changes, "delegate", entry.fromDelegate, entry.toDelegate)
@@ -306,7 +345,21 @@ function formatHistoryChanges(entry: HistoryEntry): string {
   }
   if (entry.archived != null) changes.push(`archived: ${entry.archived}`)
   if (entry.trashed != null) changes.push(`trashed: ${entry.trashed}`)
-  if (entry.updatedDescription === true) changes.push("description updated")
+  if (entry.attachment != null || entry.attachmentId != null) {
+    changes.push(
+      `attachment: ${formatAttachment(entry.attachment, entry.attachmentId)}`,
+    )
+  }
+  if (entry.updatedDescription === true) {
+    const editors = entry.descriptionUpdatedBy?.map(formatAuditValue).filter(
+      (editor) => editor !== "-",
+    )
+    changes.push(
+      editors?.length
+        ? `description updated by: ${editors.join(", ")}`
+        : "description updated",
+    )
+  }
   if (entry.addedLabelIds?.length) {
     changes.push(`labels added: ${entry.addedLabelIds.join(", ")}`)
   }
@@ -354,7 +407,7 @@ function printHumanAudit(audit: AuditEnvelope): void {
   console.log(
     `Project Milestone: ${formatAuditValue(issue.projectMilestone)}`,
   )
-  console.log(`Cycle: ${formatAuditValue(issue.cycle)}`)
+  console.log(`Cycle: ${formatCycle(issue.cycle)}`)
   console.log(`Parent: ${formatAuditValue(issue.parent)}`)
   console.log(`Delegate: ${formatAuditValue(issue.delegate)}`)
   console.log(

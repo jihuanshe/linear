@@ -35,7 +35,11 @@ const issue = {
 function historyEntry(
   id: string,
   createdAt: string,
-  options: { actor?: unknown; botActor?: unknown } = {},
+  options: {
+    actor?: unknown
+    botActor?: unknown
+    overrides?: Record<string, unknown>
+  } = {},
 ) {
   return {
     id,
@@ -50,7 +54,10 @@ function historyEntry(
     changes: { priority: { from: 1, to: 2 } },
     archived: null,
     trashed: null,
+    attachment: null,
+    attachmentId: null,
     updatedDescription: null,
+    descriptionUpdatedBy: null,
     fromTitle: "Old title",
     toTitle: "New title",
     fromPriority: 1,
@@ -90,7 +97,54 @@ function historyEntry(
     addedLabelIds: ["label-1"],
     removedLabelIds: [],
     relationChanges: [{ identifier: "TEST-99", type: "added" }],
+    ...options.overrides,
   }
+}
+
+const noPropertyChanges = {
+  changes: null,
+  archived: null,
+  trashed: null,
+  updatedDescription: null,
+  fromTitle: null,
+  toTitle: null,
+  fromPriority: null,
+  toPriority: null,
+  fromEstimate: null,
+  toEstimate: null,
+  fromDueDate: null,
+  toDueDate: null,
+  fromAssignee: null,
+  toAssignee: null,
+  fromState: null,
+  toState: null,
+  fromProject: null,
+  toProject: null,
+  toConvertedProject: null,
+  toConvertedProjectId: null,
+  fromProjectMilestone: null,
+  toProjectMilestone: null,
+  fromCycle: null,
+  toCycle: null,
+  fromParent: null,
+  toParent: null,
+  fromTeam: null,
+  toTeam: null,
+  fromDelegate: null,
+  toDelegate: null,
+  fromSlaBreached: null,
+  toSlaBreached: null,
+  fromSlaBreachesAt: null,
+  toSlaBreachesAt: null,
+  fromSlaStartedAt: null,
+  toSlaStartedAt: null,
+  fromSlaType: null,
+  toSlaType: null,
+  addedToReleaseIds: [],
+  removedFromReleaseIds: [],
+  addedLabelIds: [],
+  removedLabelIds: [],
+  relationChanges: [],
 }
 
 function currentResponse(
@@ -98,12 +152,17 @@ function currentResponse(
     nodes: Array<{ id: string; name: string }>
     pageInfo: { hasNextPage: boolean; endCursor: string | null }
   },
+  issueOverrides: Record<string, unknown> = {},
 ) {
+  const currentIssue = { ...issue, ...issueOverrides }
   return {
     queryName: "GetIssueAuditCurrent",
     variables: { id: "TEST-123", labelsAfter: null },
     response: {
-      data: { organization, issue: labels ? { ...issue, labels } : issue },
+      data: {
+        organization,
+        issue: labels ? { ...currentIssue, labels } : currentIssue,
+      },
     },
   }
 }
@@ -278,6 +337,34 @@ Deno.test("issue audit human output has Current Snapshot and Change Log", async 
   }
 })
 
+Deno.test("issue audit human output formats unnamed cycles by number", async () => {
+  const currentCycle = { id: "cycle-5", number: 5, name: null }
+  const entry = historyEntry("history-cycle", "2026-09-05T00:00:00Z", {
+    overrides: {
+      fromCycle: { id: "cycle-4", number: 4, name: null },
+      toCycle: currentCycle,
+    },
+  })
+  const server = new MockLinearServer([
+    currentResponse(undefined, { cycle: currentCycle }),
+    historyResponse(
+      [entry],
+      { hasNextPage: false, endCursor: null },
+      { id: issue.id, first: 50 },
+    ),
+  ])
+  await server.start()
+  try {
+    const result = await runCli(server, ["issue", "audit", "TEST-123"])
+    assertEquals(result.code, 0, result.stderr)
+    assertStringIncludes(result.stdout, "Cycle: Cycle 5")
+    assertStringIncludes(result.stdout, "cycle: Cycle 4 -> Cycle 5")
+    assertEquals(result.stdout.includes('"number":5'), false)
+  } finally {
+    await server.stop()
+  }
+})
+
 Deno.test("issue audit human output warns when history is truncated", async () => {
   const server = new MockLinearServer([
     currentResponse(),
@@ -390,6 +477,129 @@ Deno.test("issue audit renders conversion history with converted project details
       "converted to project: Converted Project (project-converted)",
     )
     assertEquals(humanResult.stdout.includes("metadata changed"), false)
+  } finally {
+    await server.stop()
+  }
+})
+
+Deno.test("issue audit preserves attachment details in JSON and human output", async () => {
+  const attachment = {
+    id: "attachment-1",
+    title: "Design spec",
+    url: "https://notion.so/design-spec",
+  }
+  const entry = historyEntry("history-attachment", "2026-09-07T00:00:00Z", {
+    overrides: {
+      ...noPropertyChanges,
+      attachment,
+      attachmentId: attachment.id,
+    },
+  })
+  const server = new MockLinearServer([
+    currentResponse(),
+    historyResponse(
+      [entry],
+      { hasNextPage: false, endCursor: null },
+      { id: issue.id, first: 1 },
+    ),
+  ])
+  await server.start()
+  try {
+    const jsonResult = await runCli(server, [
+      "issue",
+      "audit",
+      "TEST-123",
+      "--limit",
+      "1",
+      "--json",
+    ])
+    assertEquals(jsonResult.code, 0, jsonResult.stderr)
+    const output = JSON.parse(jsonResult.stdout)
+    assertEquals(output.history.nodes[0].attachment, attachment)
+    assertEquals(output.history.nodes[0].attachmentId, attachment.id)
+    assertMatch(
+      server.graphqlRequests[1].query,
+      /attachment\s*\{\s*id\s+title\s+url\s*\}/,
+    )
+    assertMatch(server.graphqlRequests[1].query, /attachmentId/)
+
+    const humanResult = await runCli(server, [
+      "issue",
+      "audit",
+      "TEST-123",
+      "--limit",
+      "1",
+    ])
+    assertEquals(humanResult.code, 0, humanResult.stderr)
+    assertStringIncludes(
+      humanResult.stdout,
+      "attachment: Design spec (attachment-1) - https://notion.so/design-spec",
+    )
+    assertEquals(humanResult.stdout.includes("metadata changed"), false)
+  } finally {
+    await server.stop()
+  }
+})
+
+Deno.test("issue audit renders description editors separately from the history actor", async () => {
+  const entry = historyEntry("history-description", "2026-09-08T00:00:00Z", {
+    actor: {
+      id: "actor-1",
+      name: "workflow",
+      displayName: "Workflow Actor",
+    },
+    overrides: {
+      ...noPropertyChanges,
+      updatedDescription: true,
+      descriptionUpdatedBy: [{
+        id: "editor-1",
+        name: "description.editor",
+        displayName: "Description Editor",
+      }],
+    },
+  })
+  const server = new MockLinearServer([
+    currentResponse(),
+    historyResponse(
+      [entry],
+      { hasNextPage: false, endCursor: null },
+      { id: issue.id, first: 1 },
+    ),
+  ])
+  await server.start()
+  try {
+    const jsonResult = await runCli(server, [
+      "issue",
+      "audit",
+      "TEST-123",
+      "--limit",
+      "1",
+      "--json",
+    ])
+    assertEquals(jsonResult.code, 0, jsonResult.stderr)
+    const output = JSON.parse(jsonResult.stdout)
+    assertEquals(
+      output.history.nodes[0].descriptionUpdatedBy,
+      entry.descriptionUpdatedBy,
+    )
+    assertMatch(server.graphqlRequests[1].query, /descriptionUpdatedBy/)
+
+    const humanResult = await runCli(server, [
+      "issue",
+      "audit",
+      "TEST-123",
+      "--limit",
+      "1",
+    ])
+    assertEquals(humanResult.code, 0, humanResult.stderr)
+    assertStringIncludes(
+      humanResult.stdout,
+      "Workflow Actor: description updated by: Description Editor",
+    )
+    assertEquals(
+      humanResult.stdout.includes("Description Editor: description updated"),
+      false,
+    )
   } finally {
     await server.stop()
   }
