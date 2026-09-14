@@ -513,7 +513,11 @@ export async function fixture(options: {
           data: {
             issueRelationCreate: {
               success: true,
-              issueRelation: { id: value.id },
+              issueRelation: {
+                id: value.id,
+                issue: { id: value.issueId },
+                relatedIssue: { id: value.relatedIssueId },
+              },
             },
           },
         }

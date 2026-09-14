@@ -70,7 +70,10 @@ stdout:
     "attachment": {
       "id": "attachment-receipt",
       "title": "Proof",
-      "url": "https://example.com/proof"
+      "url": "https://example.com/proof",
+      "issue": {
+        "id": "issue-uuid-123"
+      }
     }
   }
 }

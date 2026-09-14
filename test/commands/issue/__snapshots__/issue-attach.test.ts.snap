@@ -77,7 +77,10 @@ stdout:
     "attachment": {
       "id": "attachment-uuid-1",
       "url": "https://uploads.linear.app/fake/proof.png",
-      "title": "proof.png"
+      "title": "proof.png",
+      "issue": {
+        "id": "issue-uuid-123"
+      }
     }
   },
   "receipts": [

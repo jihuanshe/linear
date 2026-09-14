@@ -1,7 +1,7 @@
 import { gql } from "../__codegen__/gql.ts"
 import { getGraphQLClient } from "../utils/graphql.ts"
 import {
-  assertMutationReceipt,
+  assertMutationReferences,
   assertMutationSuccess,
   ValidationError,
 } from "../utils/errors.ts"
@@ -22,7 +22,11 @@ export async function createIssueComment(
     mutation AddComment($input: CommentCreateInput!) {
       commentCreate(input: $input) {
         success
-        comment { id body createdAt url user { name displayName } }
+        comment {
+          id body createdAt url user { name displayName }
+          issue { id }
+          parent { id }
+        }
       }
     }
   `)
@@ -32,7 +36,10 @@ export async function createIssueComment(
   })
   assertMutationSuccess(data?.commentCreate, data)
   const comment = data.commentCreate.comment
-  assertMutationReceipt(comment, data)
+  assertMutationReferences(comment, data, {
+    issue: issueId,
+    ...(options.parentId != null ? { parent: options.parentId } : {}),
+  })
   return { comment }
 }
 
@@ -53,7 +60,7 @@ export async function linkIssueUrl(
     mutation AttachmentLinkURL($issueId: String!, $url: String!, $title: String) {
       attachmentLinkURL(issueId: $issueId, url: $url, title: $title) {
         success
-        attachment { id title url }
+        attachment { id title url issue { id } }
       }
     }
   `)
@@ -65,7 +72,7 @@ export async function linkIssueUrl(
   })
   assertMutationSuccess(data?.attachmentLinkURL, data)
   const attachment = data.attachmentLinkURL.attachment
-  assertMutationReceipt(attachment, data)
+  assertMutationReferences(attachment, data, { issue: issueId })
   return { attachment }
 }
 
@@ -82,7 +89,7 @@ export async function createIssueAttachment(
     mutation AttachmentCreate($input: AttachmentCreateInput!) {
       attachmentCreate(input: $input) {
         success
-        attachment { id url title }
+        attachment { id url title issue { id } }
       }
     }
   `)
@@ -97,6 +104,6 @@ export async function createIssueAttachment(
   })
   assertMutationSuccess(data?.attachmentCreate, data)
   const attachment = data.attachmentCreate.attachment
-  assertMutationReceipt(attachment, data)
+  assertMutationReferences(attachment, data, { issue: issueId })
   return { attachment }
 }

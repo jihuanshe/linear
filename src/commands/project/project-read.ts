@@ -3,6 +3,7 @@ import type { ReadProjectQuery } from "../../__codegen__/graphql.ts"
 import { getGraphQLClient } from "../../utils/graphql.ts"
 import { NotFoundError } from "../../utils/errors.ts"
 import { completeConnection } from "../../utils/pagination.ts"
+import { assertReadIdentity } from "../../utils/read-identity.ts"
 
 const ReadProject = gql(`
   query ReadProject($id: String!, $teamsAfter: String, $labelsAfter: String) {
@@ -63,6 +64,13 @@ export async function readProject(
 ) {
   const result = await client.request(ReadProject, { id })
   if (!result.project) throw new NotFoundError("Project", id)
+  assertReadIdentity(
+    result.project,
+    id,
+    result.organization,
+    result.organization?.id ?? "",
+    "Project",
+  )
   const paginated = result.project.teams.pageInfo?.hasNextPage === true ||
     result.project.labels.pageInfo?.hasNextPage === true
   await completeProjectCollections(client, result.project)
@@ -72,9 +80,13 @@ export async function readProject(
     const latest = await client.request(ReadProjectFields, {
       id: result.project.id,
     })
-    if (!latest.project || latest.project.id !== result.project.id) {
-      throw new NotFoundError("Project", id)
-    }
+    assertReadIdentity(
+      latest.project,
+      result.project.id,
+      latest.organization,
+      result.organization.id,
+      "Project",
+    )
     result.organization = latest.organization
     const { teams, labels } = result.project
     Object.assign(result.project, latest.project, { teams, labels })

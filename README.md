@@ -7,45 +7,6 @@
 
 本项目不是 Linear 的官方产品，也不隶属于 Linear 或得到其认可。
 
-## 系统边界
-
-```mermaid
-flowchart LR
-  subgraph callers["调用方"]
-    human["人类"]
-    agent["AI Agent"]
-    ci["脚本 / CI"]
-  end
-
-  subgraph binary["jihuanshe/linear 二进制"]
-    commands["Cliffy 命令树<br/>usage · help · 专用命令"]
-    guides["内嵌指南与示例<br/>说明、脚本与跨命令工作流"]
-    config["配置与凭据解析"]
-    operations["共享操作<br/>身份、校验与写入结果"]
-    delivery["Issue plan / apply<br/>执行账本与回执"]
-  end
-
-  linear["Linear GraphQL 与上传 API"]
-  vcs["Git / Jujutsu"]
-  recipes["导出的工作流示例"]
-  github["GitHub CLI"]
-
-  human --> commands
-  agent --> commands
-  ci --> commands
-  guides -. "发现与恢复" .-> commands
-  config --> commands
-  commands --> operations
-  commands --> delivery
-  delivery --> operations
-  operations --> linear
-  commands -. "只读上下文" .-> vcs
-  ci --> recipes
-  recipes --> commands
-  recipes --> vcs
-  recipes --> github
-```
-
 常见 Linear 操作优先走专用命令；`linear schema` 和 `linear api` 用于专用命令未覆盖的 GraphQL 能力。`linear api --unprotected` 可以显式发送原生 mutation，保留 GraphQL 响应；它不提供专用命令的领域校验、回执或恢复。
 
 ## 快速开始
@@ -73,27 +34,11 @@ linear auth whoami --json
 linear config
 ```
 
-多工作区、系统密钥环、CI 凭据和明文存储见[认证与工作区凭据](docs/authentication.md)；完整配置项与优先级见[配置](docs/configuration.md)。更新已安装的发行版使用 `linear update`。
+多工作区、系统密钥环、CI 凭据和配置见[安装、认证与配置](docs/setup.md)。更新已安装的发行版使用 `linear update`。
 
 ## 找命令和工作流
 
 知道确切命令时直接执行，不需要固定的预检链。不确定时按需下钻：
-
-```mermaid
-flowchart TD
-  start{"知道确切命令？"}
-  start -->|是| leaf["目标命令及其帮助<br/>linear &lt;command&gt; --help"]
-  start -->|否| usage["linear<br/>linear &lt;domain&gt; usage"]
-  usage --> leaf
-  leaf --> workflow{"需要工作流规则或示例？"}
-  workflow -->|是| guide["工作流规则：linear guide<br/>组合示例：linear recipe"]
-  workflow -->|否| run["执行命令"]
-  guide --> run
-  run --> uncovered{"专用命令未覆盖？"}
-  uncovered -->|是| graphql["linear guide graphql<br/>linear schema + linear api"]
-  uncovered -->|否| done["完成并验证"]
-  graphql --> done
-```
 
 常用发现入口：
 
@@ -143,7 +88,7 @@ NO_COLOR=1 linear issue view ENG-123 --json >issue.json 2>error.log
 jq -e ' .organization.id and .issue.id ' issue.json >/dev/null
 ```
 
-`--json` 和 `--no-pager` 不是全局选项，以目标命令的 `--help` 为准。多行 Markdown 使用 `--description-file` 或 `--body-file`，避免 shell 引号改变正文。写命令、确认选项、`LINEAR_PROMPT_DISABLED=1` 和 JSON 输出都只描述执行机制，不构成用户授权。
+`--json` 和 `--no-pager` 不是全局选项，以目标命令的 `--help` 为准。多行 Markdown 使用 `--description-file` 或 `--body-file`，避免 shell 引号改变正文。写命令、确认选项、`LINEAR_PROMPT_DISABLED=1` 和 JSON 输出都只描述执行机制，不构成用户授权。写入的并发边界见 `linear guide automation`。
 
 普通更新直接用专用命令；组合多个执行项并需要记录恢复进度时，使用同一份交付清单：
 
@@ -161,37 +106,14 @@ linear issue apply --file delivery.json --confirm-workspace jihuanshe
 | 发现命令、选项与机器能力                     | `linear`、`linear <domain> usage`、`linear <leaf> --help`    |
 | 读取跨命令工作流                             | `linear guide`、`linear guide <name>`                        |
 | 查看、修改与导出工作流示例                   | `linear recipe`、`linear recipe <name>`、`--source`          |
-| 登录、切换工作区、排查凭据                   | [认证与工作区凭据](docs/authentication.md)                   |
-| 配置团队、排序、VCS 和附件行为               | [配置](docs/configuration.md)                                |
+| 登录、切换工作区、排查凭据和配置             | [安装、认证与配置](docs/setup.md)                            |
 | 自动化输出、分页、Markdown 与写后读回        | `linear guide automation`                                    |
 | 编写可独立交接的 Issue                       | `linear guide issue-authoring`                               |
 | 交付含文件、侧栏附件或关系的单个／批量 Issue | `linear guide issue-delivery`                                |
 | 查询专用命令未覆盖的字段                     | `linear guide graphql`、`linear schema`、`linear api --help` |
-| 理解 Agent 接口的事实归属与设计              | [Agent 接口架构](docs/agent-interface-architecture.md)       |
 | 修改 Deno 权限                               | [Deno 权限与修改流程](docs/deno-permissions.md)              |
 | 贡献代码                                     | [仓库维护规则](AGENTS.md)                                    |
 | 发布 `main`                                  | [发布 Skill](.agents/skills/releasing/SKILL.md)              |
-
-## 升级与迁移
-
-以下接口变化需要更新旧脚本。按已安装版本的 `--help` 和指南调整调用，不删除旧执行记录来重试：
-
-| 原调用或合同                                              | 当前入口                                                                                                     |
-| --------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| 六类 update 直接覆盖                                      | 先保存原生 view JSON，再传 `--base-file`；明确无保护替换用 `--unprotected`                                   |
-| 扁平对象读取                                              | `{organization, issue/comment/project/initiative/document/projectMilestone}`，见 `linear guide automation`   |
-| 写 JSON 的对象直接位于根                                  | 专用写入结果为 `{ok,effect,data,...}`；原生 `api` 保留 GraphQL 响应                                          |
-| `schemaVersion: 1` 的交付清单／执行账本                   | 保留旧文件与匹配版本先对账，再为剩余工作建立 `schemaVersion: 2` 的独立清单；见 `linear guide issue-delivery` |
-| `issue start`、`issue create --start`                     | `issue pick` 加显式 VCS 和状态步骤，见 `linear recipe start-work`                                            |
-| `issue pull-request`、`team autolinks`、`issue commits`   | `linear recipe create-pr`、`linear recipe github-autolink`、`linear recipe jj-commits`                       |
-| `doctor`                                                  | `linear recipe doctor`                                                                                       |
-| `project create --initiative`                             | 创建回执中的 ID → `initiative add-project`                                                                   |
-| `team delete --move-issues`                               | 固定 UUID 范围迁移、保存编号映射，再显式删除空团队；见 `linear recipe migrate-team`                          |
-| `team id` 返回可读 key                                    | `team key`；真实 UUID 读取 `team list --json`                                                                |
-| `version` 的静态 `capabilities` 列表                      | `version --json` 只返回 `distribution` 与 `version`；实际命令和能力由 `linear usage --json` 提供             |
-| `version`、`usage` 和健康检查报告中的恒定 `schemaVersion` | 输出不再附加恒定版本字段；交付清单与执行账本仍保留实际校验的 `schemaVersion`                                 |
-
-`title`、`url`、`describe`、`mine`、常用 CRUD、上传下载及交互编辑继续保留。`api --paginate` 只用于 query，原生 mutation 必须显式 `--unprotected`。服务器 CAS、事务和 exactly-once 不在客户端保证内。
 
 ## 开发
 

@@ -55,17 +55,21 @@ const inventory = (
   variables: { issueId: source.id },
   response: { data: { issue: { relations, inverseRelations } } },
 })
-const created = {
+const created = (type: RelationType = "blocks") => ({
   queryName: "CreateIssueRelation",
   response: {
     data: {
       issueRelationCreate: {
         success: true,
-        issueRelation: { id: "relation-created" },
+        issueRelation: {
+          id: "relation-created",
+          issue: { id: type === "blocked-by" ? target.id : source.id },
+          relatedIssue: { id: type === "blocked-by" ? source.id : target.id },
+        },
       },
     },
   },
-}
+})
 
 async function runRelation(args: string[]) {
   const result = await new Deno.Command(Deno.execPath(), {
@@ -109,7 +113,7 @@ for (
       const { cleanup } = await setupMockLinearServer([
         ...headers,
         inventory(),
-        created,
+        created(type as RelationType),
       ])
       try {
         await relationCommand.parse()
@@ -175,6 +179,24 @@ Deno.test("Issue Relation Add Command - different relation refuses replacement",
   }
 })
 
+Deno.test("Issue Relation Add Command - mismatched receipt is applied but not accepted", async () => {
+  const { cleanup } = await setupMockLinearServer([
+    ...headers,
+    inventory(),
+    created("blocks"),
+  ])
+  try {
+    await assertRejects(
+      () =>
+        addIssueRelation(source.identifier, "blocked-by", target.identifier),
+      WriteError,
+      "association identity",
+    )
+  } finally {
+    await cleanup()
+  }
+})
+
 for (
   const type of [
     "related",
@@ -187,7 +209,7 @@ for (
     const { server, cleanup } = await setupMockLinearServer([
       ...headers,
       inventory(),
-      created,
+      created(type),
     ])
     let writes = 0
     try {
@@ -288,7 +310,7 @@ Deno.test("Relation callback failure prevents dispatch", async () => {
   const { server, cleanup } = await setupMockLinearServer([
     ...headers,
     inventory(),
-    created,
+    created(),
   ])
   try {
     await assertRejects(

@@ -31,6 +31,7 @@ function readResponse(request: RequestBody, archived = false) {
   }
   return {
     data: {
+      organization: { id: "workspace-1", urlKey: "test" },
       initiative,
       initiatives: {
         nodes: [initiative],
@@ -220,7 +221,11 @@ const writes = [
     args: ["initiative", "add-project", id, projectId],
     field: "initiativeToProjectCreate",
     entity: "initiativeToProject",
-    object: { id: linkId },
+    object: {
+      id: linkId,
+      initiative: { id },
+      project: { id: projectId },
+    },
     id: linkId,
   },
   {
@@ -479,7 +484,11 @@ for (
             data: {
               initiativeToProjectCreate: {
                 success: true,
-                initiativeToProject: { id: linkId },
+                initiativeToProject: {
+                  id: linkId,
+                  initiative: { id },
+                  project: { id: projectId },
+                },
               },
             },
           }

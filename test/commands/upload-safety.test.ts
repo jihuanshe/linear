@@ -139,6 +139,7 @@ Deno.test("comment add sends captured body and binary bytes even if files change
             url: "https://linear.app/issue/ENG-1#comment-created",
             createdAt: "2026-09-10T00:00:00Z",
             user: null,
+            issue: { id: "11111111-1111-4111-8111-111111111111" },
           },
         },
       },
