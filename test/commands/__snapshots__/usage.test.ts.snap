@@ -923,7 +923,7 @@ snapshot[`usage JSON describes command metadata 1`] = `
         },
         {
           arguments: [],
-          description: "Include resolved comment threads in the output",
+          description: "Include resolved threads in human output; JSON always retains all fetched threads",
           flags: [
             "--show-resolved-threads",
           ],
@@ -943,7 +943,7 @@ snapshot[`usage JSON describes command metadata 1`] = `
         },
         {
           arguments: [],
-          description: "Output issue data as JSON; comments and attachments retain {nodes, pageInfo}",
+          description: "Output all fetched threads including resolved history; comments and attachments retain {nodes, pageInfo}",
           flags: [
             "-j",
             "--json",
@@ -969,6 +969,77 @@ snapshot[`usage JSON describes command metadata 1`] = `
       ],
       path: "linear issue view",
       usage: "linear issue view [issueId] [options]",
+      writes: false,
+    },
+    {
+      aliases: [],
+      arguments: [
+        {
+          list: false,
+          name: "issueId",
+          required: true,
+          type: "string",
+          variadic: false,
+        },
+      ],
+      confirmation: null,
+      description: "Save an Issue's original JSON and exact Markdown draft for local editing, without changing Linear.
+
+Creates original.json and desired.md in a new directory. Edit desired.md, then use issue update --base-file original.json --description-file desired.md. Markdown is not a lossless rich-text backup; see linear guide markdown.",
+      details: "linear issue export --help",
+      guides: [
+        {
+          description: "保存原始依据、执行受保护更新并解释 JSON 写入效果与分页",
+          name: "automation",
+        },
+        {
+          description: "Issue 的责任归属、持久证据、验收依据与后续交接",
+          name: "issue-authoring",
+        },
+        {
+          description: "通过 API 编写 Linear 提及与可折叠正文，查找真实成员 URL",
+          name: "markdown",
+        },
+      ],
+      hasSubcommands: false,
+      interactive: false,
+      name: "export",
+      options: [
+        {
+          arguments: [
+            {
+              list: false,
+              name: "directory",
+              required: true,
+              type: "string",
+              variadic: false,
+            },
+          ],
+          description: "New directory for the editing files",
+          flags: [
+            "--output",
+          ],
+          name: "output",
+          repeatable: false,
+          staticallyRequired: true,
+        },
+        {
+          arguments: [],
+          description: "Output saved paths and stable Issue identity as JSON",
+          flags: [
+            "--json",
+          ],
+          name: "json",
+          repeatable: false,
+          staticallyRequired: false,
+        },
+      ],
+      outputModes: [
+        "human",
+        "json",
+      ],
+      path: "linear issue export",
+      usage: "linear issue export <issueId> [options]",
       writes: false,
     },
     {

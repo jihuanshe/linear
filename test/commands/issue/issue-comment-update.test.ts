@@ -171,10 +171,17 @@ Deno.test("comment update preserves mentions, ordinary links and collapsible Mar
     "+++ [日志]",
     "",
     "```text",
-    "@name is literal log text",
+    "@name is literal log text; \\n stays literal",
     "```",
     "",
     "+++",
+    "",
+    "段落一  ",
+    "软换行",
+    "",
+    "- 项目",
+    "  - 子项目",
+    "",
   ].join("\n")
   const { server, cleanup } = await setupMockLinearServer([originalComment, {
     queryName: "UpdateComment",

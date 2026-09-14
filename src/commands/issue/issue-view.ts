@@ -43,12 +43,12 @@ export const viewCommand = new Command()
   .option("--no-comments", "Exclude comments from the output")
   .option(
     "--show-resolved-threads",
-    "Include resolved comment threads in the output",
+    "Include resolved threads in human output; JSON always retains all fetched threads",
   )
   .option("--no-pager", "Disable automatic paging for long output")
   .option(
     "-j, --json",
-    "Output issue data as JSON; comments and attachments retain {nodes, pageInfo}",
+    "Output all fetched threads including resolved history; comments and attachments retain {nodes, pageInfo}",
   )
   .option("--no-download", "Keep remote URLs instead of downloading files")
   .action(async (options, issueId) => {
@@ -176,6 +176,11 @@ export const viewCommand = new Command()
           ? cycleLabel
           : `${cycleLabel} (${cycleShort.text})`
         metaParts.push(`**Cycle:** ${cycleDisplay}`)
+      }
+      if (derivedComments) {
+        metaParts.push(
+          `**Unresolved threads:** ${derivedComments.unresolvedThreadCount}`,
+        )
       }
       const metaLine = metaParts.length > 0
         ? "\n\n" + metaParts.join(" | ")
@@ -365,15 +370,27 @@ function deriveCommentView(
       return cached
     }
 
-    const comment = commentsById.get(commentId)
-    if (comment?.parent == null) {
-      rootIdByCommentId.set(commentId, commentId)
-      return commentId
+    const ancestors = new Set<string>()
+    let currentId = commentId
+    while (true) {
+      if (ancestors.has(currentId)) {
+        throw new ValidationError("Comment thread contains a parent cycle")
+      }
+      ancestors.add(currentId)
+      const current = commentsById.get(currentId)
+      if (!current) {
+        throw new ValidationError(
+          "Comment thread is incomplete: a parent was not returned",
+        )
+      }
+      if (current.parent == null) {
+        for (const ancestor of ancestors) {
+          rootIdByCommentId.set(ancestor, currentId)
+        }
+        return currentId
+      }
+      currentId = current.parent.id
     }
-
-    const rootId = getRootId(comment.parent.id)
-    rootIdByCommentId.set(commentId, rootId)
-    return rootId
   }
 
   for (const comment of comments) {
@@ -403,6 +420,8 @@ function deriveCommentView(
   return {
     visibleRootComments,
     repliesByRootId,
+    unresolvedThreadCount:
+      rootComments.filter((comment) => comment.resolvedAt == null).length,
     hiddenResolvedThreadCount: rootComments.length - visibleRootComments.length,
   }
 }

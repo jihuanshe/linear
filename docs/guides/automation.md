@@ -6,6 +6,7 @@ commands:
   - auth whoami
   - auth token
   - issue view
+  - issue export
   - issue history
   - issue query
   - issue create
@@ -14,6 +15,8 @@ commands:
   - issue comment update
   - issue comment view
   - issue comment list
+  - issue comment resolve
+  - issue comment unresolve
   - project view
   - project update
   - initiative view
@@ -31,18 +34,16 @@ commands:
 替换字段前先保存原始读取，再讨论或编辑目标内容。六类字段替换入口共用 `--base-file`；不要收到目标内容后才读取新值冒充原始依据。
 
 ```bash
-# 在新目录中执行；noclobber 防止意外覆盖已有依据。
-mkdir issue-edit
-cd issue-edit
-(set -C; linear issue view ENG-123 --json > original.json)
-jq -e '.organization.id and .issue.id and .issue.identifier == "ENG-123"' original.json >/dev/null
-# 阅读 original.json 后编写 desired.md。
+linear issue export ENG-123 --output issue-edit --json
+# 阅读 issue-edit/original.json，编辑已经导出的 issue-edit/desired.md。
 LINEAR_PROMPT_DISABLED=1 linear issue update ENG-123 \
-  --base-file original.json --description-file desired.md --json \
-  > result.json 2> result.log
+  --base-file issue-edit/original.json --description-file issue-edit/desired.md --json \
+  > issue-edit/result.json 2> issue-edit/result.log
 ```
 
-直接保存读取输出，不手抄旧字段。各入口的 JSON 根对象如下；`organization` 均包含稳定 `id` 和 `urlKey`。
+`issue export` 要求新目录，保存带身份的原始依据和逐字 Markdown 草稿；不会打开编辑器或修改 Linear。导出失败时保留目录中已经保存的文件，检查后使用新目录重新开始，不覆盖旧依据。Markdown 富文本边界见 `linear guide markdown`。
+
+其他字段可直接保存读取输出，不手抄旧字段。各入口的 JSON 根对象如下；`organization` 均包含稳定 `id` 和 `urlKey`。
 
 | 读取入口                         | 对象路径            | 对应更新入口           |
 | -------------------------------- | ------------------- | ---------------------- |
@@ -103,9 +104,30 @@ jq '.nodes[] | {id, identifier, title, priority}' issues.json
 
 `initiative view --json` 默认读取 Initiative 的短描述和关联 Project 的稳定字段；需要读取用于任务路由的 Initiative Markdown 正文和关联文档入口时，显式使用 `--include-content`。该选项返回 `initiative.content`、每个关联 Project 的 `description`，并由 `readInitiative` 跨非原子分页请求完成 `initiative.documents` 连接；返回时 `documents.pageInfo.hasNextPage` 为 `false`。文档正文继续用 `document view` 读取；完整分页不代表跨页数据库快照。
 
-用于人类和 AI 共同维护的路由提示词，放在 Initiative Content 或 Project Description 的唯一 `<!-- ai-routing-context:start -->` 与 `<!-- ai-routing-context:end -->` 块中。更新前保存原始读取，用文件准备完整字段，只替换标记之间的内容；保留块外的人类说明和链接。Change log 是蒸馏输入，不是未经确认的规则来源；回写后重新读取验证块边界和正文未丢失。Initiative Content 可用 `linear initiative update <ID> --content-file <path> --base-file <original.json>` 受保护替换，Project Description 沿用 `linear project update --description-file`。
+`project view <ID> --include-content --json` 同样返回短 `description` 和完整 Markdown `content`。需要工作区内所有 Initiative／Project 的说明时，已有原生分页入口可以组合；以下两次查询各自读到终页，保留 `{data: {organization, initiatives|projects: {nodes, pageInfo}}}`，默认不含归档对象：
 
-只读评论用 `issue comment list <ID> --limit 0 --json`，默认最多 50 条并返回 `{nodes,pageInfo}`；变更经过用 `issue history <ID> --json`。评论追加与更新的写结果对象位于 `.data.comment`。
+```bash
+linear api 'query ContextInitiatives($after: String) {
+  organization { id urlKey }
+  initiatives(first: 100, after: $after) {
+    nodes { id name url description content }
+    pageInfo { hasNextPage endCursor }
+  }
+}' --paginate > initiatives.json
+linear api 'query ContextProjects($after: String) {
+  organization { id urlKey }
+  projects(first: 100, after: $after) {
+    nodes { id name url description content }
+    pageInfo { hasNextPage endCursor }
+  }
+}' --paginate > projects.json
+```
+
+两份查询不限定状态；需要选定范围时用当前 schema 的 `filter`，需要归档对象时显式增加 `includeArchived: true`。短描述和 Markdown 正文均不截断；关联文档是独立对象，按需要继续读取。不要把列表命令的默认范围或嵌套关系预览当成完整上下文导出。更新这些字段仍保存对应对象的原始读取，并使用 `initiative update`／`project update` 的文件输入与 `--base-file`。
+
+只读评论用 `issue comment list <ID> --limit 0 --json`，默认最多 50 条并返回 `{nodes,pageInfo}`；变更经过用 `issue history <ID> --json`。评论追加与更新的写结果对象位于 `.data.comment`。`issue view` 的未解决数量按根线程计算，`--no-comments` 不显示未知数量，JSON 保留已解决历史。
+
+用 `issue comment resolve <评论 ID>` 收束线程，`--resolving-comment <回复 ID>` 可指向本线程中的结论；`issue comment unresolve <评论 ID>` 重新打开。根评论与回复 ID 均可定位根线程，命令读取并核验实际状态；已处于目标状态时不派发 mutation。Resolve 与 Issue 状态各自独立，不清空或删除评论。读回失败保留 `effect: applied`，不要重发已确认写入。
 
 ## 按 URL 查重与复查
 

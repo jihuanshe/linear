@@ -879,3 +879,71 @@ Deno.test("workflowStateNotFoundError - handles a team with no states", () => {
     "Team ENG has no workflow states. Run `linear team states ENG`.",
   )
 })
+
+for (
+  const suffix of [
+    "",
+    "/",
+    "/中文标题",
+    "?view=full",
+    "#comment-id",
+    "/some-title?view=full#comment-id",
+  ]
+) {
+  Deno.test(`Issue URL reference verifies workspace and parses canonical path: ${suffix}`, async () => {
+    const { server, cleanup } = await setupMockLinearServer([{
+      queryName: "GetIssueReferenceWorkspace",
+      response: {
+        data: { organization: { id: "workspace", urlKey: "test-team" } },
+      },
+    }])
+    try {
+      assertEquals(
+        await getIssueIdentifier(
+          `https://linear.app/test-team/issue/eng-123${suffix}`,
+        ),
+        "ENG-123",
+      )
+      assertEquals(server.graphqlRequests.length, 1)
+    } finally {
+      await cleanup()
+    }
+  })
+}
+
+Deno.test("Issue URL reference rejects another workspace before resolving its local issue number", async () => {
+  const { server, cleanup } = await setupMockLinearServer([{
+    queryName: "GetIssueReferenceWorkspace",
+    response: {
+      data: { organization: { id: "workspace", urlKey: "other-team" } },
+    },
+  }])
+  try {
+    await assertRejects(
+      () => getIssueIdentifier("https://linear.app/test-team/issue/ENG-123"),
+      ValidationError,
+      "different workspace",
+    )
+    assertEquals(server.graphqlRequests.length, 1)
+  } finally {
+    await cleanup()
+  }
+})
+
+Deno.test("Issue URL reference does not accept spoofed hosts or credentials in URLs", async () => {
+  const { server, cleanup } = await setupMockLinearServer([])
+  try {
+    for (
+      const url of [
+        "https://linear.app.example.test/test-team/issue/ENG-123",
+        "https://linear.app@elsewhere.test/test-team/issue/ENG-123",
+        "https://user@linear.app/test-team/issue/ENG-123",
+        "http://linear.app/test-team/issue/ENG-123",
+        "https://linear.app:444/test-team/issue/ENG-123",
+      ]
+    ) assertEquals(await getIssueIdentifier(url), undefined)
+    assertEquals(server.graphqlRequests.length, 0)
+  } finally {
+    await cleanup()
+  }
+})

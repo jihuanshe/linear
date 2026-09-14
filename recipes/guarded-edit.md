@@ -2,7 +2,9 @@
 
 在阅读旧正文之后才决定如何修改时使用。脚本把保存初读和提交分为两个动作，避免提交时用新读取替代讨论依据。比较与写入由 `linear issue update` 完成。
 
-执行需要 Deno 和当前 `linear`；`LINEAR_BIN` 可以固定 CLI 的绝对路径。读取说明和源码本身无需 Deno 或网络。
+日常编辑直接使用 `linear issue export ENG-123 --output issue-edit`，编辑草稿后用 `linear issue update ENG-123 --base-file issue-edit/original.json --description-file issue-edit/desired.md --json`。导出和冲突保护由 CLI 负责，不需要额外运行时。
+
+需要嵌入脚本编排时使用下例。执行需要 Deno 和当前 `linear`；`LINEAR_BIN` 可以固定 CLI 的绝对路径。读取说明和源码本身无需 Deno 或网络。
 
 ```sh
 linear recipe guarded-edit --source > guarded-edit.js

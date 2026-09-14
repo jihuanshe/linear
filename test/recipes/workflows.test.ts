@@ -25,6 +25,14 @@ if(args[0]==='api') {
  else throw new Error('Unexpected API');
 } else if(args[1]==='query') console.log(JSON.stringify({nodes:[1,2,3].map(n=>({id:'issue-'+n,identifier:'OLD-'+n})),pageInfo:{hasNextPage:false,endCursor:null}}));
 else if(args[1]==='view') console.log(JSON.stringify({organization,issue:{id:args[2],identifier:'OLD-'+args[2].slice(-1),team:{id:'source-id',key:'OLD'},state:{id:'todo'}}}));
+else if(args[1]==='export') {
+ const folder=args[args.indexOf('--output')+1];
+ await Deno.mkdir(folder);
+ const original={organization,issue:{id:args[2],identifier:'OLD-1',description:'Original body'}};
+ await Deno.writeTextFile(folder+'/original.json', JSON.stringify(original));
+ await Deno.writeTextFile(folder+'/desired.md', original.issue.description);
+ console.log(JSON.stringify({organization,issue:{id:args[2]},baseFile:folder+'/original.json',descriptionFile:folder+'/desired.md'}));
+}
 else if(args[1]==='title') console.log('A title with spaces');
 else if(args[1]==='url') console.log('https://linear.app/example/issue/OLD-1');
 else if(args[1]==='update') {
@@ -338,7 +346,7 @@ Deno.test("Guarded edit freezes one basis before discussion and passes it unchan
       original,
     )
     const calls = await f.calls()
-    assertEquals(calls.filter((args) => args[1] === "view").length, 1)
+    assertEquals(calls.filter((args) => args[1] === "export").length, 1)
     assertEquals(calls.filter((args) => args[1] === "update"), [[
       "issue",
       "update",
@@ -351,8 +359,8 @@ Deno.test("Guarded edit freezes one basis before discussion and passes it unchan
     ]])
     assertEquals((await invoke(["prepare", "issue-1", directory])).code, 1)
     assertEquals(
-      (await f.calls()).filter((args) => args[1] === "view").length,
-      1,
+      (await f.calls()).filter((args) => args[1] === "export").length,
+      2,
     )
   } finally {
     await f.cleanup()

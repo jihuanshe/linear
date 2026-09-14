@@ -8,27 +8,20 @@ async function cli(args) {
   }).output()
 }
 export async function prepare(issue, directory) {
-  // An existing directory is a different discussion; never overwrite its basis.
-  await Deno.mkdir(directory)
-  const result = await cli(["issue", "view", issue, "--json"])
-  if (!result.success) throw new Error("Read failed; no basis was saved")
-  const text = new TextDecoder().decode(result.stdout)
-  const original = JSON.parse(text)
-  if (!original.organization?.id || !original.issue?.id) {
-    throw new Error("Expected the current {organization, issue} read contract")
+  const result = await cli([
+    "issue",
+    "export",
+    issue,
+    "--output",
+    directory,
+    "--json",
+  ])
+  await Deno.stdout.write(result.stdout)
+  if (!result.success) {
+    throw new Error("Export failed; inspect the output before continuing")
   }
-  await Deno.writeTextFile(`${directory}/original.json`, text, {
-    createNew: true,
-  })
-  await Deno.writeTextFile(
-    `${directory}/desired.md`,
-    original.issue.description ?? "",
-    { createNew: true },
-  )
-  console.log(
-    `Read ${original.issue.identifier}. Discuss the saved original.json and edit ${directory}/desired.md, then run submit.`,
-  )
 }
+
 export async function submit(directory) {
   const original = JSON.parse(
     await Deno.readTextFile(`${directory}/original.json`),

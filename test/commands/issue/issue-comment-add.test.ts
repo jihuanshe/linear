@@ -350,3 +350,55 @@ await snapshotTest({
     await commentAddCommand.parse()
   },
 })
+
+Deno.test("comment create passes exact file Markdown without expanding literal escapes", async () => {
+  const body =
+    "第一段  \n软换行\n\n- 项目\n  - 子项目\n\n```text\n@name \\n\n```\n\nhttps://linear.app/test/profiles/person\n"
+  const { server, cleanup } = await setupMockLinearServer([
+    {
+      queryName: "GetIssueId",
+      response: { data: { issue: { id: "issue-1" } } },
+    },
+    {
+      queryName: "AddComment",
+      response: {
+        data: {
+          commentCreate: {
+            success: true,
+            comment: { id: "comment-1", body, url: "https://linear.app/test" },
+          },
+        },
+      },
+    },
+  ])
+  const path = await Deno.makeTempFile({ suffix: ".md" })
+  try {
+    await Deno.writeTextFile(path, body)
+    const result = await new Deno.Command(Deno.execPath(), {
+      args: [
+        "run",
+        ...commonDenoArgs,
+        "src/main.ts",
+        "issue",
+        "comment",
+        "add",
+        "ENG-1",
+        "--body-file",
+        path,
+        "--json",
+      ],
+      stdin: "null",
+      stdout: "piped",
+      stderr: "piped",
+    }).output()
+    assertEquals(result.code, 0, new TextDecoder().decode(result.stderr))
+    const writes = server.graphqlRequests.filter((request) =>
+      request.query.includes("mutation AddComment")
+    )
+    assertEquals(writes.length, 1)
+    assertEquals(writes[0].variables.input, { issueId: "issue-1", body })
+  } finally {
+    await cleanup()
+    await Deno.remove(path)
+  }
+})

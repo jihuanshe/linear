@@ -11,14 +11,14 @@ Description:
 
 Options:
 
-  -h, --help               - Show this help.                                                               
-  -w, --web                - Open in web browser                                                           
-  -a, --app                - Open in Linear.app                                                            
-  --no-comments            - Exclude comments from the output                                              
-  --show-resolved-threads  - Include resolved comment threads in the output                                
-  --no-pager               - Disable automatic paging for long output                                      
-  -j, --json               - Output issue data as JSON; comments and attachments retain {nodes, pageInfo}  
-  --no-download            - Keep remote URLs instead of downloading files                                 
+  -h, --help               - Show this help.                                                                                           
+  -w, --web                - Open in web browser                                                                                       
+  -a, --app                - Open in Linear.app                                                                                        
+  --no-comments            - Exclude comments from the output                                                                          
+  --show-resolved-threads  - Include resolved threads in human output; JSON always retains all fetched threads                         
+  --no-pager               - Disable automatic paging for long output                                                                  
+  -j, --json               - Output all fetched threads including resolved history; comments and attachments retain {nodes, pageInfo}  
+  --no-download            - Keep remote URLs instead of downloading files                                                             
 
 "
 stderr:
@@ -29,7 +29,7 @@ snapshot[`Issue View Command - With Mock Server Terminal No Comments 1`] = `
 stdout:
 "# TEST-123: Fix authentication bug in login flow
 
-**State:** In Progress | **Priority:** --- | **Assignee:** Unassigned
+**State:** In Progress | **Priority:** --- | **Assignee:** Unassigned | **Unresolved threads:** 0
 
 Users are experiencing issues logging in when their session expires. This affects the main authentication flow and needs to be resolved quickly.
 
@@ -65,7 +65,7 @@ snapshot[`Issue View Command - With Comments Default 1`] = `
 stdout:
 "# TEST-123: Fix authentication bug in login flow
 
-**State:** In Progress | **Priority:** ⚠⚠⚠ | **Assignee:** @John Doe
+**State:** In Progress | **Priority:** ⚠⚠⚠ | **Assignee:** @John Doe | **Unresolved threads:** 2
 
 Users are experiencing issues logging in when their session expires.
 
@@ -591,7 +591,7 @@ snapshot[`Issue View Command - Hides Resolved Threads By Default 1`] = `
 stdout:
 "# TEST-321: Audit resolved comment thread output
 
-**State:** In Progress | **Priority:** ▄▆█ | **Assignee:** Unassigned
+**State:** In Progress | **Priority:** ▄▆█ | **Assignee:** Unassigned | **Unresolved threads:** 1
 
 Check how issue view handles resolved comment threads.
 
@@ -617,7 +617,7 @@ snapshot[`Issue View Command - Show Resolved Threads 1`] = `
 stdout:
 "# TEST-321: Audit resolved comment thread output
 
-**State:** In Progress | **Priority:** ▄▆█ | **Assignee:** Unassigned
+**State:** In Progress | **Priority:** ▄▆█ | **Assignee:** Unassigned | **Unresolved threads:** 1
 
 Check how issue view handles resolved comment threads.
 

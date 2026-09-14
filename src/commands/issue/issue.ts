@@ -20,6 +20,7 @@ import { titleCommand } from "./issue-title.ts"
 import { updateCommand } from "./issue-update.ts"
 import { urlCommand } from "./issue-url.ts"
 import { viewCommand } from "./issue-view.ts"
+import { exportCommand } from "./issue-export.ts"
 
 export const issueCommand = new Command()
   .description("Manage Linear issues")
@@ -33,6 +34,7 @@ export const issueCommand = new Command()
   .command("title", titleCommand)
   .command("pick", pickCommand)
   .command("view", viewCommand)
+  .command("export", exportCommand)
   .command("history", historyCommand)
   .command("audit", auditCommand)
   .command("url", urlCommand)

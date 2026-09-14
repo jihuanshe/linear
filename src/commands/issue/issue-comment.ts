@@ -4,6 +4,10 @@ import { commentDeleteCommand } from "./issue-comment-delete.ts"
 import { commentUpdateCommand } from "./issue-comment-update.ts"
 import { commentListCommand } from "./issue-comment-list.ts"
 import { commentViewCommand } from "./issue-comment-view.ts"
+import {
+  commentResolveCommand,
+  commentUnresolveCommand,
+} from "./issue-comment-resolve.ts"
 
 export const commentCommand = new Command()
   .description("Manage issue comments")
@@ -15,3 +19,5 @@ export const commentCommand = new Command()
   .command("update", commentUpdateCommand)
   .command("list", commentListCommand)
   .command("view", commentViewCommand)
+  .command("resolve", commentResolveCommand)
+  .command("unresolve", commentUnresolveCommand)

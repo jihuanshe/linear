@@ -10,6 +10,8 @@ const ReadComment = gql(`
       id body url updatedAt archivedAt
       user { id name displayName }
       issue { id identifier }
+      parent { id }
+      resolvedAt resolvingCommentId resolvingUser { id name displayName }
     }
   }
 `)

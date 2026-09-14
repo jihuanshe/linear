@@ -6,8 +6,11 @@ commands:
   - issue create
   - issue update
   - issue view
+  - issue export
   - issue history
   - issue comment add
+  - issue comment resolve
+  - issue comment unresolve
   - issue attach
   - issue link
   - issue url
@@ -19,7 +22,9 @@ commands:
 
 # 编写可独立交接的 Issue
 
-让没有本对话上下文的接手者知道当前行为、期望结果、责任归属和验收依据。语言、标题和模板沿用目标工作区的约定；区分事实、假设和缺失信息。
+正文让没有前情的同事理解具体情景、遇到的问题、已确认事实和当前要解决的工作。信息不足时说明具体缺口，区分事实和推测。简单问题用几个自然段即可，复杂工作再用必要的列表或图；不为每张 Issue 强制相同章节，也不填写没有增加事实的“验收方向：问题得到解决”。具体的预期行为仍应保留，例如“横屏后按钮应保持可点击”。
+
+负责人、状态、优先级和项目归属使用原生属性，正文不再维护第二份 owner 或状态。独立执行和跟踪的工作用 Issue／Sub-issue，零散问题可以留在评论，不把每条评论机械地变成任务。
 
 ## 责任归属
 
@@ -27,7 +32,7 @@ commands:
 
 接手已有 Issue 前，读取当前负责人、所属项目、状态以及最近的评论与历史。沿用最新明确决定；改派须有新证据或明确要求，写清转交原因、未完成范围与接手人。转交落实前，当前负责人继续推进，不能用「请别人处理」代替交接。
 
-指定项目之前，可用 `linear project teams <项目 UUID、slug 或完整名称> --json` 查看完整团队范围。`issue create`、`issue update` 及交付清单的 `plan`／`apply` 都会检查团队兼容性；移动 Issue 时也检查保留的项目。使用历史编号改项目时，以远端 Issue 的当前团队校验，不以旧编号前缀推断。读取失败或不兼容会在写入前停止，不自动修改项目的团队。先确认责任归属，再选择兼容的项目或明确调整 Issue 团队。
+按责任归属选项目；`issue create`、`issue update` 和交付清单会检查团队兼容性，报错时按提示处理。需要先查看范围，用 `linear project teams <项目> --json`。
 
 ## 持久证据
 
@@ -52,12 +57,12 @@ commands:
 
 跟进回复依据最新正文和评论，写清已解决项、未决问题与下一步；只复测未验证或已变化的验收项。
 
-## 下载与字节校验
+## 正文与讨论收束
 
-`issue view --json` 只返回记录和附件元数据，不下载文件。需要验证上传的原始字节时，使用返回的 `uploads.linear.app` URL：
+`issue view <ID>` 完整读取评论，默认显示未解决根线程及数量；需要历史时加 `--show-resolved-threads`。未解决线程不天然等于待办，也不构成 Issue 关闭前必须清零的门禁。
 
-```bash
-linear download "$asset_url" --output ./evidence.mp4 --sha256 "$expected_sha256" --json
-```
+讨论形成结论后，把仍适用的事实和决定纳入正文；独立工作有明确的 Issue／Sub-issue 承接。原评论保留历史，问题得到回答或有清楚去向后，用 `issue comment resolve <评论 ID>` 收束，可用 `--resolving-comment <回复 ID>` 关联结论。仍缺证据或决定的线程保持开放；判断被推翻时可以 `unresolve`。
 
-输出包含 `assetUrl`、绝对 `path`、字节数 `size` 与 `sha256`；省略 `--sha256` 时仍计算并返回实际哈希。每次重新下载，沿用 CLI 的工作区凭据解析，不需要导出密钥。目标父目录必须存在，目标文件必须不存在；校验不符、HTTP 或传输失败均非零退出，且不留下目标文件。重复验证使用新的输出路径，不把已有缓存当作远端校验。只接受 HTTPS `uploads.linear.app` 入口，重定向仅允许 HTTPS，且不转发凭据。
+维护正文用 `issue export <ID> --output <新目录>`，阅读原始依据后编辑导出的 `desired.md`，再通过 `issue update --base-file ... --description-file ...` 提交。完整用法和冲突处理见 `linear guide automation`，提及和富文本往返限制见 `linear guide markdown`。这不授权批量清理历史 Issue 或删除评论。
+
+需要核验附件原始字节时使用 `linear download --help`；`issue view --json` 只返回附件元数据，不下载文件。

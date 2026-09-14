@@ -1,0 +1,90 @@
+import { Command } from "@cliffy/command"
+import { join, resolve } from "@std/path"
+import { getIssueIdentifier } from "../../utils/linear.ts"
+import { readIssueBasis } from "../../utils/issue-read.ts"
+import { handleError, ValidationError } from "../../utils/errors.ts"
+
+export const exportCommand = new Command()
+  .name("export")
+  .description(
+    "Save an Issue's original JSON and exact Markdown draft for local editing, without changing Linear.\n\nCreates original.json and desired.md in a new directory. Edit desired.md, then use issue update --base-file original.json --description-file desired.md. Markdown is not a lossless rich-text backup; see linear guide markdown.",
+  )
+  .arguments("<issueId:string>")
+  .option(
+    "--output <directory:string>",
+    "New directory for the editing files",
+    {
+      required: true,
+      preserveEmpty: true,
+    },
+  )
+  .option("--json", "Output saved paths and stable Issue identity as JSON")
+  .action(async ({ output, json }, issueId) => {
+    try {
+      if (!output.trim() || !issueId.trim()) {
+        throw new ValidationError("Issue and output directory cannot be empty")
+      }
+      const directory = resolve(output)
+      const resolvedId = await getIssueIdentifier(issueId)
+      if (!resolvedId) {
+        throw new ValidationError("Could not determine issue identifier")
+      }
+      const original = await readIssueBasis(resolvedId)
+      if (
+        !original.organization?.id || !original.issue.id ||
+        original.issue.description === undefined
+      ) {
+        throw new ValidationError(
+          "Issue read is missing identity or description",
+        )
+      }
+      // Reserve after the read: transient read failures do not leave an empty directory.
+      // mkdir still refuses an existing basis, including a concurrent export.
+      await Deno.mkdir(directory)
+      const baseFile = join(directory, "original.json")
+      const descriptionFile = join(directory, "desired.md")
+      await Deno.writeTextFile(
+        baseFile,
+        JSON.stringify(original, null, 2) + "\n",
+        {
+          createNew: true,
+        },
+      )
+      await Deno.writeTextFile(
+        descriptionFile,
+        original.issue.description ?? "",
+        {
+          createNew: true,
+        },
+      )
+      if (json) {
+        console.log(JSON.stringify(
+          {
+            organization: original.organization,
+            issue: {
+              id: original.issue.id,
+              identifier: original.issue.identifier,
+            },
+            baseFile,
+            descriptionFile,
+          },
+          null,
+          2,
+        ))
+      } else {
+        console.log(`Saved ${original.issue.identifier}: ${baseFile}`)
+        console.log(`Edit ${descriptionFile}, then submit with:`)
+        console.log(
+          `linear issue update ${original.issue.id} --base-file ${
+            shellQuote(baseFile)
+          } --description-file ${shellQuote(descriptionFile)}`,
+        )
+      }
+    } catch (error) {
+      handleError(error, "Failed to export issue")
+    }
+  })
+
+function shellQuote(value: string): string {
+  return "'" + value.replaceAll("'", "'\"'\"'") + "'"
+}
