@@ -10,6 +10,7 @@ commands:
   - document create
   - document update
   - project create
+  - project update
   - project-update create
   - initiative-update create
   - team members
@@ -21,7 +22,7 @@ commands:
 
 # Linear Markdown
 
-本指南针对 CLI 通过 API 提交的 Markdown，不是 Linear 编辑器中输入 `@` 后选择成员的交互。CLI 原样传递正文中的名字和链接，提及由 Linear 服务端解析。
+本指南说明通过 CLI 提交 Markdown 时的提及、折叠与格式边界。CLI 原样传递正文，提及由 Linear 服务端解析；在编辑器中输入 `@` 并选择成员是另一条入口。
 
 ## 提及成员与资源
 
@@ -61,7 +62,7 @@ Issue 描述、评论和文档正文使用以下形式，保留标题方括号�
 
 导出的 Markdown 不是富文本的无损备份。实测 Issue 中的成员提及被导出为 `@name`；原样重新提交后，导出 Markdown 字符串保持相同，成员提及节点却变成普通文本。不要为了确认保存成功而重提正文。确需编辑时保留原始编写稿与已确认的成员 URL，逐项核对提及目标，不自动转换全部 `@name`。
 
-复用写后读回核对目标与正文；要验证折叠展示或提及渲染，需要检查 Linear 中的实际结果，不能只看 mutation 成功。服务端可改写 Markdown；出现交付比较差异时按 `linear guide issue-delivery` 对账，不为消除差异自动重放评论或改写执行账本。
+读回可以核对目标与正文，折叠展示和提及渲染仍需检查 Linear 中的实际结果。服务端可能改写 Markdown；交付比较有差异时按 `linear guide issue-delivery` 对账，不为消除差异重放评论或改写执行账本。
 
 语法依据：[Linear API 的 Markdown 提及与折叠说明](https://linear.app/developers/graphql#adding-mentions-in-markdown)。
 
@@ -69,6 +70,6 @@ Issue 描述、评论和文档正文使用以下形式，保留标题方括号�
 
 文件输入保留实际字符，包括段落间的空行、列表缩进、代码围栏、尾部换行和字面 `\n`；CLI 不把反斜杠加 n 自动解码为换行，也不补空行。JSON 中 `"第一行\n第二行"` 经 JSON 解析后含实际换行，`"第一行\\n第二行"` 才保留字面 `\n`。不要先手工转义再交给 JSON 序列化器。
 
-Schema 中，评论的 `body` 是 canonical ProseMirror `bodyData` 的 Markdown 投影；Issue 可读 Markdown `description`，`descriptionState` 标为 Internal YJS，写入 `descriptionData` 也标为 Internal，`documentContent` 标为 ALPHA。存在这些字段不证明可以安全往返；专用命令不把 Markdown 自动转换为内部富文本结构。
+Schema 中，评论的 `body` 是原始 ProseMirror 富文本 `bodyData` 的 Markdown 表达；Issue 可读 Markdown `description`，`descriptionState` 标为 Internal YJS，写入 `descriptionData` 也标为 Internal，`documentContent` 标为 ALPHA。存在这些字段不证明可以安全往返；专用命令不把 Markdown 自动转换为内部富文本结构。
 
 Issue 和 Document 的行内评论还关联原正文位置。Document 更新已有开放锚点保护；Issue／Comment 的 Markdown 更新没有同等的无损保证。涉及成员提及或行内锚点时，保留原文并在 Linear 编辑器中检查相关节点；需要保证富文本节点不变的修改使用编辑器，不以 Markdown 字符串相同证明节点仍存在。本地测试只能证明导出和请求字节未被 CLI 改写，服务端对段落、列表、代码块和空行的规范化及通知效果需要分别验证实际结果。

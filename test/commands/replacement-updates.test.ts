@@ -572,7 +572,7 @@ Deno.test("Project basis completes teams and labels, then final scalar read catc
   const project = {
     ...metadata,
     name: "Original",
-    description: "Original description",
+    content: "Original content",
     startDate: null,
     targetDate: null,
     status: { id: "status-1" },
@@ -594,6 +594,7 @@ Deno.test("Project basis completes teams and labels, then final scalar read catc
       queryName,
     ) => ({
       queryName,
+      queryIncludes: "content",
       response: () => ({ data: { organization, project: remote } }),
     })),
     {
@@ -603,7 +604,7 @@ Deno.test("Project basis completes teams and labels, then final scalar read catc
         if (updating) {
           remote = {
             ...project,
-            description: "Concurrent edit while reading teams",
+            content: "Concurrent edit while reading teams",
           }
         }
         return {
@@ -638,7 +639,7 @@ Deno.test("Project basis completes teams and labels, then final scalar read catc
   const path = await Deno.makeTempFile()
   try {
     await server.start()
-    const read = await cli(server, ["project", "view", id])
+    const read = await cli(server, ["project", "view", id, "--include-content"])
     assertEquals(read.success, true, read.stdout + read.stderr)
     assertEquals(
       read.json().project.teams.nodes.map((node: { id: string }) => node.id),
@@ -655,7 +656,7 @@ Deno.test("Project basis completes teams and labels, then final scalar read catc
       "project",
       "update",
       id,
-      "--description",
+      "--content",
       "Desired",
       "--base-file",
       path,

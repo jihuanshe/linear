@@ -1,10 +1,8 @@
 import { snapshotTest as cliffySnapshotTest } from "@cliffy/testing"
 import { assertEquals, assertRejects } from "@std/assert"
 import { stub } from "@std/testing/mock"
-import {
-  createCommand,
-  resolveProjectContent,
-} from "../../../src/commands/project/project-create.ts"
+import { createCommand } from "../../../src/commands/project/project-create.ts"
+import { resolveProjectContent } from "../../../src/commands/project/project-content.ts"
 import { ValidationError } from "../../../src/utils/errors.ts"
 import { Input, Select } from "../../../src/utils/prompt.ts"
 import {

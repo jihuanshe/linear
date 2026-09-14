@@ -1,4 +1,5 @@
 import { Command } from "@cliffy/command"
+import { resolveProjectContent } from "./project-content.ts"
 import { withUsageMetadata } from "../usage.ts"
 import { gql } from "../../__codegen__/gql.ts"
 import type { ProjectUpdateInput } from "../../__codegen__/graphql.ts"
@@ -43,6 +44,7 @@ const UpdateProject = gql(`
         slugId
         name
         description
+        content
         url
         updatedAt
         startDate
@@ -93,6 +95,16 @@ export const updateCommand = withUsageMetadata(new Command(), { writes: true })
     { preserveEmpty: true },
   )
   .option(
+    "--content <markdown:string>",
+    "Replace project overview Markdown; empty string clears it",
+    { preserveEmpty: true },
+  )
+  .option(
+    "--content-file <path:string>",
+    "Read project overview Markdown from a file; replaces the full content",
+    { preserveEmpty: true },
+  )
+  .option(
     "-s, --status <status:string>",
     "Status UUID or type (planned, started, paused, completed, canceled, backlog)",
     { preserveEmpty: true },
@@ -116,7 +128,7 @@ export const updateCommand = withUsageMetadata(new Command(), { writes: true })
   .option("-j, --json", "Output the write result as JSON")
   .option(
     "--base-file <path:string>",
-    "Original view --json output, saved before preparing the update",
+    "Original view --json output saved before editing; add --include-content for overview",
     { preserveEmpty: true },
   )
   .option(
@@ -139,6 +151,8 @@ export const updateCommand = withUsageMetadata(new Command(), { writes: true })
         name,
         description,
         descriptionFile,
+        content,
+        contentFile,
         status,
         lead,
         startDate,
@@ -175,7 +189,7 @@ export const updateCommand = withUsageMetadata(new Command(), { writes: true })
         }
         if (
           name == null && description == null && descriptionFile == null &&
-          status == null &&
+          content == null && contentFile == null && status == null &&
           lead == null && startDate == null && targetDate == null &&
           (!teams || teams.length === 0) &&
           (!labels || labels.length === 0)
@@ -184,7 +198,7 @@ export const updateCommand = withUsageMetadata(new Command(), { writes: true })
             "At least one update option must be provided",
             {
               suggestion:
-                "Use --name, --description, --description-file, --status, --lead, --start-date, --target-date, --team, or --label",
+                "Use --name, --description, --description-file, --content, --content-file, --status, --lead, --start-date, --target-date, --team, or --label",
             },
           )
         }
@@ -202,6 +216,10 @@ export const updateCommand = withUsageMetadata(new Command(), { writes: true })
         const resolvedDescription = await resolveProjectDescription(
           description,
           descriptionFile,
+        )
+        const resolvedContent = await resolveProjectContent(
+          content,
+          contentFile,
         )
         const original = baseFile != null
           ? await loadBasisFile(baseFile)
@@ -229,6 +247,7 @@ export const updateCommand = withUsageMetadata(new Command(), { writes: true })
 
         if (name != null) input.name = name
         if (resolvedDescription != null) input.description = resolvedDescription
+        if (resolvedContent != null) input.content = resolvedContent
         if (startDate != null) input.startDate = startDate
         if (targetDate != null) input.targetDate = targetDate
 
@@ -325,6 +344,7 @@ export const updateCommand = withUsageMetadata(new Command(), { writes: true })
           fields: {
             name: scalarField("name"),
             description: scalarField("description"),
+            content: scalarField("content"),
             startDate: scalarField("startDate"),
             targetDate: scalarField("targetDate"),
             statusId: referenceField("status"),

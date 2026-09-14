@@ -31,17 +31,24 @@ commands:
 
 ## 保存讨论开始时的依据
 
-替换字段前先保存原始读取，再讨论或编辑目标内容。六类字段替换入口共用 `--base-file`；不要收到目标内容后才读取新值冒充原始依据。
+在讨论或编辑前保存原始读取，提交时用 `--base-file` 传回同一份依据。Issue 正文可以直接导出：
 
 ```bash
 linear issue export ENG-123 --output issue-edit --json
-# 阅读 issue-edit/original.json，编辑已经导出的 issue-edit/desired.md。
-LINEAR_PROMPT_DISABLED=1 linear issue update ENG-123 \
-  --base-file issue-edit/original.json --description-file issue-edit/desired.md --json \
-  > issue-edit/result.json 2> issue-edit/result.log
 ```
 
-`issue export` 要求新目录，保存带身份的原始依据和逐字 Markdown 草稿；不会打开编辑器或修改 Linear。导出失败时保留目录中已经保存的文件，检查后使用新目录重新开始，不覆盖旧依据。Markdown 富文本边界见 `linear guide markdown`。
+导出成功后，阅读 `original.json` 并编辑 `desired.md`，再提交：
+
+```bash
+code=0
+LINEAR_PROMPT_DISABLED=1 linear issue update ENG-123 \
+  --base-file issue-edit/original.json --description-file issue-edit/desired.md --json \
+  > issue-edit/result.json 2> issue-edit/result.log || code=$?
+jq '{ok, effect, fields, error}' issue-edit/result.json
+test "$code" -eq 0
+```
+
+`issue export` 不修改 Linear，目标目录必须不存在。读取失败不会创建目录，可以在问题解决后重试同一路径；文件已开始保存后失败则保留现有材料，检查后使用新目录，不覆盖旧依据。导出的 Markdown 不是富文本备份，限制见 `linear guide markdown`。
 
 其他字段可直接保存读取输出，不手抄旧字段。各入口的 JSON 根对象如下；`organization` 均包含稳定 `id` 和 `urlKey`。
 
@@ -56,7 +63,7 @@ LINEAR_PROMPT_DISABLED=1 linear issue update ENG-123 \
 
 ID、字段名以及字段是否存在均保留 API 语义：缺字段不同于 `null`、`""`、`0` 或空集合。不同对象或工作区的依据会被拒绝。需要额外条件时，可重复传 `--expect-field`，名称使用该对象支持的 API 响应字段，例如 Issue 的 `state`；不会监控任意查询或整个评论集合。
 
-提交前完成名称解析，再按同一 UUID 最后读取。额外依赖变化时拒绝，即使目标字段已等于目标值。其他字段按精确值判断：当前值等于目标值时无需写入；当前值等于原始值时可写；其余为冲突。一个对象内存在冲突就不发送更新；其余情况只提交需要写的字段。引用按稳定 ID、明确的 ID 集合按集合语义比较；Markdown 字符串不做泛化规范化。
+CLI 完成名称解析后，会按同一 UUID 最后读取并比较原始依据。当前值已等于目标值的字段不写；当前值仍等于原始值的字段可写；其余为冲突。一个字段冲突就拒绝整个更新。`--expect-field` 指定的额外依赖也要保持原值，即使目标字段已无需修改。引用按稳定 ID、明确的 ID 集合按集合比较，Markdown 则精确比较字符串。
 
 冲突后保留原始文件，读取当前对象并重新决定如何保留并发修改。重新讨论得到新意图时，保存新的依据与草稿；不要只更新依据文件来消除错误。最后读取之后仍可能发生竞争；该检查不提供服务器 CAS、事务、锁或 ABA 检测。
 
@@ -64,7 +71,7 @@ ID、字段名以及字段是否存在均保留 API 语义：缺字段不同于 
 
 创建、评论追加、侧栏关联和原生标签增删不要求不存在的旧值；Issue 的 `--add-label` / `--remove-label` 使用上游增量操作，不转换为完整集合覆盖。关系新增仍检查是否会替换已有关系。
 
-完整 JavaScript 示例及最小 Python 调用见 `linear recipe guarded-edit`。批量执行和自动续跑使用 `linear guide issue-delivery` 说明的执行账本。
+需要把导出与提交接入自己的脚本时，可修改 `linear recipe guarded-edit`。多项写入的执行进度与恢复见 `linear guide issue-delivery`。
 
 ## 机器输出与写入效果
 
@@ -80,14 +87,6 @@ ID、字段名以及字段是否存在均保留 API 语义：缺字段不同于 
 
 `success: false`、GraphQL 部分错误和不可读结果都不自动证明零效果。复合写入保留已经确认的上传或对象回执；批量删除在 `unknown` 后停止，`unattempted` 列出未执行的对象。
 
-```bash
-code=0
-linear issue update ENG-123 --base-file original.json \
-  --description-file desired.md --json >result.json 2>result.log || code=$?
-jq '{ok, effect, data, fields, verification, error}' result.json
-test "$code" -eq 0 && jq -e '.ok == true' result.json >/dev/null
-```
-
 多行 Markdown 用文件参数；`document view --raw` 只输出正文，不能替代带身份的原始读取。原生 `linear api` 保留 GraphQL 响应，属于 `linear guide graphql` 中的明确例外。
 
 ## 分页与详情
@@ -102,9 +101,9 @@ jq '.nodes[] | {id, identifier, title, priority}' issues.json
 
 `issue view --json` 完整读取 `.issue.comments`、`.issue.attachments` 和 `.issue.labels`；`--no-comments` 跳过评论。PR 等链接位于 `.issue.attachments.nodes`。`children`、`documents` 和详情中的 `relations` 等集合仍是有限预览；完整关系用 `issue relation list <ID> --json`，其他完整集合按 `linear guide graphql` 单独分页。完整分页不代表跨页数据库快照。
 
-`initiative view --json` 默认读取 Initiative 的短描述和关联 Project 的稳定字段；需要读取用于任务路由的 Initiative Markdown 正文和关联文档入口时，显式使用 `--include-content`。该选项返回 `initiative.content`、每个关联 Project 的 `description`，并由 `readInitiative` 跨非原子分页请求完成 `initiative.documents` 连接；返回时 `documents.pageInfo.hasNextPage` 为 `false`。文档正文继续用 `document view` 读取；完整分页不代表跨页数据库快照。
+单个 Initiative 或 Project 的短描述与长正文用 `initiative view <ID> --include-content --json` 或 `project view <ID> --include-content --json` 读取。Initiative 的该选项还返回关联 Project 的 `description` 和完整 `documents` 连接；关联文档的正文继续用 `document view` 读取。
 
-`project view <ID> --include-content --json` 同样返回短 `description` 和完整 Markdown `content`。需要工作区内所有 Initiative／Project 的说明时，已有原生分页入口可以组合；以下两次查询各自读到终页，保留 `{data: {organization, initiatives|projects: {nodes, pageInfo}}}`，默认不含归档对象：
+需要批量导出当前凭据可见的 Initiative／Project 说明时，可以组合以下查询。它们分别读到终页，保留 `{data: {organization, initiatives|projects: {nodes, pageInfo}}}`，默认不含归档对象：
 
 ```bash
 linear api 'query ContextInitiatives($after: String) {
@@ -123,11 +122,22 @@ linear api 'query ContextProjects($after: String) {
 }' --paginate > projects.json
 ```
 
-两份查询不限定状态；需要选定范围时用当前 schema 的 `filter`，需要归档对象时显式增加 `includeArchived: true`。短描述和 Markdown 正文均不截断；关联文档是独立对象，按需要继续读取。不要把列表命令的默认范围或嵌套关系预览当成完整上下文导出。更新这些字段仍保存对应对象的原始读取，并使用 `initiative update`／`project update` 的文件输入与 `--base-file`。
+两份查询不限定状态；需要选定范围时用当前 schema 的 `filter`，需要归档对象时显式增加 `includeArchived: true`。短描述和 Markdown 正文均不截断；关联文档是独立对象，按需要继续读取。不要把列表命令的默认范围或嵌套关系预览当成完整上下文导出。更新前用对应的 `view --include-content --json` 保存原始依据。Project 和 Initiative 长正文均支持 `update --content-file <path> --base-file <original.json>`；Project 的 `--description-file` 只更新短描述。
 
-只读评论用 `issue comment list <ID> --limit 0 --json`，默认最多 50 条并返回 `{nodes,pageInfo}`；变更经过用 `issue history <ID> --json`。评论追加与更新的写结果对象位于 `.data.comment`。`issue view` 的未解决数量按根线程计算，`--no-comments` 不显示未知数量，JSON 保留已解决历史。
+例如修改 Project 长正文，先读取并从同一份结果提取草稿，再编辑文件：
 
-用 `issue comment resolve <评论 ID>` 收束线程，`--resolving-comment <回复 ID>` 可指向本线程中的结论；`issue comment unresolve <评论 ID>` 重新打开。根评论与回复 ID 均可定位根线程，命令读取并核验实际状态；已处于目标状态时不派发 mutation。Resolve 与 Issue 状态各自独立，不清空或删除评论。读回失败保留 `effect: applied`，不要重发已确认写入。
+```bash
+linear project view <ID> --include-content --json > project-original.json
+jq -j '.project.content // ""' project-original.json > project-content.md
+# 编辑 project-content.md 后提交
+linear project update <ID> --content-file project-content.md --base-file project-original.json --json
+```
+
+读取成功后才提取草稿；保留 `project-original.json` 原样，不把编辑后的内容写回依据。Markdown 往返的富文本限制同样适用，见 `linear guide markdown`。
+
+单独导出评论用 `issue comment list <ID> --limit 0 --json`；省略 `--limit 0` 时最多读取 50 条，并返回 `{nodes,pageInfo}`。属性变更经过用 `issue history <ID> --json`。
+
+`issue view` 的未解决数量按完整读取后的根线程计算，JSON 保留已解决历史；`--no-comments` 跳过评论，也不显示数量。线程收束见 `linear guide issue-authoring`。`resolve`／`unresolve` 的 JSON 写结果将读回的根评论放在 `.data.comment`；读回失败仍保留已确认的 `effect: applied`。
 
 ## 按 URL 查重与复查
 
@@ -139,6 +149,4 @@ jq '.lookups[] | {url, identifiers: [.nodes[].identifier]}' url-lookups.json
 
 Linear Issue URL 按 Issue 编号和工作区定位；其他 URL 核对候选正文或评论中的完整 URL 边界，不搜索侧栏附件（Attachment）。URL 模式完整读取候选并返回全部精确命中，不受 `--limit` 截断；空 `nodes` 只证明当前凭据可见且所选筛选范围内没有命中。`--url-file` 忽略空行与 `#` 注释，去重后按首次出现顺序返回 `lookups`。
 
-验收复用实际返回的读回字段。`apply` 的 `.data.verification` 标明范围，`.data.readBack` 保存读取内容；缺字段、读回失败或对象再次变化时才补读。需要比较查询集合时，保存相同范围的前后快照，比较 ID 集合与字段；新增对象不自动进入原写入范围。
-
-只读健康检查使用 `linear recipe doctor`，规则留在可编辑脚本中；候选解释见 `linear guide doctor`。报告保留忽略原因与待确认事项，候选数减少不能单独证明修复。
+比较查询集合时，保存相同范围的前后读取，按 ID 和目标字段核对；新增对象不自动进入原写入范围。按组织规则检查缺项或异常候选时，使用 `linear recipe doctor`，结果解释见 `linear guide doctor`。

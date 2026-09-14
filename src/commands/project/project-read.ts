@@ -20,7 +20,7 @@ const ReadProject = gql(`
     }
   }
   fragment ProjectReplacementFields on Project {
-    id name description startDate targetDate url archivedAt
+    id name description content startDate targetDate url archivedAt
     status { id }
     lead { id }
   }
