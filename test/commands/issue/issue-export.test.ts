@@ -1,5 +1,5 @@
 import { assertEquals, assertRejects, assertStringIncludes } from "@std/assert"
-import { join } from "@std/path"
+import { join, resolve } from "@std/path"
 import {
   issueWriteBasis,
   issueWriteId,
@@ -11,9 +11,22 @@ import {
 
 const markdown =
   "第一段  \n软换行\n\n第二段\n\n- 项目\n  - 子项目\n\n```js\nconst literal = '\\n'\n```\n\n@name https://linear.app/test/profiles/person\n"
-async function run(args: string[]) {
+async function run(
+  args: string[],
+  { json = true, cwd }: { json?: boolean; cwd?: string } = {},
+) {
   const result = await new Deno.Command(Deno.execPath(), {
-    args: ["run", ...commonDenoArgs, "src/main.ts", "issue", ...args, "--json"],
+    args: [
+      "run",
+      ...commonDenoArgs,
+      "--config",
+      resolve("deno.json"),
+      resolve("src/main.ts"),
+      "issue",
+      ...args,
+      ...(json ? ["--json"] : []),
+    ],
+    cwd,
     stdin: "null",
     stdout: "piped",
     stderr: "piped",
@@ -21,7 +34,9 @@ async function run(args: string[]) {
   assertEquals(new TextDecoder().decode(result.stderr), "")
   return {
     code: result.code,
-    output: JSON.parse(new TextDecoder().decode(result.stdout)),
+    output: json
+      ? JSON.parse(new TextDecoder().decode(result.stdout))
+      : new TextDecoder().decode(result.stdout),
   }
 }
 
@@ -63,6 +78,7 @@ for (
     "empty-description",
     "issue-url",
     "changed-discussion",
+    "human-output",
   ]
 ) {
   Deno.test(`issue export and guarded update: ${scenario}`, async () => {
@@ -114,7 +130,7 @@ for (
           : "ENG-123",
         "--output",
         output,
-      ])
+      ], { json: scenario !== "human-output" })
       if (
         scenario === "existing-directory" || scenario === "missing-description"
       ) {
@@ -130,6 +146,19 @@ for (
         return
       }
       assertEquals(exported.code, 0)
+      if (scenario === "human-output") {
+        const command = (exported.output as string).split("\n").find((line) =>
+          line.startsWith("linear issue update ")
+        )!
+        const desired = markdown + "\n当前结论。\n"
+        await Deno.writeTextFile(join(output, "desired.md"), desired)
+        // Execute the displayed arguments from the exported directory.
+        const updated = await run(command.split(" ").slice(2), { cwd: output })
+        assertEquals(updated.code, 0)
+        assertEquals(updated.output.effect, "applied")
+        assertEquals(current.issue.description, desired)
+        return
+      }
       assertEquals(
         server.graphqlRequests.find((request) =>
           request.query.includes("GetIssueDetailsWithComments")

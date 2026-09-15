@@ -90,19 +90,13 @@ export const exportCommand = new Command()
           2,
         ))
       } else {
-        console.log(`Saved ${original.issue.identifier}: ${baseFile}`)
-        console.log(`Edit ${descriptionFile}, then submit with:`)
+        console.log(`Saved ${original.issue.identifier}: ${directory}`)
+        console.log("In that directory, edit desired.md, then run:")
         console.log(
-          `linear issue update ${original.issue.id} --base-file ${
-            shellQuote(baseFile)
-          } --description-file ${shellQuote(descriptionFile)}`,
+          `linear issue update ${original.issue.id} --base-file original.json --description-file desired.md`,
         )
       }
     } catch (error) {
       handleError(error, "Failed to export issue")
     }
   })
-
-function shellQuote(value: string): string {
-  return "'" + value.replaceAll("'", "'\"'\"'") + "'"
-}

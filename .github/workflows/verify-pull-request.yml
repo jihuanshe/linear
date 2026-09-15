@@ -100,7 +100,6 @@ jobs:
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
-          fetch-depth: 0
 
       - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
         with:
@@ -122,7 +121,7 @@ jobs:
           path: src/__codegen__/
 
       - name: Run tests
-        run: deno task test --changed="${{ github.event.pull_request.base.sha }}" --shard=${{ matrix.shard }}/12 --ignore=test/keyring.integration.test.ts
+        run: deno task test --shard=${{ matrix.shard }}/12 --ignore=test/keyring.integration.test.ts
 
       - name: Check tests left the checkout unchanged
         run: |
@@ -145,4 +144,4 @@ jobs:
           exit 1
 
       - name: Source gate passed
-        run: echo "GraphQL types, quality checks, and affected tests passed in parallel jobs."
+        run: echo "GraphQL types, quality checks, and tests passed in parallel jobs."
