@@ -22,6 +22,7 @@ await snapshotTest({
             admin: true,
             guest: false,
             organization: {
+              id: "org-1",
               name: "Acme",
               urlKey: "acme",
               logoUrl: "https://example.com/logo.png",

@@ -14,6 +14,7 @@ const viewerQuery = gql(`
       admin
       guest
       organization {
+        id
         name
         urlKey
         logoUrl
