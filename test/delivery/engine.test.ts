@@ -1126,6 +1126,126 @@ Deno.test("delivery keeps state and label identities stable while pruning rename
   }
 })
 
+for (
+  const sample of [
+    {
+      name: "Linear link and simple-list formatting",
+      desired:
+        "情况已确认。\n\n+++ 来源与接手\n\n- [来源](https://example.com/反馈)\n\n- [修复单](https://example.com/case)\n\n+++\n",
+      actual:
+        "情况已确认。\n\n+++ 来源与接手\n\n* [来源](<https://example.com/%E5%8F%8D%E9%A6%88>)\n* [修复单](<https://example.com/case>)\n\n+++",
+      matches: true,
+    },
+    {
+      name: "changed link destination",
+      desired: "[来源](https://example.com/a%2Fb)",
+      actual: "[来源](<https://example.com/a/b>)",
+      matches: false,
+    },
+    {
+      name: "paragraph boundaries",
+      desired: "第一段\n\n第二段",
+      actual: "第一段\n第二段",
+      matches: false,
+    },
+    {
+      name: "distinct percent-encoded path segments",
+      desired: "[来源](https://example.com/a%252Fb)",
+      actual: "[来源](https://example.com/a%2Fb)",
+      matches: false,
+    },
+    {
+      name: "distinct percent-encoded query values",
+      desired: "[来源](https://example.com/?q=%2526)",
+      actual: "[来源](https://example.com/?q=%26)",
+      matches: false,
+    },
+    {
+      name: "explicit line breaks",
+      desired: "第一行  \n第二行",
+      actual: "第一行\n第二行",
+      matches: false,
+    },
+    {
+      name: "code whitespace",
+      desired: "```python\nif ready:\n    run()\n```",
+      actual: "```python\nif ready:\nrun()\n```",
+      matches: false,
+    },
+    {
+      name: "multiple paragraphs in a list item",
+      desired: "* 第一段\n\n  第二段\n* 下一项",
+      actual: "* 第一段\n  第二段\n* 下一项",
+      matches: false,
+    },
+    {
+      name: "task completion",
+      desired: "* [ ] 验证发布",
+      actual: "* [x] 验证发布",
+      matches: false,
+    },
+  ]
+) {
+  Deno.test(`delivery description read-back compares ${sample.name}`, async () => {
+    const original = issue()
+    const f = await fixture({
+      issues: [original],
+      overrides: (state) => [{
+        queryName: "GetIssueForWrite",
+        response: ({ variables }, history) => {
+          const value = state.find(variables.id)
+          const written = history.some((request) =>
+            request.query.includes("mutation UpdateIssue")
+          )
+          return {
+            data: {
+              organization: WORKSPACE,
+              issue: written ? { ...value, description: sample.actual } : value,
+            },
+          }
+        },
+      }],
+    })
+    try {
+      const result = await apply(
+        await f.load(manifest([update(original, {
+          description: sample.desired,
+        })])),
+      )
+      assertEquals(
+        result.status,
+        sample.matches ? "completed" : "applied-unverified",
+      )
+      assertEquals(
+        result.verification[0].status,
+        sample.matches ? "verified" : "different",
+      )
+      assertEquals(result.effect, "applied")
+      assertEquals(f.mutations()[0].variables.input, {
+        description: sample.desired,
+      })
+    } finally {
+      await f.cleanup()
+    }
+  })
+}
+
+Deno.test("delivery original Markdown comparison stays exact before writing", async () => {
+  const original = issue(1001, { description: "[来源](https://example.com)" })
+  const f = await fixture({
+    issues: [{ ...original, description: "[来源](<https://example.com>)" }],
+  })
+  try {
+    const result = await apply(
+      await f.load(manifest([update(original, { description: "新结论" })])),
+    )
+    assertEquals(result.status, "conflict")
+    assertEquals(f.mutations().length, 0)
+  } finally {
+    await f.cleanup()
+  }
+})
+
 for (const mode of ["different", "unavailable"] as const) {
   Deno.test(`delivery acknowledged writes remain recorded after ${mode} read-back and are not replayed`, async () => {
     const original = issue()

@@ -679,7 +679,10 @@ Deno.test("issue apply JSON preserves progress on stderr and one stdout document
     assertEquals(result.code, 0, result.stderr + result.stdout)
     assertEquals(
       result.stderr.trim().split("\n"),
-      Array.from({ length: 5 }, (_, index) => "Processing item " + (index + 1)),
+      ["fields", "comment", "attachment", "upload", "attachment"].map(
+        (kind, index) =>
+          `Processing item ${index + 1}: ${issue.identifier} (${kind})`,
+      ),
     )
     assertEquals(
       result.stderr.includes(signedUrl),

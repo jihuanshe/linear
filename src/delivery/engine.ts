@@ -38,6 +38,7 @@ import {
 import { errorResult, ValidationError, WriteError } from "../utils/errors.ts"
 import { formatAsMarkdownLink, uploadFile } from "../utils/upload.ts"
 import { type WriteEffect } from "../utils/write-result.ts"
+import { equivalentMarkdown } from "../utils/markdown-equivalence.ts"
 import {
   contentFrom,
   type DeliveryIssue,
@@ -112,7 +113,10 @@ export interface ApplyOutcome {
 }
 export interface ApplyContext {
   loaded: LoadedManifest
-  onProgress?: (line: string) => void
+  onProgress?: (
+    line: string,
+    item: { issueIndex: number; target?: string; kind: ItemKind },
+  ) => void
   continueOnFailure?: boolean
   verificationTimeoutMs?: number
   verificationDelay?: (milliseconds: number) => Promise<void>
@@ -649,7 +653,13 @@ async function verifyOnce(
           "Unsupported recorded expected field: " + name,
         )
       }
-      if (!sameValue(reader.read(read.issue), reader.normalize(desired))) {
+      const actual = reader.read(read.issue)
+      const normalized = reader.normalize(desired)
+      const matches = name === "description" &&
+          typeof actual === "string" && typeof normalized === "string"
+        ? equivalentMarkdown(normalized, actual)
+        : sameValue(actual, normalized)
+      if (!matches) {
         different.push(reader.field)
       }
     }
@@ -818,7 +828,11 @@ export async function applyManifest(
             inspected = true
             if (inspection.error != null) throw inspection.error
           }
-          context.onProgress?.(item.describe)
+          context.onProgress?.(item.describe, {
+            issueIndex: index,
+            target: state.target?.identifier,
+            kind: item.kind,
+          })
           const completed = await item.run(state, beforeWrite)
           acknowledged = completed
           const entry: CheckpointItem = { status: "completed", ...completed }
