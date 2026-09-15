@@ -25,7 +25,6 @@ import {
   fetchParentIssueData,
   getAllTeams,
   getCycleIdByNameOrNumber,
-  getIssueId,
   getIssueIdentifier,
   getIssueLabelIdByNameForTeam,
   getIssueLabelOptionsByNameForTeam,
@@ -157,6 +156,7 @@ async function resolveParentIssueForCreate(
 ): Promise<{
   parentId?: string
   parentData: {
+    id: string
     title: string
     identifier: string
     projectId: string | null
@@ -164,6 +164,7 @@ async function resolveParentIssueForCreate(
 }> {
   let parentId: string | undefined
   let parentData: {
+    id: string
     title: string
     identifier: string
     projectId: string | null
@@ -177,12 +178,8 @@ async function resolveParentIssueForCreate(
       )
     }
 
-    parentId = await getIssueId(parentIdentifierResolved)
-    if (!parentId) {
-      throw new NotFoundError("Parent issue", parentIdentifierResolved)
-    }
-
-    parentData = await fetchParentIssueData(parentId)
+    parentData = await fetchParentIssueData(parentIdentifierResolved)
+    parentId = parentData.id
   }
 
   return { parentId, parentData }

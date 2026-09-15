@@ -576,7 +576,7 @@ await snapshotTest({
   ],
   denoArgs: commonDenoArgs,
   async fn() {
-    const { cleanup } = await setupMockLinearServer([
+    const { server, cleanup } = await setupMockLinearServer([
       // Mock response for getTeamIdByKey()
       {
         queryName: "GetTeamIdByKey",
@@ -589,25 +589,14 @@ await snapshotTest({
           },
         },
       },
-      // Mock response for getIssueId("ENG-220") - resolves parent identifier to ID
+      // Mock response for fetchParentIssueData("ENG-220")
       {
-        queryName: "GetIssueId",
+        queryName: "GetParentIssueData",
         variables: { id: "ENG-220" },
         response: {
           data: {
             issue: {
               id: "parent-issue-id",
-            },
-          },
-        },
-      },
-      // Mock response for fetchParentIssueData("parent-issue-id")
-      {
-        queryName: "GetParentIssueData",
-        variables: { id: "parent-issue-id" },
-        response: {
-          data: {
-            issue: {
               title: "Parent Issue",
               identifier: "ENG-220",
               project: null,
@@ -639,6 +628,17 @@ await snapshotTest({
 
     try {
       await createCommand.parse()
+      const parentReads = server.graphqlRequests.filter((request) =>
+        request.query.includes("query GetParentIssueData")
+      )
+      assertEquals(parentReads.length, 1)
+      assertEquals(parentReads[0]?.variables, { id: "ENG-220" })
+      assertEquals(
+        server.graphqlRequests.some((request) =>
+          request.query.includes("query GetIssueId")
+        ),
+        false,
+      )
     } finally {
       await cleanup()
     }
@@ -1234,13 +1234,8 @@ for (const mode of ["flags", "interactive"] as const) {
         },
       },
       {
-        queryName: "GetIssueId",
-        variables: { id: "ENG-123" },
-        response: { data: { issue: { id: "parent-1" } } },
-      },
-      {
         queryName: "GetParentIssueData",
-        variables: { id: "parent-1" },
+        variables: { id: "ENG-123" },
         response: { errors: [{ message: "Parent project read failed" }] },
       },
     ], { LINEAR_TEAM_ID: "ENG" })
@@ -1323,22 +1318,12 @@ Deno.test("Issue Create Command - Inherits Parent Project When Project Not Set",
       },
     },
     {
-      queryName: "GetIssueId",
+      queryName: "GetParentIssueData",
       variables: { id: "ENG-123" },
       response: {
         data: {
           issue: {
             id: "parent-1",
-          },
-        },
-      },
-    },
-    {
-      queryName: "GetParentIssueData",
-      variables: { id: "parent-1" },
-      response: {
-        data: {
-          issue: {
             title: "Parent issue",
             identifier: "ENG-123",
             project: {
@@ -1437,22 +1422,12 @@ Deno.test("Issue Create Command - Explicit Project Overrides Parent Project", as
       },
     },
     {
-      queryName: "GetIssueId",
+      queryName: "GetParentIssueData",
       variables: { id: "ENG-123" },
       response: {
         data: {
           issue: {
             id: "parent-1",
-          },
-        },
-      },
-    },
-    {
-      queryName: "GetParentIssueData",
-      variables: { id: "parent-1" },
-      response: {
-        data: {
-          issue: {
             title: "Parent issue",
             identifier: "ENG-123",
             project: {
@@ -1554,22 +1529,12 @@ Deno.test("Issue Create Command - Invalid Parent Project Combination Surfaces Ba
       },
     },
     {
-      queryName: "GetIssueId",
+      queryName: "GetParentIssueData",
       variables: { id: "ENG-123" },
       response: {
         data: {
           issue: {
             id: "parent-1",
-          },
-        },
-      },
-    },
-    {
-      queryName: "GetParentIssueData",
-      variables: { id: "parent-1" },
-      response: {
-        data: {
-          issue: {
             title: "Parent issue",
             identifier: "ENG-123",
             project: {

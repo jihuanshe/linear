@@ -305,15 +305,13 @@ export const updateCommand = withUsageMetadata(new Command(), { writes: true })
         }
 
         if (teams && teams.length > 0) {
-          const teamIds: string[] = []
-          for (const teamKey of teams) {
-            const teamId = await getTeamIdByKey(teamKey.toUpperCase())
-            if (!teamId) {
-              spinner?.stop()
-              throw new NotFoundError("Team", teamKey)
-            }
-            teamIds.push(teamId)
-          }
+          const teamIds = await Promise.all(
+            teams.map(async (teamKey) => {
+              const teamId = await getTeamIdByKey(teamKey.toUpperCase())
+              if (!teamId) throw new NotFoundError("Team", teamKey)
+              return teamId
+            }),
+          )
           input.teamIds = teamIds
         }
 

@@ -827,8 +827,9 @@ export async function fetchParentIssueTitle(
   }
 }
 
-export async function fetchParentIssueData(parentId: string): Promise<
+export async function fetchParentIssueData(parentRef: string): Promise<
   {
+    id: string
     title: string
     identifier: string
     projectId: string | null
@@ -837,6 +838,7 @@ export async function fetchParentIssueData(parentId: string): Promise<
   const query = gql(/* GraphQL */ `
     query GetParentIssueData($id: String!) {
       issue(id: $id) {
+        id
         title
         identifier
         project {
@@ -846,8 +848,10 @@ export async function fetchParentIssueData(parentId: string): Promise<
     }
   `)
   const client = getGraphQLClient()
-  const data = await client.request(query, { id: parentId })
+  const data = await client.request(query, { id: parentRef })
+  if (data.issue == null) throw new NotFoundError("Parent issue", parentRef)
   return {
+    id: data.issue.id,
     title: data.issue.title,
     identifier: data.issue.identifier,
     projectId: data.issue.project?.id || null,

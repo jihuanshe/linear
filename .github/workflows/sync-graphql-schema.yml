@@ -73,7 +73,7 @@ jobs:
 
       - name: Verify updated schema
         if: steps.drift.outputs.changed == 'true'
-        run: deno task verify-source
+        run: deno task generate-graphql-types && deno task verify-source-checks
 
       - name: Commit schema update
         if: steps.drift.outputs.changed == 'true'

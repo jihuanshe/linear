@@ -357,14 +357,13 @@ export const createCommand = withUsageMetadata(new Command(), {
         }
 
         // Resolve team IDs
-        const teamIds: string[] = []
-        for (const teamKey of teams) {
-          const teamId = await getTeamIdByKey(teamKey.toUpperCase())
-          if (!teamId) {
-            throw new NotFoundError("Team", teamKey)
-          }
-          teamIds.push(teamId)
-        }
+        const teamIds = await Promise.all(
+          teams.map(async (teamKey) => {
+            const teamId = await getTeamIdByKey(teamKey.toUpperCase())
+            if (!teamId) throw new NotFoundError("Team", teamKey)
+            return teamId
+          }),
+        )
 
         // Build input - resolve all optional fields first
         let leadId: string | undefined
