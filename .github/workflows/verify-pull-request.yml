@@ -88,10 +88,14 @@ jobs:
           test -z "$(git ls-files --others --exclude-standard)"
 
   tests:
-    name: Tests
+    name: Tests (${{ matrix.shard }}/8)
     needs: prepare
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4, 5, 6, 7, 8]
     steps:
       - uses: actions/checkout@v7
         with:
@@ -116,8 +120,11 @@ jobs:
           name: generated-graphql-types
           path: src/__codegen__/
 
+      - name: Fetch pull request base for affected-test discovery
+        run: git fetch --no-tags --depth=1 origin "${{ github.event.pull_request.base.sha }}"
+
       - name: Run tests
-        run: deno task test --ignore=test/keyring.integration.test.ts
+        run: deno task test --changed="${{ github.event.pull_request.base.sha }}" --shard=${{ matrix.shard }}/8 --ignore=test/keyring.integration.test.ts
 
       - name: Check tests left the checkout unchanged
         run: |
@@ -140,4 +147,4 @@ jobs:
           exit 1
 
       - name: Source gate passed
-        run: echo "GraphQL types, quality checks, and tests passed in parallel jobs."
+        run: echo "GraphQL types, quality checks, and affected tests passed in parallel jobs."
