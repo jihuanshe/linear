@@ -88,14 +88,14 @@ jobs:
           test -z "$(git ls-files --others --exclude-standard)"
 
   tests:
-    name: Tests (${{ matrix.shard }}/8)
+    name: Tests (${{ matrix.shard }}/12)
     needs: prepare
     runs-on: ubuntu-latest
     timeout-minutes: 15
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2, 3, 4, 5, 6, 7, 8]
+        shard: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
     steps:
       - uses: actions/checkout@v7
         with:
@@ -122,7 +122,7 @@ jobs:
           path: src/__codegen__/
 
       - name: Run tests
-        run: deno task test --changed="${{ github.event.pull_request.base.sha }}" --shard=${{ matrix.shard }}/8 --ignore=test/keyring.integration.test.ts
+        run: deno task test --changed="${{ github.event.pull_request.base.sha }}" --shard=${{ matrix.shard }}/12 --ignore=test/keyring.integration.test.ts
 
       - name: Check tests left the checkout unchanged
         run: |
