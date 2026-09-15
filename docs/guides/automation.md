@@ -65,7 +65,7 @@ ID、字段名以及字段是否存在均保留 API 语义：缺字段不同于 
 
 ## CLI 能检查什么
 
-CLI 会检查它能从本地读取和 Linear 返回值中确认的错误。它不能提供并发安全：Linear API 没有给这些命令提供条件写入、锁或事务，最后一次读取之后仍有竞争窗口。
+CLI 会检查它能从本地读取和 Linear 返回值中确认的错误。它不能提供远端并发安全：Linear API 没有给这些命令提供条件写入、锁或事务，最后一次读取之后仍有竞争窗口。
 
 - 带 `--base-file` 的字段替换会比较对象、工作区、原始值和目标值。发现冲突时不发 mutation；它只能挡住最后一次读取前已经发生的变化。
 - `--unprotected` 字段替换仍检查身份、文件和字段，但跳过原始值比较。它是明确的覆盖路径，不能挡住并发覆盖。
@@ -76,7 +76,7 @@ CLI 会检查它能从本地读取和 Linear 返回值中确认的错误。它�
 - 删除和归档的预读、确认和成功回执都不是锁，多数路径不做删除后的读回。
 - 上传会先捕获并校验本地字节，保存上传回执和已确认的效果；签发上传许可或 PUT 失败不能证明远端效果，不要盲目重传。
 - `resolve`／`unresolve` 会读取当前状态，并在已经达到目标时不写入；预读不是锁，两个执行者仍可能基于不同状态作出决定。
-- `issue apply` 用 checkpoint 跳过已记录的完成项；`unknown` 会阻止自动续跑，但 checkpoint 不是锁，两个执行者仍可能重复派发，部分成功不回滚。
+- `issue apply` 用执行账本跳过已记录的完成项，`unknown` 阻止自动续跑。同机使用同一账本旁锁文件的执行者互斥；清单副本或其他机器不在保护范围内，部分成功不回滚。锁文件与移交边界见 `linear guide issue-delivery`。
 - `linear api` 的 mutation 只要求显式 `--unprotected`，保留原始 GraphQL 响应；它不提供专用命令的校验、回执或恢复，未知效果由调用者对账。
 
 因此，调用者应把 `--base-file` 当作写前原始值比较，把 `--unprotected` 当作无保护更新，把评论和附件创建当作可能重复的追加，把 `issue apply` 当作可恢复的顺序执行器，而不是事务系统。
@@ -93,7 +93,11 @@ CLI 完成名称解析后，会按同一 UUID 最后读取并比较原始依据�
 
 ## 机器输出与写入效果
 
-`--json`、`--no-pager` 不是全局选项，以目标命令的 `--help` 为准。显式传入目标编号或 UUID，并使用 `LINEAR_PROMPT_DISABLED=1` 禁用提示。人类输出和 `NO_COLOR=1` 都不能代替机器协议。
+`--json`（`-j`）可放在命令路径前、中、后，含义相同，例如 `linear --json issue view ENG-123` 与 `linear issue view ENG-123 --json`。根和领域导航也支持 JSON；`usage --json` 的 `outputModes` 描述各命令是否提供机器结果。未支持的命令在执行前返回 `UnsupportedOutputError`，不输出人类文本或代为执行其他命令。
+
+JSON 不与浏览器／应用跳转、显式交互／编辑、原文／脚本输出或静默输出组合。`--json --help`、`--json --version` 同样被拒绝；命令元数据用 `usage --json`，构建身份用 `version --json`。`schema --json --output <file>` 保存 JSON 文件，同时在 stdout 返回同一份 JSON。
+
+`--no-pager` 仍是命令级选项。自动化显式传入目标编号或 UUID，并使用 `LINEAR_PROMPT_DISABLED=1` 禁用提示；JSON 不代替删除确认或写入授权。人类输出和 `NO_COLOR=1` 都不能代替机器协议。
 
 专用业务写命令的 `--json` 在 stdout 输出一份 `{ok,effect,data,...}`，可附 `fields`、`verification` 或回执。失败使用 `ok: false` 和 `error`。退出码为零只表示本次调用完整成功；`effect` 单独说明写入效果。`linear api` 是例外：它保留原始 GraphQL 响应，规则见 `linear guide graphql`。
 
@@ -110,6 +114,14 @@ CLI 完成名称解析后，会按同一 UUID 最后读取并比较原始依据�
 `issue update` 在 mutation 确认后读取相同 Issue 和工作区，核对请求的字段及标签增删结果；最多读取 3 次，总时限 10 秒。正文沿用 `issue apply` 的 Markdown 结构比较，写前原始依据仍精确比较。成功结果的 `verification.status` 为 `verified`，`readBack` 保存 `{organization,issue}`；无需写入时沿用提交前的读取，不另做写后核验。
 
 读回不匹配或不可用时，命令以非零退出，保留 `effect: applied` 与 `data` 中的 mutation 回执；`error.details.verification.status` 为 `different` 或 `unavailable`。此时只补充读取和对账，不重发 mutation。这个读回不验证评论、附件或更晚发生的并发修改。
+
+## 网络等待与查询重试
+
+专用命令与 `linear api` 共用 GraphQL 请求规则：每次尝试最多 30 秒，每个逻辑请求最多 60 秒，包含响应正文读取和重试等待，最多尝试 3 次。分页的每一页分别计时，不是整个命令或整批 `apply` 的总时限；写后核验等调用方更短的取消期限仍然有效。此规则不涵盖文件 PUT、下载或其他非 GraphQL 网络操作。
+
+只有明确选中的 query 会对 HTTP 429／502／503／504、已分类的瞬态网络失败，以及 HTTP 200／400 中单纯的 `RATELIMITED` 错误重试。已有部分数据、认证、权限和校验错误不重试。等待使用有界退避，并遵守 `Retry-After` 的秒数或 HTTP 日期；剩余时间不足以遵守服务器要求时，返回原始失败，不缩短等待后强行重试。
+
+mutation 不自动重发。派发后的超时、连接或响应读取失败仍可能已经写入，按 `effect` 与回执对账，不把超时理解为撤销。
 
 ## 分页与详情
 

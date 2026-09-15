@@ -22,7 +22,7 @@ export const schemaCommand = new Command()
   )
   .option(
     "-o, --output <file:string>",
-    "Write schema to file instead of stdout",
+    "Write schema to file (with --json, also print JSON to stdout)",
   )
   .action(async (options) => {
     try {
@@ -46,7 +46,7 @@ export const schemaCommand = new Command()
 
       if (output) {
         await Deno.writeTextFile(output, content + "\n")
-        console.log(`Schema written to ${output}`)
+        console.log(json ? content : `Schema written to ${output}`)
       } else {
         console.log(content)
       }

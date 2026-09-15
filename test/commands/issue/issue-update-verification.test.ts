@@ -31,15 +31,23 @@ async function fixture(
           : { data: structuredClone(current) },
     },
     {
-      queryName: "GetIssueLabelIdByNameForTeam",
-      response: ({ variables }) => ({
+      queryName: "ResolveIssueLabelsForWrite",
+      response: {
         data: {
           issueLabels: {
-            nodes: [{ id: "label-" + variables.name, name: variables.name }],
+            nodes: [
+              {
+                id: "label-before",
+                name: "before",
+                isGroup: false,
+                team: null,
+              },
+              { id: "label-front", name: "front", isGroup: false, team: null },
+            ],
             pageInfo: { hasNextPage: false, endCursor: null },
           },
         },
-      }),
+      },
     },
     {
       queryName: "UpdateIssue",

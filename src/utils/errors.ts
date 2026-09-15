@@ -311,6 +311,17 @@ export class ValidationError extends CliError {
   }
 }
 
+/** The command has no machine-readable success contract. */
+export class UnsupportedOutputError extends CliError {
+  constructor(path: string) {
+    super(`${path} does not support JSON output`, {
+      suggestion:
+        `Use '${path} --help' without --json, or 'linear usage --json' to discover commands with JSON output.`,
+    })
+    this.name = "UnsupportedOutputError"
+  }
+}
+
 /**
  * Error for authentication/authorization issues.
  */

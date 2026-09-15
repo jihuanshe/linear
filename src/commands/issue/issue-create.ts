@@ -2,7 +2,7 @@ import type { IssueCreateInput } from "../../__codegen__/graphql.ts"
 import {
   issueReplacementFields,
   type UpdateIssueOptions,
-  validateIssueWriteStrings,
+  validateIssueWriteOptions,
 } from "./issue-update.ts"
 import type { FieldReader } from "../../utils/replacement.ts"
 import { resolveWriteTeam } from "../../utils/issue-read.ts"
@@ -37,6 +37,7 @@ import {
   getWorkflowStates,
   isLinearUuid,
   lookupUserId,
+  resolveIssueLabelIdsForTeam,
   resolveMilestoneId,
   resolveWorkflowState,
   selectOption,
@@ -152,7 +153,7 @@ async function resolveProjectIdForCreate(
 }
 
 async function resolveParentIssueForCreate(
-  parentIdentifier?: string,
+  parentReference?: string,
 ): Promise<{
   parentId?: string
   parentData: {
@@ -170,15 +171,15 @@ async function resolveParentIssueForCreate(
     projectId: string | null
   } | null = null
 
-  if (parentIdentifier) {
-    const parentIdentifierResolved = await getIssueIdentifier(parentIdentifier)
-    if (!parentIdentifierResolved) {
+  if (parentReference) {
+    const resolvedParentReference = await getIssueIdentifier(parentReference)
+    if (!resolvedParentReference) {
       throw new ValidationError(
-        `Could not resolve parent issue identifier: ${parentIdentifier}`,
+        `Could not resolve parent issue identifier: ${parentReference}`,
       )
     }
 
-    parentData = await fetchParentIssueData(parentIdentifierResolved)
+    parentData = await fetchParentIssueData(resolvedParentReference)
     parentId = parentData.id
   }
 
@@ -611,17 +612,17 @@ export type CreateIssueOptions =
   & { useDefaultTemplate?: boolean; interactive?: boolean }
 
 export async function prepareIssueCreate(options: CreateIssueOptions) {
-  validateIssueWriteStrings(options)
+  validateIssueWriteOptions(options)
   let {
     assignee,
     dueDate,
     useDefaultTemplate,
-    parent: parentIdentifier,
+    parent: parentReference,
     priority,
     estimate,
     description,
     descriptionFile,
-    label: labels,
+    label: labelReferences,
     team,
     project,
     state,
@@ -649,9 +650,9 @@ export async function prepareIssueCreate(options: CreateIssueOptions) {
 
   team = team ?? getTeamKey()
   if (!team) throw new ValidationError("Could not determine team")
-  const teamReference = await resolveWriteTeam(team)
-  team = teamReference.key
-  const teamId = teamReference.id
+  const writeTeam = await resolveWriteTeam(team)
+  team = writeTeam.key
+  const teamId = writeTeam.id
   let stateId: string | undefined
   if (state != null) {
     const states = await getWorkflowStates(teamId)
@@ -674,24 +675,30 @@ export async function prepareIssueCreate(options: CreateIssueOptions) {
     assigneeId = await lookupUserId("self")
   }
 
-  const labelIds = []
-  if (labels != null && labels.length > 0) {
-    // sequential in case of questions
-    for (const label of labels) {
-      let labelId = await getIssueLabelIdByNameForTeam(label, teamId)
-      if (!labelId && interactive) {
-        const labelIds = await getIssueLabelOptionsByNameForTeam(
-          label,
+  let labelIds: string[] = []
+  if (interactive) {
+    // Keep candidate prompts sequential and separate from noninteractive lookup.
+    for (const labelReference of new Set(labelReferences ?? [])) {
+      let labelId = await getIssueLabelIdByNameForTeam(labelReference, teamId)
+      if (!labelId) {
+        const labelOptions = await getIssueLabelOptionsByNameForTeam(
+          labelReference,
           team,
         )
 
-        labelId = await selectOption("Issue label", label, labelIds)
+        labelId = await selectOption(
+          "Issue label",
+          labelReference,
+          labelOptions,
+        )
       }
       if (!labelId) {
-        throw new NotFoundError("Issue label", label)
+        throw new NotFoundError("Issue label", labelReference)
       }
-      labelIds.push(labelId)
+      if (!labelIds.includes(labelId)) labelIds.push(labelId)
     }
+  } else {
+    ;[labelIds] = await resolveIssueLabelIdsForTeam([labelReferences], teamId)
   }
   let projectId: string | undefined = undefined
   if (project !== undefined) {
@@ -727,7 +734,7 @@ export async function prepareIssueCreate(options: CreateIssueOptions) {
   // Date validation done at graphql level
 
   const { parentId, parentData } = await resolveParentIssueForCreate(
-    parentIdentifier,
+    parentReference,
   )
 
   const targetProjectId = projectId ?? parentData?.projectId
@@ -808,12 +815,12 @@ export const createCommand = withUsageMetadata(new Command(), {
   )
   .option(
     "--parent <parent:string>",
-    "Parent issue (if any) as a team_number code",
+    "Parent issue (UUID, identifier, or Linear Issue URL)",
     { preserveEmpty: true },
   )
   .option(
     "-p, --priority <priority:number>",
-    "Priority of the issue (1-4, descending priority)",
+    "Priority (0 = no priority, 1 = urgent, 2 = high, 3 = medium, 4 = low)",
     { preserveEmpty: true },
   )
   .option(
@@ -848,7 +855,7 @@ export const createCommand = withUsageMetadata(new Command(), {
   )
   .option(
     "-s, --state <state:string>",
-    "Workflow state for the issue (by name or type)",
+    "Workflow state for the issue (UUID, name, or type)",
     { preserveEmpty: true },
   )
   .option(
@@ -895,9 +902,10 @@ export const createCommand = withUsageMetadata(new Command(), {
         json,
       },
     ) => {
-      validateIssueWriteStrings({
+      validateIssueWriteOptions({
         assignee,
         dueDate,
+        priority,
         parent: parentIdentifier,
         label: labels,
         team,

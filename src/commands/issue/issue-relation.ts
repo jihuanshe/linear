@@ -17,7 +17,7 @@ import {
   ValidationError,
 } from "../../utils/errors.ts"
 import { printWriteResult, writeResult } from "../../utils/write-result.ts"
-import { withUsageMetadata } from "../usage.ts"
+import { printJsonUsage, withUsageMetadata } from "../usage.ts"
 
 const RELATION_TYPES = ["blocks", "blocked-by", "related", "duplicate"] as const
 export type RelationType = (typeof RELATION_TYPES)[number]
@@ -363,7 +363,8 @@ const listRelationsCommand = new Command()
 export const relationCommand = new Command()
   .name("relation")
   .description("Manage issue relations")
-  .action(function () {
+  .action(function (options) {
+    if (printJsonUsage(this, options)) return
     this.showHelp()
   })
   .command("add", addRelationCommand)

@@ -1,5 +1,13 @@
-import { assertEquals, assertStringIncludes, assertThrows } from "@std/assert"
+import {
+  assertEquals,
+  assertRejects,
+  assertStringIncludes,
+  assertThrows,
+} from "@std/assert"
+import { stub } from "@std/testing/mock"
+import { FakeTime } from "@std/testing/time"
 import { setCliWorkspace } from "../../src/config.ts"
+import { WriteError } from "../../src/utils/errors.ts"
 import {
   createGraphQLClient,
   createPublicGraphQLClient,
@@ -109,4 +117,105 @@ Deno.test("getResolvedApiKey - returns LINEAR_API_KEY when set without --workspa
     // Cleanup
     Deno.env.delete("LINEAR_API_KEY")
   }
+})
+
+Deno.test("GraphQL client retries a selected query without changing its request or authentication", async () => {
+  using time = new FakeTime(0)
+  using _now = stub(performance, "now", () => time.now)
+  using _random = stub(Math, "random", () => 0)
+  const requests: RequestInit[] = []
+  using _fetch = stub(globalThis, "fetch", (_input, init) => {
+    requests.push(init!)
+    return Promise.resolve(
+      requests.length === 1
+        ? new Response("Unavailable", { status: 503 })
+        : Response.json({ data: { viewer: { id: "ok" } } }),
+    )
+  })
+  const pending = createGraphQLClient("test-key").request({
+    document:
+      "# mutation Fake\nquery Read($id: ID!) { viewer(id: $id) { ...Id } } fragment Id on User { id }",
+    variables: { id: "same-id" },
+  })
+  await time.runMicrotasks()
+  await time.runAllAsync()
+  assertEquals(await pending, { viewer: { id: "ok" } })
+  assertEquals(requests.length, 2)
+  assertEquals(requests[0].body, requests[1].body)
+  assertEquals(JSON.parse(String(requests[0].body)).operationName, "Read")
+  assertEquals(
+    requests.map((r) => new Headers(r.headers).get("authorization")),
+    [
+      "test-key",
+      "test-key",
+    ],
+  )
+  assertEquals(time.next(), false)
+})
+
+for (const phase of ["headers", "body", "interrupted body"]) {
+  Deno.test(`GraphQL client mutation ${phase} failure remains unknown with one dispatch`, async () => {
+    using time = new FakeTime(0)
+    using _now = stub(performance, "now", () => time.now)
+    let cancelled = 0
+    using fetchStub = stub(globalThis, "fetch", () => {
+      if (phase === "headers") return new Promise<Response>(() => {})
+      return Promise.resolve(
+        new Response(
+          new ReadableStream<Uint8Array>({
+            start(controller) {
+              controller.enqueue(new TextEncoder().encode('{"data":'))
+              if (phase === "interrupted body") {
+                controller.error(new Deno.errors.ConnectionReset("reset"))
+              }
+            },
+            cancel() {
+              cancelled++
+            },
+          }),
+        ),
+      )
+    })
+    const pending = assertRejects(
+      () =>
+        createGraphQLClient("test-key").request(
+          "mutation Write { issueUpdate { success } }",
+        ),
+      WriteError,
+    )
+    await time.runMicrotasks()
+    await time.runAllAsync()
+    const error = await pending
+    assertEquals(error.effect, "unknown")
+    assertEquals(fetchStub.calls.length, 1)
+    assertEquals(cancelled, phase === "body" ? 1 : 0)
+    assertEquals(time.now, phase === "interrupted body" ? 0 : 30_000)
+    assertEquals(time.next(), false)
+  })
+}
+
+Deno.test("GraphQL client preserves the caller's shorter verification deadline", async () => {
+  using time = new FakeTime(0)
+  using _now = stub(performance, "now", () => time.now)
+  const controller = new AbortController()
+  const reason = new DOMException("Verification timed out", "TimeoutError")
+  using fetchStub = stub(
+    globalThis,
+    "fetch",
+    () =>
+      Promise.resolve(Response.json({
+        errors: [{ message: "Slow down", extensions: { code: "RATELIMITED" } }],
+      }, { headers: { "retry-after": "20" } })),
+  )
+  const pending = assertRejects(() =>
+    createGraphQLClient("test-key").request({
+      document: "query Read { viewer { id } }",
+      signal: controller.signal,
+    })
+  )
+  await time.tickAsync(10_000)
+  controller.abort(reason)
+  assertEquals(await pending, reason)
+  assertEquals(fetchStub.calls.length, 1)
+  assertEquals(time.next(), false)
 })

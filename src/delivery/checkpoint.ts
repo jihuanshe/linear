@@ -88,6 +88,30 @@ export function checkpointPath(manifestPath: string): string {
   return `${manifestPath}.checkpoint.json`
 }
 
+/**
+ * Hold this file open for the entire apply, starting before prepareCheckpoint.
+ * The OS releases its exclusive advisory lock on close or process exit.
+ * Use a persistent sidecar: the ledger is atomically replaced on each save,
+ * and unlinking a lock file could split existing waiters across two inodes.
+ * Path aliases resolving to the same sidecar share the lock; copies do not.
+ */
+export async function lockCheckpoint(
+  manifestPath: string,
+): Promise<Deno.FsFile> {
+  const file = await Deno.open(`${checkpointPath(manifestPath)}.lock`, {
+    read: true,
+    write: true,
+    create: true,
+  })
+  try {
+    await file.lock(true)
+    return file
+  } catch (error) {
+    file.close()
+    throw error
+  }
+}
+
 function rejectOmittedRecordKeys(record: unknown, label: string): void {
   if (record == null || typeof record !== "object") return
   for (const key of Object.keys(record)) {

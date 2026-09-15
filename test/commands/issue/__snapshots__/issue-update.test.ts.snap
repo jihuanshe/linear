@@ -23,8 +23,8 @@ Options:
   -a, --assignee      <assignee>     - Assignee (user UUID, username, name, email, 'self', or '@me')                                                  
   --unassign                         - Clear the issue's assignee (cannot be combined with --assignee)                                                
   --due-date          <dueDate>      - Due date of the issue                                                                                          
-  --parent            <parent>       - Parent issue (if any) as a team_number code                                                                    
-  -p, --priority      <priority>     - Priority of the issue (1-4, descending priority)                                                               
+  --parent            <parent>       - Parent issue (UUID, identifier, or Linear Issue URL)                                                           
+  -p, --priority      <priority>     - Priority (0 = no priority, 1 = urgent, 2 = high, 3 = medium, 4 = low)                                          
   --estimate          <estimate>     - Points estimate of the issue                                                                                   
   -d, --description   <description>  - Description of the issue (empty string clears it)                                                              
   --description-file  <path>         - Read description from a file (preferred for markdown content)                                                  
@@ -33,7 +33,7 @@ Options:
   --remove-label      <label>        - Remove an issue label without replacing other labels. May be repeated.                                         
   --team              <team>         - Move the issue to this team (UUID or key)                                                                      
   --project           <project>      - Project to assign the issue to (UUID, slug ID, or name)                                                        
-  -s, --state         <state>        - Workflow state for the issue (by name or type)                                                                 
+  -s, --state         <state>        - Workflow state for the issue (UUID, name, or type)                                                             
   --milestone         <milestone>    - Project milestone (UUID, or name when --project is set or the issue already has a project)                     
   --cycle             <cycle>        - Cycle name, number, 'active'/'now', 'next', 'previous', or a relative offset like +1 (use --cycle=-1 for       
                                        negatives). Use --clear-cycle to remove the issue from its cycle                                               

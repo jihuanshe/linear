@@ -88,7 +88,7 @@ NO_COLOR=1 linear issue view ENG-123 --json >issue.json 2>error.log
 jq -e ' .organization.id and .issue.id ' issue.json >/dev/null
 ```
 
-`--json` 和 `--no-pager` 不是全局选项，以目标命令的 `--help` 为准。多行 Markdown 使用 `--description-file` 或 `--body-file`，避免 shell 引号改变正文。写命令、确认选项、`LINEAR_PROMPT_DISABLED=1` 和 JSON 输出都只描述执行机制，不构成用户授权。写入的并发边界见 `linear guide automation`。
+`--json`（`-j`）是全局选项，可放在命令路径前后；不支持机器输出的命令会明确报错，不回退成人类文本。支持情况由 `usage --json` 的 `outputModes` 描述；`--no-pager` 仍以目标命令的 `--help` 为准。多行 Markdown 使用 `--description-file` 或 `--body-file`，避免 shell 引号改变正文。写命令、确认选项、`LINEAR_PROMPT_DISABLED=1` 和 JSON 输出都只描述执行机制，不构成用户授权。输出、网络等待和并发边界见 `linear guide automation`。
 
 普通更新直接用专用命令；组合多个执行项并需要记录恢复进度时，使用同一份交付清单：
 

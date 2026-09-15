@@ -122,6 +122,29 @@ async function runScenario(args: string[], scenario: Scenario = {}) {
           },
         }
     }
+    if (name === "ResolveIssueLabelsForWrite") {
+      return {
+        data: {
+          issueLabels: {
+            nodes: [
+              {
+                id: "label-front",
+                name: "frontend",
+                isGroup: false,
+                team: null,
+              },
+              {
+                id: "label-before",
+                name: "backend",
+                isGroup: false,
+                team: null,
+              },
+            ],
+            pageInfo: terminalPage,
+          },
+        },
+      }
+    }
     if (name === "GetWriteTeamByKey") {
       return {
         data: {
@@ -233,6 +256,7 @@ async function runScenario(args: string[], scenario: Scenario = {}) {
     "GetIssueLabelsForWrite",
     "GetIssueWriteScalars",
     "GetIssueLabelIdByNameForTeam",
+    "ResolveIssueLabelsForWrite",
     "GetWriteTeamByKey",
     "GetIssueProjectId",
     "ProjectTeams",

@@ -61,6 +61,11 @@ Deno.test("delivery production plan is read-only and CLI apply exposes one machi
     assertEquals(cliPlan.success, true, cliPlan.stderr)
     assertEquals(cliPlan.json().status, "ready")
     assertEquals(await loadCheckpoint(f.path), null)
+    assertEquals(
+      (await Array.fromAsync(Deno.readDir(f.dir))).map((entry) => entry.name),
+      ["delivery.json"],
+      "plan must not create a lock, ledger or temporary file",
+    )
     const cliApply = await f.cli("apply")
     assertEquals(cliApply.success, true, cliApply.stdout + cliApply.stderr)
     assertEquals(cliApply.json().ok, true)
@@ -766,6 +771,15 @@ Deno.test("delivery cannot emit a mutation when its initial checkpoint cannot be
     }
     assertEquals(f.mutations().length, 0)
     assertEquals(await loadCheckpoint(f.path), null)
+    using probe = await Deno.open(`${checkpointPath(f.path)}.lock`, {
+      read: true,
+      write: true,
+    })
+    assertEquals(
+      await probe.tryLock(true),
+      true,
+      "persistence throw releases lock",
+    )
   } finally {
     await f.cleanup()
   }

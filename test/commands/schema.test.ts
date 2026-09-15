@@ -33,7 +33,6 @@ Deno.test("schema command selects authenticated and public clients", async () =>
         "--quiet",
         main,
         "schema",
-        "--json",
         ...args,
       ],
       stdout: "piped",
@@ -48,13 +47,23 @@ Deno.test("schema command selects authenticated and public clients", async () =>
     }).output()
     const stderr = new TextDecoder().decode(result.stderr)
     assertEquals(result.code, 0, stderr)
-    JSON.parse(new TextDecoder().decode(result.stdout))
+    assertEquals(stderr, "")
+    const stdout = new TextDecoder().decode(result.stdout)
+    assertEquals(JSON.parse(stdout), introspection.data)
+    return stdout
   }
 
   try {
-    await run([])
-    await run(["--unauthenticated"])
-    assertEquals(authorizations, ["test-api-key", null])
+    await run(["--json"])
+    await run(["-j", "--unauthenticated"])
+    const output = await Deno.makeTempFile()
+    try {
+      const stdout = await run(["-jo", output])
+      assertEquals(await Deno.readTextFile(output), stdout)
+    } finally {
+      await Deno.remove(output)
+    }
+    assertEquals(authorizations, ["test-api-key", null, "test-api-key"])
   } finally {
     await server.shutdown()
   }

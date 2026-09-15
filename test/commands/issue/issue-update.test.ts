@@ -2,6 +2,7 @@ import {
   issueWriteId,
   setupIssueWriteServer as setupMockLinearServer,
   teamWriteIds,
+  terminalPage,
 } from "../../utils/issue-write-fixtures.ts"
 import { snapshotTest } from "@cliffy/testing"
 import { assertEquals, assertRejects, assertStringIncludes } from "@std/assert"
@@ -1758,20 +1759,26 @@ Deno.test("Issue Update Command - teamId is sent only for an explicit team move"
 Deno.test("Issue Update Command - label additions and removals stay incremental", async () => {
   const { cleanup } = await setupMockLinearServer([
     {
-      queryName: "GetIssueLabelIdByNameForTeam",
-      variables: { name: "frontend", team: { id: { eq: teamWriteIds.ENG } } },
+      queryName: "ResolveIssueLabelsForWrite",
       response: {
         data: {
-          issueLabels: { nodes: [{ id: "label-frontend", name: "frontend" }] },
-        },
-      },
-    },
-    {
-      queryName: "GetIssueLabelIdByNameForTeam",
-      variables: { name: "backend", team: { id: { eq: teamWriteIds.ENG } } },
-      response: {
-        data: {
-          issueLabels: { nodes: [{ id: "label-backend", name: "backend" }] },
+          issueLabels: {
+            nodes: [
+              {
+                id: "label-frontend",
+                name: "frontend",
+                isGroup: false,
+                team: null,
+              },
+              {
+                id: "label-backend",
+                name: "backend",
+                isGroup: false,
+                team: null,
+              },
+            ],
+            pageInfo: terminalPage,
+          },
         },
       },
     },
