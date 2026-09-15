@@ -25,9 +25,9 @@ Options:
   --target-date           <targetDate>   - Target date (YYYY-MM-DD)                                                                    
   -t, --team              <team>         - Replace project teams with these keys (can be repeated)                                     
   -j, --json                             - Output the write result as JSON                                                             
-  --base-file             <path>         - Original view --json output saved before editing; add --include-content for overview        
-  --unprotected                          - Explicitly skip original-value comparison; domain checks still apply                        
-  --expect-field          <field>        - Also require this API field to match the original basis                                     
+  --base-file             <path>         - Saved view --json output from before editing; add --include-content for overview            
+  --unprotected                          - Skip original-value comparison; domain checks still apply                                   
+  --expect-field          <field>        - Require this API field to match the saved original value (repeatable)                       
   --label                 <label>        - Replace the project's labels. May be repeated to set multiple labels.                       
 
 "

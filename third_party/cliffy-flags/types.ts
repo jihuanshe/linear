@@ -53,8 +53,8 @@ export interface FlagOptions
   required?: boolean;
   // TODO: Remove this local opt-in and both parseNext guards when upstream
   // preserves selected empty values without changing optional metadata.
-  // See README.md for the dependency switch and regression checks to remove
-  // the vendor safely: https://github.com/jihuanshe/linear/pull/34
+  // See the vendored README for the dependency switch and regression checks
+  // needed to remove this local change safely.
   /** Preserve explicitly supplied empty argument values. Default is `false`. */
   preserveEmpty?: boolean;
   /**

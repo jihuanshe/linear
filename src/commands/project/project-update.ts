@@ -130,16 +130,16 @@ export const updateCommand = withUsageMetadata(new Command(), { writes: true })
   .option("-j, --json", "Output the write result as JSON")
   .option(
     "--base-file <path:string>",
-    "Original view --json output saved before editing; add --include-content for overview",
+    "Saved view --json output from before editing; add --include-content for overview",
     { preserveEmpty: true },
   )
   .option(
     "--unprotected",
-    "Explicitly skip original-value comparison; domain checks still apply",
+    "Skip original-value comparison; domain checks still apply",
   )
   .option(
     "--expect-field <field:string>",
-    "Also require this API field to match the original basis",
+    "Require this API field to match the saved original value (repeatable)",
     { collect: true, preserveEmpty: true },
   )
   .option(

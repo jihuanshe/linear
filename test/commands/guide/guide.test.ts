@@ -236,9 +236,12 @@ Deno.test("Markdown authoring help gives an actionable route without a skill", a
   assertStringIncludes(guide.body, "因正文类型及创建／更新路径而异")
   assertStringIncludes(
     guide.body,
-    "在 Issue 创建、评论新增及更新时生成提及",
+    "成员资料链接在 Issue、评论（Comment）和文档（Document）中可以生成成员提及",
   )
-  assertStringIncludes(guide.body, "在 Issue 更新、文档创建及更新时为文本")
+  assertStringIncludes(
+    guide.body,
+    "不要把一次测试环境观察推广为 Linear API 的通用保证",
+  )
   assertStringIncludes(guide.body, "导出的 Markdown 不是富文本的无损备份")
   assertEquals(guide.commands.includes("issue apply"), true)
   const delivery = await run(["guide", "issue-delivery", "--json"])

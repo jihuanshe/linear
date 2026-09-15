@@ -605,16 +605,16 @@ export const updateCommand = withUsageMetadata(new Command(), { writes: true })
   })
   .option(
     "--base-file <path:string>",
-    "Original JSON read saved before deciding this replacement",
+    "Saved view --json output from before editing; compare original values before writing",
     { preserveEmpty: true },
   )
   .option(
     "--unprotected",
-    "Explicitly replace without comparing original values; domain checks still apply",
+    "Skip original-value comparison; domain checks still apply",
   )
   .option(
     "--expect-field <field:string>",
-    "Require another API field to remain equal to the original read (repeatable)",
+    "Require this API field to match the saved original value (repeatable)",
     { collect: true, preserveEmpty: true },
   )
   .option(

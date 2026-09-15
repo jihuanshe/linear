@@ -16,4 +16,4 @@ jq '{ok, effect, fields, error}' result.json
 
 `prepare ISSUE NEW_DIRECTORY` 不修改 Linear，目录已存在时拒绝继续。`submit DIRECTORY` 只更新该 Issue 的正文，不保存新依据；执行前核对本次要提交的草稿。
 
-准备失败后不要继续提交。冲突时保留原始依据和草稿，结合当前正文重新决定修改。`effect: unknown` 先对账，`effect: applied` 不重发已确认写入；输出与恢复规则见 `linear guide automation`。脚本不维护执行账本，需要记录多项写入进度时用 `linear guide issue-delivery`。
+准备失败后不要继续提交。冲突时保留原始依据和草稿，结合当前正文重新决定修改。写入结果和恢复规则见 `linear guide automation`；脚本不维护执行账本，需要记录多项写入进度时用 `linear guide issue-delivery`。

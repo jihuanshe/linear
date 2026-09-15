@@ -53,7 +53,7 @@ snapshot[`usage JSON describes command metadata 1`] = `
         name: "core",
       },
       {
-        description: "保存原始依据、执行受保护更新并解释 JSON 写入效果与分页",
+        description: "保存原始依据、比较原始值并解释 JSON 写入效果与分页",
         name: "automation",
       },
       {
@@ -410,7 +410,7 @@ snapshot[`usage JSON describes command metadata 1`] = `
       details: "linear issue query --help",
       guides: [
         {
-          description: "保存原始依据、执行受保护更新并解释 JSON 写入效果与分页",
+          description: "保存原始依据、比较原始值并解释 JSON 写入效果与分页",
           name: "automation",
         },
         {
@@ -877,7 +877,7 @@ snapshot[`usage JSON describes command metadata 1`] = `
       details: "linear issue view --help",
       guides: [
         {
-          description: "保存原始依据、执行受保护更新并解释 JSON 写入效果与分页",
+          description: "保存原始依据、比较原始值并解释 JSON 写入效果与分页",
           name: "automation",
         },
         {
@@ -989,7 +989,7 @@ Creates original.json and desired.md in a new directory. Edit desired.md, then u
       details: "linear issue export --help",
       guides: [
         {
-          description: "保存原始依据、执行受保护更新并解释 JSON 写入效果与分页",
+          description: "保存原始依据、比较原始值并解释 JSON 写入效果与分页",
           name: "automation",
         },
         {
@@ -1058,7 +1058,7 @@ Creates original.json and desired.md in a new directory. Edit desired.md, then u
       details: "linear issue history --help",
       guides: [
         {
-          description: "保存原始依据、执行受保护更新并解释 JSON 写入效果与分页",
+          description: "保存原始依据、比较原始值并解释 JSON 写入效果与分页",
           name: "automation",
         },
         {
@@ -1332,7 +1332,7 @@ Run \`linear guide markdown\` for mentions, collapsible sections and rewrite ris
       details: "linear issue create --help",
       guides: [
         {
-          description: "保存原始依据、执行受保护更新并解释 JSON 写入效果与分页",
+          description: "保存原始依据、比较原始值并解释 JSON 写入效果与分页",
           name: "automation",
         },
         {
@@ -1672,7 +1672,7 @@ Run \`linear guide markdown\` for mentions, collapsible sections and rewrite ris
           name: "core",
         },
         {
-          description: "保存原始依据、执行受保护更新并解释 JSON 写入效果与分页",
+          description: "保存原始依据、比较原始值并解释 JSON 写入效果与分页",
           name: "automation",
         },
         {
@@ -2012,7 +2012,7 @@ Run \`linear guide markdown\` for mentions, collapsible sections and rewrite ris
               variadic: false,
             },
           ],
-          description: "Original JSON read saved before deciding this replacement",
+          description: "Saved view --json output from before editing; compare original values before writing",
           flags: [
             "--base-file",
           ],
@@ -2022,7 +2022,7 @@ Run \`linear guide markdown\` for mentions, collapsible sections and rewrite ris
         },
         {
           arguments: [],
-          description: "Explicitly replace without comparing original values; domain checks still apply",
+          description: "Skip original-value comparison; domain checks still apply",
           flags: [
             "--unprotected",
           ],
@@ -2040,7 +2040,7 @@ Run \`linear guide markdown\` for mentions, collapsible sections and rewrite ris
               variadic: false,
             },
           ],
-          description: "Require another API field to remain equal to the original read (repeatable)",
+          description: "Require this API field to match the saved original value (repeatable)",
           flags: [
             "--expect-field",
           ],
@@ -2080,7 +2080,7 @@ Run \`linear guide markdown\` for mentions, collapsible sections and rewrite ris
           name: "core",
         },
         {
-          description: "保存原始依据、执行受保护更新并解释 JSON 写入效果与分页",
+          description: "保存原始依据、比较原始值并解释 JSON 写入效果与分页",
           name: "automation",
         },
         {

@@ -105,9 +105,3 @@ jq -e '.ok == true and .data.status == "completed"' apply.json >/dev/null
 `completed` 的 Issue 回执包含 `id` 与 `identifier`，Comment／Attachment／Relation 回执包含对象 `id`，上传回执包含 `assetUrl`、`filename`、`size`、`contentType`、`public`。字段预期仅属于 Issue 回执。回执不匹配、工作区改变或已有执行项 key 从计划中消失时，拒绝续跑；不要删除执行账本来重放原意图。
 
 恢复已完成项不重新执行原始比较，但继续做读回核验。未完成项仍使用原始依据；修改目标值或重新排序可能改变执行项 key。需要新意图时先对账旧效果，再建立只含明确剩余工作的独立交付清单。同一交付清单只能有一个执行者；执行账本不提供并发锁、事务或 exactly-once。
-
-## 从旧协议迁移
-
-`schemaVersion: 1` 的交付清单和执行账本会在执行前明确拒绝。保留原文件及匹配的旧版本二进制，对账或完成旧执行后，再为明确剩余的工作读取新依据、建立 `schemaVersion: 2` 的独立清单。不自动迁移旧执行账本，不删除或覆盖它来重放。
-
-迁移时同时调整顶层 `team` → `set.team`、`labels` → `label`、旧的手抄 `base` → 原始读取 `base`／`baseFile`，以及 `apply` 结果路径 → `.data`。其他命令的当前参数以 `linear <command> --help` 为准，写入结果与读取格式见 `linear guide automation`。

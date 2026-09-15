@@ -39,9 +39,9 @@ Options:
                                        negatives). Use --clear-cycle to remove the issue from its cycle                                               
   --clear-cycle                      - Remove the issue from its cycle                                                                                
   -t, --title         <title>        - Title of the issue                                                                                             
-  --base-file         <path>         - Original JSON read saved before deciding this replacement                                                      
-  --unprotected                      - Explicitly replace without comparing original values; domain checks still apply                                
-  --expect-field      <field>        - Require another API field to remain equal to the original read (repeatable)                                    
+  --base-file         <path>         - Saved view --json output from before editing; compare original values before writing                           
+  --unprotected                      - Skip original-value comparison; domain checks still apply                                                      
+  --expect-field      <field>        - Require this API field to match the saved original value (repeatable)                                          
   -j, --json                         - Output a JSON write result; the resulting issue is in data.issue                                               
 
 "

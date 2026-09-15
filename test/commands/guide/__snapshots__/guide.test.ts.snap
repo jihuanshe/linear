@@ -3,7 +3,7 @@ export const snapshot = {};
 snapshot[`guide prints the concise index 1`] = `
 "内嵌指南：
   core             选择命令、核对工作区、确定查询范围与写入授权
-  automation       保存原始依据、执行受保护更新并解释 JSON 写入效果与分页
+  automation       保存原始依据、比较原始值并解释 JSON 写入效果与分页
   issue-authoring  Issue 的责任归属、持久证据、验收依据与后续交接
   issue-delivery   用交付清单组合共享操作，按回执续跑并对账未知结果
   graphql          查询 GraphQL schema、传递变量、完整分页与拆分复杂查询

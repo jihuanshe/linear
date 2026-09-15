@@ -28,7 +28,7 @@ linear usage --json          # 命令树与能力元数据
 
 ## 选择入口
 
-常见操作用专用命令；精确字段、少见筛选和跨实体查询用 `linear api`。只有专用命令未覆盖的写入才用原生 mutation，不绕过已有命令的名称解析、输入校验、冲突保护或读回。GraphQL 与直接 HTTP 的用法见 `linear guide graphql`。
+常见操作用专用命令；精确字段、少见筛选和跨实体查询用 `linear api`。只有专用命令未覆盖的写入才用原生 mutation，不绕过已有命令的名称解析、输入校验、原始值比较或读回。GraphQL 与直接 HTTP 的用法见 `linear guide graphql`。
 
 普通更新直接使用专用命令和保存的原始依据，见 `linear guide automation`。需要组合多项写入并记录进度时使用 `linear guide issue-delivery`；Git/Jujutsu、GitHub 和组织治理流程由 `linear recipe` 提供可运行示例。
 

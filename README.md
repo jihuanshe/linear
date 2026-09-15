@@ -1,9 +1,9 @@
 # Linear CLI
 
-面向人类、AI Agent 和无人值守自动化的 [Linear](https://linear.app/) CLI。它提供可发现的专用命令、可保存的读取与受保护更新，以及共用这些操作的 Issue plan/apply。
+面向人类、AI Agent 和无人值守自动化的 [Linear](https://linear.app/) CLI。它提供可发现的专用命令、可保存的读取与原始值比较，以及共用这些操作的 Issue plan/apply。
 
 > [!IMPORTANT]
-> [`jihuanshe/linear`](https://github.com/jihuanshe/linear) 是 [`schpet/linear-cli`](https://github.com/schpet/linear-cli) 的下游 fork。它保留终端选择和编辑能力，并有意强化自动化、输出和 mutation 安全契约。两个发行版的命令面并不等价。
+> [`jihuanshe/linear`](https://github.com/jihuanshe/linear) 是 [`schpet/linear-cli`](https://github.com/schpet/linear-cli) 的下游 fork。它保留终端选择和编辑能力，并有不同的自动化、输出和写入规则。两个发行版的命令面并不等价。
 
 本项目不是 Linear 的官方产品，也不隶属于 Linear 或得到其认可。
 
@@ -134,6 +134,6 @@ pre-commit hook 只检查暂存文件的 Deno 格式、Markdown 结构和中英�
 
 ## 上游、反馈与许可证
 
-原项目由 [Peter Schilling](https://github.com/schpet) 及[上游贡献者](https://github.com/schpet/linear-cli/graphs/contributors)创建。本 fork 特有的命令、自动化、发布或安全契约问题请提交到 [`jihuanshe/linear`](https://github.com/jihuanshe/linear/issues)；也能在未经修改的上游复现的问题，可以提交到 [`schpet/linear-cli`](https://github.com/schpet/linear-cli/issues)。
+原项目由 [Peter Schilling](https://github.com/schpet) 及[上游贡献者](https://github.com/schpet/linear-cli/graphs/contributors)创建。本 fork 特有的命令、自动化、发布或写入规则问题请提交到 [`jihuanshe/linear`](https://github.com/jihuanshe/linear/issues)；也能在未经修改的上游复现的问题，可以提交到 [`schpet/linear-cli`](https://github.com/schpet/linear-cli/issues)。
 
 本项目依据 [ISC License](LICENSE) 分发。版权所有 (c) Peter Schilling 及贡献者。
