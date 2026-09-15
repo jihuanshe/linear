@@ -191,3 +191,108 @@ for (
     }
   })
 }
+
+for (
+  const scenario of [
+    "resolve",
+    "resolve-reply",
+    "unresolve",
+    "already-resolved",
+    "root-as-resolution",
+  ]
+) {
+  Deno.test(`comment resolution accepts canonical UUID casing: ${scenario}`, async () => {
+    const rootId = "abcdefab-1234-4567-89ab-abcdefabcdef"
+    const replyId = "fedcbafe-1234-4567-89ab-fedcbafedcba"
+    const root = comment(rootId)
+    const reply = comment(replyId, rootId)
+    const unresolve = scenario === "unresolve"
+    if (unresolve || scenario === "already-resolved") {
+      root.resolvedAt = "2026-09-14T00:00:00Z"
+      root.resolvingCommentId = replyId
+    }
+    const { server, cleanup } = await setupMockLinearServer([
+      {
+        queryName: "ReadThreadComment",
+        response: ({ variables }) => ({
+          data: {
+            organization,
+            comment: String(variables.id).toLowerCase() === rootId
+              ? root
+              : reply,
+          },
+        }),
+      },
+      ...["ResolveComment", "UnresolveComment"].map((queryName) => ({
+        queryName,
+        response: ({ variables }: { variables: Record<string, unknown> }) => {
+          root.resolvedAt = unresolve ? null : "2026-09-15T00:00:00Z"
+          root.resolvingCommentId = unresolve
+            ? null
+            : String(variables.resolvingCommentId)
+          return {
+            data: {
+              [unresolve ? "commentUnresolve" : "commentResolve"]: {
+                success: true,
+                comment: { id: rootId },
+              },
+            },
+          }
+        },
+      })),
+    ])
+    try {
+      const result = await new Deno.Command(Deno.execPath(), {
+        args: [
+          "run",
+          ...commonDenoArgs,
+          "src/main.ts",
+          "issue",
+          "comment",
+          unresolve ? "unresolve" : "resolve",
+          (scenario === "resolve-reply" || unresolve ? replyId : rootId)
+            .toUpperCase(),
+          "--json",
+          ...(!unresolve
+            ? [
+              "--resolving-comment",
+              (scenario === "root-as-resolution" ? rootId : replyId)
+                .toUpperCase(),
+            ]
+            : []),
+        ],
+        stdin: "null",
+        stdout: "piped",
+        stderr: "piped",
+      }).output()
+      const output = JSON.parse(new TextDecoder().decode(result.stdout))
+      const writes = server.graphqlRequests.filter((request) =>
+        request.query.includes("mutation ")
+      )
+      if (scenario === "root-as-resolution") {
+        assertEquals(result.code, 1)
+        assertEquals(output.effect, "none")
+        assertStringIncludes(
+          output.error.message,
+          "Resolving comment must be a reply",
+        )
+        assertEquals(writes.length, 0)
+      } else {
+        assertEquals(result.code, 0, JSON.stringify(output))
+        assertEquals(
+          output.effect,
+          scenario === "already-resolved" ? "none" : "applied",
+        )
+        assertEquals(writes.length, scenario === "already-resolved" ? 0 : 1)
+        if (writes.length) {
+          assertEquals(writes[0].variables.id, rootId)
+          if (!unresolve) {
+            assertEquals(writes[0].variables.resolvingCommentId, replyId)
+          }
+        }
+      }
+    } finally {
+      await cleanup()
+    }
+  })
+}

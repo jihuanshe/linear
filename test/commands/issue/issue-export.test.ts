@@ -1,4 +1,4 @@
-import { assertEquals, assertStringIncludes } from "@std/assert"
+import { assertEquals, assertRejects, assertStringIncludes } from "@std/assert"
 import { join } from "@std/path"
 import {
   issueWriteBasis,
@@ -25,6 +25,34 @@ async function run(args: string[]) {
   }
 }
 
+function exportSnapshot() {
+  const basis = issueWriteBasis("ENG-123", { id: "team-1", key: "ENG" })
+  return {
+    ...basis,
+    issue: {
+      ...basis.issue,
+      comments: {
+        nodes: [{
+          id: "comment-1",
+          body: "Keep this decision",
+          resolvedAt: null,
+          quotedText: "Original passage",
+          documentContentId: "content-1",
+        }],
+        pageInfo: { hasNextPage: false, endCursor: null as string | null },
+      },
+      attachments: {
+        nodes: [{
+          id: "attachment-1",
+          title: "Evidence",
+          url: "https://example.test/evidence",
+        }],
+        pageInfo: { hasNextPage: false, endCursor: null as string | null },
+      },
+    },
+  }
+}
+
 for (
   const scenario of [
     "unchanged",
@@ -34,12 +62,13 @@ for (
     "missing-description",
     "empty-description",
     "issue-url",
+    "changed-discussion",
   ]
 ) {
   Deno.test(`issue export and guarded update: ${scenario}`, async () => {
     const directory = await Deno.makeTempDir()
     const output = join(directory, "edit space ' $draft")
-    const current = issueWriteBasis("ENG-123", { id: "team-1", key: "ENG" })
+    const current = exportSnapshot()
     current.issue.description = scenario === "empty-description" ? "" : markdown
     const original = structuredClone(current)
     const { server, cleanup } = await setupMockLinearServer([
@@ -48,7 +77,7 @@ for (
         response: { data: { organization: current.organization } },
       },
       {
-        queryName: "GetIssueForWrite",
+        queryName: "GetIssueDetailsWithComments",
         response: () => ({
           data: scenario === "missing-description"
             ? {
@@ -57,6 +86,10 @@ for (
             }
             : current,
         }),
+      },
+      {
+        queryName: "GetIssueForWrite",
+        response: () => ({ data: current }),
       },
       {
         queryName: "UpdateIssue",
@@ -99,7 +132,7 @@ for (
       assertEquals(exported.code, 0)
       assertEquals(
         server.graphqlRequests.find((request) =>
-          request.query.includes("GetIssueForWrite")
+          request.query.includes("GetIssueDetailsWithComments")
         )!.variables.id,
         "ENG-123",
       )
@@ -115,11 +148,15 @@ for (
         server.graphqlRequests.length,
         scenario === "issue-url" ? 2 : 1,
       )
-      const desired = scenario === "edit" || scenario === "conflict"
-        ? markdown + "\n当前结论。\n"
-        : current.issue.description!
+      const desired =
+        ["edit", "conflict", "changed-discussion"].includes(scenario)
+          ? markdown + "\n当前结论。\n"
+          : current.issue.description!
       await Deno.writeTextFile(descriptionFile, desired)
       if (scenario === "conflict") current.issue.description = "同事的修改"
+      if (scenario === "changed-discussion") {
+        current.issue.comments.nodes[0].body = "New reply"
+      }
       const updated = await run([
         "update",
         issueWriteId,
@@ -144,10 +181,15 @@ for (
         assertEquals(updated.code, 0)
         assertEquals(
           updated.output.effect,
-          scenario === "edit" ? "applied" : "none",
+          ["edit", "changed-discussion"].includes(scenario)
+            ? "applied"
+            : "none",
         )
-        assertEquals(writes.length, scenario === "edit" ? 1 : 0)
-        if (scenario === "edit") {
+        assertEquals(
+          writes.length,
+          ["edit", "changed-discussion"].includes(scenario) ? 1 : 0,
+        )
+        if (["edit", "changed-discussion"].includes(scenario)) {
           assertEquals(writes[0].variables.input, { description: desired })
         }
       }
@@ -161,10 +203,10 @@ for (
 Deno.test("issue export can retry the same directory after a failed read", async () => {
   const directory = await Deno.makeTempDir()
   const output = join(directory, "draft")
-  const current = issueWriteBasis("ENG-123", { id: "team-1", key: "ENG" })
+  const current = exportSnapshot()
   let reads = 0
   const { cleanup } = await setupMockLinearServer([{
-    queryName: "GetIssueForWrite",
+    queryName: "GetIssueDetailsWithComments",
     response: () =>
       ++reads === 1
         ? { errors: [{ message: "temporarily unavailable" }] }
@@ -189,3 +231,75 @@ Deno.test("issue export can retry the same directory after a failed read", async
     await Deno.remove(directory, { recursive: true })
   }
 })
+
+for (const failure of [null, "comments", "attachments"] as const) {
+  Deno.test(`issue export completes discussion and evidence pages: ${failure ?? "success"}`, async () => {
+    const directory = await Deno.makeTempDir()
+    const output = join(directory, "draft")
+    const current = exportSnapshot()
+    for (const field of ["comments", "attachments"] as const) {
+      current.issue[field].pageInfo = {
+        hasNextPage: true,
+        endCursor: `${field}-next`,
+      }
+    }
+    const lateComment = {
+      id: "comment-2",
+      body: "Later decision",
+      resolvedAt: "2026-09-14T00:00:00Z",
+      quotedText: "Later passage",
+      documentContentId: "content-1",
+    }
+    const lateAttachment = {
+      id: "attachment-2",
+      title: "Later evidence",
+      url: "https://example.test/later",
+    }
+    const { cleanup } = await setupMockLinearServer([
+      { queryName: "GetIssueDetailsWithComments", response: { data: current } },
+      ...(["comments", "attachments"] as const).map((field) => ({
+        queryName: field === "comments"
+          ? "GetIssueComments"
+          : "GetIssueAttachments",
+        variables: { after: `${field}-next`, first: 100 },
+        response: failure === field
+          ? { errors: [{ message: "Later page failed" }] }
+          : {
+            data: {
+              issue: {
+                [field]: {
+                  nodes: [field === "comments" ? lateComment : lateAttachment],
+                  pageInfo: { hasNextPage: false, endCursor: null },
+                },
+              },
+            },
+          },
+      })),
+    ])
+    try {
+      const result = await run(["export", "ENG-123", "--output", output])
+      if (failure) {
+        assertEquals(result.code, 1)
+        assertEquals(result.output.effect, "none")
+        await assertRejects(() => Deno.stat(output), Deno.errors.NotFound)
+      } else {
+        assertEquals(result.code, 0)
+        const saved =
+          JSON.parse(await Deno.readTextFile(result.output.baseFile)).issue
+        assertEquals(saved.comments.nodes, [
+          ...current.issue.comments.nodes,
+          lateComment,
+        ])
+        assertEquals(saved.attachments.nodes, [
+          ...current.issue.attachments.nodes,
+          lateAttachment,
+        ])
+        assertEquals(saved.comments.pageInfo.hasNextPage, false)
+        assertEquals(saved.attachments.pageInfo.hasNextPage, false)
+      }
+    } finally {
+      await cleanup()
+      await Deno.remove(directory, { recursive: true })
+    }
+  })
+}

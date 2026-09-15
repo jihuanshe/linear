@@ -1,13 +1,20 @@
 import { Command } from "@cliffy/command"
 import { join, resolve } from "@std/path"
-import { getIssueIdentifier } from "../../utils/linear.ts"
-import { readIssueBasis } from "../../utils/issue-read.ts"
+import {
+  fetchIssueDetailsRaw,
+  getIssueIdentifier,
+  isLinearUuid,
+} from "../../utils/linear.ts"
+import {
+  assertReadIdentity,
+  assertReadOrganization,
+} from "../../utils/read-identity.ts"
 import { handleError, ValidationError } from "../../utils/errors.ts"
 
 export const exportCommand = new Command()
   .name("export")
   .description(
-    "Save an Issue's original JSON and exact Markdown draft for local editing, without changing Linear.\n\nCreates original.json and desired.md in a new directory. Edit desired.md, then use issue update --base-file original.json --description-file desired.md. Markdown is not a lossless rich-text backup; see linear guide markdown.",
+    "Save an Issue's original JSON with all comments and attachments, and its exact Markdown draft for local editing, without changing Linear.\n\nCreates original.json and desired.md in a new directory. Read the saved discussion before editing desired.md, then use issue update --base-file original.json --description-file desired.md. Markdown is not a lossless rich-text backup; see linear guide markdown.",
   )
   .arguments("<issueId:string>")
   .option(
@@ -29,7 +36,18 @@ export const exportCommand = new Command()
       if (!resolvedId) {
         throw new ValidationError("Could not determine issue identifier")
       }
-      const original = await readIssueBasis(resolvedId)
+      const original = await fetchIssueDetailsRaw(resolvedId, true, true)
+      if (isLinearUuid(resolvedId)) {
+        assertReadIdentity(
+          original.issue,
+          resolvedId,
+          original.organization,
+          original.organization?.id ?? "",
+          "Issue",
+        )
+      } else {
+        assertReadOrganization(original.organization, "Issue")
+      }
       if (
         !original.organization?.id || !original.issue.id ||
         original.issue.description === undefined

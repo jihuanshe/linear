@@ -11,6 +11,7 @@ import {
 } from "../../utils/errors.ts"
 import { printWriteResult } from "../../utils/write-result.ts"
 import { withUsageMetadata } from "../usage.ts"
+import { isLinearUuid } from "../../utils/linear.ts"
 
 const ThreadComment = gql(`
   query ReadThreadComment($id: String!) {
@@ -74,6 +75,10 @@ async function changeResolution(
 ) {
   if (!id.trim() || resolvingCommentId?.trim() === "") {
     throw new ValidationError("Comment ID cannot be empty")
+  }
+  if (isLinearUuid(id)) id = id.toLowerCase()
+  if (resolvingCommentId != null && isLinearUuid(resolvingCommentId)) {
+    resolvingCommentId = resolvingCommentId.toLowerCase()
   }
   const client = getGraphQLClient()
   const initial = await readRoot(client, id)

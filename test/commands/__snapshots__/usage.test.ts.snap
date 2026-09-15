@@ -983,9 +983,9 @@ snapshot[`usage JSON describes command metadata 1`] = `
         },
       ],
       confirmation: null,
-      description: "Save an Issue's original JSON and exact Markdown draft for local editing, without changing Linear.
+      description: "Save an Issue's original JSON with all comments and attachments, and its exact Markdown draft for local editing, without changing Linear.
 
-Creates original.json and desired.md in a new directory. Edit desired.md, then use issue update --base-file original.json --description-file desired.md. Markdown is not a lossless rich-text backup; see linear guide markdown.",
+Creates original.json and desired.md in a new directory. Read the saved discussion before editing desired.md, then use issue update --base-file original.json --description-file desired.md. Markdown is not a lossless rich-text backup; see linear guide markdown.",
       details: "linear issue export --help",
       guides: [
         {

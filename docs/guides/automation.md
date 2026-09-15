@@ -37,7 +37,7 @@ commands:
 linear issue export ENG-123 --output issue-edit --json
 ```
 
-导出成功后，阅读 `original.json` 并编辑 `desired.md`，再提交：
+导出成功后，阅读 `original.json` 中的正文、属性、完整评论和附件，再编辑 `desired.md` 并提交：
 
 ```bash
 code=0
@@ -117,7 +117,7 @@ jq -e '.pageInfo.hasNextPage == false and (.nodes | type == "array")' issues.jso
 jq '.nodes[] | {id, identifier, title, priority}' issues.json
 ```
 
-`issue view --json` 完整读取 `.issue.comments`、`.issue.attachments` 和 `.issue.labels`；`--no-comments` 跳过评论。PR 等链接位于 `.issue.attachments.nodes`。`children`、`documents` 和详情中的 `relations` 等集合仍是有限预览；完整关系用 `issue relation list <ID> --json`，其他完整集合按 `linear guide graphql` 单独分页。完整分页不代表跨页数据库快照。
+`issue view --json` 与 `issue export` 完整读取 `.issue.comments`、`.issue.attachments` 和 `.issue.labels`；`view --no-comments` 跳过评论。评论保留 `quotedText` 和 `documentContentId`，供识别行内引用；PR 等链接位于 `.issue.attachments.nodes`。`children`、`documents` 和详情中的 `relations` 等集合仍是有限预览；完整关系用 `issue relation list <ID> --json`，其他完整集合按 `linear guide graphql` 单独分页。完整分页不代表跨页数据库快照。
 
 单个 Initiative 或 Project 的短描述与长正文用 `initiative view <ID> --include-content --json` 或 `project view <ID> --include-content --json` 读取。Initiative 的该选项还返回关联 Project 的 `description` 和完整 `documents` 连接；关联文档的正文继续用 `document view` 读取。
 
