@@ -74,4 +74,4 @@ auto_download_attachments = false
 | `LINEAR_DEBUG=1`           | 在 stderr 输出底层错误和堆栈             |
 | `NO_COLOR=1`               | 禁止颜色、动画和 OSC-8 链接              |
 
-命令选项不是全局选项，以 `linear <command> --help` 为准。无人值守输出、依据比较和写入效果见 `linear guide automation`。
+`--json`（`-j`）是全局输出选项，命令是否支持 JSON 以 `usage --json` 的 `outputModes` 为准；其他选项查看 `linear <command> --help`。无人值守输出、依据比较和写入效果见 `linear guide automation`。

@@ -49,7 +49,7 @@ linear issue view ENG-123 --json >original.json
 
 `original.json` 必须是原始读取产生、符合 `{organization,issue}` 结构的 JSON；其工作区、对象和所需字段必须匹配。可以用 `base` 内嵌同一结构，不能与 `baseFile` 同时使用。明确无保护替换使用 `unprotected: true`，不能附 `base`／`baseFile`；`expectFields` 必须有原始依据，且只接受该对象支持的 API 字段。
 
-`set` 与共享 Issue 操作的选项对应，使用 camelCase：例如 `descriptionFile`、`dueDate`、`addLabel`、`removeLabel`、`unassign` 和 `clearCycle`。团队位于 `set.team`，完整标签替换是 `set.label`。完整字段和有效值以 `issue create --help`、`issue update --help` 及清单校验为准，不另定义一套名称解析规则。
+`set` 与共享 Issue 操作的选项对应，使用 camelCase：例如 `descriptionFile`、`dueDate`、`addLabel`、`removeLabel`、`unassign` 和 `clearCycle`。团队位于 `set.team`，完整标签替换是 `set.label`。`label`、`addLabel`、`removeLabel` 对应可重复选项，因此值是字符串数组；清单的 `expectFields` 对应重复的 `--expect-field`。这些是输入选项名，读取和 mutation 仍保留 API 的字段名与结构。完整字段和有效值以 `issue create --help`、`issue update --help` 及清单校验为准，不另定义一套名称解析规则。
 
 `create` 要求 `set.title` 和 `set.team`，不接受已有 `identifier`、原始依据或期望字段。`update` 要求 `identifier`，可用 UUID 或完整编号。`unassign: true` 清除负责人，`clearCycle: true` 清除周期；不能分别与 `assignee`、`cycle` 同用。标签增删与完整 `label` 替换互斥；空 `label` 替换不受支持，须逐项 `removeLabel`。只追加评论、附件或关系时省略 `set` 和原始依据。
 
@@ -106,4 +106,8 @@ jq -e '.ok == true and .data.status == "completed"' apply.json >/dev/null
 
 `completed` 的 Issue 回执包含 `id` 与 `identifier`，Comment／Attachment／Relation 回执包含对象 `id`，上传回执包含 `assetUrl`、`filename`、`size`、`contentType`、`public`。字段预期仅属于 Issue 回执。回执不匹配、工作区改变或已有执行项 key 从计划中消失时，拒绝续跑；不要删除执行账本来重放原意图。
 
-恢复已完成项不重新执行原始比较，但继续做读回核验。未完成项仍使用原始依据；修改目标值或重新排序可能改变执行项 key。需要新意图时先对账旧效果，再建立只含明确剩余工作的独立交付清单。同一交付清单只能有一个执行者；执行账本不提供并发锁、事务或 exactly-once。
+恢复已完成项不重新执行原始比较，但继续做读回核验。未完成项仍使用原始依据；修改目标值或重新排序可能改变执行项 key。需要新意图时先对账旧效果，再建立只含明确剩余工作的独立交付清单。
+
+`apply` 在读取执行账本前取得 `<manifest>.checkpoint.json.lock` 的系统排他锁，持有到执行和读回结束。同机使用同一锁文件的另一个执行者会等待；取得锁后重新读取执行账本，跳过已完成项，遇到 `unknown` 仍拒绝续跑。锁随文件关闭或进程退出释放；空锁文件会保留，其存在不表示正在执行，不要删除或替换它。`plan` 不创建锁文件。
+
+这只约束使用同一本地锁文件的 CLI 执行者。复制清单、使用不同的账本路径或移到另一台机器不会共享执行权；交接前仍须停止原执行者并传递清单、引用材料和执行账本。其他客户端直接修改 Linear 不受此锁约束；执行账本不提供远端锁、事务或 exactly-once。

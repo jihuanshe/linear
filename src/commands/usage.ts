@@ -214,7 +214,7 @@ function commandUsage(command: UsageCommandSource): string {
   return parts.join(" ")
 }
 
-function outputModes(command: UsageCommandSource): UsageOutputMode[] {
+export function outputModes(command: UsageCommandSource): UsageOutputMode[] {
   const configured = command.getMeta()[META_OUTPUT_MODES]
   if (configured != null) {
     return configured.split(",").filter((mode): mode is UsageOutputMode =>
@@ -282,7 +282,9 @@ function commandSummary(command: UsageCommandMetadata): string {
     ...(command.confirmation == null
       ? []
       : [`confirm: ${command.confirmation.requiredUnless}`]),
-    ...(command.outputModes.includes("json") ? ["json"] : []),
+    ...(!command.hasSubcommands && command.outputModes.includes("json")
+      ? ["json"]
+      : []),
   ]
   const suffix = capabilities.length === 0
     ? ""
@@ -372,14 +374,23 @@ export function formatUsage(
   return lines.join("\n")
 }
 
+/** Global options are attached after individual command modules are typed. */
+export function printJsonUsage(
+  command: UsageCommandSource,
+  options: unknown,
+): boolean {
+  if (
+    options == null || typeof options !== "object" ||
+    !("json" in options) || options.json !== true
+  ) return false
+  console.log(JSON.stringify(buildUsageDocument(command), null, 2))
+  return true
+}
+
 export function createUsageAction(includeSubcommandOptions: boolean) {
-  return function (this: UsageCommandSource): void {
-    console.log(
-      formatUsage(
-        buildUsageDocument(this),
-        includeSubcommandOptions,
-      ),
-    )
+  return function (this: UsageCommandSource, options: unknown): void {
+    if (printJsonUsage(this, options)) return
+    console.log(formatUsage(buildUsageDocument(this), includeSubcommandOptions))
   }
 }
 

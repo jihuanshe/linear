@@ -48,6 +48,14 @@ Deno.test("main writes explicit help to stdout with rc 0", async () => {
   assertEquals(result.stderr, "")
 })
 
+Deno.test("main leaf help includes JSON aliases injected by the root command", async () => {
+  const result = await run(["document", "view", "--help"])
+  assertEquals(result.code, 0)
+  assertMatch(result.stdout, /Usage:\s+linear document view/)
+  assertMatch(result.stdout, /-j,\s+--json\b/)
+  assertEquals(result.stderr, "")
+})
+
 Deno.test("startup credentials warning honors disabled color policy", async () => {
   const root = await Deno.makeTempDir()
   try {
@@ -582,5 +590,350 @@ Deno.test("auth login skips post-write migration prompts when disabled", async (
   } finally {
     await cleanup()
     await Deno.remove(root, { recursive: true })
+  }
+})
+
+Deno.test("global JSON works before, between and after aliased command paths", async () => {
+  const { server, cleanup } = await setupMockLinearServer([{
+    queryName: "GetIssueLabels",
+    response: {
+      data: {
+        issueLabels: {
+          nodes: [],
+          pageInfo: { hasNextPage: false, endCursor: null },
+        },
+      },
+    },
+  }])
+  try {
+    for (const json of ["--json", "-j"]) {
+      for (
+        const args of [
+          [json, "l", "list", "--all"],
+          ["l", json, "list", "--all"],
+          ["l", "list", json, "--all"],
+          ["l", "list", "--all", json],
+        ]
+      ) {
+        const result = await run(args, {
+          LINEAR_API_KEY: "test-token",
+          LINEAR_GRAPHQL_ENDPOINT: server.getEndpoint(),
+        })
+        assertEquals(result.code, 0, JSON.stringify(result))
+        assertEquals(JSON.parse(result.stdout), {
+          nodes: [],
+          pageInfo: { hasNextPage: false, endCursor: null },
+        })
+        assertEquals(result.stderr, "")
+      }
+    }
+    assertEquals(server.graphqlRequests.length, 8)
+  } finally {
+    await cleanup()
+  }
+})
+
+Deno.test("global JSON navigation reuses the live usage document at every depth", async () => {
+  for (
+    const path of [
+      [],
+      ["i"],
+      ["doc"],
+      ["issue", "comment"],
+      ["issue", "relation"],
+      ["issue", "agent-session"],
+    ]
+  ) {
+    const [navigation, usage] = await Promise.all([
+      run(["--json", ...path]),
+      run([...path, "usage", "-j"]),
+    ])
+    assertEquals(navigation.code, 0, JSON.stringify(navigation))
+    assertEquals(usage.code, 0, JSON.stringify(usage))
+    assertEquals(JSON.parse(navigation.stdout), JSON.parse(usage.stdout))
+    assertEquals(JSON.parse(navigation.stdout).command.outputModes, [
+      "human",
+      "json",
+    ])
+    assertEquals(navigation.stderr + usage.stderr, "")
+  }
+})
+
+Deno.test("global JSON rejects unsupported actions without requests or credential changes", async () => {
+  const root = await Deno.makeTempDir()
+  const credentials = join(root, "linear", "credentials.toml")
+  await Deno.mkdir(join(root, "linear"))
+  const original = 'default = "sandbox"\nsandbox = "test-token"\n'
+  await Deno.writeTextFile(credentials, original)
+  const { server, cleanup } = await setupMockLinearServer([])
+  try {
+    for (
+      const args of [
+        ["auth", "login", "--key", "lin_api_test", "--plaintext"],
+        ["auth", "logout", "sandbox", "--force"],
+        ["auth", "default", "sandbox"],
+        ["auth", "migrate"],
+        ["auth", "list"],
+        ["auth", "token"],
+        ["config"],
+        ["update"],
+        ["issue", "pick"],
+        ["issue", "mine"],
+        ["issue", "id"],
+        ["issue", "title"],
+        ["issue", "url"],
+        ["issue", "describe"],
+        ["cycle", "list"],
+        ["cycle", "view", "active"],
+        ["milestone", "list", "--project", "project-1"],
+        ["team", "key"],
+        ["completions"],
+        ["completions", "bash"],
+        ["completions", "fish"],
+        ["completions", "zsh"],
+        ["completions", "complete", "command"],
+      ]
+    ) {
+      for (const argv of [["--json", ...args], [...args, "-j"]]) {
+        const result = await run(argv, {
+          XDG_CONFIG_HOME: root,
+          LINEAR_API_KEY: "test-token",
+          LINEAR_GRAPHQL_ENDPOINT: server.getEndpoint(),
+        })
+        assertEquals(result.code, 1, JSON.stringify(result))
+        const failure = JSON.parse(result.stdout)
+        assertEquals(failure.effect, "none")
+        assertEquals(
+          failure.error.code,
+          "UnsupportedOutputError",
+          argv.join(" "),
+        )
+        assertMatch(failure.error.suggestion, /usage --json/)
+        assertEquals(result.stderr, "")
+        assertEquals(await Deno.readTextFile(credentials), original)
+      }
+    }
+    assertEquals(server.graphqlRequests, [])
+  } finally {
+    await cleanup()
+    await Deno.remove(root, { recursive: true })
+  }
+})
+
+Deno.test("JSON rejects browser, editor and exclusive output selections before requests", async () => {
+  const { server, cleanup } = await setupMockLinearServer([])
+  try {
+    for (
+      const args of [
+        ["issue", "view", "ENG-123", "--web"],
+        ["issue", "view", "ENG-123", "--app"],
+        ["team", "list", "--web"],
+        ["project", "list", "--app"],
+        ["project", "view", "project-1", "--web"],
+        ["initiative", "list", "--app"],
+        ["initiative", "view", "initiative-1", "--web"],
+        ["document", "view", "document-1", "--web"],
+        ["document", "view", "document-1", "--raw"],
+        ["document", "update", "document-1", "--edit"],
+        ["document", "create", "--interactive"],
+        ["project", "create", "--interactive"],
+        ["initiative", "update", "initiative-1", "--interactive"],
+        ["recipe", "migrate-team", "--source"],
+        ["api", "query { viewer { id } }", "--silent"],
+      ]
+    ) {
+      // Test inherited and locally shadowed option actions separately.
+      for (const argv of [["--json", ...args], [...args, "-j"]]) {
+        const result = await run(argv, {
+          LINEAR_API_KEY: "test-token",
+          LINEAR_GRAPHQL_ENDPOINT: server.getEndpoint(),
+        })
+        assertEquals(result.code, 1, JSON.stringify(result))
+        const failure = JSON.parse(result.stdout)
+        assertEquals(failure.effect, "none")
+        assertEquals(failure.error.code, "ValidationError", argv.join(" "))
+        assertMatch(failure.error.message, /--json cannot be combined with/)
+        assertEquals(result.stderr, "")
+      }
+    }
+    assertEquals(server.graphqlRequests, [])
+  } finally {
+    await cleanup()
+  }
+})
+
+Deno.test("help and version never leak human output when JSON is requested", async () => {
+  for (
+    const args of [
+      ["--json", "--help"],
+      ["--help", "--json"],
+      ["-hj"],
+      ["-jh"],
+      ["--json", "--version"],
+      ["--version", "--json"],
+      ["-Vj"],
+      ["-jV"],
+      ["--json", "issue", "view", "--help"],
+      ["issue", "--json", "view", "--help"],
+      ["issue", "view", "--help", "--json"],
+      ["issue", "view", "-jh"],
+      ["--json", "auth", "login", "--help"],
+    ]
+  ) {
+    const result = await run(args)
+    assertEquals(result.code, 1, JSON.stringify(result))
+    const failure = JSON.parse(result.stdout)
+    assertEquals(failure.ok, false)
+    assertEquals(failure.effect, "none")
+    assertEquals(result.stderr, "")
+  }
+})
+
+Deno.test("JSON selection respects parser values, invalid assignments and -- literals", async () => {
+  for (
+    const args of [
+      ["--json=true"],
+      ["--json=false"],
+      ["--json="],
+      ["-j=1"],
+      ["issue", "view", "--json=garbage"],
+      ["issue", "view", "ENG-123", "-jw"],
+      ["issue", "view", "ENG-123", "-wj"],
+      ["issue", "query", "--limit", "bad", "-j"],
+      ["--json", "api", "--variables-json"],
+    ]
+  ) {
+    const result = await run(args)
+    assertEquals(result.code, 1, JSON.stringify(result))
+    assertEquals(JSON.parse(result.stdout).effect, "none")
+    assertEquals(result.stderr, "")
+  }
+  for (
+    const args of [
+      ["--workspace", "--json", "version"],
+      ["--workspace", "-j", "version"],
+      ["version", "--", "--json", "-j"],
+    ]
+  ) {
+    const result = await run(args)
+    assertEquals(result.code, 0, JSON.stringify(result))
+    assertMatch(result.stdout, /^distribution: jihuanshe\/linear\nversion:/)
+    assertEquals(result.stderr, "")
+  }
+  for (
+    const args of [
+      ["issue", "update", "ENG-123", "--title", "--json"],
+      ["issue", "update", "ENG-123", "--title", "-j"],
+      ["issue", "update", "ENG-123", "--title=--json"],
+      ["not-a-command", "--", "--json", "-j"],
+    ]
+  ) {
+    const result = await run(args)
+    assertEquals(result.code, 1)
+    assertEquals(result.stdout, "", JSON.stringify(result))
+    assertEquals(result.stderr.length > 0, true)
+  }
+})
+
+Deno.test("malformed configuration preserves machine errors for global JSON and raw API", async () => {
+  const root = await Deno.makeTempDir()
+  await Deno.mkdir(join(root, "linear"))
+  await Deno.writeTextFile(join(root, "linear", "linear.toml"), "invalid = [")
+  try {
+    for (
+      const args of [
+        ["--json", "version"],
+        ["version", "-j"],
+        ["--json=false"],
+        ["-jh"],
+        ["--workspace", "sandbox", "api"],
+        ["--json", "api"],
+      ]
+    ) {
+      const result = await run(args, { XDG_CONFIG_HOME: root })
+      assertEquals(result.code, 1)
+      const failure = JSON.parse(result.stdout)
+      assertEquals(failure.effect, "none")
+      assertMatch(failure.error.message, /Failed to parse config file/)
+      assertEquals(result.stderr, "")
+    }
+  } finally {
+    await Deno.remove(root, { recursive: true })
+  }
+})
+
+Deno.test("raw API retains its GraphQL envelope and implicit silent mode", async () => {
+  const envelope = { data: { viewer: { id: "user-1" } } }
+  const { server, cleanup } = await setupMockLinearServer([{
+    queryName: "MachineViewer",
+    response: envelope,
+  }])
+  const query = "query MachineViewer { viewer { id } }"
+  try {
+    for (
+      const args of [
+        ["api", query],
+        ["--json", "api", query],
+        ["api", "-j", query],
+        ["api", query, "--silent"],
+      ]
+    ) {
+      const result = await run(args, {
+        LINEAR_API_KEY: "test-token",
+        LINEAR_GRAPHQL_ENDPOINT: server.getEndpoint(),
+      })
+      assertEquals(result.code, 0, JSON.stringify(result))
+      if (args.includes("--silent")) assertEquals(result.stdout, "")
+      else assertEquals(JSON.parse(result.stdout), envelope)
+      assertEquals(result.stderr, "")
+    }
+    assertEquals(server.graphqlRequests.length, 4)
+  } finally {
+    await cleanup()
+  }
+})
+
+Deno.test("JSON keeps human-only display toggles and no-pager compatible", async () => {
+  const data = {
+    ...issueWriteBasis(),
+    issue: {
+      ...issueWriteBasis().issue,
+      attachments: {
+        nodes: [],
+        pageInfo: { hasNextPage: false, endCursor: null },
+      },
+      documents: {
+        nodes: [],
+        pageInfo: { hasNextPage: false, endCursor: null },
+      },
+      children: {
+        nodes: [],
+        pageInfo: { hasNextPage: false, endCursor: null },
+      },
+    },
+  }
+  const { server, cleanup } = await setupMockLinearServer([{
+    queryName: "GetIssueDetails",
+    response: { data },
+  }])
+  try {
+    const result = await run([
+      "--json",
+      "issue",
+      "view",
+      "ENG-123",
+      "--no-pager",
+      "--no-comments",
+      "--show-resolved-threads",
+      "--no-download",
+    ], {
+      LINEAR_API_KEY: "test-token",
+      LINEAR_GRAPHQL_ENDPOINT: server.getEndpoint(),
+    })
+    assertEquals(result.code, 0, JSON.stringify(result))
+    assertEquals(JSON.parse(result.stdout), data)
+    assertEquals(result.stderr, "")
+  } finally {
+    await cleanup()
   }
 })

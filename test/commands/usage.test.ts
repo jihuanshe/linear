@@ -3,11 +3,18 @@ import {
   assertEquals,
   assertExists,
   assertMatch,
+  assertRejects,
   assertStringIncludes,
 } from "@std/assert"
 import { fromFileUrl } from "@std/path"
 import { assertSnapshot } from "@std/testing/snapshot"
+import { stub } from "@std/testing/mock"
 import { cli } from "../../src/cli.ts"
+import {
+  isMachineOutput,
+  setMachineOutput,
+} from "../../src/utils/write-result.ts"
+import { UnsupportedOutputError } from "../../src/utils/errors.ts"
 import {
   buildUsageDocument,
   type UsageDocument,
@@ -501,5 +508,70 @@ Deno.test("usage metadata stays aligned with the registered command tree", () =>
       true,
       `${metadata.path} confirmation metadata does not name its bypass option`,
     )
+  }
+})
+
+Deno.test("global JSON inheritance does not advertise unsupported leaves as capable", () => {
+  const queue = [...cli.getCommands(true)]
+  for (const command of queue) {
+    queue.push(...command.getCommands(true))
+    const metadata = buildUsageDocument(command).command
+    const local = command.getBaseOptions().find((option) =>
+      option.name === "json" && !option.global
+    )
+    if (local != null) {
+      assertEquals(local.aliases?.includes("j"), true, metadata.path)
+      assertEquals(local.flags.includes("-j"), true, metadata.path)
+      assertEquals(metadata.outputModes.includes("json"), true, metadata.path)
+    } else if (!command.hasCommands() && metadata.path !== "linear api") {
+      assertEquals(metadata.outputModes, ["human"], metadata.path)
+    }
+  }
+  const auth = buildUsageDocument(cli.getCommand("auth")!)
+  assertEquals(auth.command.outputModes, ["human", "json"])
+  assertEquals(
+    auth.globalOptions.find((option) => option.name === "json")?.flags,
+    [
+      "-j",
+      "--json",
+    ],
+  )
+  assertEquals(
+    auth.subcommands.find((command) => command.name === "login")?.outputModes,
+    ["human"],
+  )
+})
+
+Deno.test("repeated parses isolate JSON selection and preserve standalone human help", async () => {
+  const lines: string[] = []
+  const log = stub(
+    console,
+    "log",
+    (...args: unknown[]) => lines.push(args.join(" ")),
+  )
+  try {
+    for (const json of ["-j", "--json"]) {
+      await cli.parse([json, "version"])
+      assertEquals(JSON.parse(lines.pop()!).distribution, "jihuanshe/linear")
+      assertEquals(isMachineOutput(), true)
+      await cli.parse(["version"])
+      assertMatch(lines.pop()!, /^distribution:/)
+      assertEquals(isMachineOutput(), false)
+      await assertRejects(
+        () => cli.parse(["auth", "login", json]),
+        UnsupportedOutputError,
+      )
+      assertEquals(isMachineOutput(), true)
+      await cli.parse(["--help"])
+      assertMatch(lines.pop()!, /Usage:\s+linear/)
+      assertEquals(isMachineOutput(), false)
+      await cli.parse(["--workspace", json, "version"])
+      assertMatch(lines.pop()!, /^distribution:/)
+      assertEquals(isMachineOutput(), false)
+    }
+    assertEquals(lines, [])
+  } finally {
+    log.restore()
+    setMachineOutput(false)
   }
 })

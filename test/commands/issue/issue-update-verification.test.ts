@@ -35,7 +35,7 @@ async function fixture(
       response: ({ variables }) => ({
         data: {
           issueLabels: {
-            nodes: [{ id: "label-" + variables.name, name: variables.name }],
+            nodes: [{ id: `label-${variables.name}`, name: variables.name }],
             pageInfo: { hasNextPage: false, endCursor: null },
           },
         },

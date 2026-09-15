@@ -1,5 +1,12 @@
 import { assertEquals, assertStringIncludes } from "@std/assert"
 import { fromFileUrl } from "@std/path"
+import { stub } from "@std/testing/mock"
+import { FakeTime } from "@std/testing/time"
+import { apiCommand } from "../../src/commands/api.ts"
+import {
+  isMachineOutput,
+  setMachineOutput,
+} from "../../src/utils/write-result.ts"
 
 const main = fromFileUrl(new URL("../../src/main.ts", import.meta.url))
 const read =
@@ -18,7 +25,12 @@ type RequestBody = {
   operationName?: string
   variables?: Record<string, unknown>
 }
-type Page = { body: unknown; status?: number; raw?: string }
+type Page = {
+  body: unknown
+  status?: number
+  raw?: string
+  headers?: Record<string, string>
+}
 
 async function runApi(query: string, flags: string[], pages: Page[] = []) {
   const root = await Deno.makeTempDir()
@@ -35,6 +47,7 @@ async function runApi(query: string, flags: string[], pages: Page[] = []) {
       }
       return new Response(page.raw ?? JSON.stringify(page.body), {
         status: page.status ?? 200,
+        headers: page.headers,
       })
     },
   )
@@ -332,6 +345,7 @@ Deno.test("API safety does not report accumulated pages after a later HTTP read 
     body: null,
     raw: "Upstream unavailable",
     status: 503,
+    headers: { "retry-after": "120" },
   }])
   assertEquals(result.code, 1)
   assertEquals(result.requests.length, 2)
@@ -353,7 +367,7 @@ Deno.test("API safety preserves a later GraphQL partial error without merging pr
 
 for (const status of [200, 400]) {
   for (const mutation of [false, true]) {
-    Deno.test(`API safety preserves HTTP ${status} RATELIMITED mutation=${mutation} without retry`, async () => {
+    Deno.test(`API safety preserves HTTP ${status} RATELIMITED mutation=${mutation} when Retry-After exceeds the budget`, async () => {
       const envelope = {
         data: null,
         errors: [{
@@ -364,7 +378,7 @@ for (const status of [200, 400]) {
       const result = await runApi(
         mutation ? write : read,
         mutation ? ["--unprotected"] : [],
-        [{ status, body: envelope }],
+        [{ status, body: envelope, headers: { "retry-after": "120" } }],
       )
       assertEquals(result.code, 1)
       assertEquals(result.requests.length, 1)
@@ -402,3 +416,140 @@ Deno.test("API safety reports unknown when a mutation result is unreadable and d
     "mutation outcome is unknown",
   )
 })
+
+// Exercise command action, parsing, serialization and the real transport policy
+// together, replacing only HTTP and clocks. Error-envelope exits use runApi
+// above because throwing from Deno.exit is not equivalent to process termination.
+async function runApiWithClock(args: string[], transport: typeof fetch) {
+  using time = new FakeTime("2026-09-15T12:00:00Z")
+  using _now = stub(performance, "now", () => time.now)
+  using _random = stub(Math, "random", () => 0)
+  using _fetch = stub(globalThis, "fetch", transport)
+  const previousKey = Deno.env.get("LINEAR_API_KEY")
+  const previousMachineOutput = isMachineOutput()
+  Deno.env.set("LINEAR_API_KEY", "test-key")
+  const stdout: string[] = []
+  const stderr: string[] = []
+  const exit = new Error("test exit")
+  let code = 0
+  using _write = stub(Deno.stdout, "writeSync", (bytes: Uint8Array) => {
+    stdout.push(new TextDecoder().decode(bytes))
+    return bytes.length
+  })
+  using _log = stub(
+    console,
+    "log",
+    (...values: unknown[]) => stdout.push(values.join(" ")),
+  )
+  using _error = stub(
+    console,
+    "error",
+    (...values: unknown[]) => stderr.push(values.join(" ")),
+  )
+  using _exit = stub(Deno, "exit", (value?: number): never => {
+    code = value ?? 0
+    throw exit
+  })
+  try {
+    const pending = apiCommand.parse(args).catch((error) => {
+      if (error !== exit) throw error
+    })
+    await time.runMicrotasks()
+    await time.runAllAsync()
+    await pending
+    assertEquals(time.next(), false)
+    return { code, stdout: stdout.join(""), stderr: stderr.join("\n") }
+  } finally {
+    setMachineOutput(previousMachineOutput)
+    if (previousKey == null) Deno.env.delete("LINEAR_API_KEY")
+    else Deno.env.set("LINEAR_API_KEY", previousKey)
+  }
+}
+
+for (const status of [200, 400, 429, 502, 503, 504]) {
+  Deno.test(`API retries selected query on HTTP ${status} without changing its raw envelope or args`, async () => {
+    const requests: RequestBody[] = []
+    const times: number[] = []
+    const envelope = {
+      data: { viewer: { id: "ok" } },
+      extensions: { trace: "unchanged" },
+    }
+    const result = await runApiWithClock([
+      `${write}\n${read}`,
+      "--operation-name",
+      "Read",
+      "--variable",
+      "after=cursor",
+    ], (_input, init) => {
+      requests.push(JSON.parse(String(init?.body)))
+      times.push(Date.now())
+      return Promise.resolve(
+        requests.length === 1
+          ? Response.json({
+            errors: [{
+              message: "Slow down",
+              extensions: { code: "RATELIMITED" },
+            }],
+          }, {
+            status,
+            headers: { "retry-after": "Tue, 15 Sep 2026 12:00:02 GMT" },
+          })
+          : Response.json(envelope),
+      )
+    })
+    assertEquals(result.code, 0)
+    assertEquals(result.stderr, "")
+    assertEquals(JSON.parse(result.stdout), envelope)
+    assertEquals(requests.length, 2)
+    assertEquals(requests[0], requests[1])
+    assertEquals(requests[0].operationName, "Read")
+    assertEquals(requests[0].variables, { after: "cursor" })
+    assertEquals(times[1] - times[0], 2_000)
+  })
+}
+
+for (const status of [200, 400, 429, 502, 503, 504]) {
+  Deno.test(`API never retries selected mutation on HTTP ${status}`, async () => {
+    const envelope = {
+      data: null,
+      errors: [{ message: "Slow down", extensions: { code: "RATELIMITED" } }],
+      extensions: { trace: "unchanged" },
+    }
+    const result = await runApi(`${read}\n${write}`, [
+      "--operation-name",
+      "Write",
+      "--unprotected",
+    ], [{ status, body: envelope }])
+    assertEquals(result.code, 1)
+    assertEquals(result.requests.length, 1)
+    assertEquals(result.stderr, "")
+    assertEquals(JSON.parse(result.stdout), envelope)
+  })
+}
+
+for (const phase of ["headers", "body"]) {
+  Deno.test(`API mutation ${phase} timeout reports unknown without replay`, async () => {
+    let requests = 0
+    let cancelled = 0
+    const result = await runApiWithClock([write, "--unprotected"], () => {
+      requests++
+      if (phase === "headers") return new Promise<Response>(() => {})
+      return Promise.resolve(
+        new Response(
+          new ReadableStream({
+            cancel() {
+              cancelled++
+            },
+          }),
+        ),
+      )
+    })
+    assertEquals(result.code, 1)
+    assertStringIncludes(
+      assertLocalFailure(result, "unknown"),
+      "mutation outcome is unknown",
+    )
+    assertEquals(requests, 1)
+    assertEquals(cancelled, phase === "body" ? 1 : 0)
+  })
+}

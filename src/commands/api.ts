@@ -14,6 +14,7 @@ import {
   type SelectionSetNode,
 } from "graphql"
 import { getGraphQLEndpoint, getResolvedApiKey } from "../utils/graphql.ts"
+import { graphqlFetch } from "../utils/graphql-transport.ts"
 import { completeConnection, type Connection } from "../utils/pagination.ts"
 import { setMachineOutput } from "../utils/write-result.ts"
 import {
@@ -41,7 +42,7 @@ export const apiCommand = withUsageMetadata(new Command(), {
 })
   .name("api")
   .description(
-    "Run raw GraphQL queries or explicitly unprotected mutations.\n\nRaw mutations require --unprotected and do not provide domain guards, receipts or checkpoints. Requests are not retried; inspect data/errors and reconcile uncertain writes.",
+    "Run raw GraphQL queries or explicitly unprotected mutations.\n\nRaw mutations require --unprotected and do not provide domain guards, receipts or checkpoints. Queries may retry transient failures within a bounded deadline; mutations are never retried. Inspect data/errors and reconcile uncertain writes.",
   )
   .type("variable", new VariableType())
   .arguments("[query:string]")
@@ -283,7 +284,7 @@ async function requestPage(
     body.variables = variables
   }
 
-  const response = await fetch(getGraphQLEndpoint(), {
+  const response = await graphqlFetch(getGraphQLEndpoint(), {
     method: "POST",
     headers,
     body: JSON.stringify(body),
@@ -296,7 +297,7 @@ async function requestPage(
     parsed.errors.length > 0
   if (!response.ok || hasGraphQLErrors) {
     // Preserve partial data and GraphQL errors, including HTTP 400 RATELIMITED.
-    // No retry: a raw mutation may already have had effects.
+    // The shared transport only retries definitively selected queries.
     if (!silent) outputJSON(parsed, text)
     Deno.exit(1)
   }

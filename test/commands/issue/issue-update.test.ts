@@ -2,6 +2,7 @@ import {
   issueWriteId,
   setupIssueWriteServer as setupMockLinearServer,
   teamWriteIds,
+  terminalPage,
 } from "../../utils/issue-write-fixtures.ts"
 import { snapshotTest } from "@cliffy/testing"
 import { assertEquals, assertRejects, assertStringIncludes } from "@std/assert"
@@ -1759,21 +1760,14 @@ Deno.test("Issue Update Command - label additions and removals stay incremental"
   const { cleanup } = await setupMockLinearServer([
     {
       queryName: "GetIssueLabelIdByNameForTeam",
-      variables: { name: "frontend", team: { id: { eq: teamWriteIds.ENG } } },
-      response: {
+      response: ({ variables }) => ({
         data: {
-          issueLabels: { nodes: [{ id: "label-frontend", name: "frontend" }] },
+          issueLabels: {
+            nodes: [{ id: `label-${variables.name}`, name: variables.name }],
+            pageInfo: terminalPage,
+          },
         },
-      },
-    },
-    {
-      queryName: "GetIssueLabelIdByNameForTeam",
-      variables: { name: "backend", team: { id: { eq: teamWriteIds.ENG } } },
-      response: {
-        data: {
-          issueLabels: { nodes: [{ id: "label-backend", name: "backend" }] },
-        },
-      },
+      }),
     },
     {
       queryName: "UpdateIssue",

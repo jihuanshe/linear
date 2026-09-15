@@ -30,6 +30,7 @@ commands:
 global options:
   -h, --help          Show this help.
   --workspace <slug>  Target workspace (uses credentials)
+  -j, --json          Output JSON where supported
 
 detail: linear <domain> usage; linear <command> --help
 machine-readable: linear usage --json
@@ -79,6 +80,7 @@ snapshot[`usage JSON describes command metadata 1`] = `
     options: [],
     outputModes: [
       "human",
+      "json",
     ],
     path: "linear issue",
     usage: "linear issue",
@@ -111,6 +113,17 @@ snapshot[`usage JSON describes command metadata 1`] = `
         "--workspace",
       ],
       name: "workspace",
+      repeatable: false,
+      staticallyRequired: false,
+    },
+    {
+      arguments: [],
+      description: "Output JSON where supported",
+      flags: [
+        "-j",
+        "--json",
+      ],
+      name: "json",
       repeatable: false,
       staticallyRequired: false,
     },
@@ -1027,6 +1040,7 @@ Creates original.json and desired.md in a new directory. Read the saved discussi
           arguments: [],
           description: "Output saved paths and stable Issue identity as JSON",
           flags: [
+            "-j",
             "--json",
           ],
           name: "json",
@@ -1303,6 +1317,7 @@ Creates original.json and desired.md in a new directory. Read the saved discussi
           arguments: [],
           description: "Output deletion effects and per-item bulk results as JSON",
           flags: [
+            "-j",
             "--json",
           ],
           name: "json",
@@ -1395,7 +1410,7 @@ Run \`linear guide markdown\` for mentions, collapsible sections and rewrite ris
               variadic: false,
             },
           ],
-          description: "Parent issue (if any) as a team_number code",
+          description: "Parent issue (UUID, identifier, or Linear Issue URL)",
           flags: [
             "--parent",
           ],
@@ -1413,7 +1428,7 @@ Run \`linear guide markdown\` for mentions, collapsible sections and rewrite ris
               variadic: false,
             },
           ],
-          description: "Priority of the issue (1-4, descending priority)",
+          description: "Priority (0 = no priority, 1 = urgent, 2 = high, 3 = medium, 4 = low)",
           flags: [
             "-p",
             "--priority",
@@ -1542,7 +1557,7 @@ Run \`linear guide markdown\` for mentions, collapsible sections and rewrite ris
               variadic: false,
             },
           ],
-          description: "Workflow state for the issue (by name or type)",
+          description: "Workflow state for the issue (UUID, name, or type)",
           flags: [
             "-s",
             "--state",
@@ -1745,7 +1760,7 @@ Run \`linear guide markdown\` for mentions, collapsible sections and rewrite ris
               variadic: false,
             },
           ],
-          description: "Parent issue (if any) as a team_number code",
+          description: "Parent issue (UUID, identifier, or Linear Issue URL)",
           flags: [
             "--parent",
           ],
@@ -1763,7 +1778,7 @@ Run \`linear guide markdown\` for mentions, collapsible sections and rewrite ris
               variadic: false,
             },
           ],
-          description: "Priority of the issue (1-4, descending priority)",
+          description: "Priority (0 = no priority, 1 = urgent, 2 = high, 3 = medium, 4 = low)",
           flags: [
             "-p",
             "--priority",
@@ -1928,7 +1943,7 @@ Run \`linear guide markdown\` for mentions, collapsible sections and rewrite ris
               variadic: false,
             },
           ],
-          description: "Workflow state for the issue (by name or type)",
+          description: "Workflow state for the issue (UUID, name, or type)",
           flags: [
             "-s",
             "--state",
@@ -2098,6 +2113,7 @@ Run \`linear guide markdown\` for mentions, collapsible sections and rewrite ris
       options: [],
       outputModes: [
         "human",
+        "json",
       ],
       path: "linear issue comment",
       usage: "linear issue comment",
@@ -2142,6 +2158,7 @@ Run \`linear guide markdown\` for mentions, collapsible sections and rewrite ris
           arguments: [],
           description: "Output a JSON write result with the attachment",
           flags: [
+            "-j",
             "--json",
           ],
           name: "json",
@@ -2240,6 +2257,7 @@ Run \`linear guide markdown\` for mentions, collapsible sections and rewrite ris
           arguments: [],
           description: "Output a JSON write result with the attachment",
           flags: [
+            "-j",
             "--json",
           ],
           name: "json",
@@ -2286,6 +2304,7 @@ Run \`linear guide markdown\` for mentions, collapsible sections and rewrite ris
       options: [],
       outputModes: [
         "human",
+        "json",
       ],
       path: "linear issue relation",
       usage: "linear issue relation",
@@ -2338,6 +2357,7 @@ Run \`linear guide markdown\` for mentions, collapsible sections and rewrite ris
           arguments: [],
           description: "Output the plan as JSON",
           flags: [
+            "-j",
             "--json",
           ],
           name: "json",
@@ -2430,6 +2450,7 @@ Run \`linear guide markdown\` for mentions, collapsible sections and rewrite ris
           arguments: [],
           description: "Output per-item results and read-back as JSON; progress goes to stderr",
           flags: [
+            "-j",
             "--json",
           ],
           name: "json",
@@ -2457,6 +2478,7 @@ Run \`linear guide markdown\` for mentions, collapsible sections and rewrite ris
       options: [],
       outputModes: [
         "human",
+        "json",
       ],
       path: "linear issue agent-session",
       usage: "linear issue agent-session",

@@ -8,10 +8,12 @@ import {
   commentResolveCommand,
   commentUnresolveCommand,
 } from "./issue-comment-resolve.ts"
+import { printJsonUsage } from "../usage.ts"
 
 export const commentCommand = new Command()
   .description("Manage issue comments")
-  .action(function () {
+  .action(function (options) {
+    if (printJsonUsage(this, options)) return
     this.showHelp()
   })
   .command("add", commentAddCommand)

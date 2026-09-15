@@ -9,12 +9,12 @@ import {
   getCycleIdByNameOrNumber,
   getIssueId,
   getIssueIdentifier,
-  getIssueLabelIdByNameForTeam,
   getIssueProjectId,
   getProjectIdByName,
   getWorkflowStates,
   isLinearUuid,
   lookupUserId,
+  resolveIssueLabelIdsForTeam,
   resolveMilestoneId,
   resolveWorkflowState,
   workflowStateNotFoundError,
@@ -74,7 +74,14 @@ export interface UpdateIssueOptions {
   beforeWrite?: () => Promise<void>
 }
 
-export function validateIssueWriteStrings(options: UpdateIssueOptions) {
+export function validateIssueWriteOptions(options: UpdateIssueOptions) {
+  if (
+    options.priority !== undefined &&
+    (!Number.isInteger(options.priority) || options.priority < 0 ||
+      options.priority > 4)
+  ) {
+    throw new ValidationError("Priority must be an integer from 0 to 4")
+  }
   for (
     const field of [
       "assignee",
@@ -123,7 +130,7 @@ export async function prepareIssueUpdate(
   options: UpdateIssueOptions,
   issueIdArg?: string,
 ) {
-  validateIssueWriteStrings(options)
+  validateIssueWriteOptions(options)
   const {
     assignee,
     unassign,
@@ -134,9 +141,9 @@ export async function prepareIssueUpdate(
     estimate,
     description,
     descriptionFile,
-    label: labels,
-    addLabel: addedLabels,
-    removeLabel: removedLabels,
+    label: labelReferences,
+    addLabel: addedLabelReferences,
+    removeLabel: removedLabelReferences,
     team,
     project,
     state,
@@ -165,7 +172,7 @@ export async function prepareIssueUpdate(
     milestone,
     cycle,
     title,
-    labels,
+    labelReferences,
   ].some((value) => value !== undefined) || unassign === true ||
     clearCycle === true
   if (
@@ -177,9 +184,9 @@ export async function prepareIssueUpdate(
       expectFields: options.expectField,
     })
   }
-  const replacesLabels = labels != null && labels.length > 0
-  const addsLabels = addedLabels != null && addedLabels.length > 0
-  const removesLabels = removedLabels != null && removedLabels.length > 0
+  const replacesLabels = (labelReferences?.length ?? 0) > 0
+  const addsLabels = (addedLabelReferences?.length ?? 0) > 0
+  const removesLabels = (removedLabelReferences?.length ?? 0) > 0
 
   if (replacesLabels && (addsLabels || removesLabels)) {
     throw new ValidationError(
@@ -255,8 +262,8 @@ export async function prepareIssueUpdate(
   }
 
   // Resolve the Issue reference from the argument or current VCS context.
-  const issueId = await getIssueIdentifier(issueIdArg)
-  if (!issueId) {
+  const issueReference = await getIssueIdentifier(issueIdArg)
+  if (!issueReference) {
     throw new ValidationError(
       "Could not determine issue identifier",
       {
@@ -266,7 +273,7 @@ export async function prepareIssueUpdate(
     )
   }
 
-  const target = await readIssueBasis(issueId)
+  const target = await readIssueBasis(issueReference)
   const writeTeam = team == null
     ? target.issue.team
     : await resolveWriteTeam(team)
@@ -292,23 +299,11 @@ export async function prepareIssueUpdate(
     }
   }
 
-  const resolveLabelIds = async (
-    labelNames: string[] | undefined,
-  ): Promise<string[]> => {
-    const ids = new Set<string>()
-    for (const label of labelNames ?? []) {
-      const labelId = await getIssueLabelIdByNameForTeam(label, teamId)
-      if (!labelId) {
-        throw new NotFoundError("Issue label", label)
-      }
-      ids.add(labelId)
-    }
-    return [...ids]
-  }
-
-  const labelIds = await resolveLabelIds(labels)
-  const addedLabelIds = await resolveLabelIds(addedLabels)
-  const removedLabelIds = await resolveLabelIds(removedLabels)
+  const [labelIds, addedLabelIds, removedLabelIds] =
+    await resolveIssueLabelIdsForTeam(
+      [labelReferences, addedLabelReferences, removedLabelReferences],
+      teamId,
+    )
   const removedLabelIdSet = new Set(removedLabelIds)
   if (addedLabelIds.some((labelId) => removedLabelIdSet.has(labelId))) {
     throw new ValidationError(
@@ -386,15 +381,15 @@ export async function prepareIssueUpdate(
   }
   if (dueDate !== undefined) input.dueDate = dueDate
   if (parent !== undefined) {
-    const parentIdentifier = await getIssueIdentifier(parent)
-    if (!parentIdentifier) {
+    const parentReference = await getIssueIdentifier(parent)
+    if (!parentReference) {
       throw new ValidationError(
         `Could not resolve parent issue identifier: ${parent}`,
       )
     }
-    const parentId = await getIssueId(parentIdentifier)
+    const parentId = await getIssueId(parentReference)
     if (!parentId) {
-      throw new NotFoundError("Parent issue", parentIdentifier)
+      throw new NotFoundError("Parent issue", parentReference)
     }
     input.parentId = parentId
   }
@@ -606,12 +601,12 @@ export const updateCommand = withUsageMetadata(new Command(), { writes: true })
   )
   .option(
     "--parent <parent:string>",
-    "Parent issue (if any) as a team_number code",
+    "Parent issue (UUID, identifier, or Linear Issue URL)",
     { preserveEmpty: true },
   )
   .option(
     "-p, --priority <priority:number>",
-    "Priority of the issue (1-4, descending priority)",
+    "Priority (0 = no priority, 1 = urgent, 2 = high, 3 = medium, 4 = low)",
     { preserveEmpty: true },
   )
   .option(
@@ -656,7 +651,7 @@ export const updateCommand = withUsageMetadata(new Command(), { writes: true })
   )
   .option(
     "-s, --state <state:string>",
-    "Workflow state for the issue (by name or type)",
+    "Workflow state for the issue (UUID, name, or type)",
     { preserveEmpty: true },
   )
   .option(

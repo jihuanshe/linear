@@ -25,12 +25,15 @@ import { versionCommand } from "./commands/version.ts"
 import {
   createUsageAction,
   createUsageCommand,
+  outputModes,
   type UsageCommandSource,
+  withUsageMetadata,
 } from "./commands/usage.ts"
 import { guidesForCommandPath } from "./guides/guides.ts"
 import { setCliWorkspace } from "./config.ts"
 import { supportsStdoutStyling } from "./utils/terminal.ts"
 import { setMachineOutput } from "./utils/write-result.ts"
+import { UnsupportedOutputError, ValidationError } from "./utils/errors.ts"
 
 // Import config and credentials setup
 import "./config.ts"
@@ -43,7 +46,23 @@ export const cli = new Command()
   .name("linear")
   .throwErrors()
   .help({ colors: supportsStdoutStyling() })
+  .helpOption("-h, --help", "Show this help.", {
+    action: function (options) {
+      guardMachineOutput.call(this, options)
+      this.showHelp({ long: this.getRawArgs().includes("--help") })
+    },
+  })
   .version(denoConfig.version)
+  .versionOption("-V, --version", "Show the version number for this program.", {
+    action: function (options) {
+      guardMachineOutput.call(this, options)
+      // Keep the original build-identity line; capability metadata belongs in
+      // usage/help, not in the legacy --version response.
+      if (this.getRawArgs().includes("--version")) {
+        console.log(this.getLongVersion().split("\n")[0])
+      } else this.showVersion()
+    },
+  })
   .description(
     `Handy linear commands from the command line.
 
@@ -54,6 +73,11 @@ Environment Variables:
   .globalOption(
     "--workspace <slug:string>",
     "Target workspace (uses credentials)",
+  )
+  .globalOption(
+    "-j, --json",
+    "Output JSON where supported",
+    { action: guardMachineOutput },
   )
   .globalAction((options) => {
     setCliWorkspace(options.workspace)
@@ -98,6 +122,8 @@ Environment Variables:
 
 interface UsageInjectable extends UsageCommandSource {
   hasCommands(): boolean
+  reset(): unknown
+  meta(name: string, value: string): unknown
   getCommands(): UsageInjectable[]
   getCommand(name: string): UsageInjectable | undefined
   command(
@@ -127,6 +153,91 @@ function injectUsageCommands(
 }
 
 injectUsageCommands(cli, false)
+
+/** Option actions bind the resolved leaf, unlike root globalAction. */
+function guardMachineOutput(
+  this: UsageCommandSource,
+  parsedOptions: unknown,
+): void {
+  const options = (parsedOptions ?? {}) as Record<string, unknown>
+  setMachineOutput(options.json === true)
+  if (options.json !== true) return
+
+  // Standalone help/version may bypass globalAction, and option actions run
+  // concurrently. Each printing action must therefore perform its own guard.
+  if (options.help || options.version) {
+    throw new ValidationError(
+      "--json cannot be combined with --help or --version",
+      {
+        suggestion:
+          "Use 'linear usage --json' (or '<domain> usage --json') for command metadata, or 'linear version --json' for build identity.",
+      },
+    )
+  }
+  if (!outputModes(this).includes("json")) {
+    throw new UnsupportedOutputError(this.getPath())
+  }
+  const exclusive = new Set([
+    "web",
+    "app",
+    "interactive",
+    "edit",
+    "raw",
+    "source",
+    "silent",
+  ])
+  for (const option of this.getBaseOptions()) {
+    // Cliffy names a negative definition "no-interactive", so it is not an
+    // explicit positive selector. Display toggles and --no-pager are compatible.
+    if (exclusive.has(option.name) && options[option.name] === true) {
+      throw new ValidationError(
+        `--json cannot be combined with --${option.name}`,
+        {
+          suggestion: `Remove --${option.name} to receive JSON on stdout.`,
+        },
+      )
+    }
+  }
+}
+
+function wireMachineOutput(command: UsageInjectable): void {
+  if (command.getName() === "completions") return
+  command.reset()
+  if (command.hasCommands()) {
+    withUsageMetadata(command, { outputModes: ["human", "json"] })
+  }
+  const json = command.getBaseOptions().find((option) => option.name === "json")
+  if (json != null && !json.global) {
+    // A local option shadows the entire global option, including aliases and
+    // actions. Keep its definition/typing/description and wire the same guard.
+    json.aliases ??= []
+    if (!json.aliases.includes("j")) json.aliases.push("j")
+    if (!json.flags.includes("-j")) json.flags.unshift("-j")
+    const action = json.action
+    json.action = function (options, ...args) {
+      guardMachineOutput.call(this, options)
+      return action?.call(this, options, ...args)
+    }
+  }
+  for (const child of command.getCommands()) wireMachineOutput(child)
+}
+
+wireMachineOutput(cli)
+
+// Cliffy's completion commands disable inherited globals. Accept the selector
+// there too, solely to reject it with the same machine error before execution.
+const completionCommands = [cli.getCommand("completions")!]
+const jsonOption = cli.getBaseOptions().find((option) =>
+  option.name === "json"
+)!
+for (const command of completionCommands) {
+  completionCommands.push(...command.getCommands(true))
+  command.reset()
+    .globalOption(jsonOption.flags.join(", "), jsonOption.description, {
+      action: guardMachineOutput,
+    })
+    .globalAction(guardMachineOutput)
+}
 
 // Leaf help carries a "Related guides" breadcrumb derived from guide
 // frontmatter (src/guides/guides.ts owns the relationship); domains render

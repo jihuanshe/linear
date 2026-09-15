@@ -2003,16 +2003,26 @@ export async function getIssueLabelIdByNameForTeam(
   const client = getGraphQLClient()
   if (isLinearUuid(name)) {
     const byId = gql(`
-      query GetIssueLabelForWrite($id: String!) {
-        issueLabel(id: $id) { id isGroup team { id key } }
+      query GetIssueLabelForWrite($id: ID!) {
+        issueLabels(first: 2, filter: { id: { eq: $id } }) {
+          nodes { id isGroup team { id key } }
+          pageInfo { hasNextPage endCursor }
+        }
       }
     `)
     const data = await client.request(byId, { id: name.toLowerCase() })
-    const label = data?.issueLabel
-    if (label == null) return undefined
-    if (label.id?.toLowerCase() !== name.toLowerCase()) {
+    const id = uniqueLookupId(data?.issueLabels, name, "Issue label")
+    if (id == null) return undefined
+    const label = data.issueLabels.nodes[0]!
+    if (id.toLowerCase() !== name.toLowerCase()) {
       throw new CliError("Issue label lookup returned a different identity")
     }
+    if (
+      typeof label.isGroup !== "boolean" || label.team === undefined ||
+      (label.team != null &&
+        (typeof label.team.id !== "string" ||
+          typeof label.team.key !== "string"))
+    ) throw new CliError("Issue label lookup returned an incomplete label")
     const matches = label.team == null ||
       (isLinearUuid(team)
         ? label.team.id.toLowerCase() === team.toLowerCase()
@@ -2044,6 +2054,36 @@ export async function getIssueLabelIdByNameForTeam(
     : { key: { eq: team } }
   const data = await client.request(query, { name, team: scope })
   return uniqueLookupId(data?.issueLabels, name, "Issue label")
+}
+
+/** Resolve reference lists together, preserving each list's first-input ID order. */
+export async function resolveIssueLabelIdsForTeam(
+  referenceLists: readonly (readonly string[] | undefined)[],
+  teamReference: string,
+): Promise<string[][]> {
+  // Only UUIDs have a client-defined case equivalence. Let Linear decide name
+  // matching and ambiguity for each distinct spelling, regardless of list size.
+  const referenceKey = (reference: string) =>
+    isLinearUuid(reference) ? reference.toLowerCase() : reference
+  const references = new Set<string>()
+  for (const reference of referenceLists.flatMap((list) => list ?? [])) {
+    if (!reference.trim()) {
+      throw new ValidationError("Issue label reference cannot be empty")
+    }
+    references.add(referenceKey(reference))
+  }
+  const resolvedIds = new Map<string, string>()
+  for (const reference of references) {
+    const labelId = await getIssueLabelIdByNameForTeam(reference, teamReference)
+    if (labelId == null) throw new NotFoundError("Issue label", reference)
+    resolvedIds.set(reference, labelId.toLowerCase())
+  }
+  return referenceLists.map((list) => {
+    const labelIds = (list ?? []).map((reference) =>
+      resolvedIds.get(referenceKey(reference))!
+    )
+    return [...new Set(labelIds)]
+  })
 }
 
 export async function getProjectLabelIdByName(

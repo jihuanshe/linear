@@ -51,6 +51,7 @@ import {
   type Checkpoint,
   type CheckpointItem,
   type DeliveryReceipt,
+  lockCheckpoint,
   prepareCheckpoint,
   saveCheckpoint,
 } from "./checkpoint.ts"
@@ -722,6 +723,7 @@ function combineEffect(a: WriteEffect, b: WriteEffect): WriteEffect {
 export async function applyManifest(
   context: ApplyContext,
 ): Promise<ApplyOutcome> {
+  using _lock = await lockCheckpoint(context.loaded.manifestPath)
   return await inWorkspace(context.loaded, async (organization) => {
     const { loaded } = context
     const expansions = await expand(loaded)

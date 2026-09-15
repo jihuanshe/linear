@@ -4,7 +4,7 @@ import { getCliWorkspace, getOption } from "../config.ts"
 import { getCredentialApiKey } from "../credentials.ts"
 import denoConfig from "../../deno.json" with { type: "json" }
 import { extractGraphQLMessage, isDebugMode, WriteError } from "./errors.ts"
-import { Kind, parse } from "graphql"
+import { graphqlFetch, graphQLOperation } from "./graphql-transport.ts"
 import { LINEAR_API_ENDPOINT } from "../const.ts"
 import { withTerminalColors } from "./terminal.ts"
 import { AsyncLocalStorage } from "node:async_hooks"
@@ -132,21 +132,13 @@ function createClient(apiKey?: string): GraphQLClient {
     fetch: async (input, init) => {
       // All typed requests use GraphQL JSON. Classify before transport so a
       // fetch exception after sending a mutation is never called zero-effect.
-      let mutation = false
-      if (typeof init?.body === "string") {
-        const body = JSON.parse(init.body) as { query?: string }
-        if (typeof body.query === "string") {
-          mutation = parse(body.query).definitions.some((definition) =>
-            definition.kind === Kind.OPERATION_DEFINITION &&
-            definition.operation === "mutation"
-          )
-        }
-      }
+      const operation = graphQLOperation(init?.body)
+      const mutation = operation === "mutation" || operation == null
       try {
-        const response = await fetch(input, init)
+        const response = await graphqlFetch(input, init)
         if (!mutation) return response
-        // Buffer the small GraphQL receipt here as well: body interruption or
-        // invalid JSON after HTTP headers is still an unknown mutation.
+        // Transport has already bounded and buffered the receipt. Invalid JSON
+        // or a missing receipt after headers is still an unknown mutation.
         const text = await response.text()
         const decoded: unknown = JSON.parse(text)
         const envelope = decoded != null && typeof decoded === "object" &&
