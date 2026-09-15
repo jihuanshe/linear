@@ -10,14 +10,16 @@ await cliffySnapshotTest({
   args: [
     "550e8400-e29b-41d4-a716-446655440000",
     "--json",
-    "--include-content",
   ],
   denoArgs: commonDenoArgs,
   async fn() {
     const server = new MockLinearServer([
       {
         queryName: "ReadInitiative",
-        variables: { id: "550e8400-e29b-41d4-a716-446655440000" },
+        variables: {
+          id: "550e8400-e29b-41d4-a716-446655440000",
+          includeContent: true,
+        },
         response: {
           data: {
             organization: { id: "workspace-1", urlKey: "test" },

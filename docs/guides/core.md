@@ -35,7 +35,7 @@ linear usage --json          # 命令树与能力元数据
 以下名称相近，但操作不同：
 
 - `project update` 修改项目，`project-update create/list` 发布或读取项目进展；`initiative update` 与 `initiative-update create/list` 同理。
-- 项目（Project）的 `description` 是短简介，长正文属于 `content`，在 Linear 中显示为 overview。创建和更新长正文都用 `--content-file`；更新前用 `project view --include-content --json` 保存依据，提交时传 `--base-file`。
+- 项目（Project）的 `description` 是短简介，长正文属于 `content`，在 Linear 中显示为 overview。创建和更新长正文都用 `--content-file`；更新前用 `project view --json` 保存依据，提交时传 `--base-file`。
 - `issue update --label` 和 `project update --label` 替换完整标签集。只给 Issue 增删标签用 `--add-label/--remove-label`；替换前读全现有标签并保留仍需要的项。
 - `issue comment add --attach` 把文件嵌入评论，`issue attach` 创建侧栏附件（Attachment）。材料放置见 `linear guide issue-authoring`。
 
@@ -63,7 +63,7 @@ linear usage --json          # 命令树与能力元数据
 https://linear.app/<workspace>/project/<project-name>-<project-slug-id>/issues
 ```
 
-取工作区短名和项目 slug ID，按上述认证规则核对身份，再用 `project view <id>` 核对对象。读取项目长正文加 `--include-content --json`。
+取工作区短名和项目 slug ID，按上述认证规则核对身份，再用 `project view <id>` 核对对象。`view` 默认读取长正文，`--json` 保留原始字段。
 
 ## 确定查询范围
 

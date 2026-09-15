@@ -1,5 +1,5 @@
 import { Command } from "@cliffy/command"
-import { join, resolve } from "@std/path"
+import { dirname, join, resolve } from "@std/path"
 import {
   fetchIssueDetailsRaw,
   getIssueIdentifier,
@@ -56,8 +56,8 @@ export const exportCommand = new Command()
           "Issue read is missing identity or description",
         )
       }
-      // Reserve after the read: transient read failures do not leave an empty directory.
-      // mkdir still refuses an existing basis, including a concurrent export.
+      await Deno.mkdir(dirname(directory), { recursive: true })
+      // Reserve the final directory exclusively after the complete read.
       await Deno.mkdir(directory)
       const baseFile = join(directory, "original.json")
       const descriptionFile = join(directory, "desired.md")

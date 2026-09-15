@@ -87,7 +87,7 @@ Deno.test("Project content uses the view basis, rejects concurrent edits, preser
     )
   try {
     await server.start()
-    const read = await cli(server, ["view", id, "--include-content"])
+    const read = await cli(server, ["view", id])
     assertEquals(read.code, 0, read.stdout + read.stderr)
     assertEquals(read.json().project.content, project.content)
     await Deno.writeTextFile(basis, read.stdout)
@@ -137,7 +137,7 @@ Deno.test("Project content uses the view basis, rejects concurrent edits, preser
     assertEquals(noOp.json().effect, "none")
     assertEquals(mutations().length, 1)
 
-    const beforeClear = await cli(server, ["view", id, "--include-content"])
+    const beforeClear = await cli(server, ["view", id])
     await Deno.writeTextFile(basis, beforeClear.stdout)
     const clear = await cli(server, [
       "update",

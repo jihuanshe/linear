@@ -130,7 +130,7 @@ export const updateCommand = withUsageMetadata(new Command(), { writes: true })
   .option("-j, --json", "Output the write result as JSON")
   .option(
     "--base-file <path:string>",
-    "Saved view --json output from before editing; add --include-content for overview",
+    "Saved view --json output from before editing",
     { preserveEmpty: true },
   )
   .option(

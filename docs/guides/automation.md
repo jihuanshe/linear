@@ -119,7 +119,7 @@ jq '.nodes[] | {id, identifier, title, priority}' issues.json
 
 `issue view --json` 与 `issue export` 完整读取 `.issue.comments`、`.issue.attachments` 和 `.issue.labels`；`view --no-comments` 跳过评论。评论保留 `quotedText` 和 `documentContentId`，供识别行内引用；PR 等链接位于 `.issue.attachments.nodes`。`children`、`documents` 和详情中的 `relations` 等集合仍是有限预览；完整关系用 `issue relation list <ID> --json`，其他完整集合按 `linear guide graphql` 单独分页。完整分页不代表跨页数据库快照。
 
-单个 Initiative 或 Project 的短描述与长正文用 `initiative view <ID> --include-content --json` 或 `project view <ID> --include-content --json` 读取。Initiative 的该选项还返回关联 Project 的 `description` 和完整 `documents` 连接；关联文档的正文继续用 `document view` 读取。
+单个 Initiative 或 Project 的短描述与长正文用 `initiative view <ID> --json` 或 `project view <ID> --json` 读取。Initiative 还返回关联 Project 的 `description` 和完整 `documents` 连接；关联文档的正文继续用 `document view` 读取。
 
 需要批量导出当前凭据可见的 Initiative／Project 说明时，可以组合以下查询。它们分别读到终页，保留 `{data: {organization, initiatives|projects: {nodes, pageInfo}}}`，默认不含归档对象：
 
@@ -140,12 +140,12 @@ linear api 'query ContextProjects($after: String) {
 }' --paginate > projects.json
 ```
 
-两份查询不限定状态；需要选定范围时用当前 schema 的 `filter`，需要归档对象时显式增加 `includeArchived: true`。短描述和 Markdown 正文均不截断；关联文档是独立对象，按需要继续读取。不要把列表命令的默认范围或嵌套关系预览当成完整上下文导出。更新前用对应的 `view --include-content --json` 保存原始依据。Project 和 Initiative 长正文均支持 `update --content-file <path> --base-file <original.json>`；Project 的 `--description-file` 只更新短描述。
+两份查询不限定状态；需要选定范围时用当前 schema 的 `filter`，需要归档对象时显式增加 `includeArchived: true`。短描述和 Markdown 正文均不截断；关联文档是独立对象，按需要继续读取。不要把列表命令的默认范围或嵌套关系预览当成完整上下文导出。更新前用对应的 `view --json` 保存原始依据。Project 和 Initiative 长正文均支持 `update --content-file <path> --base-file <original.json>`；Project 的 `--description-file` 只更新短描述。
 
 例如修改 Project 长正文，先读取并从同一份结果提取草稿，再编辑文件：
 
 ```bash
-linear project view <ID> --include-content --json > project-original.json
+linear project view <ID> --json > project-original.json
 jq -j '.project.content // ""' project-original.json > project-content.md
 # 编辑 project-content.md 后提交
 linear project update <ID> --content-file project-content.md --base-file project-original.json --json

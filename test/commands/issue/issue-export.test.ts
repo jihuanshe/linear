@@ -74,6 +74,7 @@ for (
     "edit",
     "conflict",
     "existing-directory",
+    "missing-parent",
     "missing-description",
     "empty-description",
     "issue-url",
@@ -83,7 +84,11 @@ for (
 ) {
   Deno.test(`issue export and guarded update: ${scenario}`, async () => {
     const directory = await Deno.makeTempDir()
-    const output = join(directory, "edit space ' $draft")
+    const output = join(
+      directory,
+      ...(scenario === "missing-parent" ? ["tasks", "drafts"] : []),
+      "edit space ' $draft",
+    )
     const current = exportSnapshot()
     current.issue.description = scenario === "empty-description" ? "" : markdown
     const original = structuredClone(current)
@@ -231,7 +236,7 @@ for (
 
 Deno.test("issue export can retry the same directory after a failed read", async () => {
   const directory = await Deno.makeTempDir()
-  const output = join(directory, "draft")
+  const output = join(directory, "tasks", "draft")
   const current = exportSnapshot()
   let reads = 0
   const { cleanup } = await setupMockLinearServer([{
