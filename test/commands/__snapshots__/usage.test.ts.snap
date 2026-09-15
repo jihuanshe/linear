@@ -1658,7 +1658,7 @@ Run \`linear guide markdown\` for mentions, collapsible sections and rewrite ris
         },
       ],
       confirmation: null,
-      description: "Update a linear issue
+      description: "Update an issue; verify fields with up to 3 reads without repeating the write
 
 For API Markdown bodies, prefer a bare Linear URL for mentions.
 Named profile links can also mention people; \`@name\` handling varies by body.
@@ -2050,7 +2050,7 @@ Run \`linear guide markdown\` for mentions, collapsible sections and rewrite ris
         },
         {
           arguments: [],
-          description: "Output a JSON write result; the resulting issue is in data.issue",
+          description: "Output a JSON write result with the mutation receipt, verification, and readBack",
           flags: [
             "-j",
             "--json",

@@ -337,7 +337,7 @@ Deno.test("issue protected update consumes a saved view and sends only the resol
     result.requests.filter((request) =>
       request.query.includes("query GetIssueForWrite")
     ).map((request) => request.variables.id),
-    ["ENG-123", issueWriteId],
+    ["ENG-123", issueWriteId, issueWriteId],
   )
 })
 

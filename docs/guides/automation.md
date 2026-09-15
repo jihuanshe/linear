@@ -44,7 +44,7 @@ code=0
 LINEAR_PROMPT_DISABLED=1 linear issue update ENG-123 \
   --base-file issue-edit/original.json --description-file issue-edit/desired.md --json \
   > issue-edit/result.json 2> issue-edit/result.log || code=$?
-jq '{ok, effect, fields, error}' issue-edit/result.json
+jq '{ok, effect, fields, verification, error}' issue-edit/result.json
 test "$code" -eq 0
 ```
 
@@ -106,6 +106,10 @@ CLI 完成名称解析后，会按同一 UUID 最后读取并比较原始依据�
 `success: false`、GraphQL 部分错误和不可读结果都不自动证明零效果。复合写入保留已经确认的上传或对象回执；批量删除在 `unknown` 后停止，`unattempted` 列出未执行的对象。
 
 多行 Markdown 用文件参数；`document view --raw` 只输出正文，不能替代带身份的原始读取。原生 `linear api` 保留 GraphQL 响应，属于 `linear guide graphql` 中的明确例外。
+
+`issue update` 在 mutation 确认后读取相同 Issue 和工作区，核对请求的字段及标签增删结果；最多读取 3 次，总时限 10 秒。正文沿用 `issue apply` 的 Markdown 结构比较，写前原始依据仍精确比较。成功结果的 `verification.status` 为 `verified`，`readBack` 保存 `{organization,issue}`；无需写入时沿用提交前的读取，不另做写后核验。
+
+读回不匹配或不可用时，命令以非零退出，保留 `effect: applied` 与 `data` 中的 mutation 回执；`error.details.verification.status` 为 `different` 或 `unavailable`。此时只补充读取和对账，不重发 mutation。这个读回不验证评论、附件或更晚发生的并发修改。
 
 ## 分页与详情
 

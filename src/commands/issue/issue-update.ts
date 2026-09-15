@@ -20,9 +20,11 @@ import {
   workflowStateNotFoundError,
 } from "../../utils/linear.ts"
 import {
+  errorResult,
   handleError,
   NotFoundError,
   ValidationError,
+  WriteError,
 } from "../../utils/errors.ts"
 
 import { readIssueBasis, resolveWriteTeam } from "../../utils/issue-read.ts"
@@ -36,6 +38,11 @@ import {
   validateReplacementOptions,
 } from "../../utils/replacement.ts"
 import { writeResult } from "../../utils/write-result.ts"
+import {
+  differentIssueFields,
+  type ReadBackOptions,
+  withReadBackRetries,
+} from "../../utils/issue-verification.ts"
 import {
   assertMutationReceipt,
   assertMutationSuccess,
@@ -492,17 +499,22 @@ export async function updateIssue(
   options: UpdateIssueOptions,
   issueIdArg?: string,
 ) {
-  const { input, current, fields } = await prepareIssueUpdate(
-    options,
-    issueIdArg,
-  )
+  const prepared = await prepareIssueUpdate(options, issueIdArg)
+  return await executeIssueUpdate(prepared, options.beforeWrite)
+}
+
+// Delivery records this receipt before performing its own final verification.
+async function executeIssueUpdate(
+  { input, current, fields }: Awaited<ReturnType<typeof prepareIssueUpdate>>,
+  beforeWrite?: () => Promise<void>,
+) {
   if (Object.keys(input).length === 0) {
     return writeResult({ success: true, issue: current.issue }, {
       effect: "none",
       fields,
     })
   }
-  await options.beforeWrite?.()
+  await beforeWrite?.()
   const data = await getGraphQLClient().request(updateIssueMutation, {
     id: current.issue.id,
     input,
@@ -513,9 +525,70 @@ export async function updateIssue(
   return writeResult({ ...data.issueUpdate, issue }, { fields })
 }
 
+export async function updateIssueAndVerify(
+  options: UpdateIssueOptions,
+  issueIdArg?: string,
+  verificationOptions: ReadBackOptions = {},
+) {
+  const prepared = await prepareIssueUpdate(options, issueIdArg)
+  const result = await executeIssueUpdate(prepared, options.beforeWrite)
+  if (result.effect === "none") return result
+  const expected = Object.fromEntries(
+    prepared.fields.map((field) => [field.inputField, field.desired]),
+  )
+  const observed = await withReadBackRetries(async (signal) => {
+    const scope = "issue-fields" as const
+    try {
+      signal.throwIfAborted()
+      const readBack = await readIssueBasis(prepared.current.issue.id, signal)
+      if (readBack.organization.id !== prepared.current.organization.id) {
+        throw new ValidationError("Read-back returned a different workspace")
+      }
+      const different = differentIssueFields(
+        readBack.issue,
+        expected,
+        issueReplacementFields,
+      )
+      return {
+        verification: {
+          scope,
+          status: different.length ? "different" as const : "verified" as const,
+          ...(different.length ? { fields: different } : {}),
+        },
+        readBack,
+      }
+    } catch (error) {
+      return {
+        verification: {
+          scope,
+          status: "unavailable" as const,
+          detail: signal.aborted
+            ? "Read-back timed out"
+            : errorResult(error).error.message,
+        },
+      }
+    }
+  }, verificationOptions)
+  if (observed.verification.status !== "verified") {
+    throw new WriteError(
+      "Issue mutation succeeded but read-back did not verify",
+      {
+        effect: "applied",
+        data: result.data,
+        details: { ...observed, fields: prepared.fields },
+        suggestion:
+          "Read the issue before continuing; do not repeat the mutation.",
+      },
+    )
+  }
+  return { ...result, ...observed }
+}
+
 export const updateCommand = withUsageMetadata(new Command(), { writes: true })
   .name("update")
-  .description(withMarkdownHint("Update a linear issue"))
+  .description(withMarkdownHint(
+    "Update an issue; verify fields with up to 3 reads without repeating the write",
+  ))
   .arguments("[issueId:string]")
   .option(
     "-a, --assignee <assignee:string>",
@@ -619,11 +692,11 @@ export const updateCommand = withUsageMetadata(new Command(), { writes: true })
   )
   .option(
     "-j, --json",
-    "Output a JSON write result; the resulting issue is in data.issue",
+    "Output a JSON write result with the mutation receipt, verification, and readBack",
   )
   .action(async (options, issueIdArg) => {
     try {
-      const result = await updateIssue(options, issueIdArg)
+      const result = await updateIssueAndVerify(options, issueIdArg)
       if (options.json) console.log(JSON.stringify(result, null, 2))
       else {
         const issue = result.data.issue

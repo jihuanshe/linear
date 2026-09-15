@@ -23,28 +23,17 @@ for (const operation of ["create", "update", "move"] as const) {
     ] as const
   ) {
     Deno.test(`project preflight ${operation}: ${scenario}`, async () => {
+      const current = issueWriteBasis(
+        operation === "move" ? "OPS-123" : "ENG-123",
+        operation === "move"
+          ? { id: teamWriteIds.OPS, key: "OPS" }
+          : eligibleTeam,
+      )
+      current.issue.project = operation === "move" ? { id: projectId } : null
       const { server, cleanup } = await setupMockLinearServer([
         {
           queryName: "GetIssueForWrite",
-          response: {
-            data: {
-              ...issueWriteBasis(
-                operation === "move" ? "OPS-123" : "ENG-123",
-                operation === "move"
-                  ? { id: teamWriteIds.OPS, key: "OPS" }
-                  : eligibleTeam,
-              ),
-              issue: {
-                ...issueWriteBasis(
-                  operation === "move" ? "OPS-123" : "ENG-123",
-                  operation === "move"
-                    ? { id: teamWriteIds.OPS, key: "OPS" }
-                    : eligibleTeam,
-                ).issue,
-                project: operation === "move" ? { id: projectId } : null,
-              },
-            },
-          },
+          response: () => ({ data: current }),
         },
         {
           queryName: "GetIssueTeam",
@@ -84,19 +73,26 @@ for (const operation of ["create", "update", "move"] as const) {
         },
         {
           queryName: operation === "create" ? "CreateIssue" : "UpdateIssue",
-          response: {
-            data: {
-              [operation === "create" ? "issueCreate" : "issueUpdate"]: {
-                success: true,
-                issue: {
-                  id: issueWriteId,
-                  identifier: "ENG-123",
-                  title: "Title",
-                  url: "https://linear.app/test/issue/ENG-123",
-                  team: { key: "ENG" },
+          response: ({ variables }) => {
+            const input = variables.input as Record<string, unknown>
+            if (input.teamId != null) current.issue.team = eligibleTeam
+            if (typeof input.projectId === "string") {
+              current.issue.project = { id: input.projectId }
+            }
+            return {
+              data: {
+                [operation === "create" ? "issueCreate" : "issueUpdate"]: {
+                  success: true,
+                  issue: {
+                    id: issueWriteId,
+                    identifier: "ENG-123",
+                    title: "Title",
+                    url: "https://linear.app/test/issue/ENG-123",
+                    team: { key: "ENG" },
+                  },
                 },
               },
-            },
+            }
           },
         },
       ], { LINEAR_PROMPT_DISABLED: "1" })
@@ -294,7 +290,7 @@ for (const supportsCurrentTeam of [true, false]) {
         server.graphqlRequests.filter((x) =>
           x.query.includes("query GetIssueForWrite")
         ).length,
-        supportsCurrentTeam ? 2 : 1,
+        supportsCurrentTeam ? 3 : 1,
       )
     } finally {
       logs.restore()

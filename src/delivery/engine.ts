@@ -38,7 +38,10 @@ import {
 import { errorResult, ValidationError, WriteError } from "../utils/errors.ts"
 import { formatAsMarkdownLink, uploadFile } from "../utils/upload.ts"
 import { type WriteEffect } from "../utils/write-result.ts"
-import { equivalentMarkdown } from "../utils/markdown-equivalence.ts"
+import {
+  differentIssueFields,
+  withReadBackRetries,
+} from "../utils/issue-verification.ts"
 import {
   contentFrom,
   type DeliveryIssue,
@@ -599,12 +602,6 @@ async function inspect(
   return inspections
 }
 
-function sameValue(a: Comparable, b: Comparable): boolean {
-  return Array.isArray(a) || Array.isArray(b)
-    ? Array.isArray(a) && Array.isArray(b) && a.length === b.length &&
-      a.every((value, index) => value === b[index])
-    : a === b
-}
 async function verifyOnce(
   index: number,
   target: IssueReceipt,
@@ -624,44 +621,13 @@ async function verifyOnce(
       read.issue.id !== target.id ||
       read.organization.id !== checkpoint.workspace.id
     ) throw new ValidationError("Read-back returned a different identity")
-    const different: string[] = []
+    const different = differentIssueFields(
+      read.issue,
+      checkpoint.items[items[0].key]?.expected ?? {},
+      issueReplacementFields,
+    )
     if (read.issue.archivedAt != null || read.issue.trashed) {
-      different.push("Issue is archived or trashed")
-    }
-    const expected = checkpoint.items[items[0].key]?.expected ?? {}
-    for (const [name, desired] of Object.entries(expected)) {
-      if (name === "addedLabelIds" || name === "removedLabelIds") {
-        const labels = new Set(
-          issueReplacementFields.labelIds.read(read.issue) as string[],
-        )
-        const ids = issueReplacementFields.labelIds.normalize(
-          desired,
-        ) as string[]
-        if (
-          !ids.every((id) =>
-            name === "addedLabelIds" ? labels.has(id) : !labels.has(id)
-          )
-        ) {
-          different.push(name)
-        }
-        continue
-      }
-      const reader =
-        (issueReplacementFields as Record<string, FieldReader>)[name]
-      if (reader == null) {
-        throw new ValidationError(
-          "Unsupported recorded expected field: " + name,
-        )
-      }
-      const actual = reader.read(read.issue)
-      const normalized = reader.normalize(desired)
-      const matches = name === "description" &&
-          typeof actual === "string" && typeof normalized === "string"
-        ? equivalentMarkdown(normalized, actual)
-        : sameValue(actual, normalized)
-      if (!matches) {
-        different.push(reader.field)
-      }
+      different.unshift("Issue is archived or trashed")
     }
     const observed: unknown[] = []
     const client = getGraphQLClient()
@@ -740,17 +706,10 @@ async function verify(
   items: DeliveryItem[],
   checkpoint: Checkpoint,
 ) {
-  const signal = AbortSignal.timeout(context.verificationTimeoutMs ?? 10_000)
-  const delay = context.verificationDelay ??
-    ((milliseconds: number) =>
-      new Promise<void>((resolve) => setTimeout(resolve, milliseconds)))
-  let result = await verifyOnce(index, target, items, checkpoint, signal)
-  for (const wait of [250, 750]) {
-    if (result.verification.status === "verified" || signal.aborted) break
-    await delay(wait)
-    result = await verifyOnce(index, target, items, checkpoint, signal)
-  }
-  return result
+  return await withReadBackRetries(
+    (signal) => verifyOnce(index, target, items, checkpoint, signal),
+    context,
+  )
 }
 function combineEffect(a: WriteEffect, b: WriteEffect): WriteEffect {
   return a === "unknown" || b === "unknown"

@@ -57,7 +57,7 @@ export function issueWriteBasis(
 /**
  * Keep the existing narrow lookup fixtures while supplying the full current
  * read required by dedicated writes. Guard scenarios use explicit stateful
- * responses instead of this fixed baseline.
+ * responses instead of this baseline with an upstream field-update model.
  */
 export async function setupIssueWriteServer(
   responses: MockResponses = [],
@@ -130,7 +130,7 @@ export async function setupIssueWriteServer(
     let identifier = "ENG-123"
     fixtures.push({
       queryName: "GetIssueForWrite",
-      response: (request) => {
+      response: (request, history) => {
         const reference = String(request.variables.id)
         if (/^[A-Z][A-Z0-9]*-\d+$/.test(reference)) identifier = reference
         const key = identifier.slice(0, identifier.lastIndexOf("-"))
@@ -152,6 +152,55 @@ export async function setupIssueWriteServer(
             object(object(originalProject.response.data).issue).project
           if (project === null || typeof object(project).id === "string") {
             basis.issue.project = project as { id: string } | null
+          }
+        }
+        for (const write of history) {
+          if (!write.query.includes("mutation UpdateIssue")) continue
+          const input = object(write.variables.input)
+          const issue: Record<string, unknown> = basis.issue
+          for (
+            const field of [
+              "title",
+              "description",
+              "priority",
+              "estimate",
+              "dueDate",
+            ]
+          ) {
+            if (Object.hasOwn(input, field)) issue[field] = input[field]
+          }
+          for (
+            const field of [
+              "state",
+              "assignee",
+              "team",
+              "project",
+              "parent",
+              "projectMilestone",
+              "cycle",
+            ]
+          ) {
+            const id = input[field + "Id"]
+            if (id !== undefined) issue[field] = id == null ? null : { id }
+          }
+          const labels = new Set(
+            Array.isArray(input.labelIds)
+              ? input.labelIds
+              : basis.issue.labels.nodes.map((label) => label.id),
+          )
+          for (
+            const id of Array.isArray(input.addedLabelIds)
+              ? input.addedLabelIds
+              : []
+          ) labels.add(id)
+          for (
+            const id of Array.isArray(input.removedLabelIds)
+              ? input.removedLabelIds
+              : []
+          ) labels.delete(id)
+          issue.labels = {
+            nodes: [...labels].map((id) => ({ id, name: id })),
+            pageInfo: terminalPage,
           }
         }
         return { data: basis }
