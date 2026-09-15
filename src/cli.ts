@@ -187,8 +187,8 @@ function guardMachineOutput(
     "silent",
   ])
   for (const option of this.getBaseOptions()) {
-    // Only explicit positive selectors: --no-interactive's default true is
-    // not a request to prompt. Display toggles and --no-pager are compatible.
+    // Cliffy names a negative definition "no-interactive", so it is not an
+    // explicit positive selector. Display toggles and --no-pager are compatible.
     if (exclusive.has(option.name) && options[option.name] === true) {
       throw new ValidationError(
         `--json cannot be combined with --${option.name}`,

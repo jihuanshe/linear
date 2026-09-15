@@ -194,6 +194,37 @@ for (const phase of ["headers", "body", "interrupted body"]) {
   })
 }
 
+Deno.test("GraphQL client preserves a complete mutation receipt across a pause after EOF", async () => {
+  using time = new FakeTime(0)
+  let elapsedAfterEof = 0
+  using _now = stub(performance, "now", () => time.now + elapsedAfterEof)
+  const decode = TextDecoder.prototype.decode
+  using _decode = stub(TextDecoder.prototype, "decode", function (
+    this: TextDecoder,
+    ...args: Parameters<TextDecoder["decode"]>
+  ) {
+    const text = decode.apply(this, args)
+    // Unlike retried queries, mutations need a long process pause to cross the
+    // total deadline after finishing within their single-attempt deadline.
+    if (args[0] == null) elapsedAfterEof = 60_000
+    return text
+  })
+  const receipt = { issueUpdate: { success: true } }
+  using fetchStub = stub(
+    globalThis,
+    "fetch",
+    () => Promise.resolve(Response.json({ data: receipt })),
+  )
+  assertEquals(
+    await createGraphQLClient("test-key").request(
+      "mutation Write { issueUpdate { success } }",
+    ),
+    receipt,
+  )
+  assertEquals(fetchStub.calls.length, 1)
+  assertEquals(time.next(), false)
+})
+
 Deno.test("GraphQL client preserves the caller's shorter verification deadline", async () => {
   using time = new FakeTime(0)
   using _now = stub(performance, "now", () => time.now)

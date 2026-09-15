@@ -239,8 +239,8 @@ for (
       const pending = assertRejects(() => request(document))
       await c.time.runAllAsync()
       assertEquals(await pending, error)
-      const transient = error instanceof Deno.errors.ConnectionReset ||
-        error.message.includes("Connection refused") || error.cause != null
+      const transient = error.message.includes("Connection refused") ||
+        error.cause != null || error instanceof Deno.errors.ConnectionReset
       assertEquals(
         fetchStub.calls.length,
         document === query && transient ? 3 : 1,
@@ -353,6 +353,64 @@ Deno.test("GraphQL transport counts completed attempt bodies and Retry-After aga
   assertEquals(c.time.now - start, 60_000)
   assertEquals(cancelled, 1)
 })
+
+for (const status of [200, 429]) {
+  Deno.test(`GraphQL transport preserves a complete HTTP ${status} response at the total deadline`, async () => {
+    using time = new FakeTime(start)
+    let elapsedAfterEof = 0
+    using _now = stub(performance, "now", () => time.now + elapsedAfterEof)
+    let requests = 0
+    const envelope = status === 200
+      ? { data: { viewer: { id: "ok" } } }
+      : rateLimit
+    const decode = TextDecoder.prototype.decode
+    using _decode = stub(TextDecoder.prototype, "decode", function (
+      this: TextDecoder,
+      ...args: Parameters<TextDecoder["decode"]>
+    ) {
+      const text = decode.apply(this, args)
+      // Model synchronous EOF cleanup crossing the last millisecond of budget,
+      // before the event loop can deliver a timer callback.
+      if (requests === 2 && args[0] == null) elapsedAfterEof = 1
+      return text
+    })
+    using _fetch = stub(globalThis, "fetch", () => {
+      requests++
+      return Promise.resolve(
+        requests === 1
+          ? new Response("Unavailable", {
+            status: 503,
+            headers: { "retry-after": "59" },
+          })
+          : new Response(
+            new ReadableStream({
+              start(controller) {
+                setTimeout(() => {
+                  controller.enqueue(
+                    new TextEncoder().encode(JSON.stringify(envelope)),
+                  )
+                  controller.close()
+                }, 999)
+              },
+            }),
+            { status },
+          ),
+      )
+    })
+    const pending = request().then(
+      (response) => ({ response }),
+      (error: unknown) => ({ error }),
+    )
+    await time.runAllAsync()
+    const result = await pending
+    if ("error" in result) throw result.error
+    const { response } = result
+    assertEquals(response.status, status)
+    assertEquals(await response.json(), envelope)
+    assertEquals(requests, 2)
+    assertEquals(time.next(), false)
+  })
+}
 
 Deno.test("GraphQL transport cancels a response arriving after header timeout", async () => {
   using c = clock()

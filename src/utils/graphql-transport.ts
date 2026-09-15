@@ -217,7 +217,9 @@ export async function graphqlFetch(
         failure = error
       }
     }
-    checkDeadline()
+    // Once the body is complete, preserve it even if synchronous cleanup
+    // crossed the deadline. An exhausted budget still prevents another retry.
+    if (result == null) checkDeadline()
     const retry = query && attempt < maxAttempts &&
       (result
         ? retryableResponse(result.response, result.text)

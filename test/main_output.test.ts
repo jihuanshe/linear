@@ -48,6 +48,14 @@ Deno.test("main writes explicit help to stdout with rc 0", async () => {
   assertEquals(result.stderr, "")
 })
 
+Deno.test("main leaf help includes JSON aliases injected by the root command", async () => {
+  const result = await run(["document", "view", "--help"])
+  assertEquals(result.code, 0)
+  assertMatch(result.stdout, /Usage:\s+linear document view/)
+  assertMatch(result.stdout, /-j,\s+--json\b/)
+  assertEquals(result.stderr, "")
+})
+
 Deno.test("startup credentials warning honors disabled color policy", async () => {
   const root = await Deno.makeTempDir()
   try {

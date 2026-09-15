@@ -1,10 +1,16 @@
 import { assertEquals, assertRejects, assertStringIncludes } from "@std/assert"
 import { createIssue } from "../../../src/commands/issue/issue-create.ts"
 import { updateIssue } from "../../../src/commands/issue/issue-update.ts"
-import { ValidationError } from "../../../src/utils/errors.ts"
+import {
+  CliError,
+  errorResult,
+  NotFoundError,
+  ValidationError,
+} from "../../../src/utils/errors.ts"
 import { Select } from "../../../src/utils/prompt.ts"
 import { stub } from "@std/testing/mock"
 import type { MockGraphQLRequest } from "../../utils/mock_linear_server.ts"
+import { commonDenoArgs } from "../../utils/test-helpers.ts"
 import {
   issueWriteBasis,
   issueWriteId,
@@ -26,12 +32,31 @@ const labels = [
   },
   { id: opsId, name: "Operations", isGroup: false, team: null },
 ]
+const otherTeam = { id: teamWriteIds.OPS, key: "OPS" }
 
 function setupLabelWriteServer(
   responses: NonNullable<Parameters<typeof setupIssueWriteServer>[0]> = [],
 ) {
   return setupIssueWriteServer([
     ...responses,
+    ...labels.flatMap((label) => [
+      ...[label.name, label.name.toLowerCase(), label.name.toUpperCase()].map((
+        name,
+      ) => ({
+        queryName: "GetIssueLabelIdByNameForTeam",
+        variables: { name },
+        response: {
+          data: { issueLabels: { nodes: [label], pageInfo: terminalPage } },
+        },
+      })),
+      {
+        queryName: "GetIssueLabelForWrite",
+        variables: { id: label.id },
+        response: {
+          data: { issueLabels: { nodes: [label], pageInfo: terminalPage } },
+        },
+      },
+    ]),
     {
       queryName: "GetWriteTeamByKey",
       response: {
@@ -59,109 +84,80 @@ function setupLabelWriteServer(
 
 function labelLookups(requests: readonly MockGraphQLRequest[]) {
   return requests.filter((request) =>
-    /query (ResolveIssueLabelsForWrite|GetIssueLabelIdByNameForTeam|GetIssueLabelForWrite)\b/
-      .test(request.query)
+    /query GetIssueLabel(IdByNameForTeam|ForWrite)\b/.test(request.query)
   )
 }
 
-for (const operation of ["create", "update"] as const) {
-  for (const pages of [1, 2, 4]) {
-    Deno.test(`${operation} multi-label lookup request count and mutation IDs (${pages} pages)`, async () => {
+function writes(requests: readonly MockGraphQLRequest[]) {
+  return requests.filter((request) => request.query.includes("mutation "))
+}
+
+function writeLabels(
+  operation: "create" | "replace" | "add" | "remove",
+  references: string[],
+  beforeWrite?: () => Promise<void>,
+) {
+  return operation === "create"
+    ? createIssue({
+      title: "Labels",
+      team: "ENG",
+      label: references,
+      beforeWrite,
+    })
+    : updateIssue({
+      [
+        operation === "replace"
+          ? "label"
+          : operation === "add"
+          ? "addLabel"
+          : "removeLabel"
+      ]: references,
+      unprotected: true,
+      beforeWrite,
+    }, "ENG-123")
+}
+
+for (const operation of ["create", "replace", "add", "remove"] as const) {
+  for (const multiple of [false, true]) {
+    Deno.test(`${operation} preserves server name matching with multiple=${multiple}`, async () => {
+      // This is an explicit server fixture, not a claim about Linear's Unicode
+      // folding: consumers must trust its match rather than re-match with JS.
       const { server, cleanup } = await setupLabelWriteServer([{
-        queryName: "ResolveIssueLabelsForWrite",
-        response: ({ variables }) => {
-          const page = variables.after == null ? 1 : Number(variables.after) + 1
-          return {
-            data: {
-              issueLabels: {
-                nodes: pages === 1
-                  ? labels
-                  : page === 1
-                  ? labels.slice(0, 1)
-                  : page === pages
-                  ? labels.slice(1)
-                  : [],
-                pageInfo: page < pages
-                  ? { hasNextPage: true, endCursor: String(page) }
-                  : terminalPage,
-              },
+        queryName: "GetIssueLabelIdByNameForTeam",
+        variables: { name: "ς" },
+        response: {
+          data: {
+            issueLabels: {
+              nodes: [{ id: frontendId, name: "Σ" }],
+              pageInfo: terminalPage,
             },
-          }
+          },
         },
       }])
-      let beforeWrites = 0
-      const beforeWrite = () => {
-        beforeWrites++
-        assertEquals(
-          server.graphqlRequests.some((request) =>
-            request.query.includes("mutation ")
-          ),
-          false,
-        )
-        return Promise.resolve()
-      }
       try {
-        if (operation === "create") {
-          await createIssue({
-            title: "Label count",
-            team: "ENG",
-            label: ["Backend", "Frontend", "Operations"],
-            beforeWrite,
-          })
-        } else {
-          await updateIssue({
-            addLabel: ["Frontend", "Operations"],
-            removeLabel: ["Backend"],
-            beforeWrite,
-          }, "ENG-123")
-        }
+        await writeLabels(operation, multiple ? ["ς", "Backend"] : ["ς"])
         const lookups = labelLookups(server.graphqlRequests)
-        // Before batching these same operation inputs made three direct lookups.
-        assertEquals(lookups.length, pages)
         assertEquals(
-          lookups.map((request) => request.variables.after),
-          [
-            undefined,
-            ...Array.from(
-              { length: pages - 1 },
-              (_, index) => String(index + 1),
-            ),
-          ],
+          lookups.map((r) => r.variables.name),
+          multiple ? ["ς", "Backend"] : ["ς"],
         )
-        const names = operation === "create"
-          ? ["Backend", "Frontend", "Operations"]
-          : ["Frontend", "Operations", "Backend"]
         for (const request of lookups) {
-          assertEquals(request.variables.filter, {
-            or: names.map((name) => ({
-              name: { eqIgnoreCase: name },
-              isGroup: { eq: false },
-              or: [{ team: { id: { eq: teamWriteIds.ENG } } }, {
-                team: { null: true },
-              }],
-            })),
-          })
-          assertStringIncludes(request.query, "first: 100")
+          assertEquals(request.variables.team, { id: { eq: teamWriteIds.ENG } })
+          assertStringIncludes(request.query, "name: { eqIgnoreCase: $name }")
+          assertStringIncludes(request.query, "isGroup: { eq: false }")
         }
-        const writes = server.graphqlRequests.filter((request) =>
-          request.query.includes("mutation ")
+        const mutations = writes(server.graphqlRequests)
+        assertEquals(mutations.length, 1)
+        const input = mutations[0].variables.input as Record<string, unknown>
+        const field = operation === "add"
+          ? "addedLabelIds"
+          : operation === "remove"
+          ? "removedLabelIds"
+          : "labelIds"
+        assertEquals(
+          input[field],
+          multiple ? [frontendId, backendId] : [frontendId],
         )
-        assertEquals(writes.length, 1)
-        const input = writes[0].variables.input as Record<string, unknown>
-        if (operation === "create") {
-          assertEquals(input.labelIds, [backendId, frontendId, opsId])
-          assertEquals(input.teamId, teamWriteIds.ENG)
-        } else {
-          assertEquals(writes[0].variables.id, issueWriteId)
-          assertEquals(input, {
-            addedLabelIds: [frontendId, opsId],
-            removedLabelIds: [backendId],
-          })
-          const finalRead = server.graphqlRequests.at(-2)!
-          assertStringIncludes(finalRead.query, "query GetIssueForWrite")
-          assertEquals(finalRead.variables.id, issueWriteId)
-        }
-        assertEquals(beforeWrites, 1)
       } finally {
         await cleanup()
       }
@@ -169,91 +165,81 @@ for (const operation of ["create", "update"] as const) {
   }
 }
 
-for (const operation of ["create", "replace", "increment"] as const) {
-  Deno.test(`${operation} mixed UUID/name labels deduplicate in first-input order without caching writes`, async () => {
-    const { server, cleanup } = await setupLabelWriteServer([{
-      queryName: "ResolveIssueLabelsForWrite",
+Deno.test("create does not collapse distinct names with identical JavaScript lowercase keys", async () => {
+  const { server, cleanup } = await setupLabelWriteServer([
+    ...["İ", "i\u0307"].map((name, index) => ({
+      queryName: "GetIssueLabelIdByNameForTeam",
+      variables: { name },
       response: {
-        data: { issueLabels: { nodes: labels, pageInfo: terminalPage } },
+        data: {
+          issueLabels: {
+            nodes: [{ id: index === 0 ? frontendId : backendId, name }],
+            pageInfo: terminalPage,
+          },
+        },
       },
-    }])
+    })),
+  ])
+  try {
+    await writeLabels("create", ["İ", "i\u0307"])
+    assertEquals(
+      labelLookups(server.graphqlRequests).map((r) => r.variables.name),
+      ["İ", "i\u0307"],
+    )
+    assertEquals(
+      (writes(server.graphqlRequests)[0].variables.input as Record<
+        string,
+        unknown
+      >).labelIds,
+      [frontendId, backendId],
+    )
+  } finally {
+    await cleanup()
+  }
+})
+
+for (const operation of ["create", "replace", "add"] as const) {
+  Deno.test(`${operation} deduplicates exact inputs and resolved IDs without caching across writes`, async () => {
+    const { server, cleanup } = await setupLabelWriteServer()
     const references = [
       "Backend",
       frontendId.toUpperCase(),
       "Backend",
+      frontendId,
       "frontend",
       "Operations",
       "FRONTEND",
     ]
     let beforeWrites = 0
-    const beforeWrite = () => {
-      beforeWrites++
-      return Promise.resolve()
-    }
     try {
       for (let invocation = 0; invocation < 2; invocation++) {
-        if (operation === "create") {
-          await createIssue({
-            title: "Duplicates",
-            team: "ENG",
-            label: references,
-            beforeWrite,
-          })
-        } else {
-          await updateIssue(
-            operation === "replace"
-              ? { label: references, unprotected: true, beforeWrite }
-              : { addLabel: references, beforeWrite },
-            "ENG-123",
-          )
-        }
+        await writeLabels(operation, references, () => {
+          beforeWrites++
+          return Promise.resolve()
+        })
       }
       const lookups = labelLookups(server.graphqlRequests)
-      assertEquals(lookups.length, 2)
-      assertEquals(lookups[0].variables.filter, {
-        or: [
-          {
-            name: { eqIgnoreCase: "Backend" },
-            isGroup: { eq: false },
-            or: [{ team: { id: { eq: teamWriteIds.ENG } } }, {
-              team: { null: true },
-            }],
-          },
-          { id: { eq: frontendId } },
-          {
-            name: { eqIgnoreCase: "frontend" },
-            isGroup: { eq: false },
-            or: [{ team: { id: { eq: teamWriteIds.ENG } } }, {
-              team: { null: true },
-            }],
-          },
-          {
-            name: { eqIgnoreCase: "Operations" },
-            isGroup: { eq: false },
-            or: [{ team: { id: { eq: teamWriteIds.ENG } } }, {
-              team: { null: true },
-            }],
-          },
-        ],
-      })
-      const writes = server.graphqlRequests.filter((request) =>
-        request.query.includes("mutation ")
-      )
-      // A second replacement is a no-op, but still resolves fresh references.
-      assertEquals(writes.length, operation === "replace" ? 1 : 2)
-      assertEquals(beforeWrites, writes.length)
-      for (const write of writes) {
-        const input = write.variables.input as Record<string, unknown>
+      assertEquals(lookups.map((r) => r.variables.name ?? r.variables.id), [
+        "Backend",
+        frontendId,
+        "frontend",
+        "Operations",
+        "FRONTEND",
+        "Backend",
+        frontendId,
+        "frontend",
+        "Operations",
+        "FRONTEND",
+      ])
+      const mutations = writes(server.graphqlRequests)
+      assertEquals(mutations.length, operation === "replace" ? 1 : 2)
+      assertEquals(beforeWrites, mutations.length)
+      for (const mutation of mutations) {
+        const input = mutation.variables.input as Record<string, unknown>
         assertEquals(
-          input[operation === "increment" ? "addedLabelIds" : "labelIds"],
+          input[operation === "add" ? "addedLabelIds" : "labelIds"],
           [backendId, frontendId, opsId],
         )
-        if (operation !== "create") {
-          assertEquals(write.variables.id, issueWriteId)
-          assertEquals(Object.keys(input), [
-            operation === "increment" ? "addedLabelIds" : "labelIds",
-          ])
-        }
       }
     } finally {
       await cleanup()
@@ -261,275 +247,204 @@ for (const operation of ["create", "replace", "increment"] as const) {
   })
 }
 
-for (const operation of ["create", "update"] as const) {
-  for (const byId of [false, true]) {
-    Deno.test(`${operation} repeated single label retains direct ${byId ? "UUID" : "name"} lookup`, async () => {
-      const reference = byId ? frontendId.toUpperCase() : "Frontend"
-      const { server, cleanup } = await setupLabelWriteServer([{
-        queryName: byId
-          ? "GetIssueLabelForWrite"
-          : "GetIssueLabelIdByNameForTeam",
-        response: {
-          data: byId
-            ? { issueLabel: labels[0] }
-            : { issueLabels: { nodes: [labels[0]], pageInfo: terminalPage } },
-        },
-      }])
-      try {
-        const references = [reference, reference.toLowerCase(), reference]
-        if (operation === "create") {
-          await createIssue({ title: "Single", team: "ENG", label: references })
-        } else {
-          await updateIssue({ addLabel: references }, "ENG-123")
-        }
-        assertEquals(labelLookups(server.graphqlRequests).length, 1)
-        const input = server.graphqlRequests.at(-1)!.variables.input as Record<
-          string,
-          unknown
-        >
-        assertEquals(
-          input[operation === "create" ? "labelIds" : "addedLabelIds"],
-          [frontendId],
-        )
-      } finally {
-        await cleanup()
-      }
-    })
-  }
-}
-
-const otherTeam = { id: teamWriteIds.OPS, key: "OPS" }
-const duplicateFrontend = {
-  ...labels[0],
-  id: opsId,
-  team: { id: teamWriteIds.ENG, key: "ENG" },
-}
 const invalidLabelScenarios = [
   {
     name: "missing name",
-    references: ["Frontend", "Missing"],
-    nodes: labels,
-    error: "Missing",
+    reference: "Missing",
+    connection: { nodes: [], pageInfo: terminalPage },
+    error: NotFoundError,
   },
   {
     name: "missing UUID",
-    references: ["Frontend", backendId],
-    nodes: [labels[0]],
-    error: backendId,
+    reference: backendId,
+    connection: { nodes: [], pageInfo: terminalPage },
+    error: NotFoundError,
   },
   {
     name: "wrong UUID identity",
-    references: ["Frontend", backendId],
-    nodes: [labels[0], { ...labels[1], id: opsId }],
-    error: backendId,
-  },
-  {
-    name: "ambiguous team and global name",
-    references: ["Frontend", "Backend"],
-    nodes: [labels[0], labels[1], duplicateFrontend],
-    error: "ambiguous",
+    reference: backendId,
+    connection: { nodes: [labels[2]], pageInfo: terminalPage },
+    error: CliError,
   },
   {
     name: "group UUID",
-    references: ["Frontend", backendId],
-    nodes: [labels[0], { ...labels[1], isGroup: true }],
-    error: "not assignable",
+    reference: backendId,
+    connection: {
+      nodes: [{ ...labels[1], isGroup: true }],
+      pageInfo: terminalPage,
+    },
+    error: ValidationError,
   },
   {
     name: "wrong-team UUID",
-    references: ["Frontend", backendId],
-    nodes: [labels[0], { ...labels[1], team: otherTeam }],
-    error: "not assignable",
-  },
-  {
-    name: "group name",
-    references: ["Frontend", "Backend"],
-    nodes: [labels[0], { ...labels[1], isGroup: true }],
-    error: "Backend",
-  },
-  {
-    name: "wrong-team name",
-    references: ["Frontend", "Backend"],
-    nodes: [labels[0], { ...labels[1], team: otherTeam }],
-    error: "Backend",
-  },
-  {
-    name: "wrong name",
-    references: ["Frontend", "Backend"],
-    nodes: [labels[0], { ...labels[1], name: "Other" }],
-    error: "Backend",
-  },
-  {
-    name: "missing stable identity",
-    references: ["Frontend", "Backend"],
-    nodes: [labels[0], { ...labels[1], id: "" }],
-    error: "incomplete label",
+    reference: backendId,
+    connection: {
+      nodes: [{ ...labels[1], team: otherTeam }],
+      pageInfo: terminalPage,
+    },
+    error: ValidationError,
   },
   {
     name: "missing scope",
-    references: ["Frontend", "Backend"],
-    nodes: [labels[0], { id: backendId, name: "Backend", isGroup: false }],
-    error: "incomplete label",
+    reference: backendId,
+    connection: {
+      nodes: [{ id: backendId, isGroup: false }],
+      pageInfo: terminalPage,
+    },
+    error: CliError,
   },
   {
-    name: "blank reference",
-    references: ["Frontend", " \t"],
-    nodes: labels,
-    error: "empty",
+    name: "missing group",
+    reference: backendId,
+    connection: {
+      nodes: [{ id: backendId, team: null }],
+      pageInfo: terminalPage,
+    },
+    error: CliError,
   },
-]
-
-for (const operation of ["create", "update"] as const) {
-  for (const scenario of invalidLabelScenarios) {
-    Deno.test(`${operation} batched labels reject ${scenario.name} before write`, async () => {
-      const { server, cleanup } = await setupLabelWriteServer([{
-        queryName: "ResolveIssueLabelsForWrite",
-        response: {
-          data: {
-            issueLabels: { nodes: scenario.nodes, pageInfo: terminalPage },
-          },
-        },
-      }])
-      let beforeWrites = 0
-      const beforeWrite = () => {
-        beforeWrites++
-        return Promise.resolve()
-      }
-      try {
-        await assertRejects(
-          () =>
-            operation === "create"
-              ? createIssue({
-                title: "Invalid",
-                team: "ENG",
-                label: scenario.references,
-                beforeWrite,
-              })
-              : updateIssue(
-                { addLabel: scenario.references, beforeWrite },
-                "ENG-123",
-              ),
-          Error,
-          scenario.error,
-        )
-        assertEquals(beforeWrites, 0)
-        assertEquals(
-          server.graphqlRequests.some((request) =>
-            request.query.includes("mutation ")
-          ),
-          false,
-        )
-        if (scenario.name === "blank reference") {
-          assertEquals(server.graphqlRequests, [])
-        }
-      } finally {
-        await cleanup()
-      }
-    })
-  }
-}
-
-const malformedPages = [
+  {
+    name: "missing stable identity",
+    reference: "Backend",
+    connection: { nodes: [{ id: "" }], pageInfo: terminalPage },
+    error: CliError,
+  },
   {
     name: "missing nodes",
-    pages: [{ pageInfo: terminalPage }],
-    error: "missing nodes",
+    reference: "Backend",
+    connection: { pageInfo: terminalPage },
+    error: CliError,
   },
   {
     name: "missing pageInfo",
-    pages: [{ nodes: labels }],
-    error: "missing pageInfo",
+    reference: "Backend",
+    connection: { nodes: [labels[1]] },
+    error: CliError,
+  },
+  // Neither a locally exact match nor a not-yet-read page may hide ambiguity.
+  {
+    name: "server Unicode ambiguity",
+    reference: "ς",
+    connection: {
+      nodes: [{ id: frontendId, name: "ς" }, { id: backendId, name: "Σ" }],
+      pageInfo: terminalPage,
+    },
+    error: ValidationError,
   },
   {
-    name: "malformed terminal pageInfo",
-    pages: [{ nodes: labels, pageInfo: { hasNextPage: false, endCursor: 1 } }],
-    error: "missing pageInfo",
-  },
-  {
-    name: "missing cursor",
-    pages: [{
-      nodes: labels,
-      pageInfo: { hasNextPage: true, endCursor: null },
-    }],
-    error: "empty or repeated cursor",
-  },
-  {
-    name: "empty cursor",
-    pages: [{ nodes: labels, pageInfo: { hasNextPage: true, endCursor: "" } }],
-    error: "empty or repeated cursor",
-  },
-  {
-    name: "repeated cursor",
-    pages: ["A", "A"].map((endCursor) => ({
-      nodes: labels,
-      pageInfo: { hasNextPage: true, endCursor },
-    })),
-    error: "empty or repeated cursor",
-  },
-  {
-    name: "cursor cycle",
-    pages: ["A", "B", "A"].map((endCursor) => ({
-      nodes: [],
-      pageInfo: { hasNextPage: true, endCursor },
-    })),
-    error: "empty or repeated cursor",
-  },
-  {
-    name: "missing later page",
-    pages: [
-      { nodes: labels, pageInfo: { hasNextPage: true, endCursor: "A" } },
-      null,
-    ],
-    error: "missing nodes",
-  },
-  {
-    name: "late ambiguity",
-    pages: [
-      { nodes: labels, pageInfo: { hasNextPage: true, endCursor: "A" } },
-      { nodes: [duplicateFrontend], pageInfo: terminalPage },
-    ],
-    error: "ambiguous",
+    name: "additional server matches",
+    reference: "Backend",
+    connection: {
+      nodes: [labels[1]],
+      pageInfo: { hasNextPage: true, endCursor: "next" },
+    },
+    error: ValidationError,
   },
 ]
 
+for (const operation of ["create", "add"] as const) {
+  for (const scenario of invalidLabelScenarios) {
+    for (const multiple of [false, true]) {
+      Deno.test(`${operation} rejects ${scenario.name} consistently with multiple=${multiple}`, async () => {
+        const { server, cleanup } = await setupLabelWriteServer([{
+          queryName: scenario.reference === backendId
+            ? "GetIssueLabelForWrite"
+            : "GetIssueLabelIdByNameForTeam",
+          response: () => ({ data: { issueLabels: scenario.connection } }),
+          variables: scenario.reference === backendId
+            ? { id: backendId }
+            : { name: scenario.reference },
+        }])
+        let beforeWrites = 0
+        try {
+          const error = await assertRejects(() =>
+            writeLabels(
+              operation,
+              multiple
+                ? ["Operations", scenario.reference]
+                : [scenario.reference],
+              () => {
+                beforeWrites++
+                return Promise.resolve()
+              },
+            ), scenario.error)
+          const result = errorResult(error)
+          assertEquals(result.effect, "none")
+          assertEquals(result.error.code, scenario.error.name)
+          assertEquals(beforeWrites, 0)
+          assertEquals(writes(server.graphqlRequests), [])
+        } finally {
+          await cleanup()
+        }
+      })
+    }
+  }
+}
+
+for (const multiple of [false, true]) {
+  Deno.test(`UUID lookup preserves server errors with multiple=${multiple}`, async () => {
+    const { server, cleanup } = await setupLabelWriteServer([{
+      queryName: "GetIssueLabelForWrite",
+      response: {
+        errors: [{
+          message: "Permission denied",
+          extensions: { code: "FORBIDDEN" },
+        }],
+      },
+    }])
+    try {
+      const error = await assertRejects(
+        () =>
+          writeLabels("add", multiple ? ["Frontend", backendId] : [backendId]),
+        Error,
+        "Permission denied",
+      )
+      assertEquals(error instanceof NotFoundError, false)
+      assertEquals(errorResult(error).effect, "none")
+      assertEquals(writes(server.graphqlRequests), [])
+    } finally {
+      await cleanup()
+    }
+  })
+}
+
 for (const operation of ["create", "update"] as const) {
-  for (const scenario of malformedPages) {
-    Deno.test(`${operation} batched label pagination rejects ${scenario.name} even after matches`, async () => {
-      let page = 0
+  for (const multiple of [false, true]) {
+    Deno.test(`${operation} CLI reports a missing UUID as one JSON NotFoundError with multiple=${multiple}`, async () => {
       const { server, cleanup } = await setupLabelWriteServer([{
-        queryName: "ResolveIssueLabelsForWrite",
-        response: () => ({ data: { issueLabels: scenario.pages[page++] } }),
+        queryName: "GetIssueLabelForWrite",
+        response: {
+          data: { issueLabels: { nodes: [], pageInfo: terminalPage } },
+        },
       }])
-      let beforeWrites = 0
-      const beforeWrite = () => {
-        beforeWrites++
-        return Promise.resolve()
-      }
       try {
-        await assertRejects(
-          () =>
-            operation === "create"
-              ? createIssue({
-                title: "Pagination",
-                team: "ENG",
-                label: ["Frontend", "Backend"],
-                beforeWrite,
-              })
-              : updateIssue(
-                { addLabel: ["Frontend", "Backend"], beforeWrite },
-                "ENG-123",
-              ),
-          Error,
-          scenario.error,
-        )
-        assertEquals(page, scenario.pages.length)
-        assertEquals(beforeWrites, 0)
-        assertEquals(
-          server.graphqlRequests.some((request) =>
-            request.query.includes("mutation ")
-          ),
-          false,
-        )
+        const option = operation === "create" ? "--label" : "--add-label"
+        const result = await new Deno.Command(Deno.execPath(), {
+          args: [
+            "run",
+            ...commonDenoArgs,
+            "src/main.ts",
+            "issue",
+            operation,
+            "--json",
+            ...(operation === "create"
+              ? ["--title", "Missing", "--team", "ENG", "--no-interactive"]
+              : ["ENG-123"]),
+            ...(multiple ? [option, "Frontend"] : []),
+            option,
+            backendId,
+          ],
+          stdin: "null",
+          stdout: "piped",
+          stderr: "piped",
+        }).output()
+        assertEquals(result.code, 1)
+        assertEquals(new TextDecoder().decode(result.stderr), "")
+        const output = JSON.parse(new TextDecoder().decode(result.stdout))
+        assertEquals(output.ok, false)
+        assertEquals(output.effect, "none")
+        assertEquals(output.error.code, "NotFoundError")
+        assertStringIncludes(output.error.message, backendId)
+        assertEquals(writes(server.graphqlRequests), [])
       } finally {
         await cleanup()
       }
@@ -538,13 +453,8 @@ for (const operation of ["create", "update"] as const) {
 }
 
 for (const swap of [false, true]) {
-  Deno.test(`update detects mixed UUID/name add-remove conflict (${swap})`, async () => {
-    const { server, cleanup } = await setupLabelWriteServer([{
-      queryName: "ResolveIssueLabelsForWrite",
-      response: {
-        data: { issueLabels: { nodes: [labels[0]], pageInfo: terminalPage } },
-      },
-    }])
+  Deno.test(`update rejects resolved add-remove overlap (${swap})`, async () => {
+    const { server, cleanup } = await setupLabelWriteServer()
     let beforeWrites = 0
     try {
       await assertRejects(
@@ -562,14 +472,9 @@ for (const swap of [false, true]) {
         ValidationError,
         "Cannot add and remove the same label",
       )
-      assertEquals(labelLookups(server.graphqlRequests).length, 1)
+      assertEquals(labelLookups(server.graphqlRequests).length, 2)
       assertEquals(beforeWrites, 0)
-      assertEquals(
-        server.graphqlRequests.some((request) =>
-          request.query.includes("mutation ")
-        ),
-        false,
-      )
+      assertEquals(writes(server.graphqlRequests), [])
     } finally {
       await cleanup()
     }
@@ -577,51 +482,26 @@ for (const swap of [false, true]) {
 }
 
 for (const drift of ["team", "identity", "labels"] as const) {
-  Deno.test(`update rereads after all batched label pages and rejects ${drift} drift`, async () => {
+  Deno.test(`update rereads after label resolution and rejects ${drift} drift`, async () => {
     let reads = 0
     const original = issueWriteBasis()
-    const { server, cleanup } = await setupLabelWriteServer([
-      {
-        queryName: "ResolveIssueLabelsForWrite",
-        response: ({ variables }) => ({
-          data: {
-            issueLabels: {
-              nodes: variables.after == null
-                ? labels.slice(0, 1)
-                : labels.slice(1),
-              pageInfo: variables.after == null
-                ? { hasNextPage: true, endCursor: "A" }
-                : terminalPage,
-            },
-          },
-        }),
-      },
-      {
-        queryName: "GetIssueForWrite",
-        response: () => {
-          const current = structuredClone(original)
-          if (++reads === 2) {
-            if (drift === "team") current.issue.team = otherTeam
-            if (drift === "identity") current.issue.id = opsId
-            if (drift === "labels") {
-              current.issue.labels.nodes = [{ id: opsId, name: "Concurrent" }]
-            }
+    const { server, cleanup } = await setupLabelWriteServer([{
+      queryName: "GetIssueForWrite",
+      response: () => {
+        const current = structuredClone(original)
+        if (++reads === 2) {
+          if (drift === "team") current.issue.team = otherTeam
+          if (drift === "identity") current.issue.id = opsId
+          if (drift === "labels") {
+            current.issue.labels.nodes = [{ id: opsId, name: "Concurrent" }]
           }
-          return { data: current }
-        },
+        }
+        return { data: current }
       },
-    ])
-    let beforeWrites = 0
+    }])
     try {
       await assertRejects(() =>
-        updateIssue({
-          label: ["Frontend", "Backend"],
-          original,
-          beforeWrite: () => {
-            beforeWrites++
-            return Promise.resolve()
-          },
-        }, "ENG-123")
+        updateIssue({ label: ["Frontend", "Backend"], original }, "ENG-123")
       )
       assertEquals(reads, 2)
       assertEquals(labelLookups(server.graphqlRequests).length, 2)
@@ -630,13 +510,7 @@ for (const drift of ["team", "identity", "labels"] as const) {
         "query GetIssueForWrite",
       )
       assertEquals(server.graphqlRequests.at(-1)!.variables.id, issueWriteId)
-      assertEquals(beforeWrites, 0)
-      assertEquals(
-        server.graphqlRequests.some((request) =>
-          request.query.includes("mutation ")
-        ),
-        false,
-      )
+      assertEquals(writes(server.graphqlRequests), [])
     } finally {
       await cleanup()
     }
@@ -656,7 +530,7 @@ Deno.test("interactive create retains sequential label candidate prompts", async
       response: { data: { issueLabels: { nodes: labels.slice(0, 2) } } },
     },
   ])
-  const prompt = stub(Select, "prompt", () => Promise.resolve(backendId))
+  using prompt = stub(Select, "prompt", () => Promise.resolve(backendId))
   try {
     await createIssue({
       title: "Interactive",
@@ -666,8 +540,8 @@ Deno.test("interactive create retains sequential label candidate prompts", async
     })
     assertEquals(prompt.calls.length, 2)
     assertEquals(
-      server.graphqlRequests.slice(1, -1).map((request) =>
-        request.query.match(/query (\w+)/)?.[1]
+      server.graphqlRequests.slice(1, -1).map((r) =>
+        r.query.match(/query (\w+)/)?.[1]
       ),
       [
         "GetIssueLabelIdByNameForTeam",
@@ -676,13 +550,14 @@ Deno.test("interactive create retains sequential label candidate prompts", async
         "GetIssueLabelIdOptionsByNameForTeam",
       ],
     )
-    const input = server.graphqlRequests.at(-1)!.variables.input as Record<
-      string,
-      unknown
-    >
-    assertEquals(input.labelIds, [backendId])
+    assertEquals(
+      (writes(server.graphqlRequests)[0].variables.input as Record<
+        string,
+        unknown
+      >).labelIds,
+      [backendId],
+    )
   } finally {
-    prompt.restore()
     await cleanup()
   }
 })
@@ -731,14 +606,14 @@ for (const operation of ["create", "update"] as const) {
       try {
         if (operation === "create") {
           await createIssue({ title: "Priority", team: "ENG", priority })
-        } else {
-          await updateIssue({ priority, unprotected: true }, "ENG-123")
-        }
-        const input = server.graphqlRequests.at(-1)!.variables.input as Record<
-          string,
-          unknown
-        >
-        assertEquals(input.priority, priority)
+        } else await updateIssue({ priority, unprotected: true }, "ENG-123")
+        assertEquals(
+          (writes(server.graphqlRequests)[0].variables.input as Record<
+            string,
+            unknown
+          >).priority,
+          priority,
+        )
       } finally {
         await cleanup()
       }

@@ -1759,28 +1759,15 @@ Deno.test("Issue Update Command - teamId is sent only for an explicit team move"
 Deno.test("Issue Update Command - label additions and removals stay incremental", async () => {
   const { cleanup } = await setupMockLinearServer([
     {
-      queryName: "ResolveIssueLabelsForWrite",
-      response: {
+      queryName: "GetIssueLabelIdByNameForTeam",
+      response: ({ variables }) => ({
         data: {
           issueLabels: {
-            nodes: [
-              {
-                id: "label-frontend",
-                name: "frontend",
-                isGroup: false,
-                team: null,
-              },
-              {
-                id: "label-backend",
-                name: "backend",
-                isGroup: false,
-                team: null,
-              },
-            ],
+            nodes: [{ id: `label-${variables.name}`, name: variables.name }],
             pageInfo: terminalPage,
           },
         },
-      },
+      }),
     },
     {
       queryName: "UpdateIssue",

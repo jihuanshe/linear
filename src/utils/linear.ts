@@ -12,7 +12,6 @@ import type {
   GetProjectTeamsForDoctorQuery,
   GetTeamMembersQuery,
   IssueFilter,
-  IssueLabelFilter,
   IssueSortInput,
   PaginationOrderBy,
   SearchIssuesQuery,
@@ -2004,16 +2003,26 @@ export async function getIssueLabelIdByNameForTeam(
   const client = getGraphQLClient()
   if (isLinearUuid(name)) {
     const byId = gql(`
-      query GetIssueLabelForWrite($id: String!) {
-        issueLabel(id: $id) { id isGroup team { id key } }
+      query GetIssueLabelForWrite($id: ID!) {
+        issueLabels(first: 2, filter: { id: { eq: $id } }) {
+          nodes { id isGroup team { id key } }
+          pageInfo { hasNextPage endCursor }
+        }
       }
     `)
     const data = await client.request(byId, { id: name.toLowerCase() })
-    const label = data?.issueLabel
-    if (label == null) return undefined
-    if (label.id?.toLowerCase() !== name.toLowerCase()) {
+    const id = uniqueLookupId(data?.issueLabels, name, "Issue label")
+    if (id == null) return undefined
+    const label = data.issueLabels.nodes[0]!
+    if (id.toLowerCase() !== name.toLowerCase()) {
       throw new CliError("Issue label lookup returned a different identity")
     }
+    if (
+      typeof label.isGroup !== "boolean" || label.team === undefined ||
+      (label.team != null &&
+        (typeof label.team.id !== "string" ||
+          typeof label.team.key !== "string"))
+    ) throw new CliError("Issue label lookup returned an incomplete label")
     const matches = label.team == null ||
       (isLinearUuid(team)
         ? label.team.id.toLowerCase() === team.toLowerCase()
@@ -2052,97 +2061,26 @@ export async function resolveIssueLabelIdsForTeam(
   referenceLists: readonly (readonly string[] | undefined)[],
   teamReference: string,
 ): Promise<string[][]> {
-  const references = new Map<string, string>()
+  // Only UUIDs have a client-defined case equivalence. Let Linear decide name
+  // matching and ambiguity for each distinct spelling, regardless of list size.
+  const referenceKey = (reference: string) =>
+    isLinearUuid(reference) ? reference.toLowerCase() : reference
+  const references = new Set<string>()
   for (const reference of referenceLists.flatMap((list) => list ?? [])) {
     if (!reference.trim()) {
       throw new ValidationError("Issue label reference cannot be empty")
     }
-    const key = reference.toLowerCase()
-    if (!references.has(key)) references.set(key, reference)
+    references.add(referenceKey(reference))
   }
   const resolvedIds = new Map<string, string>()
-  if (references.size === 1) {
-    const [key, reference] = [...references][0]
+  for (const reference of references) {
     const labelId = await getIssueLabelIdByNameForTeam(reference, teamReference)
     if (labelId == null) throw new NotFoundError("Issue label", reference)
-    resolvedIds.set(key, labelId.toLowerCase())
-  } else if (references.size > 1) {
-    const client = getGraphQLClient()
-    const query = gql(`
-      query ResolveIssueLabelsForWrite($filter: IssueLabelFilter!, $after: String) {
-        issueLabels(first: 100, after: $after, filter: $filter) {
-          nodes { id name isGroup team { id key } }
-          pageInfo { hasNextPage endCursor }
-        }
-      }
-    `)
-    const teamScope = isLinearUuid(teamReference)
-      ? { id: { eq: teamReference.toLowerCase() } }
-      : { key: { eq: teamReference } }
-    const filter: IssueLabelFilter = {
-      or: [...references.values()].map((reference) =>
-        isLinearUuid(reference)
-          // UUIDs are read even outside the scope so groups/wrong teams fail
-          // the same assignability check as the single-reference lookup.
-          ? { id: { eq: reference.toLowerCase() } }
-          : {
-            name: { eqIgnoreCase: reference },
-            isGroup: { eq: false },
-            or: [{ team: teamScope }, { team: { null: true } }],
-          }
-      ),
-    }
-    const fetchPage = async (after?: string) =>
-      (await client.request(query, { filter, after })).issueLabels
-    const { nodes } = await completeConnection(
-      await fetchPage(),
-      fetchPage,
-      "issue label lookup",
-    )
-    for (const label of nodes) {
-      if (
-        typeof label?.id !== "string" || !label.id ||
-        typeof label.name !== "string" || typeof label.isGroup !== "boolean" ||
-        label.team === undefined ||
-        (label.team != null &&
-          (typeof label.team.id !== "string" ||
-            typeof label.team.key !== "string"))
-      ) throw new CliError("Issue label lookup returned an incomplete label")
-    }
-    const assignable = (label: typeof nodes[number]) =>
-      !label.isGroup && (label.team == null ||
-        (isLinearUuid(teamReference)
-          ? label.team.id.toLowerCase() === teamReference.toLowerCase()
-          : label.team.key.toLowerCase() === teamReference.toLowerCase()))
-    for (const [key, reference] of references) {
-      const byId = isLinearUuid(reference)
-      const matches = nodes.filter((label) =>
-        byId
-          ? label.id.toLowerCase() === key
-          : label.name.toLowerCase() === key && assignable(label)
-      )
-      if (matches.length === 0) {
-        throw new NotFoundError("Issue label", reference)
-      }
-      if (matches.length > 1) {
-        throw new ValidationError(
-          "Issue label name is ambiguous: " + reference,
-          {
-            suggestion: "Use the exact object UUID.",
-          },
-        )
-      }
-      if (!assignable(matches[0])) {
-        throw new ValidationError(
-          "Issue label is not assignable in the target team",
-        )
-      }
-      resolvedIds.set(key, matches[0].id.toLowerCase())
-    }
+    resolvedIds.set(reference, labelId.toLowerCase())
   }
   return referenceLists.map((list) => {
     const labelIds = (list ?? []).map((reference) =>
-      resolvedIds.get(reference.toLowerCase())!
+      resolvedIds.get(referenceKey(reference))!
     )
     return [...new Set(labelIds)]
   })
