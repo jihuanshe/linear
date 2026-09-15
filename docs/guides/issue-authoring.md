@@ -49,7 +49,7 @@ CLI 会检查 Issue 团队与项目是否兼容，需要先查看范围时使用
 
 `issue view <ID>` 默认显示未解决根线程及数量；已解决历史用 `--show-resolved-threads` 读取。未解决线程不天然等于待办，也不要求关闭 Issue 前将评论清零。
 
-讨论形成结论后，更新正文中的问题理解、处理结果与剩余工作；论据、核验过程和记录维护理由保留在评论。需要后续处理的工作有明确去向后，或问题已得到回答时，用 `issue comment resolve <评论 ID>` 收束，可用 `--resolving-comment <回复 ID>` 关联结论。仍缺证据或决定时保持开放，判断改变后可以 `unresolve`。
+讨论形成结论后，更新正文中的问题理解、处理结果与剩余工作。属性变更保留在原生活动记录，评论补充会影响接手的原因、证据或未决问题。需要后续处理的工作有明确去向后，或问题已得到回答时，用 `issue comment resolve <评论 ID>` 收束，可用 `--resolving-comment <回复 ID>` 关联结论。仍缺证据或决定时保持开放，判断改变后可以 `unresolve`。
 
 正文编辑从 `issue export <ID> --output <新目录>` 开始，在导出的 `desired.md` 中保留有效内容并修改。提交使用同目录的原始依据，完整例子与冲突处理见 `linear guide automation`。成员提及和内联锚点的往返限制见 `linear guide markdown`。
 

@@ -37,7 +37,7 @@ commands:
 linear issue export ENG-123 --output issue-edit --json
 ```
 
-导出成功后，阅读 `original.json` 中的正文、属性、完整评论和附件，再编辑 `desired.md` 并提交：
+导出成功后，从 `original.json` 读取当前正文、属性及影响本次编辑的讨论和附件，再编辑 `desired.md` 并提交：
 
 ```bash
 code=0
