@@ -9,7 +9,7 @@ import {
 import { readIssueHeader } from "../../utils/issue-read.ts"
 import { completeConnection } from "../../utils/pagination.ts"
 import {
-  assertMutationReceipt,
+  assertMutationReferences,
   assertMutationSuccess,
   CliError,
   handleError,
@@ -58,7 +58,10 @@ const IncomingRelations = gql(`
 `)
 const CreateRelation = gql(`
   mutation CreateIssueRelation($input: IssueRelationCreateInput!) {
-    issueRelationCreate(input: $input) { success issueRelation { id } }
+    issueRelationCreate(input: $input) {
+      success
+      issueRelation { id issue { id } relatedIssue { id } }
+    }
   }
 `)
 const DeleteRelation = gql(`
@@ -223,7 +226,10 @@ export async function addIssueRelation(
   const data = await client.request(CreateRelation, { input: prepared.input })
   assertMutationSuccess(data.issueRelationCreate, data)
   const relation = data.issueRelationCreate.issueRelation
-  assertMutationReceipt(relation, data)
+  assertMutationReferences(relation, data, {
+    issue: prepared.input.issueId!,
+    relatedIssue: prepared.input.relatedIssueId!,
+  })
   return writeResult({ issue, relatedIssue, type, relation })
 }
 

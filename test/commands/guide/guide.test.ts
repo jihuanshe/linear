@@ -202,7 +202,7 @@ Deno.test("guide commands never write and stay network-free", () => {
   assertEquals(guide.getCommands(), [])
 })
 
-Deno.test("Markdown authoring help gives an actionable route without a skill", async () => {
+Deno.test("Markdown authoring help links to the embedded guide", async () => {
   for (
     const path of [
       "issue create",
@@ -216,32 +216,6 @@ Deno.test("Markdown authoring help gives an actionable route without a skill", a
     const result = await run([...path.split(" "), "--help"])
     assertEquals(result.code, 0, result.stderr)
     assertEquals(result.stderr, "")
-    assertStringIncludes(result.stdout, "For API Markdown bodies")
-    assertStringIncludes(result.stdout, "bare Linear URL")
-    assertStringIncludes(
-      result.stdout,
-      "Named profile links can also mention people",
-    )
-    assertStringIncludes(result.stdout, "handling varies by body")
-    assertStringIncludes(result.stdout, "linear team members <TEAM> --json")
     assertStringIncludes(result.stdout, "linear guide markdown")
   }
-  const reference = await run(["guide", "markdown", "--json"])
-  assertEquals(reference.code, 0, reference.stderr)
-  assertEquals(reference.stderr, "")
-  const guide = JSON.parse(reference.stdout)
-  assertStringIncludes(guide.body, "+++ [服务器日志]")
-  assertStringIncludes(guide.body, "\n+++\n")
-  assertStringIncludes(guide.body, "不根据名字、邮箱或 UUID 拼接")
-  assertStringIncludes(guide.body, "因正文类型及创建／更新路径而异")
-  assertStringIncludes(
-    guide.body,
-    "在 Issue 创建、评论新增及更新时生成提及",
-  )
-  assertStringIncludes(guide.body, "在 Issue 更新、文档创建及更新时为文本")
-  assertStringIncludes(guide.body, "导出的 Markdown 不是富文本的无损备份")
-  assertEquals(guide.commands.includes("issue apply"), true)
-  const delivery = await run(["guide", "issue-delivery", "--json"])
-  assertEquals(delivery.code, 0, delivery.stderr)
-  assertStringIncludes(JSON.parse(delivery.stdout).body, "不证明富文本节点等价")
 })

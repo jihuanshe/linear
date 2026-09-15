@@ -1,4 +1,5 @@
 import { Command } from "@cliffy/command"
+import { resolveProjectContent } from "./project-content.ts"
 import { withUsageMetadata } from "../usage.ts"
 import { gql } from "../../__codegen__/gql.ts"
 import type { ProjectUpdateInput } from "../../__codegen__/graphql.ts"
@@ -25,9 +26,11 @@ import { completeConnection } from "../../utils/pagination.ts"
 import {
   assertMutationReceipt,
   assertMutationSuccess,
+  CliError,
   handleError,
   NotFoundError,
   ValidationError,
+  WriteError,
 } from "../../utils/errors.ts"
 import {
   PROJECT_DESCRIPTION_MAX_LENGTH,
@@ -43,6 +46,7 @@ const UpdateProject = gql(`
         slugId
         name
         description
+        content
         url
         updatedAt
         startDate
@@ -93,6 +97,16 @@ export const updateCommand = withUsageMetadata(new Command(), { writes: true })
     { preserveEmpty: true },
   )
   .option(
+    "--content <markdown:string>",
+    "Replace project overview Markdown; empty string clears it",
+    { preserveEmpty: true },
+  )
+  .option(
+    "--content-file <path:string>",
+    "Read project overview Markdown from a file; replaces the full content",
+    { preserveEmpty: true },
+  )
+  .option(
     "-s, --status <status:string>",
     "Status UUID or type (planned, started, paused, completed, canceled, backlog)",
     { preserveEmpty: true },
@@ -116,16 +130,16 @@ export const updateCommand = withUsageMetadata(new Command(), { writes: true })
   .option("-j, --json", "Output the write result as JSON")
   .option(
     "--base-file <path:string>",
-    "Original view --json output, saved before preparing the update",
+    "Saved view --json output from before editing",
     { preserveEmpty: true },
   )
   .option(
     "--unprotected",
-    "Explicitly skip original-value comparison; domain checks still apply",
+    "Skip original-value comparison; domain checks still apply",
   )
   .option(
     "--expect-field <field:string>",
-    "Also require this API field to match the original basis",
+    "Require this API field to match the saved original value (repeatable)",
     { collect: true, preserveEmpty: true },
   )
   .option(
@@ -139,6 +153,8 @@ export const updateCommand = withUsageMetadata(new Command(), { writes: true })
         name,
         description,
         descriptionFile,
+        content,
+        contentFile,
         status,
         lead,
         startDate,
@@ -175,7 +191,7 @@ export const updateCommand = withUsageMetadata(new Command(), { writes: true })
         }
         if (
           name == null && description == null && descriptionFile == null &&
-          status == null &&
+          content == null && contentFile == null && status == null &&
           lead == null && startDate == null && targetDate == null &&
           (!teams || teams.length === 0) &&
           (!labels || labels.length === 0)
@@ -184,7 +200,7 @@ export const updateCommand = withUsageMetadata(new Command(), { writes: true })
             "At least one update option must be provided",
             {
               suggestion:
-                "Use --name, --description, --description-file, --status, --lead, --start-date, --target-date, --team, or --label",
+                "Use --name, --description, --description-file, --content, --content-file, --status, --lead, --start-date, --target-date, --team, or --label",
             },
           )
         }
@@ -202,6 +218,10 @@ export const updateCommand = withUsageMetadata(new Command(), { writes: true })
         const resolvedDescription = await resolveProjectDescription(
           description,
           descriptionFile,
+        )
+        const resolvedContent = await resolveProjectContent(
+          content,
+          contentFile,
         )
         const original = baseFile != null
           ? await loadBasisFile(baseFile)
@@ -229,6 +249,7 @@ export const updateCommand = withUsageMetadata(new Command(), { writes: true })
 
         if (name != null) input.name = name
         if (resolvedDescription != null) input.description = resolvedDescription
+        if (resolvedContent != null) input.content = resolvedContent
         if (startDate != null) input.startDate = startDate
         if (targetDate != null) input.targetDate = targetDate
 
@@ -284,15 +305,13 @@ export const updateCommand = withUsageMetadata(new Command(), { writes: true })
         }
 
         if (teams && teams.length > 0) {
-          const teamIds: string[] = []
-          for (const teamKey of teams) {
-            const teamId = await getTeamIdByKey(teamKey.toUpperCase())
-            if (!teamId) {
-              spinner?.stop()
-              throw new NotFoundError("Team", teamKey)
-            }
-            teamIds.push(teamId)
-          }
+          const teamIds = await Promise.all(
+            teams.map(async (teamKey) => {
+              const teamId = await getTeamIdByKey(teamKey.toUpperCase())
+              if (!teamId) throw new NotFoundError("Team", teamKey)
+              return teamId
+            }),
+          )
           input.teamIds = teamIds
         }
 
@@ -325,6 +344,7 @@ export const updateCommand = withUsageMetadata(new Command(), { writes: true })
           fields: {
             name: scalarField("name"),
             description: scalarField("description"),
+            content: scalarField("content"),
             startDate: scalarField("startDate"),
             targetDate: scalarField("targetDate"),
             statusId: referenceField("status"),
@@ -345,9 +365,15 @@ export const updateCommand = withUsageMetadata(new Command(), { writes: true })
           } else console.log("No changes needed")
           return
         }
+        const writeInput = { ...plan.input }
+        // Linear currently requires LF to clear Markdown content. Keep the
+        // desired empty string in the replacement plan, but encode only the
+        // actual mutation payload.
+        if (writeInput.content === "") writeInput.content = "\n"
+
         const result = await client.request(UpdateProject, {
           id: resolvedId,
-          input: plan.input,
+          input: writeInput,
         })
         spinner?.stop()
 
@@ -355,10 +381,45 @@ export const updateCommand = withUsageMetadata(new Command(), { writes: true })
         const project = result.projectUpdate.project
         assertMutationReceipt(project, result, resolvedId)
 
-        if (json) printWriteResult({ project }, { fields: plan.fields })
-        else {
-          console.log(`✓ Updated project: ${project.name}`)
-          if (project.url) console.log(project.url)
+        let outputProject = project
+        if (plan.input.content === "") {
+          try {
+            const readBack = await readProject(client, resolvedId)
+            if (
+              readBack.project.content != null &&
+              readBack.project.content !== ""
+            ) {
+              throw new CliError("Project content is not empty on read-back")
+            }
+            outputProject = { ...project, content: readBack.project.content }
+          } catch (error) {
+            throw new WriteError(
+              "The project update was applied, but clearing content could not be verified.",
+              {
+                effect: "applied",
+                data: { project },
+                cause: error,
+                details: {
+                  fields: plan.fields,
+                  verification: {
+                    status: "unverified",
+                    message: error instanceof Error
+                      ? error.message
+                      : String(error),
+                  },
+                },
+                suggestion:
+                  "Inspect the project before retrying. No automatic retry was performed.",
+              },
+            )
+          }
+        }
+
+        if (json) {
+          printWriteResult({ project: outputProject }, { fields: plan.fields })
+        } else {
+          console.log(`✓ Updated project: ${outputProject.name}`)
+          if (outputProject.url) console.log(outputProject.url)
         }
       } catch (error) {
         spinner?.stop()

@@ -12,8 +12,8 @@ env:
   NO_COLOR: "1"
 
 jobs:
-  source:
-    name: Source gate
+  prepare:
+    name: Prepare source
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -35,9 +35,113 @@ jobs:
             deno-${{ runner.os }}-
 
       - name: Verify release source
-        run: deno task verify-release
+        run: deno task generate-graphql-types
 
-      - name: Check verification left the checkout unchanged
+      - name: Upload generated GraphQL types
+        uses: actions/upload-artifact@v7
+        with:
+          name: generated-graphql-types
+          path: src/__codegen__/
+          if-no-files-found: error
+
+  quality:
+    name: Quality checks
+    needs: prepare
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
+        with:
+          version: "2026.9.1"
+          install_args: "--locked deno node npm:markdownlint-cli2 github:huacnlee/autocorrect prek"
+
+      - name: Cache Deno dependencies
+        uses: actions/cache@v6
+        with:
+          path: ~/.cache/deno
+          key: deno-${{ runner.os }}-${{ hashFiles('mise.lock', 'deno.lock') }}
+          restore-keys: |
+            deno-${{ runner.os }}-
+
+      - name: Download generated GraphQL types
+        uses: actions/download-artifact@v8
+        with:
+          name: generated-graphql-types
+          path: src/__codegen__/
+
+      - name: Run quality checks
+        run: |
+          deno fmt --check
+          deno lint
+          mise exec -- prek validate-config prek.toml
+          deno task lint:markdown
+          deno task lint:copy
+          deno task check-types
+
+      - name: Check quality checks left the checkout unchanged
         run: |
           git diff --exit-code
           test -z "$(git ls-files --others --exclude-standard)"
+
+  tests:
+    name: Tests (${{ matrix.shard }}/12)
+    needs: prepare
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
+        with:
+          version: "2026.9.1"
+          install_args: "--locked deno node npm:markdownlint-cli2 github:huacnlee/autocorrect prek"
+
+      - name: Cache Deno dependencies
+        uses: actions/cache@v6
+        with:
+          path: ~/.cache/deno
+          key: deno-${{ runner.os }}-${{ hashFiles('mise.lock', 'deno.lock') }}
+          restore-keys: |
+            deno-${{ runner.os }}-
+
+      - name: Download generated GraphQL types
+        uses: actions/download-artifact@v8
+        with:
+          name: generated-graphql-types
+          path: src/__codegen__/
+
+      - name: Run tests
+        run: deno task test --shard=${{ matrix.shard }}/12 --ignore=test/keyring.integration.test.ts
+
+      - name: Check tests left the checkout unchanged
+        run: |
+          git diff --exit-code
+          test -z "$(git ls-files --others --exclude-standard)"
+
+  source:
+    name: Source gate
+    if: ${{ always() }}
+    needs: [quality, tests]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Require quality checks and tests
+        if: ${{ needs.quality.result != 'success' || needs.tests.result != 'success' }}
+        run: |
+          echo "Quality checks: ${{ needs.quality.result }}"
+          echo "Tests: ${{ needs.tests.result }}"
+          exit 1
+
+      - name: Source gate passed
+        run: echo "GraphQL types, quality checks, and tests passed in parallel jobs."

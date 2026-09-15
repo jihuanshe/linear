@@ -3,6 +3,7 @@ import { getGraphQLClient } from "./graphql.ts"
 import { completeConnection } from "./pagination.ts"
 import { NotFoundError, ValidationError } from "./errors.ts"
 import { isLinearUuid } from "./linear.ts"
+import { assertReadIdentity, assertReadOrganization } from "./read-identity.ts"
 import type { IssueFieldsFragment } from "../__codegen__/graphql.ts"
 
 // View and replacement reads use exactly the same API field projection.
@@ -78,13 +79,16 @@ export async function readIssueBasis(issueId: string, signal?: AbortSignal) {
     signal,
   })
   if (result.issue == null) throw new NotFoundError("Issue", issueId)
-  if (
-    isLinearUuid(issueId) &&
-    result.issue.id?.toLowerCase() !== issueId.toLowerCase()
-  ) {
-    throw new ValidationError(
-      "Issue read resolved to a different stable identity",
+  if (isLinearUuid(issueId)) {
+    assertReadIdentity(
+      result.issue,
+      issueId,
+      result.organization,
+      result.organization?.id ?? "",
+      "Issue",
     )
+  } else {
+    assertReadOrganization(result.organization, "Issue")
   }
   const labels = await completeIssueLabels(
     result.issue.id,
@@ -99,14 +103,13 @@ export async function readIssueBasis(issueId: string, signal?: AbortSignal) {
       variables: { id: result.issue.id },
       signal,
     })
-    if (
-      latest.issue?.id !== result.issue.id ||
-      latest.organization?.id !== result.organization.id
-    ) {
-      throw new ValidationError(
-        "Issue or workspace changed while completing the read",
-      )
-    }
+    assertReadIdentity(
+      latest.issue,
+      result.issue.id,
+      latest.organization,
+      result.organization.id,
+      "Issue",
+    )
     return { ...latest, issue: { ...latest.issue, labels } }
   }
   return { ...result, issue: { ...result.issue, labels } }

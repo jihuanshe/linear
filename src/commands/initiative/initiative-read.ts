@@ -1,6 +1,7 @@
 import { gql } from "../../__codegen__/gql.ts"
 import { getGraphQLClient } from "../../utils/graphql.ts"
 import { NotFoundError, ValidationError } from "../../utils/errors.ts"
+import { assertReadIdentity } from "../../utils/read-identity.ts"
 
 const ReadInitiative = gql(`
   query ReadInitiative(
@@ -48,6 +49,14 @@ export async function readInitiative(
   if (!initiative || initiative.id !== id) {
     throw new NotFoundError("Initiative", id)
   }
+  assertReadIdentity(
+    initiative,
+    id,
+    result.organization,
+    result.organization?.id ?? "",
+    "Initiative",
+  )
+  let latestInitiative = initiative
   const initialProjects = {
     ...(initiative.projects ?? {}),
     nodes: initiative.projects?.nodes ?? [],
@@ -114,9 +123,16 @@ export async function readInitiative(
       documentsAfter,
     })
     const pageInitiative = page.initiatives.nodes[0]
-    if (!pageInitiative || pageInitiative.id !== id) {
-      throw new ValidationError(`Initiative pagination changed target: ${id}`)
-    }
+    assertReadIdentity(
+      pageInitiative,
+      id,
+      page.organization,
+      result.organization?.id ?? "",
+      "Initiative pagination",
+    )
+    // Each page includes scalar fields. Use their latest read for replacement
+    // checks after completing the collections; the pages are not atomic.
+    latestInitiative = pageInitiative
     if (!projectsComplete) projects.push(...pageInitiative.projects.nodes)
     if (!documentsComplete && documents && pageInitiative.documents) {
       documents.push(...pageInitiative.documents.nodes)
@@ -136,7 +152,7 @@ export async function readInitiative(
   return {
     organization: result.organization,
     initiative: {
-      ...initiative,
+      ...latestInitiative,
       projects: {
         ...initialProjects,
         nodes: projects,

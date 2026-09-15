@@ -4,6 +4,7 @@ import { stub } from "@std/testing/mock"
 import { updateCommand as issueUpdate } from "../../src/commands/issue/issue-update.ts"
 import { updateCommand as projectUpdate } from "../../src/commands/project/project-update.ts"
 import { setupMockLinearServer } from "../utils/test-helpers.ts"
+import type { MockGraphQLRequest } from "../utils/mock_linear_server.ts"
 import {
   connection,
   issue as issueFixture,
@@ -116,8 +117,11 @@ function readResponse(
 ) {
   return {
     queryName: domain === "issue" ? "GetIssueForWrite" : "ReadProject",
-    response: {
-      data: {
+    response: (
+      request: MockGraphQLRequest,
+      history: readonly MockGraphQLRequest[],
+    ) => {
+      const data = {
         organization: WORKSPACE,
         [domain]: domain === "issue" ? issueFixture(123, { id, identifier }) : {
           id,
@@ -132,7 +136,20 @@ function readResponse(
           teams: connection(),
           labels: connection(),
         },
-      },
+      }
+      if (domain === "issue") {
+        const start = history.findLastIndex((read) =>
+          read.query.includes("query GetIssueForWrite") &&
+          read.variables.id === identifier
+        )
+        const lastWrite = history.slice(start).findLast((write) =>
+          write.query.includes("mutation UpdateIssue")
+        )
+        if (lastWrite && request.variables.id !== identifier) {
+          Object.assign(data.issue, lastWrite.variables.input)
+        }
+      }
+      return { data }
     },
   }
 }
@@ -383,10 +400,15 @@ for (
         "--description=",
       ])
       assertEquals(result.code, 0, new TextDecoder().decode(result.stderr))
-      assertEquals(server.graphqlRequests.at(-1)?.variables, {
-        id: stableId,
-        input: { description: "" },
-      })
+      assertEquals(
+        server.graphqlRequests.findLast((request) =>
+          request.query.includes("mutation " + mutation)
+        )?.variables,
+        {
+          id: stableId,
+          input: { description: "" },
+        },
+      )
       const requestsAfterWrite = server.graphqlRequests.length
       for (
         const args of [

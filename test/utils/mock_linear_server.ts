@@ -49,7 +49,7 @@ export class MockLinearServer {
     this.mockResponses = responses
   }
 
-  async start(): Promise<void> {
+  start(): void {
     this.server = Deno.serve({
       hostname: "127.0.0.1",
       port: this.port,
@@ -90,8 +90,8 @@ export class MockLinearServer {
       this.port = this.server.addr.port
     }
 
-    // Wait a bit for server to start
-    await new Promise((resolve) => setTimeout(resolve, 100))
+    // Deno.serve has synchronously bound the port before returning. There is
+    // no need to add a fixed delay to every test fixture.
   }
 
   async stop(): Promise<void> {

@@ -14,34 +14,20 @@
 | 跨命令且随版本变化的工作流               | `docs/guides/`、`src/guides/`                                                                                             |
 | 可编辑的工作流示例与二进制分发           | `recipes/`、`src/recipes/`、`src/commands/recipe.ts`                                                                      |
 | Linear GraphQL schema 与有类型约束的文档 | `graphql/schema.graphql`、`codegen.ts`、`src/**` 中的 `gql`                                                               |
-| 认证、配置与凭据解析                     | `src/config.ts`、`src/credentials.ts`、`src/utils/graphql.ts`、`docs/authentication.md`、`docs/configuration.md`          |
+| 认证、配置与凭据解析                     | `src/config.ts`、`src/credentials.ts`、`src/utils/graphql.ts`、`docs/setup.md`                                            |
 | Issue 交付清单、执行和恢复               | `src/delivery/`、`src/commands/issue/issue-plan.ts`、`src/commands/issue/issue-apply.ts`、`docs/guides/issue-delivery.md` |
-| Agent 接口设计与一次性交付记录           | `docs/agent-interface-architecture.md`、`docs/agent-interface-delivery.md`、`docs/skill-migration-ledger.md`              |
 | 开发工具版本、任务与权限                 | `mise.toml`、`mise.lock`、`deno.json`、`docs/deno-permissions.md`                                                         |
 | 提交前检查与 Markdown 规则               | `prek.toml`、`.markdownlint-cli2.jsonc`、`.autocorrectrc`                                                                 |
 | Orb 工具链                               | `.agents/setup`、`.agents/resume`                                                                                         |
 | PR 门禁与滚动发布                        | `.github/workflows/verify-pull-request.yml`、`.github/workflows/ship-main.yml`、`.agents/skills/releasing/SKILL.md`       |
 
-命令事实以实时 Cliffy 命令树为准。能由一个命令完整表达的内容写进该命令的描述、选项帮助或校验错误；跨多个命令的 Linear 工作流写进内嵌指南；可供用户审阅和修改的脚本及说明写进工作流示例；安装、配置和长期架构事实写进 `docs/`。`agent-interface-delivery.md` 是历史交付记录，不承载当前命令契约。
-
-```mermaid
-flowchart TD
-  fact["准备记录一项事实"] --> owner{"谁需要据此行动？"}
-  owner -->|单个命令调用者| command["命令树 / --help / 运行时校验"]
-  owner -->|跨命令工作流调用者| guide["指南与工作流示例<br/>随二进制嵌入"]
-  owner -->|安装、配置或维护者| docs["README / docs / AGENTS"]
-  owner -->|一次性交付证据| history["历史交付记录"]
-  command --> test["从生产入口验证"]
-  guide --> test
-  docs --> test
-  history --> test
-```
+命令事实以实时 Cliffy 命令树为准。能由一个命令完整表达的内容写进该命令的描述、选项帮助或校验错误；跨多个命令的 Linear 工作流写进内嵌指南；可供用户审阅和修改的脚本及说明写进工作流示例；安装、配置和维护规则写进 `README.md`、`docs/` 或本文件。不要新增与命令树重复的手册。
 
 供 Agent 激活本 CLI 的外部 Skill 由 `jihuanshe/skills` 维护。本仓不生成命令手册，也不把外部 Skill 当作命令事实源。
 
 ## 实现边界
 
-- 常见领域操作、名称解析和安全写入使用专用命令。`linear schema` 与 `linear api` 只补专用命令未覆盖的长尾 GraphQL；已有专用写命令时，不用原生 mutation 绕过它的校验、冲突保护或读回。
+- 常见领域操作、名称解析和写入校验使用专用命令。`linear schema` 与 `linear api` 只补专用命令未覆盖的长尾 GraphQL；已有专用写命令时，不用原生 mutation 绕过它的校验、原始值比较或读回。
 - `usage` 与根／领域导航从实际 Cliffy 命令树生成，不维护第二份命令目录。`withUsageMetadata` 与定义和执行该行为的命令模块放在一起；`writes`、`interactive`、`confirmation` 和 `outputModes` 描述能力，不代表授权。
 - 指南的 Markdown 是内容事实源。元数据头只使用 `name`、`description`、`commands`；它定义命令与指南的关系。新增指南时同步 `src/guides/content.ts` 的静态导入清单，指南测试必须证明文件、名称、命令引用和二进制嵌入一致。
 - 工作流示例的说明与脚本以 `recipes/` 为源，通过静态文本导入随二进制分发。`linear recipe` 只展示和导出，不执行脚本、不访问网络。说明必须写清依赖、输入、写入范围及失败后的动作；安装用户不能依赖源码目录。测试核对说明、脚本、索引与编译产物的一致性。
@@ -65,7 +51,7 @@ flowchart TD
 - 单命令不强制交付清单；需要组合和恢复时再建立清单。整批本地文件首写前读取并校验，`base`／`baseFile` 保存原始读取。`set` 使用共享 Issue 操作的选项名；`apply` 直接调用其实现，不组装 argv 或启动子 CLI。
 - 派发 mutation 前先把执行项记为 `unknown`。结果未知时停止一切自动续跑，等待显式对账；不把网络失败解释为远端未写入。
 - 执行账本记录在交付清单旁：真实派发前记为 `unknown`，取得有效回执后记为 `completed`；上传有独立回执。已确认写入不因读回失败变成可重试。两个执行者不得并发 `apply` 同一交付清单；执行账本不是锁或事务，部分成功不自动回滚。
-- 交付清单与执行账本使用 `schemaVersion: 2`，明确拒绝版本 1。保留旧文件与匹配版本对账后，只为剩余工作新建清单，不自动迁移重放。修改格式、状态、执行项 key、回执或恢复语义时，同步 `engine`／`checkpoint` 测试和 `docs/guides/issue-delivery.md`。测试走生产入口，不复写实现。
+- 交付清单与执行账本使用 `schemaVersion: 2`。修改格式、状态、执行项 key、回执或恢复语义时，同步 `engine`／`checkpoint` 测试和 `docs/guides/issue-delivery.md`。测试走生产入口，不复写实现。
 
 ## Kadoraba 实时 API 实验
 

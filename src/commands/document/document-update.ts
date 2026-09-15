@@ -214,16 +214,16 @@ export const updateCommand = withUsageMetadata(new Command(), {
   .option("--json", "Output the write result as JSON; never open an editor")
   .option(
     "--base-file <path:string>",
-    "Original view --json output, saved before preparing the update",
+    "Saved view --json output from before editing; compare original values before writing",
     { preserveEmpty: true },
   )
   .option(
     "--unprotected",
-    "Explicitly skip original-value comparison; inline-comment protection still requires --force",
+    "Skip original-value comparison; inline-comment protection still requires --force",
   )
   .option(
     "--expect-field <field:string>",
-    "Also require this API field to match the original basis",
+    "Require this API field to match the saved original value (repeatable)",
     { collect: true, preserveEmpty: true },
   )
   .action(
@@ -408,7 +408,6 @@ export const updateCommand = withUsageMetadata(new Command(), {
         const writeInput = { ...plan.input }
         // Linear currently requires LF to clear Markdown. Compare the desired
         // empty string first; encode only the actual mutation payload.
-        // Evidence: https://github.com/jihuanshe/linear/pull/34
         if (writeInput.content === "") writeInput.content = "\n"
 
         // Execute the update

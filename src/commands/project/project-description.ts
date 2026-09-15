@@ -45,7 +45,7 @@ export async function resolveProjectDescription(
       `Project description is ${value.length} characters, exceeds the ${PROJECT_DESCRIPTION_MAX_LENGTH}-character limit enforced by Linear's API`,
       {
         suggestion:
-          `Shorten the description to ${PROJECT_DESCRIPTION_MAX_LENGTH} characters or fewer, or move the long content into an attached document via \`linear document create --project <slug>\`.`,
+          `Shorten the description to ${PROJECT_DESCRIPTION_MAX_LENGTH} characters or fewer, or use --content-file for the project overview.`,
       },
     )
   }

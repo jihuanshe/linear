@@ -71,7 +71,7 @@ linear issue apply --file delivery.json --confirm-workspace acme --json \
 
 `--confirm-workspace` 必须等于清单 `workspace` 中的工作区短名；执行时还用同一凭据核对远端 `organization.id`，已有执行账本必须属于同一工作区。这个参数不构成写入授权。
 
-`apply` 顺序执行，进度在 stderr，stdout 为一份 `{ok,effect,data}` 写入结果：
+`apply` 顺序执行，stderr 显示当前 Issue 标识与操作类型，新建时先显示清单位置，取得编号后使用该编号。stdout 为一份 `{ok,effect,data}` 写入结果：
 
 ```bash
 jq '{ok, effect, status: .data.status, summary: .data.summary, verification: .data.verification}' apply.json
@@ -84,7 +84,9 @@ jq -e '.ok == true and .data.status == "completed"' apply.json >/dev/null
 
 整体状态只有在本次执行与规定范围的读回核验都成功时才是 `completed`，并返回零退出码。写入已确认但读回不匹配或不可用时，整体为 `applied-unverified`；保留写入回执，重跑只补需要的读取，不再次发送已完成写入。`effect: applied` 不因读回失败变成可重试。
 
-`.data.verification[].status` 是 `verified`、`different` 或 `unavailable`，`scope` 固定为 `issue-fields-and-object-identities`。核验包括目标 Issue 身份、执行账本中的预期字段，以及本次 Comment／Attachment／Relation 回执对象是否仍关联目标 Issue；不证明评论正文、关系对端与类型、上传字节、页面渲染或通知送达。Markdown 按精确 API 字符串核对；字符串一致也不证明富文本节点等价。
+`.data.verification[].status` 是 `verified`、`different` 或 `unavailable`，`scope` 固定为 `issue-fields-and-object-identities`。核验包括目标 Issue 身份、执行账本中的预期字段，以及本次 Comment／Attachment／Relation 回执对象是否仍关联目标 Issue；不证明评论正文、关系对端与类型、上传字节、页面渲染或通知送达。
+
+正文读回按 Markdown 结构比较，识别链接尖括号、URL 非 ASCII 字符的编码、列表标记及单段列表项之间空行的规范化。文字、链接目标、段落、显式换行与代码内容的变化仍会报差异。这不证明富文本节点或提及通知等价；写入前的原始依据检查继续精确比较 API 字符串。
 
 读回最多尝试 3 次，默认每个 Issue 的总时限为 10 秒。仅取消读回，不能据此推断此前 mutation 被取消。`.data.readBack` 按 `issues` 的零起始下标保存 `{organization,issue,receipts}`，不是完整 `issue view`；`createdIdentifiers` 同样按下标记录新建 Issue 的编号。
 
@@ -105,9 +107,3 @@ jq -e '.ok == true and .data.status == "completed"' apply.json >/dev/null
 `completed` 的 Issue 回执包含 `id` 与 `identifier`，Comment／Attachment／Relation 回执包含对象 `id`，上传回执包含 `assetUrl`、`filename`、`size`、`contentType`、`public`。字段预期仅属于 Issue 回执。回执不匹配、工作区改变或已有执行项 key 从计划中消失时，拒绝续跑；不要删除执行账本来重放原意图。
 
 恢复已完成项不重新执行原始比较，但继续做读回核验。未完成项仍使用原始依据；修改目标值或重新排序可能改变执行项 key。需要新意图时先对账旧效果，再建立只含明确剩余工作的独立交付清单。同一交付清单只能有一个执行者；执行账本不提供并发锁、事务或 exactly-once。
-
-## 从旧协议迁移
-
-`schemaVersion: 1` 的交付清单和执行账本会在执行前明确拒绝。保留原文件及匹配的旧版本二进制，对账或完成旧执行后，再为明确剩余的工作读取新依据、建立 `schemaVersion: 2` 的独立清单。不自动迁移旧执行账本，不删除或覆盖它来重放。
-
-迁移时同时调整顶层 `team` → `set.team`、`labels` → `label`、旧的手抄 `base` → 原始读取 `base`／`baseFile`，以及 `apply` 结果路径 → `.data`。其他命令的当前参数以 `linear <command> --help` 为准，写入结果与读取格式见 `linear guide automation`。

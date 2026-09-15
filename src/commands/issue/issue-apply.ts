@@ -97,9 +97,12 @@ export const issueApplyCommand = withUsageMetadata(
         let step = 0
         const outcome = await applyManifest({
           loaded,
-          // Progress is safe for log sinks: payload URLs, text and local paths
-          // remain in the explicit result/plan instead of leaking to stderr.
-          onProgress: () => console.error(`Processing item ${++step}`),
+          onProgress: (_line, { issueIndex, target, kind }) =>
+            console.error(
+              `Processing item ${++step}: ${
+                target ?? `new Issue ${issueIndex + 1}`
+              } (${kind})`,
+            ),
           continueOnFailure,
         })
         console.log(

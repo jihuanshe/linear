@@ -84,13 +84,15 @@ const GetProjectDetails = gql(`
 
 export const viewCommand = new Command()
   .name("view")
-  .description("View project details")
+  .description("View project details and full overview")
   .alias("v")
   .arguments("<projectId:string>")
   .option("-w, --web", "Open in web browser")
   .option("-a, --app", "Open in Linear.app")
   .option("-j, --json", "Output as JSON")
-  .option("--include-content", "Include the project's content")
+  .option("--include-content", "Include the project's content", {
+    default: true,
+  })
   .action(async (options, projectId) => {
     const { web, app, json, includeContent } = options
 

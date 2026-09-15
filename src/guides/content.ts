@@ -1,5 +1,5 @@
-// Guides ship inside the binary with the CLI that implements their commands
-// (design: docs/agent-interface-architecture.md, "文档与验证"). Static text imports
+// Guides ship inside the binary with the CLI that implements their commands.
+// Static text imports
 // are the embedding mechanism: `deno compile`
 // bundles each file into the executable, so `guide <name>` works without
 // repository files or network access.

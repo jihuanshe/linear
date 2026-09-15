@@ -7,15 +7,15 @@ Usage: view <projectId>
 
 Description:
 
-  View project details
+  View project details and full overview
 
 Options:
 
-  -h, --help         - Show this help.                
-  -w, --web          - Open in web browser            
-  -a, --app          - Open in Linear.app             
-  -j, --json         - Output as JSON                 
-  --include-content  - Include the project's content  
+  -h, --help         - Show this help.                               
+  -w, --web          - Open in web browser                           
+  -a, --app          - Open in Linear.app                            
+  -j, --json         - Output as JSON                                
+  --include-content  - Include the project's content  (Default: true)
 
 "
 stderr:
@@ -57,6 +57,12 @@ Complete overhaul of the authentication system to improve security and user expe
 - Audit logging for security events
 - GDPR compliance for user data
 
+## Content
+
+# Rollout
+
+Enable the new login page for the pilot team.
+
 ## Latest Update
 
 **By:** Jane Lead
@@ -96,6 +102,7 @@ stdout:
   },
   "project": {
     "id": "minimal-project",
+    "content": null,
     "name": "Simple Project",
     "description": "",
     "slugId": "simple",

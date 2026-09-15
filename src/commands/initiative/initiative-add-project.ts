@@ -7,7 +7,7 @@ import { getGraphQLClient } from "../../utils/graphql.ts"
 import { shouldShowSpinner } from "../../utils/hyperlink.ts"
 import { completeConnection } from "../../utils/pagination.ts"
 import {
-  assertMutationReceipt,
+  assertMutationReferences,
   assertMutationSuccess,
   handleError,
   NotFoundError,
@@ -31,6 +31,8 @@ const AddProjectToInitiative = gql(`
       success
       initiativeToProject {
         id
+        initiative { id }
+        project { id }
       }
     }
   }
@@ -156,9 +158,12 @@ export const addProjectCommand = withUsageMetadata(new Command(), {
           result: result?.initiativeToProjectCreate,
         })
         const link = result?.initiativeToProjectCreate.initiativeToProject
-        assertMutationReceipt(link, {
+        assertMutationReferences(link, {
           ...input,
           result: result?.initiativeToProjectCreate,
+        }, {
+          initiative: initiative.id,
+          project: project.id,
         })
         if (json) {
           printWriteResult({

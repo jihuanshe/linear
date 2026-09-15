@@ -1,4 +1,5 @@
 import { Command } from "@cliffy/command"
+import { resolveProjectContent } from "./project-content.ts"
 import { withUsageMetadata } from "../usage.ts"
 import { printWriteResult } from "../../utils/write-result.ts"
 import { Input, Select } from "../../utils/prompt.ts"
@@ -67,34 +68,6 @@ function parsePriority(priority: string): number {
     })
   }
   return mapped
-}
-
-export async function resolveProjectContent(
-  content: string | undefined,
-  contentFile: string | undefined,
-): Promise<string | undefined> {
-  if (content != null && contentFile != null) {
-    throw new ValidationError(
-      "Cannot specify both --content and --content-file",
-    )
-  }
-
-  if (contentFile == null) {
-    return content
-  }
-  if (contentFile === "") {
-    throw new ValidationError("Content file path cannot be empty")
-  }
-
-  try {
-    return await Deno.readTextFile(contentFile)
-  } catch (error) {
-    throw new ValidationError(`Failed to read content file: ${contentFile}`, {
-      suggestion: `Error: ${
-        error instanceof Error ? error.message : String(error)
-      }`,
-    })
-  }
 }
 
 export const createCommand = withUsageMetadata(new Command(), {
@@ -384,14 +357,13 @@ export const createCommand = withUsageMetadata(new Command(), {
         }
 
         // Resolve team IDs
-        const teamIds: string[] = []
-        for (const teamKey of teams) {
-          const teamId = await getTeamIdByKey(teamKey.toUpperCase())
-          if (!teamId) {
-            throw new NotFoundError("Team", teamKey)
-          }
-          teamIds.push(teamId)
-        }
+        const teamIds = await Promise.all(
+          teams.map(async (teamKey) => {
+            const teamId = await getTeamIdByKey(teamKey.toUpperCase())
+            if (!teamId) throw new NotFoundError("Team", teamKey)
+            return teamId
+          }),
+        )
 
         // Build input - resolve all optional fields first
         let leadId: string | undefined

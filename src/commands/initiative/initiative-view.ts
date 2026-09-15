@@ -28,7 +28,7 @@ const STATUS_COLORS: Record<string, string> = {
 
 export const viewCommand = new Command()
   .name("view")
-  .description("View initiative details")
+  .description("View initiative details, full content and document links")
   .alias("v")
   .arguments("<initiativeId:string>")
   .option("-w, --web", "Open in web browser")
@@ -37,6 +37,7 @@ export const viewCommand = new Command()
   .option(
     "--include-content",
     "Include the initiative's markdown content and associated document links",
+    { default: true },
   )
   .action(async (options, initiativeId) => {
     const { web, app, json, includeContent } = options

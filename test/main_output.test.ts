@@ -185,12 +185,16 @@ Deno.test("main emits one write result for issue update --json", async () => {
       },
     },
   }
+  const current = issueWriteBasis()
   const { server, cleanup } = await setupMockLinearServer([
-    { queryName: "GetIssueForWrite", response: { data: issueWriteBasis() } },
+    { queryName: "GetIssueForWrite", response: () => ({ data: current }) },
     {
       queryName: "UpdateIssue",
       variables: { id: issueWriteId, input: { title: "Renamed" } },
-      response: { data: { issueUpdate } },
+      response: () => {
+        current.issue.title = "Renamed"
+        return { data: { issueUpdate } }
+      },
     },
   ])
 

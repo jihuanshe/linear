@@ -53,7 +53,7 @@ snapshot[`usage JSON describes command metadata 1`] = `
         name: "core",
       },
       {
-        description: "保存原始依据、执行受保护更新并解释 JSON 写入效果与分页",
+        description: "保存原始依据、比较原始值并解释 JSON 写入效果与分页",
         name: "automation",
       },
       {
@@ -410,7 +410,7 @@ snapshot[`usage JSON describes command metadata 1`] = `
       details: "linear issue query --help",
       guides: [
         {
-          description: "保存原始依据、执行受保护更新并解释 JSON 写入效果与分页",
+          description: "保存原始依据、比较原始值并解释 JSON 写入效果与分页",
           name: "automation",
         },
         {
@@ -877,7 +877,7 @@ snapshot[`usage JSON describes command metadata 1`] = `
       details: "linear issue view --help",
       guides: [
         {
-          description: "保存原始依据、执行受保护更新并解释 JSON 写入效果与分页",
+          description: "保存原始依据、比较原始值并解释 JSON 写入效果与分页",
           name: "automation",
         },
         {
@@ -923,7 +923,7 @@ snapshot[`usage JSON describes command metadata 1`] = `
         },
         {
           arguments: [],
-          description: "Include resolved comment threads in the output",
+          description: "Include resolved threads in human output; JSON always retains all fetched threads",
           flags: [
             "--show-resolved-threads",
           ],
@@ -943,7 +943,7 @@ snapshot[`usage JSON describes command metadata 1`] = `
         },
         {
           arguments: [],
-          description: "Output issue data as JSON; comments and attachments retain {nodes, pageInfo}",
+          description: "Output all fetched threads including resolved history; comments and attachments retain {nodes, pageInfo}",
           flags: [
             "-j",
             "--json",
@@ -977,6 +977,77 @@ snapshot[`usage JSON describes command metadata 1`] = `
         {
           list: false,
           name: "issueId",
+          required: true,
+          type: "string",
+          variadic: false,
+        },
+      ],
+      confirmation: null,
+      description: "Save an Issue's original JSON with all comments and attachments, and its exact Markdown draft for local editing, without changing Linear.
+
+Creates original.json and desired.md in a new directory. Read the saved discussion before editing desired.md, then use issue update --base-file original.json --description-file desired.md. Markdown is not a lossless rich-text backup; see linear guide markdown.",
+      details: "linear issue export --help",
+      guides: [
+        {
+          description: "保存原始依据、比较原始值并解释 JSON 写入效果与分页",
+          name: "automation",
+        },
+        {
+          description: "Issue 的责任归属、持久证据、验收依据与后续交接",
+          name: "issue-authoring",
+        },
+        {
+          description: "通过 API 编写 Linear 提及与可折叠正文，查找真实成员 URL",
+          name: "markdown",
+        },
+      ],
+      hasSubcommands: false,
+      interactive: false,
+      name: "export",
+      options: [
+        {
+          arguments: [
+            {
+              list: false,
+              name: "directory",
+              required: true,
+              type: "string",
+              variadic: false,
+            },
+          ],
+          description: "New directory for the editing files",
+          flags: [
+            "--output",
+          ],
+          name: "output",
+          repeatable: false,
+          staticallyRequired: true,
+        },
+        {
+          arguments: [],
+          description: "Output saved paths and stable Issue identity as JSON",
+          flags: [
+            "--json",
+          ],
+          name: "json",
+          repeatable: false,
+          staticallyRequired: false,
+        },
+      ],
+      outputModes: [
+        "human",
+        "json",
+      ],
+      path: "linear issue export",
+      usage: "linear issue export <issueId> [options]",
+      writes: false,
+    },
+    {
+      aliases: [],
+      arguments: [
+        {
+          list: false,
+          name: "issueId",
           required: false,
           type: "string",
           variadic: false,
@@ -987,7 +1058,7 @@ snapshot[`usage JSON describes command metadata 1`] = `
       details: "linear issue history --help",
       guides: [
         {
-          description: "保存原始依据、执行受保护更新并解释 JSON 写入效果与分页",
+          description: "保存原始依据、比较原始值并解释 JSON 写入效果与分页",
           name: "automation",
         },
         {
@@ -1261,7 +1332,7 @@ Run \`linear guide markdown\` for mentions, collapsible sections and rewrite ris
       details: "linear issue create --help",
       guides: [
         {
-          description: "保存原始依据、执行受保护更新并解释 JSON 写入效果与分页",
+          description: "保存原始依据、比较原始值并解释 JSON 写入效果与分页",
           name: "automation",
         },
         {
@@ -1587,7 +1658,7 @@ Run \`linear guide markdown\` for mentions, collapsible sections and rewrite ris
         },
       ],
       confirmation: null,
-      description: "Update a linear issue
+      description: "Update an issue; verify fields with up to 3 reads without repeating the write
 
 For API Markdown bodies, prefer a bare Linear URL for mentions.
 Named profile links can also mention people; \`@name\` handling varies by body.
@@ -1601,7 +1672,7 @@ Run \`linear guide markdown\` for mentions, collapsible sections and rewrite ris
           name: "core",
         },
         {
-          description: "保存原始依据、执行受保护更新并解释 JSON 写入效果与分页",
+          description: "保存原始依据、比较原始值并解释 JSON 写入效果与分页",
           name: "automation",
         },
         {
@@ -1941,7 +2012,7 @@ Run \`linear guide markdown\` for mentions, collapsible sections and rewrite ris
               variadic: false,
             },
           ],
-          description: "Original JSON read saved before deciding this replacement",
+          description: "Saved view --json output from before editing; compare original values before writing",
           flags: [
             "--base-file",
           ],
@@ -1951,7 +2022,7 @@ Run \`linear guide markdown\` for mentions, collapsible sections and rewrite ris
         },
         {
           arguments: [],
-          description: "Explicitly replace without comparing original values; domain checks still apply",
+          description: "Skip original-value comparison; domain checks still apply",
           flags: [
             "--unprotected",
           ],
@@ -1969,7 +2040,7 @@ Run \`linear guide markdown\` for mentions, collapsible sections and rewrite ris
               variadic: false,
             },
           ],
-          description: "Require another API field to remain equal to the original read (repeatable)",
+          description: "Require this API field to match the saved original value (repeatable)",
           flags: [
             "--expect-field",
           ],
@@ -1979,7 +2050,7 @@ Run \`linear guide markdown\` for mentions, collapsible sections and rewrite ris
         },
         {
           arguments: [],
-          description: "Output a JSON write result; the resulting issue is in data.issue",
+          description: "Output a JSON write result with the mutation receipt, verification, and readBack",
           flags: [
             "-j",
             "--json",
@@ -2009,7 +2080,7 @@ Run \`linear guide markdown\` for mentions, collapsible sections and rewrite ris
           name: "core",
         },
         {
-          description: "保存原始依据、执行受保护更新并解释 JSON 写入效果与分页",
+          description: "保存原始依据、比较原始值并解释 JSON 写入效果与分页",
           name: "automation",
         },
         {

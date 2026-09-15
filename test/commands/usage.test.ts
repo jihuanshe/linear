@@ -44,6 +44,8 @@ const CANONICAL_WRITES_COMMAND_PATHS = [
   "linear issue attach",
   "linear issue comment add",
   "linear issue comment delete",
+  "linear issue comment resolve",
+  "linear issue comment unresolve",
   "linear issue comment update",
   "linear issue create",
   "linear issue delete",
@@ -214,7 +216,17 @@ Deno.test("nested command groups expose usage recursively", async () => {
   assertEquals(result.code, 0, result.stderr)
   assertEquals(result.stderr, "")
   assertStringIncludes(result.stdout, "linear issue comment")
-  for (const command of ["add", "list", "view", "update", "delete"]) {
+  for (
+    const command of [
+      "add",
+      "list",
+      "view",
+      "update",
+      "delete",
+      "resolve",
+      "unresolve",
+    ]
+  ) {
     assertMatch(result.stdout, new RegExp(`\\n  ${command}(?: |\\[)`))
   }
 
@@ -225,7 +237,7 @@ Deno.test("nested command groups expose usage recursively", async () => {
   assertEquals(document.command.path, "linear issue comment")
   assertEquals(
     document.subcommands.map(({ name }) => name).sort(),
-    ["add", "delete", "list", "update", "view"],
+    ["add", "delete", "list", "resolve", "unresolve", "update", "view"],
   )
   for (const command of document.subcommands) {
     assertEquals(command.path, `linear issue comment ${command.name}`)

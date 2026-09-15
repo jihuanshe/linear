@@ -110,6 +110,7 @@ function mockAttachFlow(
             id: "attachment-uuid-1",
             url: options.assetUrl,
             title: options.assetUrl.split("/").at(-1),
+            issue: { id: "issue-uuid-123" },
           },
         },
       },

@@ -151,15 +151,17 @@ async function runScenario(args: string[], scenario: Scenario = {}) {
         },
       }
     }
-    if (name === "GetIssueId") {
-      return { data: { issue: { id: parentId, identifier: "ENG-220" } } }
-    }
     if (name === "GetParentIssueData") {
       return scenario.parentReadError
         ? { errors: [{ message: "Parent read unavailable" }] }
         : {
           data: {
-            issue: { title: "Parent", identifier: "ENG-220", project: null },
+            issue: {
+              id: parentId,
+              title: "Parent",
+              identifier: "ENG-220",
+              project: null,
+            },
           },
         }
     }
@@ -234,7 +236,6 @@ async function runScenario(args: string[], scenario: Scenario = {}) {
     "GetWriteTeamByKey",
     "GetIssueProjectId",
     "ProjectTeams",
-    "GetIssueId",
     "GetParentIssueData",
     "CreateIssue",
     "UpdateIssue",
@@ -336,7 +337,7 @@ Deno.test("issue protected update consumes a saved view and sends only the resol
     result.requests.filter((request) =>
       request.query.includes("query GetIssueForWrite")
     ).map((request) => request.variables.id),
-    ["ENG-123", issueWriteId],
+    ["ENG-123", issueWriteId, issueWriteId],
   )
 })
 
@@ -697,15 +698,9 @@ for (const failed of [false, true]) {
     }
     assertEquals(
       result.requests.filter((request) =>
-        request.query.includes("query GetIssueId")
-      ).map((request) => request.variables.id),
-      ["ENG-220"],
-    )
-    assertEquals(
-      result.requests.filter((request) =>
         request.query.includes("query GetParentIssueData")
       ).map((request) => request.variables.id),
-      [parentId],
+      ["ENG-220"],
     )
   })
 }

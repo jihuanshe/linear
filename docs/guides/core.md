@@ -28,14 +28,14 @@ linear usage --json          # 命令树与能力元数据
 
 ## 选择入口
 
-常见操作用专用命令；精确字段、少见筛选和跨实体查询用 `linear api`。只有专用命令未覆盖的写入才用原生 mutation，不绕过已有命令的名称解析、输入校验、冲突保护或读回。GraphQL 与直接 HTTP 的用法见 `linear guide graphql`。
+常见操作用专用命令；精确字段、少见筛选和跨实体查询用 `linear api`。只有专用命令未覆盖的写入才用原生 mutation，不绕过已有命令的名称解析、输入校验、原始值比较或读回。GraphQL 与直接 HTTP 的用法见 `linear guide graphql`。
 
 普通更新直接使用专用命令和保存的原始依据，见 `linear guide automation`。需要组合多项写入并记录进度时使用 `linear guide issue-delivery`；Git/Jujutsu、GitHub 和组织治理流程由 `linear recipe` 提供可运行示例。
 
 以下名称相近，但操作不同：
 
 - `project update` 修改项目，`project-update create/list` 发布或读取项目进展；`initiative update` 与 `initiative-update create/list` 同理。
-- 项目（Project）的 `description` 是短简介，长正文属于 `content`，在 Linear 中显示为 overview。创建时用 `project create --content-file`；`project update` 尚不支持长正文，更新它属于 `linear api --unprotected` 的长尾写入。
+- 项目（Project）的 `description` 是短简介，长正文属于 `content`，在 Linear 中显示为 overview。创建和更新长正文都用 `--content-file`；更新前用 `project view --json` 保存依据，提交时传 `--base-file`。
 - `issue update --label` 和 `project update --label` 替换完整标签集。只给 Issue 增删标签用 `--add-label/--remove-label`；替换前读全现有标签并保留仍需要的项。
 - `issue comment add --attach` 把文件嵌入评论，`issue attach` 创建侧栏附件（Attachment）。材料放置见 `linear guide issue-authoring`。
 
@@ -55,13 +55,15 @@ linear usage --json          # 命令树与能力元数据
 
 ## 从 URL 定位对象
 
-已知 Linear URL 时直接取定位信息，不先列出整个工作区。项目 URL：
+已知 Issue URL 时可直接传给 `issue view`、`issue export` 或 `issue update`；CLI 解析编号并核对 URL 所属工作区。
+
+项目 URL 仍需提取定位信息：
 
 ```text
 https://linear.app/<workspace>/project/<project-name>-<project-slug-id>/issues
 ```
 
-取工作区短名和项目 slug ID，按上述认证规则核对身份，再用 `project view <id>` 核对对象。读取项目长正文加 `--include-content --json`。
+取工作区短名和项目 slug ID，按上述认证规则核对身份，再用 `project view <id>` 核对对象。`view` 默认读取长正文，`--json` 保留原始字段。
 
 ## 确定查询范围
 

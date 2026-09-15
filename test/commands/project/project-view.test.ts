@@ -31,12 +31,14 @@ await snapshotTest({
     const server = new MockLinearServer([
       {
         queryName: "GetProjectDetails",
-        variables: { id: "project-123", includeContent: false },
+        variables: { id: "project-123", includeContent: true },
         response: {
           data: {
             organization: { id: "workspace-1", urlKey: "test" },
             project: {
               id: "project-123",
+              content:
+                "# Rollout\n\nEnable the new login page for the pilot team.",
               name: "Authentication System Redesign",
               description:
                 "Complete overhaul of the authentication system to improve security and user experience.\n\n## Goals\n- Implement OAuth 2.0 / OpenID Connect\n- Add multi-factor authentication\n- Improve password reset flow\n- Add social login options\n\n## Technical Requirements\n- JWT tokens with proper rotation\n- Rate limiting on auth endpoints\n- Audit logging for security events\n- GDPR compliance for user data",
@@ -167,12 +169,13 @@ await snapshotTest({
     const server = new MockLinearServer([
       {
         queryName: "GetProjectDetails",
-        variables: { id: "minimal-project", includeContent: false },
+        variables: { id: "minimal-project", includeContent: true },
         response: {
           data: {
             organization: { id: "workspace-1", urlKey: "test" },
             project: {
               id: "minimal-project",
+              content: null,
               name: "Simple Project",
               description: "",
               slugId: "simple",
@@ -227,7 +230,7 @@ await snapshotTest({
   },
 })
 
-Deno.test("Project View includes project content on request", async () => {
+Deno.test("Project View includes full content by default", async () => {
   const server = new MockLinearServer([
     {
       queryName: "GetProjectDetails",
@@ -282,7 +285,6 @@ Deno.test("Project View includes project content on request", async () => {
     Deno.env.set("LINEAR_API_KEY", "Bearer test-token")
     await viewCommand.parse([
       "project-with-content",
-      "--include-content",
       "--json",
     ])
     assertEquals(

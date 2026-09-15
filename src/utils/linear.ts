@@ -331,7 +331,7 @@ export function getTeamKey(): string | undefined {
 }
 
 /**
- * Resolves an Issue reference: a normalized UUID or identifier such as ABC-123.
+ * Resolves an Issue reference: UUID, identifier, or canonical Linear URL.
  * A numeric reference uses the configured team key; omitted input uses VCS context.
  */
 export async function getIssueIdentifier(
@@ -342,6 +342,31 @@ export async function getIssueIdentifier(
     const normalizedIdentifier = normalizeIssueIdentifier(providedId)
     if (normalizedIdentifier) {
       return normalizedIdentifier
+    }
+    const reference = parseLinearIssueUrl(providedId)
+    if (reference) {
+      if (reference.workspace != null) {
+        const query = gql(`
+          query GetIssueReferenceWorkspace {
+            organization { id urlKey }
+          }
+        `)
+        const { organization } = await getGraphQLClient().request(query)
+        if (
+          !organization?.id ||
+          organization.urlKey?.toLowerCase() !==
+            reference.workspace.toLowerCase()
+        ) {
+          throw new ValidationError(
+            "Issue URL belongs to a different workspace",
+            {
+              suggestion:
+                "Select the URL's workspace with --workspace before continuing.",
+            },
+          )
+        }
+      }
+      return reference.identifier
     }
   }
 
@@ -487,6 +512,8 @@ const issueDetailsWithCommentsQuery = gql(/* GraphQL */ `
         nodes {
           id
           body
+          quotedText
+          documentContentId
           createdAt
           updatedAt
           url
@@ -668,6 +695,8 @@ const issueCommentsQuery = gql(/* GraphQL */ `
         nodes {
           id
           body
+          quotedText
+          documentContentId
           createdAt
           updatedAt
           url
@@ -802,8 +831,9 @@ export async function fetchParentIssueTitle(
   }
 }
 
-export async function fetchParentIssueData(parentId: string): Promise<
+export async function fetchParentIssueData(parentRef: string): Promise<
   {
+    id: string
     title: string
     identifier: string
     projectId: string | null
@@ -812,6 +842,7 @@ export async function fetchParentIssueData(parentId: string): Promise<
   const query = gql(/* GraphQL */ `
     query GetParentIssueData($id: String!) {
       issue(id: $id) {
+        id
         title
         identifier
         project {
@@ -821,8 +852,10 @@ export async function fetchParentIssueData(parentId: string): Promise<
     }
   `)
   const client = getGraphQLClient()
-  const data = await client.request(query, { id: parentId })
+  const data = await client.request(query, { id: parentRef })
+  if (data.issue == null) throw new NotFoundError("Parent issue", parentRef)
   return {
+    id: data.issue.id,
     title: data.issue.title,
     identifier: data.issue.identifier,
     projectId: data.issue.project?.id || null,
@@ -1105,7 +1138,7 @@ function parseLinearIssueUrl(
 
   if (
     parsed.protocol !== "https:" || parsed.hostname !== "linear.app" ||
-    parsed.port !== ""
+    parsed.port !== "" || parsed.username !== "" || parsed.password !== ""
   ) return undefined
   const match = parsed.pathname.match(
     /^\/(?:([^/]+)\/)?issue\/([A-Za-z0-9]+-[1-9][0-9]*)(?:\/|$)/i,

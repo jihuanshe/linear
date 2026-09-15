@@ -109,6 +109,32 @@ export function assertMutationReceipt<T extends { id?: unknown }>(
   }
 }
 
+/** Call after success:true; verify that a returned association has the requested parents. */
+export function assertMutationReferences<T extends { id?: unknown }>(
+  entity: T | null | undefined,
+  data: unknown,
+  references: Record<string, string>,
+): asserts entity is T & { id: string } {
+  assertMutationReceipt(entity, data)
+  for (const [name, expectedId] of Object.entries(references)) {
+    const reference = (entity as Record<string, unknown>)[name]
+    const actualId = reference && typeof reference === "object"
+      ? (reference as { id?: unknown }).id
+      : undefined
+    if (
+      typeof actualId !== "string" || actualId === "" ||
+      actualId.toLowerCase() !== expectedId.toLowerCase()
+    ) {
+      throw new WriteError("Mutation returned no association identity", {
+        effect: "applied",
+        data,
+        details: { reference: name, expectedId, actualId },
+        suggestion: "Reconcile the returned object before continuing.",
+      })
+    }
+  }
+}
+
 function requestWasMutation(error: ClientError): boolean {
   try {
     const query = error.request.query

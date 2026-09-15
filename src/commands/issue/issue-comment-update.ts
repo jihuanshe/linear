@@ -40,16 +40,16 @@ export const commentUpdateCommand = withUsageMetadata(new Command(), {
   )
   .option(
     "--base-file <path:string>",
-    "Original view --json output, saved before preparing the update",
+    "Saved view --json output from before editing; compare original values before writing",
     { preserveEmpty: true },
   )
   .option(
     "--unprotected",
-    "Explicitly skip original-value comparison; domain checks still apply",
+    "Skip original-value comparison; domain checks still apply",
   )
   .option(
     "--expect-field <field:string>",
-    "Also require this API field to match the original basis",
+    "Require this API field to match the saved original value (repeatable)",
     { collect: true, preserveEmpty: true },
   )
   .action(async (options, commentId) => {

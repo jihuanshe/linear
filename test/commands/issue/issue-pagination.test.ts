@@ -22,6 +22,7 @@ function comment(id: string, parent: string | null = null) {
     resolvingCommentId: null,
     resolvingUser: null,
     user: { name: "Alex", displayName: "Alex" },
+    issue: { id: issueId },
     externalUser: null,
     parent: parent == null ? null : { id: parent },
   }
@@ -36,6 +37,7 @@ function attachment(id: string) {
     sourceType: "github",
     metadata: { state: "merged" },
     createdAt: "2026-09-06T00:00:00Z",
+    issue: { id: issueId },
   }
 }
 
@@ -595,6 +597,7 @@ Deno.test("issue apply JSON preserves progress on stderr and one stdout document
               id: "linked",
               title: "private title",
               url: signedUrl,
+              issue: { id: issueId },
             },
           },
         },
@@ -610,6 +613,7 @@ Deno.test("issue apply JSON preserves progress on stderr and one stdout document
               id: "uploaded",
               title: "private file title",
               url: assetUrl,
+              issue: { id: issueId },
             },
           },
         },
@@ -675,7 +679,10 @@ Deno.test("issue apply JSON preserves progress on stderr and one stdout document
     assertEquals(result.code, 0, result.stderr + result.stdout)
     assertEquals(
       result.stderr.trim().split("\n"),
-      Array.from({ length: 5 }, (_, index) => "Processing item " + (index + 1)),
+      ["fields", "comment", "attachment", "upload", "attachment"].map(
+        (kind, index) =>
+          `Processing item ${index + 1}: ${issue.identifier} (${kind})`,
+      ),
     )
     assertEquals(
       result.stderr.includes(signedUrl),
