@@ -717,7 +717,7 @@ type AgentSession implements Node {
   status: AgentSessionStatus!
 
   """
-  A human-readable summary of the work performed in this session. Null if no summary has been generated yet.
+  The session title, generated automatically or set by the owning OAuth application. Null if no title is set.
   """
   summary: String
 
@@ -940,6 +940,11 @@ input AgentSessionUpdateInput {
   URLs to be removed from this session. Only updatable by the OAuth application that owns the session.
   """
   removedExternalUrls: [String!]
+
+  """
+  The session title, displayed as its summary. Must contain 1 to 255 characters, including a non-whitespace character, with no line breaks or NUL bytes. Set to null to clear it and allow automatic title generation. Updating only this field does not acknowledge the session. Only updatable by the OAuth application that owns the session.
+  """
+  summary: String
 
   """
   [Internal] User-specific state for the agent session. Only updatable by internal clients.
@@ -1425,7 +1430,7 @@ type AiConversationCreateSandboxToolCall implements AiConversationBaseToolCall {
 }
 
 type AiConversationCreateSandboxToolCallArgs {
-  repository: String!
+  repository: String
 }
 
 type AiConversationDeleteEntityToolCall implements AiConversationBaseToolCall {
@@ -1600,6 +1605,7 @@ enum AiConversationEntityCardWidgetArgsType {
   InitiativeUpdate
   Issue
   IssueDraft
+  Meeting
   Project
   ProjectDraft
   ProjectMilestone
@@ -1823,6 +1829,8 @@ type AiConversationGetPullRequestFileToolCallArgs {
 }
 
 type AiConversationGetSlackConversationHistoryToolCall implements AiConversationBaseToolCall {
+  """The arguments to the tool call."""
+  args: AiConversationGetSlackConversationHistoryToolCallArgs
   displayInfo: AiConversationToolDisplayInfo!
 
   """The name of the tool that was called."""
@@ -1833,6 +1841,26 @@ type AiConversationGetSlackConversationHistoryToolCall implements AiConversation
 
   """The result of the tool call."""
   rawResult: JSON
+
+  """The result of the tool call."""
+  result: AiConversationGetSlackConversationHistoryToolCallResult
+}
+
+type AiConversationGetSlackConversationHistoryToolCallArgs {
+  channel: String
+  targetType: AiConversationGetSlackConversationHistoryToolCallArgsTargetType
+}
+
+enum AiConversationGetSlackConversationHistoryToolCallArgsTargetType {
+  channel
+  thread
+}
+
+type AiConversationGetSlackConversationHistoryToolCallResult {
+  conversationUrl: String
+  error: String
+  hasMore: Boolean
+  messageCount: Float
 }
 
 type AiConversationHandoffToCodingSessionToolCall implements AiConversationBaseToolCall {
@@ -1955,6 +1983,11 @@ type AiConversationMcpServerConnectionScope {
   type: AiConversationMcpServerConnectionScopeType!
 
   """
+  The identifier of the Loop draft that will own the connection. Null for other scope types.
+  """
+  workflowDefinitionDraftId: String
+
+  """
   The identifier of the Loop that will own the connection. Null for other scope types.
   """
   workflowDefinitionId: String
@@ -1967,6 +2000,34 @@ enum AiConversationMcpServerConnectionScopeType {
   team
   user
   workflowDefinition
+  workflowDefinitionDraft
+}
+
+type AiConversationMemoryToolCall implements AiConversationBaseToolCall {
+  """The arguments to the tool call."""
+  args: AiConversationMemoryToolCallArgs
+  displayInfo: AiConversationToolDisplayInfo!
+
+  """The name of the tool that was called."""
+  name: AiConversationTool!
+
+  """The arguments of the tool call."""
+  rawArgs: JSON
+
+  """The result of the tool call."""
+  rawResult: JSON
+}
+
+type AiConversationMemoryToolCallArgs {
+  action: AiConversationMemoryToolCallArgsAction!
+  name: String
+}
+
+enum AiConversationMemoryToolCallArgsAction {
+  delete
+  list
+  read
+  save
 }
 
 """The selected option in a multiple-choice AI conversation elicitation."""
@@ -2083,6 +2144,25 @@ enum AiConversationPartType {
   widgetPlaceholder
 }
 
+type AiConversationPatchSettingsToolCall implements AiConversationBaseToolCall {
+  """The arguments to the tool call."""
+  args: AiConversationPatchSettingsToolCallArgs
+  displayInfo: AiConversationToolDisplayInfo!
+
+  """The name of the tool that was called."""
+  name: AiConversationTool!
+
+  """The arguments of the tool call."""
+  rawArgs: JSON
+
+  """The result of the tool call."""
+  rawResult: JSON
+}
+
+type AiConversationPatchSettingsToolCallArgs {
+  ids: [String!]!
+}
+
 type AiConversationPostChatMessageToolCall implements AiConversationBaseToolCall {
   """The arguments to the tool call."""
   args: AiConversationPostChatMessageToolCallArgs
@@ -2096,15 +2176,29 @@ type AiConversationPostChatMessageToolCall implements AiConversationBaseToolCall
 
   """The result of the tool call."""
   rawResult: JSON
+
+  """The result of the tool call."""
+  result: AiConversationPostChatMessageToolCallResult
 }
 
 type AiConversationPostChatMessageToolCallArgs {
+  channel: String
+  isReply: Boolean
   platform: AiConversationPostChatMessageToolCallArgsPlatform!
+  recipient: String
+  recipientId: String
 }
 
 enum AiConversationPostChatMessageToolCallArgsPlatform {
   microsoftTeams
   slack
+}
+
+type AiConversationPostChatMessageToolCallResult {
+  conversationUrl: String
+  error: String
+  message: String
+  posted: Boolean!
 }
 
 type AiConversationPromptCodingSessionToolCall implements AiConversationBaseToolCall {
@@ -2434,6 +2528,33 @@ type AiConversationRetryPullRequestCheckToolCallArgs {
   workflowName: String
 }
 
+type AiConversationSandboxGitHistoryToolCall implements AiConversationBaseToolCall {
+  """The arguments to the tool call."""
+  args: AiConversationSandboxGitHistoryToolCallArgs
+  displayInfo: AiConversationToolDisplayInfo!
+
+  """The name of the tool that was called."""
+  name: AiConversationTool!
+
+  """The arguments of the tool call."""
+  rawArgs: JSON
+
+  """The result of the tool call."""
+  rawResult: JSON
+}
+
+type AiConversationSandboxGitHistoryToolCallArgs {
+  operation: AiConversationSandboxGitHistoryToolCallArgsOperation!
+  paths: [String!]
+}
+
+enum AiConversationSandboxGitHistoryToolCallArgsOperation {
+  blame
+  log
+  search
+  show
+}
+
 type AiConversationSearchChatChannelsToolCall implements AiConversationBaseToolCall {
   """The arguments to the tool call."""
   args: AiConversationSearchChatChannelsToolCallArgs
@@ -2447,11 +2568,18 @@ type AiConversationSearchChatChannelsToolCall implements AiConversationBaseToolC
 
   """The result of the tool call."""
   rawResult: JSON
+
+  """The result of the tool call."""
+  result: AiConversationSearchChatChannelsToolCallResult
 }
 
 type AiConversationSearchChatChannelsToolCallArgs {
   filter: String!
   platform: AiConversationPostChatMessageToolCallArgsPlatform!
+}
+
+type AiConversationSearchChatChannelsToolCallResult {
+  totalCount: Float!
 }
 
 type AiConversationSearchDocumentationToolCall implements AiConversationBaseToolCall {
@@ -2733,8 +2861,10 @@ enum AiConversationTool {
   HandoffToCodingSession
   InvokeMcpTool
   ListCodingSessions
+  Memory
   NavigateToPage
   NotifyUsers
+  PatchSettings
   PostChatMessage
   PromptCodingSession
   QueryActivity
@@ -2748,6 +2878,7 @@ enum AiConversationTool {
   RestoreEntity
   RetrieveEntities
   RetryPullRequestCheck
+  SandboxGitHistory
   SearchChatChannels
   SearchDocumentation
   SearchEntities
@@ -2766,7 +2897,7 @@ enum AiConversationTool {
 }
 
 """The tool call."""
-union AiConversationToolCall = AiConversationBashToolCall | AiConversationCodeIntelligenceToolCall | AiConversationCreateEntityToolCall | AiConversationCreateSandboxToolCall | AiConversationDeleteEntityToolCall | AiConversationGetMicrosoftTeamsConversationHistoryToolCall | AiConversationGetPullRequestCheckLogsToolCall | AiConversationGetPullRequestDiffToolCall | AiConversationGetPullRequestFileToolCall | AiConversationGetSlackConversationHistoryToolCall | AiConversationHandoffToCodingSessionToolCall | AiConversationInvokeMcpToolToolCall | AiConversationListCodingSessionsToolCall | AiConversationNavigateToPageToolCall | AiConversationNotifyUsersToolCall | AiConversationPostChatMessageToolCall | AiConversationPromptCodingSessionToolCall | AiConversationQueryActivityToolCall | AiConversationQueryUpdatesToolCall | AiConversationQueryViewToolCall | AiConversationReadFileToolCall | AiConversationReadSandboxFileToolCall | AiConversationReadSettingToolCall | AiConversationRemoveSpendLimitToolCall | AiConversationResearchToolCall | AiConversationRestoreEntityToolCall | AiConversationRetrieveEntitiesToolCall | AiConversationRetryPullRequestCheckToolCall | AiConversationSearchChatChannelsToolCall | AiConversationSearchDocumentationToolCall | AiConversationSearchEntitiesToolCall | AiConversationSearchSettingsToolCall | AiConversationSetSpendLimitToolCall | AiConversationSpawnSubagentToolCall | AiConversationStartCodingSessionToolCall | AiConversationSubscribeToEventToolCall | AiConversationSuggestRepositoryToolCall | AiConversationSuggestValuesToolCall | AiConversationTranscribeMediaToolCall | AiConversationTranscribeVideoToolCall | AiConversationUnsubscribeFromEventToolCall | AiConversationUpdateEntityToolCall | AiConversationWebSearchToolCall
+union AiConversationToolCall = AiConversationBashToolCall | AiConversationCodeIntelligenceToolCall | AiConversationCreateEntityToolCall | AiConversationCreateSandboxToolCall | AiConversationDeleteEntityToolCall | AiConversationGetMicrosoftTeamsConversationHistoryToolCall | AiConversationGetPullRequestCheckLogsToolCall | AiConversationGetPullRequestDiffToolCall | AiConversationGetPullRequestFileToolCall | AiConversationGetSlackConversationHistoryToolCall | AiConversationHandoffToCodingSessionToolCall | AiConversationInvokeMcpToolToolCall | AiConversationListCodingSessionsToolCall | AiConversationMemoryToolCall | AiConversationNavigateToPageToolCall | AiConversationNotifyUsersToolCall | AiConversationPatchSettingsToolCall | AiConversationPostChatMessageToolCall | AiConversationPromptCodingSessionToolCall | AiConversationQueryActivityToolCall | AiConversationQueryUpdatesToolCall | AiConversationQueryViewToolCall | AiConversationReadFileToolCall | AiConversationReadSandboxFileToolCall | AiConversationReadSettingToolCall | AiConversationRemoveSpendLimitToolCall | AiConversationResearchToolCall | AiConversationRestoreEntityToolCall | AiConversationRetrieveEntitiesToolCall | AiConversationRetryPullRequestCheckToolCall | AiConversationSandboxGitHistoryToolCall | AiConversationSearchChatChannelsToolCall | AiConversationSearchDocumentationToolCall | AiConversationSearchEntitiesToolCall | AiConversationSearchSettingsToolCall | AiConversationSetSpendLimitToolCall | AiConversationSpawnSubagentToolCall | AiConversationStartCodingSessionToolCall | AiConversationSubscribeToEventToolCall | AiConversationSuggestRepositoryToolCall | AiConversationSuggestValuesToolCall | AiConversationTranscribeMediaToolCall | AiConversationTranscribeVideoToolCall | AiConversationUnsubscribeFromEventToolCall | AiConversationUpdateEntityToolCall | AiConversationWebSearchToolCall
 
 """A tool call part in an AI conversation."""
 type AiConversationToolCallPart implements AiConversationBasePart {
@@ -7736,7 +7867,7 @@ type DocumentConnection {
 }
 
 """
-The rich-text content body of a document, issue, project, initiative, project milestone, pull request, release note, automation prompt, AI prompt rules, or welcome message. Content is stored as a base64-encoded Yjs state and can be converted to Markdown or ProseMirror JSON. Each DocumentContent belongs to exactly one parent entity and supports real-time collaborative editing.
+The rich-text content body of a document, issue, project, initiative, project milestone, pull request, release note, automation prompt, AI prompt rules, welcome message, or workspace announcement. Content is stored as a base64-encoded Yjs state and can be converted to Markdown or ProseMirror JSON. Each DocumentContent belongs to exactly one parent entity and supports real-time collaborative editing.
 """
 type DocumentContent implements Node {
   """
@@ -10464,7 +10595,6 @@ input GitHubSettingsInput {
 
   """The type of Github org"""
   orgType: GithubOrgType
-  pullRequestReviewTool: PullRequestReviewTool
 
   """The names of the repositories connected for the GitHub integration."""
   repositories: [GitHubRepoInput!]
@@ -10934,7 +11064,7 @@ type Initiative implements Node {
   id: ID!
 
   """
-  [Internal] The human-readable identifier of the initiative. Returns the custom identifier override when set, otherwise the workspace default `<prefix>-<number>`. Null for legacy initiatives that have not been backfilled.
+  [Internal] The human-readable identifier of the initiative. Returns the custom identifier override when set, otherwise the workspace default `<prefix>-<number>`. Null for legacy initiatives that have not been backfilled and while initiative identifiers are not enabled for the workspace.
   """
   identifier: String
 
@@ -24530,6 +24660,14 @@ input OrganizationCodingAgentSettingsInput {
 
   """[Internal] The model preference used for Coding Sessions."""
   model: String
+
+  """
+  [Internal] Whether new Coding Session sandboxes should use workspace region pinning.
+  """
+  regionPinning: Boolean
+
+  """[Internal] The default sandbox size used for Coding Sessions."""
+  sandboxSize: String
 }
 
 """Workspace deletion operation response."""
@@ -26140,7 +26278,7 @@ type Project implements Node {
   id: ID!
 
   """
-  [Internal] The human-readable identifier of the project. Returns the custom identifier override when set, otherwise the default `P-<leadTeamKey>-<number>`. Null for projects without a lead team and for legacy projects that have not been backfilled.
+  [Internal] The human-readable identifier of the project. Returns the custom identifier override when set, otherwise the default `P-<leadTeamKey>-<number>`. Null for projects without a lead team, for legacy projects that have not been backfilled, and while project identifiers are not enabled for the workspace.
   """
   identifier: String
 
@@ -28454,7 +28592,7 @@ type ProjectSearchResult implements Node {
   id: ID!
 
   """
-  [Internal] The human-readable identifier of the project. Returns the custom identifier override when set, otherwise the default `P-<leadTeamKey>-<number>`. Null for projects without a lead team and for legacy projects that have not been backfilled.
+  [Internal] The human-readable identifier of the project. Returns the custom identifier override when set, otherwise the default `P-<leadTeamKey>-<number>`. Null for projects without a lead team, for legacy projects that have not been backfilled, and while project identifiers are not enabled for the workspace.
   """
   identifier: String
 
@@ -29224,6 +29362,7 @@ enum ProjectTab {
   customers
   documents
   issues
+  loops
   updates
 }
 
@@ -29318,6 +29457,11 @@ type ProjectUpdate implements Node {
 
   """Reactions associated with the project update."""
   reactions: [Reaction!]!
+
+  """
+  A short AI-generated summary of the project update. Null if no short summary is available.
+  """
+  shortSummary: String
 
   """The update's unique URL slug."""
   slugId: String!
@@ -29876,6 +30020,11 @@ type PullRequestCommit {
   authorUserIds: [String!]!
 
   """
+  The time when the commit was authored, as an ISO 8601 string. Null if unavailable.
+  """
+  authoredAt: String
+
+  """
   The number of files changed in this commit. Null if the hosting provider did not include this information.
   """
   changedFiles: Float
@@ -30143,11 +30292,6 @@ input PullRequestReferenceInput {
   repositoryOwner: String!
 }
 
-enum PullRequestReviewTool {
-  graphite
-  source
-}
-
 """The status of a pull request."""
 enum PullRequestStatus {
   approved
@@ -30308,6 +30452,14 @@ type Query {
     """The identifier of the agent session."""
     agentSessionId: String!
   ): CodingAgentSandboxPayload
+
+  """
+  [Internal] SSH address of the current user's running coding sandbox for this agent session.
+  """
+  agentSessionSshAddress(
+    """The identifier of the agent session."""
+    agentSessionId: String!
+  ): String
 
   """All agent sessions."""
   agentSessions(
@@ -32643,6 +32795,14 @@ type Query {
 
   """The authenticated user's notification and UI settings."""
   userSettings: UserSettings!
+
+  """
+  The authenticated user's workspace-level view display preferences for a view type. Returns the user-type preferences that are not scoped to a team, project, or other entity. Null if the user has not customized the view.
+  """
+  userViewPreferences(
+    """The view type the preferences are associated with."""
+    viewType: ViewType!
+  ): ViewPreferences
 
   """
   All users in the workspace. Supports filtering, sorting, and pagination.
@@ -39952,6 +40112,11 @@ type ViewPreferencesValues {
   """Whether to show the time in current status field."""
   fieldTimeInCurrentStatus: Boolean
 
+  """
+  Whether to show the avatars of the other people currently viewing an issue.
+  """
+  fieldUserPresence: Boolean
+
   """The focus view grouping."""
   focusViewGrouping: String @deprecated(reason: "No longer available")
 
@@ -40382,6 +40547,11 @@ type ViewPreferencesValues {
 
   """Whether to show sub-initiatives nested."""
   showNestedInitiatives: Boolean
+
+  """
+  Whether a team's project views show only the projects that team leads. When true, projects the team only contributes to are hidden. Null if the preference is unset.
+  """
+  showOnlyLeadTeamProjects: Boolean
 
   """Whether to show only snoozed items."""
   showOnlySnoozedItems: Boolean
@@ -40928,6 +41098,7 @@ type WelcomeMessageNotification implements Entity & Node & Notification {
 
 enum WorkflowActivationMode {
   anyUpdate
+  collectionChanged
   conditionsStartedMatching
   watchedPropertyChanged
 }
@@ -41056,6 +41227,11 @@ type WorkflowDefinition implements Node {
   """The contextual initiative view associated with the workflow."""
   initiative: Initiative
 
+  """
+  The intelligence level used to run the workflow. When null, Auto is used.
+  """
+  intelligence: WorkflowIntelligence
+
   """The contextual label view associated with the workflow."""
   label: IssueLabel
 
@@ -41109,6 +41285,11 @@ type WorkflowDefinition implements Node {
   The event that triggers the workflow, such as entity creation, update, or a specific state change.
   """
   trigger: WorkflowTrigger!
+
+  """
+  [Internal] The configuration for the selected trigger type. Null when that type does not use this field.
+  """
+  triggerConfig: JSONObject
 
   """
   The entity type that triggers this workflow, such as Issue, Project, or Release.
@@ -41285,6 +41466,13 @@ type WorkflowDefinitionNotification implements Entity & Node & Notification {
 
   """Identifier of the associated workflow definition (loop)."""
   workflowDefinitionId: String!
+}
+
+enum WorkflowIntelligence {
+  auto
+  high
+  low
+  medium
 }
 
 """
@@ -41512,6 +41700,10 @@ input WorkflowStateUpdateInput {
 }
 
 enum WorkflowTrigger {
+  chatMessagePosted
+  chatReactionAdded
+  commentAdded
+  customerRequestAdded
   cycleEnded
   cycleStarted
   entityCreated
@@ -41519,9 +41711,11 @@ enum WorkflowTrigger {
   entityRemoved
   entityUnarchived
   entityUpdated
+  updatePosted
 }
 
 enum WorkflowTriggerType {
+  chat
   cycle
   document
   initiative
@@ -41539,6 +41733,121 @@ enum WorkflowType {
   triage
   triageAutomation
   viewSubscription
+}
+
+"""A workspace announcement delivered to a member's inbox."""
+type WorkspaceAnnouncementNotification implements Entity & Node & Notification {
+  """
+  The user that caused the notification. Null if the notification was triggered by a non-user actor such as an integration, external user, or system event.
+  """
+  actor: User
+
+  """[Internal] Notification actor initials if avatar is not available."""
+  actorAvatarColor: String!
+
+  """[Internal] Notification avatar URL."""
+  actorAvatarUrl: String
+
+  """
+  [Internal] Whether the notification's user actor is deactivated in the workspace.
+  """
+  actorInactive: Boolean!
+
+  """[Internal] Notification actor initials if avatar is not available."""
+  actorInitials: String
+
+  """
+  The time at which the entity was archived. Null if the entity has not been archived.
+  """
+  archivedAt: DateTime
+
+  """The bot that caused the notification."""
+  botActor: ActorBot
+
+  """The category of the notification."""
+  category: NotificationCategory!
+
+  """The time at which the entity was created."""
+  createdAt: DateTime!
+
+  """
+  The time at which an email reminder for this notification was sent to the user. Null if no email reminder has been sent.
+  """
+  emailedAt: DateTime
+
+  """
+  The external user that caused the notification. Populated when the notification was triggered by an external user (e.g., a commenter from a connected integration like Slack or GitHub) rather than a Linear workspace member.
+  """
+  externalUserActor: ExternalUser
+
+  """
+  [Internal] Notifications with the same grouping key will be grouped together in the UI.
+  """
+  groupingKey: String!
+
+  """
+  [Internal] Priority of the notification with the same grouping key. Higher number means higher priority. If priority is the same, notifications should be sorted by `createdAt`.
+  """
+  groupingPriority: Float!
+
+  """The unique identifier of the entity."""
+  id: ID!
+
+  """[Internal] Inbox URL for the notification."""
+  inboxUrl: String!
+
+  """[Internal] Initiative update health for new updates."""
+  initiativeUpdateHealth: String
+
+  """[Internal] If notification actor was Linear."""
+  isLinearActor: Boolean!
+
+  """[Internal] Issue's status type for issue notifications."""
+  issueStatusType: String
+
+  """[Internal] Project update health for new updates."""
+  projectUpdateHealth: String
+
+  """
+  The time at which the user marked the notification as read. Null if the notification is unread.
+  """
+  readAt: DateTime
+
+  """
+  The time until which a notification is snoozed. After this time, the notification reappears in the user's inbox. Null if the notification is not currently snoozed.
+  """
+  snoozedUntilAt: DateTime
+
+  """[Internal] Notification subtitle."""
+  subtitle: String!
+
+  """[Internal] Notification title."""
+  title: String!
+
+  """
+  Notification type. Determines the kind of event that triggered this notification and which associated entity fields will be populated.
+  """
+  type: String!
+
+  """
+  The time at which a notification was unsnoozed. Null if the notification has not been unsnoozed.
+  """
+  unsnoozedAt: DateTime
+
+  """
+  The last time at which the entity was meaningfully updated. This is the same as the creation time if the entity hasn't
+      been updated after creation.
+  """
+  updatedAt: DateTime!
+
+  """[Internal] URL to the target of the notification."""
+  url: String!
+
+  """The recipient user of this notification."""
+  user: User!
+
+  """Related workspace announcement."""
+  workspaceAnnouncementId: String!
 }
 
 input ZendeskSettingsInput {
