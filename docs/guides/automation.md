@@ -79,8 +79,6 @@ CLI 会检查它能从本地读取和 Linear 返回值中确认的错误。它�
 - `issue apply` 用 checkpoint 跳过已记录的完成项；`unknown` 会阻止自动续跑，但 checkpoint 不是锁，两个执行者仍可能重复派发，部分成功不回滚。
 - `linear api` 的 mutation 只要求显式 `--unprotected`，保留原始 GraphQL 响应；它不提供专用命令的校验、回执或恢复，未知效果由调用者对账。
 
-`effect: none` 表示本次没有确认的远端写入，`applied` 表示 Linear 已确认 mutation 或部分流程已确认，`unknown` 表示不能判断最终效果。`applied` 不能重发；`unknown` 先按稳定 ID 和回执对账。读回失败不会把已确认写入变成可重试写入。
-
 因此，调用者应把 `--base-file` 当作写前原始值比较，把 `--unprotected` 当作无保护更新，把评论和附件创建当作可能重复的追加，把 `issue apply` 当作可恢复的顺序执行器，而不是事务系统。
 
 CLI 完成名称解析后，会按同一 UUID 最后读取并比较原始依据。当前值已等于目标值的字段不写；当前值仍等于原始值的字段可写；其余为冲突。一个字段冲突就拒绝整个更新。`--expect-field` 指定的额外依赖也要保持原值，即使目标字段已无需修改。引用按稳定 ID、明确的 ID 集合按集合比较，Markdown 则精确比较字符串。
