@@ -1775,7 +1775,7 @@ Deno.test("Issue Update Command - label additions and removals stay incremental"
         id: issueWriteId,
         input: {
           addedLabelIds: ["label-frontend"],
-          removedLabelIds: ["label-backend"],
+          removedLabelIds: ["label-before"],
         },
       },
       response: {
@@ -1803,7 +1803,7 @@ Deno.test("Issue Update Command - label additions and removals stay incremental"
       "--add-label",
       "frontend",
       "--remove-label",
-      "backend",
+      "before",
     ])
   } finally {
     await cleanup()

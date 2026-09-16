@@ -434,6 +434,23 @@ export async function prepareIssueUpdate(
       "Issue project changed while resolving the milestone",
     )
   }
+  if (remove != null) {
+    const currentLabelIds = new Set(
+      current.issue.labels.nodes.map(({ id }) => id),
+    )
+    const missing = remove.filter((id) => !currentLabelIds.has(id))
+    if (missing.length > 0) {
+      throw new ValidationError(
+        `Cannot remove labels that are not on ${current.issue.identifier}: ${
+          missing.join(", ")
+        }`,
+        {
+          suggestion:
+            "Read the issue's current labels before changing --remove-label.",
+        },
+      )
+    }
+  }
   const planned = prepareReplacement({
     objectKey: "issue",
     targetId: target.issue.id,

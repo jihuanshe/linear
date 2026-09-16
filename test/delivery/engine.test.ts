@@ -1431,6 +1431,41 @@ Deno.test("delivery read-back deadline cancels only the read and preserves appli
   }
 })
 
+Deno.test("delivery rejects label removal that became invalid after plan without recording unknown", async () => {
+  const original = issue(1001, { labels: connection([LABEL, OTHER_LABEL]) })
+  const f = await fixture({ issues: [original] })
+  try {
+    const loaded = await f.load(manifest([{
+      ...update(original, {
+        title: "Must not be written",
+        removeLabel: [LABEL.name, OTHER_LABEL.name],
+      }),
+      comments: [{ body: "Must not be appended" }],
+    }]))
+    assertEquals((await planManifest({ loaded })).status, "ready")
+    f.state.find(original.id)!.labels = connection([LABEL])
+    const result = await f.cli("apply")
+    assertEquals(result.success, false)
+    assertEquals(result.json().effect, "none")
+    assertEquals(result.json().data.summary.failed, 1)
+    assertEquals(result.json().data.summary.unknown, 0)
+    assertEquals(result.json().data.summary.unattempted, 1)
+    assertStringIncludes(result.stdout, "Cannot remove labels that are not on")
+    assertEquals(f.mutations(), [])
+    assertEquals(f.state.find(original.id)!.title, original.title)
+    assertEquals(f.state.find(original.id)!.labels.nodes, [LABEL])
+    const entries = Object.values((await loadCheckpoint(f.path))!.items)
+    assertEquals(entries.map(({ status, effect }) => ({ status, effect })), [
+      { status: "failed", effect: "none" },
+    ])
+    const plan = await planManifest({ loaded })
+    assertEquals(plan.status, "failed")
+    assertEquals(plan.issues[0].error?.error.code, "ValidationError")
+  } finally {
+    await f.cleanup()
+  }
+})
+
 for (const mode of ["add", "remove"] as const) {
   Deno.test(`delivery verifies native ${mode}Label membership and resume does not reapply the increment`, async () => {
     const original = issue(1001, {

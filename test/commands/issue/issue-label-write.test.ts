@@ -122,18 +122,25 @@ for (const operation of ["create", "replace", "add", "remove"] as const) {
     Deno.test(`${operation} preserves server name matching with multiple=${multiple}`, async () => {
       // This is an explicit server fixture, not a claim about Linear's Unicode
       // folding: consumers must trust its match rather than re-match with JS.
-      const { server, cleanup } = await setupLabelWriteServer([{
-        queryName: "GetIssueLabelIdByNameForTeam",
-        variables: { name: "ς" },
-        response: {
-          data: {
-            issueLabels: {
-              nodes: [{ id: frontendId, name: "Σ" }],
-              pageInfo: terminalPage,
+      const current = issueWriteBasis()
+      current.issue.labels.nodes = labels.slice(0, 2)
+      const { server, cleanup } = await setupLabelWriteServer([
+        ...(operation === "remove"
+          ? [{ queryName: "GetIssueForWrite", response: { data: current } }]
+          : []),
+        {
+          queryName: "GetIssueLabelIdByNameForTeam",
+          variables: { name: "ς" },
+          response: {
+            data: {
+              issueLabels: {
+                nodes: [{ id: frontendId, name: "Σ" }],
+                pageInfo: terminalPage,
+              },
             },
           },
         },
-      }])
+      ])
       try {
         await writeLabels(operation, multiple ? ["ς", "Backend"] : ["ς"])
         const lookups = labelLookups(server.graphqlRequests)
@@ -164,6 +171,123 @@ for (const operation of ["create", "replace", "add", "remove"] as const) {
     })
   }
 }
+
+for (const scenario of ["single", "mixed", "removed-during-resolution"]) {
+  Deno.test(`update rejects unassociated label removal before any write: ${scenario}`, async () => {
+    let reads = 0
+    let beforeWrites = 0
+    const original = issueWriteBasis()
+    original.issue.labels.nodes = labels.slice(0, 2)
+    const { server, cleanup } = await setupLabelWriteServer([{
+      queryName: "GetIssueForWrite",
+      response: () => {
+        const current = structuredClone(original)
+        if (++reads === 2 || scenario !== "removed-during-resolution") {
+          current.issue.labels.nodes = [labels[0]]
+        }
+        return { data: current }
+      },
+    }])
+    try {
+      const error = await assertRejects(
+        () =>
+          updateIssue({
+            title: "Must not be written",
+            addLabel: ["Operations"],
+            removeLabel: scenario === "single"
+              ? ["Backend"]
+              : ["Frontend", backendId.toUpperCase()],
+            ...(scenario === "mixed" ? { unprotected: true } : { original }),
+            beforeWrite: () => {
+              beforeWrites++
+              return Promise.resolve()
+            },
+          }, "ENG-123"),
+        ValidationError,
+        "Cannot remove labels that are not on ENG-123",
+      )
+      assertStringIncludes(error.message, backendId)
+      assertEquals(error.message.includes(frontendId), false)
+      assertEquals(errorResult(error).effect, "none")
+      assertEquals(reads, 2)
+      assertEquals(beforeWrites, 0)
+      assertEquals(writes(server.graphqlRequests), [])
+    } finally {
+      await cleanup()
+    }
+  })
+}
+
+Deno.test("update accepts removal of a label on a later membership page", async () => {
+  const current = issueWriteBasis()
+  current.issue.labels.nodes = [labels[0]]
+  const { server, cleanup } = await setupLabelWriteServer([
+    {
+      queryName: "GetIssueForWrite",
+      response: {
+        data: {
+          ...current,
+          issue: {
+            ...current.issue,
+            labels: {
+              nodes: [labels[0]],
+              pageInfo: { hasNextPage: true, endCursor: "labels-page-2" },
+            },
+          },
+        },
+      },
+    },
+    {
+      queryName: "GetIssueLabelsForWrite",
+      variables: { id: issueWriteId, after: "labels-page-2" },
+      response: {
+        data: {
+          issue: { labels: { nodes: [labels[1]], pageInfo: terminalPage } },
+        },
+      },
+    },
+    { queryName: "GetIssueWriteScalars", response: { data: current } },
+  ])
+  try {
+    await writeLabels("remove", [backendId.toUpperCase()])
+    assertEquals(writes(server.graphqlRequests).length, 1)
+    assertEquals(writes(server.graphqlRequests)[0].variables.input, {
+      removedLabelIds: [backendId],
+    })
+  } finally {
+    await cleanup()
+  }
+})
+
+Deno.test("update preserves unknown when a valid removal is rejected after dispatch", async () => {
+  const current = issueWriteBasis()
+  current.issue.labels.nodes = [labels[0]]
+  const { server, cleanup } = await setupLabelWriteServer([
+    { queryName: "GetIssueForWrite", response: { data: current } },
+    {
+      queryName: "UpdateIssue",
+      response: {
+        errors: [{
+          message: "Label not on issue",
+          path: ["issueUpdate"],
+          extensions: { code: "INPUT_ERROR", userError: true },
+        }],
+      },
+    },
+  ])
+  try {
+    const error = await assertRejects(
+      () => writeLabels("remove", ["Frontend"]),
+      Error,
+      "Label not on issue",
+    )
+    assertEquals(errorResult(error).effect, "unknown")
+    assertEquals(writes(server.graphqlRequests).length, 1)
+    assertStringIncludes(server.graphqlRequests.at(-1)!.query, "UpdateIssue")
+  } finally {
+    await cleanup()
+  }
+})
 
 Deno.test("create does not collapse distinct names with identical JavaScript lowercase keys", async () => {
   const { server, cleanup } = await setupLabelWriteServer([
