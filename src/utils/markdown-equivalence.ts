@@ -6,7 +6,22 @@ import { visit } from "unist-util-visit"
 const parser = unified().use(remarkParse).use(remarkGfm)
 
 function comparableMarkdown(markdown: string): string {
-  const tree = parser.parse(markdown)
+  let tree = parser.parse(markdown)
+  // Different bullet markers split adjacent items into separate Markdown lists.
+  // Normalize only parsed item markers; code and inline text stay untouched.
+  const characters = markdown.split("")
+  let changed = false
+  visit(tree, "list", (list) => {
+    if (list.ordered) return
+    for (const item of list.children) {
+      const offset = item.position?.start.offset
+      if (offset != null && /[+*]/.test(characters[offset])) {
+        characters[offset] = "-"
+        changed = true
+      }
+    }
+  })
+  if (changed) tree = parser.parse(characters.join(""))
   visit(tree, (node) => {
     delete node.position
     if (

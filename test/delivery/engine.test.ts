@@ -1143,6 +1143,44 @@ for (
       matches: false,
     },
     {
+      name: "mixed unordered list markers in a source section",
+      desired:
+        "+++ 来源与接手\n\n- [反馈](https://example.com/反馈)\n\n* [修复单](https://example.com/case)\n+ [相关工作](https://example.com/issue)\n\n+++",
+      actual:
+        "+++ 来源与接手\n\n* [反馈](<https://example.com/%E5%8F%8D%E9%A6%88>)\n* [修复单](<https://example.com/case>)\n* [相关工作](<https://example.com/issue>)\n\n+++",
+      matches: true,
+    },
+    {
+      name: "mixed unordered list markers with nested items",
+      desired: "- 父项\n  + 子项\n  * 另一子项\n* 下一项",
+      actual: "* 父项\n  * 子项\n  * 另一子项\n* 下一项",
+      matches: true,
+    },
+    {
+      name: "list marker text inside a code block",
+      desired: "```markdown\n- 原文\n* 原文\n```",
+      actual: "```markdown\n* 原文\n* 原文\n```",
+      matches: false,
+    },
+    {
+      name: "paragraph separating unordered lists",
+      desired: "- 第一项\n\n说明\n\n* 第二项",
+      actual: "* 第一项\n* 第二项\n\n说明",
+      matches: false,
+    },
+    {
+      name: "ordered lists with a numbering reset",
+      desired: "1. 第一项\n1) 第二项",
+      actual: "1. 第一项\n2. 第二项",
+      matches: false,
+    },
+    {
+      name: "changed task completion among mixed list markers",
+      desired: "- [ ] 第一项\n* [x] 第二项",
+      actual: "* [x] 第一项\n* [x] 第二项",
+      matches: false,
+    },
+    {
       name: "paragraph boundaries",
       desired: "第一段\n\n第二段",
       actual: "第一段\n第二段",
