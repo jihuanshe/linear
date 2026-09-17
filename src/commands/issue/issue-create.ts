@@ -5,7 +5,7 @@ import {
   validateIssueWriteOptions,
 } from "./issue-update.ts"
 import type { FieldReader } from "../../utils/replacement.ts"
-import { resolveWriteTeam } from "../../utils/issue-read.ts"
+import { resolveTeam } from "../../utils/issue-read.ts"
 import { writeResult } from "../../utils/write-result.ts"
 import {
   assertMutationReceipt,
@@ -408,7 +408,7 @@ async function promptInteractiveIssueCreation(
     const defaultTeamKey = getTeamKey()
     if (defaultTeamKey) {
       try {
-        const team = await resolveWriteTeam(defaultTeamKey)
+        const team = await resolveTeam(defaultTeamKey)
         return {
           teamId: team.id,
           teamKey: team.key,
@@ -599,7 +599,7 @@ export async function prepareIssueCreate(options: CreateIssueOptions) {
 
   team = team ?? getTeamKey()
   if (!team) throw new ValidationError("Could not determine team")
-  const writeTeam = await resolveWriteTeam(team)
+  const writeTeam = await resolveTeam(team)
   team = writeTeam.key
   const teamId = writeTeam.id
   let stateId: string | undefined

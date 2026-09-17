@@ -5,7 +5,7 @@ import { gql } from "../../__codegen__/gql.ts"
 import { getGraphQLClient } from "../../utils/graphql.ts"
 import { padDisplay } from "../../utils/display.ts"
 import { getTeamKey } from "../../utils/linear.ts"
-import { resolveWriteTeam } from "../../utils/issue-read.ts"
+import { resolveTeam } from "../../utils/issue-read.ts"
 import { shouldShowSpinner } from "../../utils/hyperlink.ts"
 import { header, muted } from "../../utils/styling.ts"
 import { handleError, ValidationError } from "../../utils/errors.ts"
@@ -65,7 +65,7 @@ export const listCommand = new Command()
         )
       }
 
-      const { id: teamId } = await resolveWriteTeam(teamReference)
+      const { id: teamId } = await resolveTeam(teamReference)
 
       const { Spinner } = await import("@std/cli/unstable-spinner")
       const showSpinner = shouldShowSpinner()
