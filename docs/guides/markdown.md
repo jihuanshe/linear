@@ -12,6 +12,8 @@ commands:
   - project create
   - project update
   - project-update create
+  - initiative create
+  - initiative update
   - initiative-update create
   - team members
   - user list
@@ -30,7 +32,7 @@ commands:
 
 成员资料链接在 Issue、评论（Comment）和文档（Document）中可以生成成员提及；裸成员名的解析依资源类型和创建／更新路径而异，不能当作跨入口的稳定语法。不要把一次测试环境观察推广为 Linear API 的通用保证。
 
-已知团队时先用 `linear team members <TEAM> --json` 缩小查找范围；需要跨团队查找时用 `linear user list --json`。结合用户已指定的身份、返回的 `id`、名字和邮箱确认目标，原样复制其 `url` 字段，不根据名字、邮箱或 UUID 拼接成员资料 URL。同名或目标仍不明确时先确认，不能任选一个成员。
+已知团队时先用 `linear team members <team> --json` 缩小查找范围；需要跨团队查找时用 `linear user list --json`。结合用户已指定的身份、返回的 `id`、名字和邮箱确认目标，原样复制其 `url` 字段，不根据名字、邮箱或 UUID 拼接成员资料 URL。同名或目标仍不明确时先确认，不能任选一个成员。
 
 以下 URL 仅为示例，提交前替换为查询返回的值：
 
@@ -38,7 +40,7 @@ commands:
 https://linear.app/acme/profiles/someuser 请确认这个接口的验收标准。
 ```
 
-提及 Issue 时用 `linear issue url <ID>` 获取 URL，同样直接写入正文。代码块中的示例不是请求通知他人的指令；不要自动替换日志、代码或引文里的 `@name`。
+提及 Issue 时用 `linear issue url <issue>` 获取 URL，同样直接写入正文。代码块中的示例不是请求通知他人的指令；不要自动替换日志、代码或引文里的 `@name`。
 
 提及可能产生通知，只提及用户指定或任务明确需要的目标。API 写入成功不证明收件人的 Inbox、邮件或推送已经送达。
 
@@ -62,13 +64,17 @@ Issue 描述、评论和文档正文使用以下形式：
 
 导出的 Markdown 不是富文本的无损备份。实测 Issue 中的成员提及被导出为 `@name`；原样重新提交后，导出 Markdown 字符串保持相同，成员提及节点却变成普通文本。不要为了确认保存成功而重提正文。确需编辑时保留原始编写稿与已确认的成员 URL，逐项核对提及目标，不自动转换全部 `@name`。
 
-读回可以核对目标与正文，折叠展示和提及渲染仍需检查 Linear 中的实际结果。服务端可能改写 Markdown；交付比较有差异时按 `linear guide issue-delivery` 对账，不为消除差异重放评论或改写执行账本。
+读回可以核对目标与正文，折叠展示和提及渲染仍需检查 Linear 中的实际结果。实测服务端规范化了 CRLF、尾部空行和部分 Markdown 转义；CLI 原样发送不代表服务器原样保存。下一次受保护编辑使用 `view --json` 或 `export` 保存的服务端值作依据，不使用之前的提交稿冒充原始读取。交付比较有差异时按 `linear guide issue-delivery` 对账，不为消除差异重放评论或改写执行账本。
 
 语法依据：[Linear API 的 Markdown 提及与折叠说明](https://linear.app/developers/graphql#adding-mentions-in-markdown)。
 
 ## 文本、换行与富文本边界
 
-文件输入保留实际字符，包括段落间的空行、列表缩进、代码围栏、尾部换行和字面 `\n`；CLI 不把反斜杠加 n 自动解码为换行，也不补空行。JSON 中 `"第一行\n第二行"` 经 JSON 解析后含实际换行，`"第一行\\n第二行"` 才保留字面 `\n`。不要先手工转义再交给 JSON 序列化器。
+正文的行内参数与文件参数互斥。文件必须是有效 UTF-8；不存在、不可读或编码无效时命令失败，不用空正文继续写入。支持 `-` 的文件参数可以从 stdin 读取到 EOF，见目标命令的 `--help`。未提供正文、提供空正文和读取失败是不同情况：空正文是否允许，由目标对象的校验决定；评论不接受显式空正文，但新评论可以省略正文而只传 `--attach`。
+
+文件与编辑器输入保留实际字符，包括 CRLF、段落间的空行、列表缩进、代码围栏、行尾空格、尾部换行和字面 `\n`；CLI 不把反斜杠加 n 自动解码为换行，也不重排已有 Markdown。JSON 中 `"第一行\n第二行"` 经 JSON 解析后含实际换行，`"第一行\\n第二行"` 才保留字面 `\n`。不要先手工转义再交给 JSON 序列化器。使用 `--attach` 创建或更新评论时，生成的文件片段另起段落，正文原文不变。
+
+需要编辑器时显式使用目标命令的 `--edit`，或在 `--interactive` 中选择编辑器；缺少正文不会自动启动编辑器。未配置编辑器、编辑进程失败或无法读回文件都会中止写入。更新评论、文档或 Initiative 正文时，`--edit` 在显示原文前保存原始依据，提交前再读取并比较；外部编辑文件则先保存 `view --json`，提交时带 `--base-file`。
 
 Schema 中，评论的 `body` 是原始 ProseMirror 富文本 `bodyData` 的 Markdown 表达；Issue 可读 Markdown `description`，`descriptionState` 标为 Internal YJS，写入 `descriptionData` 也标为 Internal，`documentContent` 标为 ALPHA。存在这些字段不证明可以安全往返；专用命令不把 Markdown 自动转换为内部富文本结构。
 

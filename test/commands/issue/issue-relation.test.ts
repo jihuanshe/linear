@@ -5,9 +5,9 @@ import {
   addIssueRelation,
   prepareIssueRelation,
   relationCommand,
-  type RelationType,
 } from "../../../src/commands/issue/issue-relation.ts"
 import { WriteError } from "../../../src/utils/errors.ts"
+import type { IssueRelationType } from "../../../src/utils/linear.ts"
 import {
   commonDenoArgs,
   setupMockLinearServer,
@@ -55,7 +55,7 @@ const inventory = (
   variables: { issueId: source.id },
   response: { data: { issue: { relations, inverseRelations } } },
 })
-const created = (type: RelationType = "blocks") => ({
+const created = (type: IssueRelationType = "blocks") => ({
   queryName: "CreateIssueRelation",
   response: {
     data: {
@@ -113,7 +113,7 @@ for (
       const { cleanup } = await setupMockLinearServer([
         ...headers,
         inventory(),
-        created(type as RelationType),
+        created(type as IssueRelationType),
       ])
       try {
         await relationCommand.parse()
@@ -143,13 +143,49 @@ Deno.test("Issue Relation Add Command - equivalent relation is idempotent", asyn
       },
     )
     assertEquals(result.effect, "none")
-    assertEquals(result.data.relation.id, "relation-existing")
+    assertEquals(result.data.relation, {
+      id: "relation-existing",
+      issue: { id: source.id },
+      relatedIssue: { id: target.id },
+    })
     assertEquals(writes, 0)
     assertEquals(server.graphqlRequests.length, 3)
   } finally {
     await cleanup()
   }
 })
+
+for (const type of ["related", "blocked-by"] as const) {
+  Deno.test(`relation ${type} no-op JSON preserves native incoming endpoints`, async () => {
+    const { server, cleanup } = await setupMockLinearServer([
+      ...headers,
+      inventory(empty, {
+        nodes: [incoming(type === "blocked-by" ? "blocks" : type)],
+        pageInfo: terminal,
+      }),
+    ])
+    try {
+      const result = await runRelation([
+        "add",
+        source.identifier,
+        type,
+        target.identifier,
+        "--json",
+      ])
+      assertEquals(result.code, 0, result.stderr)
+      const output = JSON.parse(result.stdout)
+      assertEquals(output.effect, "none")
+      assertEquals(output.data.relation, {
+        id: "relation-incoming",
+        issue: { id: target.id },
+        relatedIssue: { id: source.id },
+      })
+      assertEquals(server.graphqlRequests.length, 3)
+    } finally {
+      await cleanup()
+    }
+  })
+}
 
 Deno.test("Issue Relation Add Command - different relation refuses replacement", async () => {
   const { server, cleanup } = await setupMockLinearServer([
@@ -203,7 +239,7 @@ for (
     "blocks",
     "blocked-by",
     "duplicate",
-  ] satisfies RelationType[]
+  ] satisfies IssueRelationType[]
 ) {
   Deno.test(`Shared relation operation ${type} calls beforeWrite after preparation and sends UUIDs`, async () => {
     const { server, cleanup } = await setupMockLinearServer([
@@ -226,7 +262,11 @@ for (
         },
       )
       assertEquals(result.effect, "applied")
-      assertEquals(result.data.relation.id, "relation-created")
+      assertEquals(result.data.relation, {
+        id: "relation-created",
+        issue: { id: type === "blocked-by" ? target.id : source.id },
+        relatedIssue: { id: type === "blocked-by" ? source.id : target.id },
+      })
       assertEquals(writes, 1)
       assertEquals(server.graphqlRequests[3].variables, {
         input: {

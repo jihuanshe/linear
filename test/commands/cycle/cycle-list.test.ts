@@ -26,11 +26,12 @@ await cliffySnapshotTest({
     setColorEnabled(false)
     const server = new MockLinearServer([
       {
-        queryName: "GetTeamIdByKey",
+        queryName: "GetWriteTeamByKey",
         response: {
           data: {
             teams: {
-              nodes: [{ id: "team-eng-id" }],
+              nodes: [{ id: "team-eng-id", key: "ENG" }],
+              pageInfo: { hasNextPage: false, endCursor: null },
             },
           },
         },
@@ -109,11 +110,12 @@ await cliffySnapshotTest({
   async fn() {
     const server = new MockLinearServer([
       {
-        queryName: "GetTeamIdByKey",
+        queryName: "GetWriteTeamByKey",
         response: {
           data: {
             teams: {
-              nodes: [{ id: "team-eng-id" }],
+              nodes: [{ id: "team-eng-id", key: "ENG" }],
+              pageInfo: { hasNextPage: false, endCursor: null },
             },
           },
         },

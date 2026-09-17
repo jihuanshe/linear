@@ -3,7 +3,7 @@ import { withUsageMetadata } from "../usage.ts"
 import { assertPromptAllowed, Confirm } from "../../utils/prompt.ts"
 import { gql } from "../../__codegen__/gql.ts"
 import { getGraphQLClient } from "../../utils/graphql.ts"
-import { getIssueIdentifier } from "../../utils/linear.ts"
+import { getIssueReference } from "../../utils/linear.ts"
 import {
   type BulkOperationResult,
   collectBulkIds,
@@ -35,10 +35,10 @@ const DeleteIssue = gql(`
 `)
 
 async function resolveIssue(ref: string) {
-  const identifier = await getIssueIdentifier(ref)
-  if (!identifier) throw new NotFoundError("Issue", ref)
+  const reference = await getIssueReference(ref)
+  if (!reference) throw new NotFoundError("Issue", ref)
   const data = await getGraphQLClient().request(IssueDeleteDetails, {
-    id: identifier,
+    id: reference,
   })
   if (!data.issue) throw new NotFoundError("Issue", ref)
   if (!data.issue.id) {
@@ -56,26 +56,28 @@ async function removeIssue(issue: Awaited<ReturnType<typeof resolveIssue>>) {
 export const deleteCommand = withUsageMetadata(new Command(), {
   writes: true,
   interactive: true,
-  confirmationRequiredUnless: "--confirm",
 })
   .name("delete")
   .description(
-    "Delete an issue by identifier or UUID; bulk stops after an unknown outcome",
+    "Delete (trash) an issue by UUID, identifier (e.g. ENG-123), number in the configured team, or Linear URL; requires an explicit issue or bulk input. Bulk stops after an unknown outcome.",
   )
   .alias("d")
-  .arguments("[issueId:string]")
-  .option("-y, --confirm", "Skip confirmation prompt")
+  .arguments("[issue:string]")
+  .option("-y, --yes", "Skip confirmation prompt")
   .option(
-    "--bulk <ids...:string>",
-    "Delete multiple issues by identifier or UUID",
+    "--bulk <issues...:string>",
+    "Delete multiple issues by UUID, identifier, number in the configured team, or Linear URL",
   )
   .option(
-    "--bulk-file <file:string>",
-    "Read issue identifiers or UUIDs from a file (one per line)",
+    "--bulk-file <path:string>",
+    "Read whitespace/comma-separated issue UUIDs, identifiers, numbers in the configured team, or Linear URLs from a file",
   )
-  .option("--bulk-stdin", "Read issue identifiers or UUIDs from stdin")
+  .option(
+    "--bulk-stdin",
+    "Read whitespace/comma-separated issue UUIDs, identifiers, numbers in the configured team, or Linear URLs from stdin",
+  )
   .option("--json", "Output deletion effects and per-item bulk results as JSON")
-  .action(async ({ confirm, bulk, bulkFile, bulkStdin, json }, issueRef) => {
+  .action(async ({ yes, bulk, bulkFile, bulkStdin, json }, issueRef) => {
     try {
       if (isBulkMode({ bulk, bulkFile, bulkStdin })) {
         if (issueRef != null) {
@@ -90,8 +92,8 @@ export const deleteCommand = withUsageMetadata(new Command(), {
           )
         }
         if (!json) console.error(`Found ${ids.length} issue(s) to delete.`)
-        if (!confirm) {
-          assertPromptAllowed({ suggestion: "Use --confirm to skip." })
+        if (!yes) {
+          assertPromptAllowed({ suggestion: "Use --yes to skip." })
           if (
             !await Confirm.prompt({
               message: `Delete ${ids.length} issue(s)?`,
@@ -153,13 +155,16 @@ export const deleteCommand = withUsageMetadata(new Command(), {
         return
       }
       if (!issueRef) {
-        throw new ValidationError("An issue identifier or UUID is required", {
-          suggestion: "Use --bulk for multiple issues.",
-        })
+        throw new ValidationError(
+          "An Issue UUID, identifier, or Linear Issue URL is required",
+          {
+            suggestion: "Use --bulk for multiple issues.",
+          },
+        )
       }
       const issue = await resolveIssue(issueRef)
-      if (!confirm) {
-        assertPromptAllowed({ suggestion: "Use --confirm to skip." })
+      if (!yes) {
+        assertPromptAllowed({ suggestion: "Use --yes to skip." })
         if (
           !await Confirm.prompt({
             message:

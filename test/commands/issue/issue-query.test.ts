@@ -12,6 +12,48 @@ import {
 const main = fromFileUrl(new URL("../../../src/main.ts", import.meta.url))
 
 for (const search of [false, true]) {
+  Deno.test(`Issue Query Command - preserves milestone and scope with search ${search}`, async () => {
+    const milestone = "12345678-abcd-4321-8765-123456789abc"
+    const { server, cleanup } = await setupMockLinearServer([{
+      queryName: search ? "SearchIssues" : "GetIssuesForQuery",
+      response: {
+        data: {
+          [search ? "searchIssues" : "issues"]: {
+            nodes: [],
+            pageInfo: { hasNextPage: false, endCursor: "last-page" },
+            ...(search ? { totalCount: 0 } : {}),
+          },
+        },
+      },
+    }])
+    const log = stub(console, "log", () => {})
+    try {
+      await queryCommand.parse([
+        "--team",
+        "ENG",
+        "--state-type",
+        "unstarted",
+        "--unassigned",
+        "--milestone",
+        milestone,
+        "--json",
+        ...(search ? ["--search", "oauth timeout"] : []),
+      ])
+      assertEquals(server.graphqlRequests.length, 1)
+      assertEquals(server.graphqlRequests[0].variables.filter, {
+        team: { key: { eq: "ENG" } },
+        state: { type: { in: ["unstarted"] } },
+        assignee: { null: true },
+        projectMilestone: { id: { eq: milestone } },
+      })
+    } finally {
+      log.restore()
+      await cleanup()
+    }
+  })
+}
+
+for (const search of [false, true]) {
   Deno.test(`Issue Query Command - accepts a UUID assignee with search ${search}`, async () => {
     const userId = "abcdef01-2345-4678-9abc-def012345678"
     const { server, cleanup } = await setupMockLinearServer([
@@ -126,7 +168,7 @@ await snapshotTest({
   args: [
     "--team",
     "ENG",
-    "--state",
+    "--state-type",
     "started",
     "--json",
   ],
@@ -146,8 +188,6 @@ await snapshotTest({
             { manual: { nulls: "last", order: "Ascending" } },
           ],
           first: 50,
-          includeProjectTeamMetadata: false,
-          includeEstimationMetadata: false,
         },
         response: {
           data: {
@@ -226,8 +266,6 @@ Deno.test("Issue Query Command - Project scope does not require a default team",
           { manual: { nulls: "last", order: "Ascending" } },
         ],
         first: 50,
-        includeProjectTeamMetadata: false,
-        includeEstimationMetadata: false,
       },
       response: {
         data: {
@@ -300,8 +338,6 @@ Deno.test("Issue Query Command - Explicit team narrows project scope", async () 
           { manual: { nulls: "last", order: "Ascending" } },
         ],
         first: 50,
-        includeProjectTeamMetadata: false,
-        includeEstimationMetadata: false,
       },
       response: {
         data: {
@@ -820,7 +856,7 @@ Deno.test("Issue Query Command - rejects stalled candidate pagination", async (t
 
 Deno.test("Issue Query Command - exact URL returns complete paginated comments", async () => {
   const targetUrl = "https://example.com/objects/paginated"
-  const { cleanup } = await setupMockLinearServer([
+  const { server, cleanup } = await setupMockLinearServer([
     {
       queryName: "GetIssuesForQuery",
       response: {
@@ -846,20 +882,7 @@ Deno.test("Issue Query Command - exact URL returns complete paginated comments",
           issue: {
             comments: {
               nodes: [{ body: `later comment ${targetUrl}` }],
-              pageInfo: { hasNextPage: false, endCursor: null },
-            },
-          },
-        },
-      },
-    },
-    {
-      queryName: "GetIssueCommentsForUrlLookup",
-      response: {
-        data: {
-          issue: {
-            comments: {
-              nodes: [{ body: "first comment" }],
-              pageInfo: { hasNextPage: true, endCursor: "cursor-1" },
+              pageInfo: { hasNextPage: false, endCursor: "last-comment" },
             },
           },
         },
@@ -889,8 +912,10 @@ Deno.test("Issue Query Command - exact URL returns complete paginated comments",
       { body: "first comment" },
       { body: `later comment ${targetUrl}` },
     ],
-    pageInfo: { hasNextPage: false, endCursor: null },
+    pageInfo: { hasNextPage: false, endCursor: "last-comment" },
   })
+  assertEquals(server.graphqlRequests.length, 2)
+  assertEquals(server.graphqlRequests[1].variables.after, "cursor-1")
 })
 
 Deno.test("Issue Query Command - rejects non-adjacent comment cursor cycles", async () => {
@@ -910,20 +935,6 @@ Deno.test("Issue Query Command - rejects non-adjacent comment cursor cycles", as
               },
             }],
             pageInfo: { hasNextPage: false, endCursor: null },
-          },
-        },
-      },
-    },
-    {
-      queryName: "GetIssueCommentsForUrlLookup",
-      variables: { id: "issue-1", after: undefined },
-      response: {
-        data: {
-          issue: {
-            comments: {
-              nodes: [{ body: "first comment" }],
-              pageInfo: { hasNextPage: true, endCursor: "cursor-a" },
-            },
           },
         },
       },
@@ -985,7 +996,7 @@ Deno.test("Issue Query Command - rejects non-adjacent comment cursor cycles", as
       errors.join("\n"),
       "Incomplete comment lookup for issue-1 pagination",
     )
-    assertEquals(server.graphqlRequests.length, 4)
+    assertEquals(server.graphqlRequests.length, 3)
   } finally {
     logStub.restore()
     errorStub.restore()
@@ -1373,8 +1384,6 @@ Deno.test("Issue Query Command - Uses configured default team without project", 
           { manual: { nulls: "last", order: "Ascending" } },
         ],
         first: 50,
-        includeProjectTeamMetadata: false,
-        includeEstimationMetadata: false,
       },
       response: {
         data: {
@@ -1385,7 +1394,7 @@ Deno.test("Issue Query Command - Uses configured default team without project", 
         },
       },
     },
-  ], { LINEAR_TEAM_ID: "ENG", NO_COLOR: "true" })
+  ], { LINEAR_TEAM_KEY: "ENG", NO_COLOR: "true" })
   const errorStub = stub(console, "error", () => {})
 
   try {
@@ -1640,9 +1649,16 @@ Deno.test("Issue Query Command - rejects --team with --all-teams", async () => {
 for (
   const { name, args, expected } of [
     {
-      name: "--state with --state-name",
-      args: ["--team", "ENG", "--state", "started", "--state-name", "Merged"],
-      expected: "Cannot use both --state and --state-name flags",
+      name: "--state-type with --state-name",
+      args: [
+        "--team",
+        "ENG",
+        "--state-type",
+        "started",
+        "--state-name",
+        "Merged",
+      ],
+      expected: "Cannot use both --state-type and --state-name flags",
     },
     {
       name: "a blank --state-name",
@@ -1676,7 +1692,7 @@ for (
 // Test validation: --sort with --search conflict
 Deno.test("Issue Query Command - rejects --sort with --search", async () => {
   const { cleanup } = await setupMockLinearServer([], {
-    LINEAR_TEAM_ID: "ENG",
+    LINEAR_TEAM_KEY: "ENG",
     NO_COLOR: "true",
   })
 
@@ -1714,7 +1730,7 @@ Deno.test("Issue Query Command - rejects --sort with --search", async () => {
 // Test validation: --search-comments without --search
 Deno.test("Issue Query Command - rejects --search-comments without --search", async () => {
   const { cleanup } = await setupMockLinearServer([], {
-    LINEAR_TEAM_ID: "ENG",
+    LINEAR_TEAM_KEY: "ENG",
     NO_COLOR: "true",
   })
 
@@ -1745,7 +1761,7 @@ Deno.test("Issue Query Command - rejects --search-comments without --search", as
 // Test validation: --milestone without --project
 Deno.test("Issue Query Command - rejects --milestone without --project", async () => {
   const { cleanup } = await setupMockLinearServer([], {
-    LINEAR_TEAM_ID: "ENG",
+    LINEAR_TEAM_KEY: "ENG",
     NO_COLOR: "true",
   })
 

@@ -134,9 +134,9 @@ for (const family of ["project-update", "initiative-update"] as const) {
     assertEquals(result.effect, "none")
     assertStringIncludes(
       result.error.message,
-      "Failed to read update content from stdin",
+      "Failed to read body file: -",
     )
-    assertStringIncludes(result.error.message, "injected stdin read failure")
+    assertStringIncludes(result.error.suggestion, "injected stdin read failure")
     assertEquals(output.mutations, [])
   })
 

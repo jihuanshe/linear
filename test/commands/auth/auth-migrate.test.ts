@@ -1,10 +1,13 @@
-import { assertEquals } from "@std/assert"
+import { assertEquals, assertStringIncludes } from "@std/assert"
 import { fromFileUrl } from "@std/path"
 
-// Testing auth-migrate requires subprocess isolation because the credentials
-// module uses top-level await, similar to test/credentials.test.ts.
+// Isolate the local credential inventory and fake keyring.
 
 const credentialsUrl = new URL("../../../src/credentials.ts", import.meta.url)
+const commandUrl = new URL(
+  "../../../src/commands/auth/auth-migrate.ts",
+  import.meta.url,
+)
 const keyringUrl = new URL("../../../src/keyring/index.ts", import.meta.url)
 const denoJsonPath = fromFileUrl(new URL("../../../deno.json", import.meta.url))
 const denoDir = Deno.env.get("DENO_DIR") ??
@@ -62,17 +65,12 @@ _setBackend({
   async delete(_a: string) {},
   async isAvailable() { return true },
 });
-const { isUsingInlineFormat, migrateToKeyring } = await import("${credentialsUrl}");
-const keyring = await import("${keyringUrl}");
-
-if (!isUsingInlineFormat()) {
-  console.log("Credentials are already using the system keyring.");
-} else {
-  console.log("unexpected: inline format detected");
-}
+const { migrateCommand } = await import("${commandUrl}");
+await migrateCommand.parse([]);
 `
 
-    const { stdout } = await runSubprocess(tempDir, code)
+    const { stdout, success } = await runSubprocess(tempDir, code)
+    assertEquals(success, true)
     assertEquals(stdout, "Credentials are already using the system keyring.")
   } finally {
     await Deno.remove(tempDir, { recursive: true })
@@ -98,25 +96,15 @@ _setBackend({
   async delete(_a: string) {},
   async isAvailable() { return false },
 });
-const { isUsingInlineFormat } = await import("${credentialsUrl}");
-const keyring = await import("${keyringUrl}");
-
-if (isUsingInlineFormat()) {
-  const keyringOk = await keyring.isAvailable();
-  if (!keyringOk) {
-    console.log("error:No system keyring found. Cannot migrate credentials.");
-  } else {
-    console.log("unexpected: keyring available");
-  }
-} else {
-  console.log("unexpected: not inline format");
-}
+const { migrateCommand } = await import("${commandUrl}");
+await migrateCommand.parse([]);
 `
 
-    const { stdout } = await runSubprocess(tempDir, code)
-    assertEquals(
-      stdout,
-      "error:No system keyring found. Cannot migrate credentials.",
+    const { stderr, success } = await runSubprocess(tempDir, code)
+    assertEquals(success, false)
+    assertStringIncludes(
+      stderr,
+      "No system keyring found. Cannot migrate credentials.",
     )
   } finally {
     await Deno.remove(tempDir, { recursive: true })
@@ -143,27 +131,20 @@ _setBackend({
   async delete(account: string) { _store.delete(account) },
   async isAvailable() { return true },
 });
-const { isUsingInlineFormat, migrateToKeyring, getCredentialApiKey } = await import("${credentialsUrl}");
-const keyring = await import("${keyringUrl}");
-
-const wasInline = isUsingInlineFormat();
-const keyringOk = await keyring.isAvailable();
-const migrated = await migrateToKeyring();
+const { isUsingInlineFormat, getCredentialApiKey } = await import("${credentialsUrl}");
+const { migrateCommand } = await import("${commandUrl}");
+await migrateCommand.parse([]);
 console.log(JSON.stringify({
-  wasInline,
-  keyringOk,
-  migrated: migrated.sort(),
+  migrated: [..._store.keys()].sort(),
   isInlineAfter: isUsingInlineFormat(),
-  keyA: getCredentialApiKey("ws-a"),
-  keyB: getCredentialApiKey("ws-b"),
+  keyA: await getCredentialApiKey("ws-a"),
+  keyB: await getCredentialApiKey("ws-b"),
 }));
 `
 
-    const { stdout } = await runSubprocess(tempDir, code)
-    const result = JSON.parse(stdout)
-
-    assertEquals(result.wasInline, true)
-    assertEquals(result.keyringOk, true)
+    const { stdout, success } = await runSubprocess(tempDir, code)
+    assertEquals(success, true)
+    const result = JSON.parse(stdout.split("\n").at(-1)!)
     assertEquals(result.migrated, ["ws-a", "ws-b"])
     assertEquals(result.isInlineAfter, false)
     assertEquals(result.keyA, "lin_api_a")

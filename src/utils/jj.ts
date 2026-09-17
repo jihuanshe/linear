@@ -5,19 +5,6 @@ import { findIssueIdentifierInText } from "./issue-identifier.ts"
  */
 
 /**
- * Formats an issue description for jj describe
- * Returns the issue title and Linear-issue trailer
- */
-export function formatIssueDescription(
-  identifier: string,
-  title: string,
-  url: string,
-  magicWord = "Fixes",
-): string {
-  return `${identifier} ${title}\n\nLinear-issue: ${magicWord} ${identifier}\nLinear-issue-url: ${url}`
-}
-
-/**
  * Parses a Linear issue identifier from a Linear-issue trailer value
  * Supports two formats:
  * - Plain trailer: "Fixes ABC-123" (with magic words)

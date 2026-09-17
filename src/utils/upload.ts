@@ -430,16 +430,3 @@ export async function validateFilePath(
     throw error
   }
 }
-
-/**
- * Format an uploaded file as a markdown link
- */
-export function formatAsMarkdownLink(
-  result: Pick<UploadResult, "filename" | "assetUrl" | "contentType">,
-): string {
-  const isImage = result.contentType.startsWith("image/")
-  if (isImage) {
-    return `![${result.filename}](${result.assetUrl})`
-  }
-  return `[${result.filename}](${result.assetUrl})`
-}

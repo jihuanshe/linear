@@ -2,7 +2,7 @@ import { createIssueAttachment } from "../../operations/issue-content.ts"
 import { printWriteResult } from "../../utils/write-result.ts"
 import { Command } from "@cliffy/command"
 import { withUsageMetadata } from "../usage.ts"
-import { getIssueIdentifier, requireIssueId } from "../../utils/linear.ts"
+import { getIssueReference, requireIssueId } from "../../utils/linear.ts"
 import {
   uploadFile,
   type UploadResult,
@@ -25,40 +25,39 @@ function quoteForShell(value: string): string {
 export const attachCommand = withUsageMetadata(new Command(), { writes: true })
   .name("attach")
   .description(
-    "Create a sidebar attachment on an issue (images do not render inline)",
+    "Create a sidebar attachment on an issue (images do not render inline). Accepts an issue UUID, identifier (e.g. ENG-123), number in the configured team, or Linear URL.",
   )
-  .arguments("<issueId:string> <filepath:string>")
+  .arguments("<issue:string> <path:string>")
   .option("--json", "Output a JSON write result with the attachment")
   .option("-t, --title <title:string>", "Custom title for the attachment")
-  .option(
-    "-c, --comment <body:string>",
-    "Create a linked comment with this body; the file remains a sidebar attachment",
-  )
   .option(
     "--public",
     "Upload images to a public, unauthenticated URL (default: private, workspace-members only)",
   )
-  .action(async (options, issueId, filepath) => {
-    const { title, comment, public: makePublic, json } = options
+  .action(async (options, issueArg, path) => {
+    const { title, public: makePublic, json } = options
 
     let uploadResult: UploadResult | undefined
     try {
-      const resolvedIdentifier = await getIssueIdentifier(issueId)
-      if (!resolvedIdentifier) {
-        throw new ValidationError(
-          "Could not determine issue identifier",
-          { suggestion: "Please provide an issue identifier like 'ENG-123'." },
-        )
+      if (!issueArg.trim()) {
+        throw new ValidationError("Issue reference cannot be empty")
       }
 
       // Validate file exists
-      await validateFilePath(filepath)
+      await validateFilePath(path)
 
       // Get the issue UUID (attachmentCreate needs UUID, not identifier)
-      const issueUuid = await requireIssueId(resolvedIdentifier)
+      const issueReference = await getIssueReference(issueArg)
+      if (!issueReference) {
+        throw new ValidationError("Could not determine issue reference", {
+          suggestion:
+            "Provide an Issue UUID, identifier such as ENG-123, or Linear Issue URL.",
+        })
+      }
+      const issueUuid = await requireIssueId(issueReference)
 
       // Upload the file
-      uploadResult = await uploadFile(filepath, {
+      uploadResult = await uploadFile(path, {
         showProgress: shouldShowSpinner() && !json,
         makePublic,
       })
@@ -72,8 +71,7 @@ export const attachCommand = withUsageMetadata(new Command(), { writes: true })
 
       const { attachment } = await createIssueAttachment(issueUuid, {
         url: uploadResult.assetUrl,
-        title: title || basename(filepath),
-        commentBody: comment,
+        title: title || basename(path),
       })
       if (json) {
         printWriteResult({ attachment }, {
@@ -86,9 +84,9 @@ export const attachCommand = withUsageMetadata(new Command(), { writes: true })
       if (uploadResult.contentType.startsWith("image/")) {
         const suggested = [
           "linear issue comment add",
-          resolvedIdentifier,
+          issueReference,
           "--attach",
-          quoteForShell(filepath),
+          quoteForShell(path),
           ...(makePublic ? ["--public"] : []),
         ].join(" ")
         console.log(

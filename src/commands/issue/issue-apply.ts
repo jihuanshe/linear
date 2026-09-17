@@ -125,5 +125,5 @@ export const issueApplyCommand = withUsageMetadata(
         handleError(error, "Failed to apply delivery")
       }
     }),
-  { writes: true, confirmationRequiredUnless: "--confirm-workspace" },
+  { writes: true },
 )

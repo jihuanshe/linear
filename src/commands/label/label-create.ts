@@ -3,14 +3,14 @@ import { withUsageMetadata } from "../usage.ts"
 import { Input, Select } from "../../utils/prompt.ts"
 import { gql } from "../../__codegen__/gql.ts"
 import { getGraphQLClient } from "../../utils/graphql.ts"
-import { getAllTeams, getTeamIdByKey, getTeamKey } from "../../utils/linear.ts"
+import { getAllTeams, getTeamKey } from "../../utils/linear.ts"
+import { resolveWriteTeam } from "../../utils/issue-read.ts"
 import { shouldShowSpinner } from "../../utils/hyperlink.ts"
-import { printWriteResult, setMachineOutput } from "../../utils/write-result.ts"
+import { printWriteResult } from "../../utils/write-result.ts"
 import {
   assertMutationReceipt,
   assertMutationSuccess,
   handleError,
-  NotFoundError,
   ValidationError,
 } from "../../utils/errors.ts"
 
@@ -49,10 +49,12 @@ const DEFAULT_COLORS = [
 export const createCommand = withUsageMetadata(new Command(), {
   writes: true,
   interactive: true,
-  outputModes: ["human", "json"],
 })
   .name("create")
-  .option("--json", "Output a JSON write result")
+  .option(
+    "--json",
+    "Output a JSON write result; the created label is in data.issueLabel",
+  )
   .description("Create a new issue label")
   .option("-n, --name <name:string>", "Label name (required)")
   .option(
@@ -61,15 +63,14 @@ export const createCommand = withUsageMetadata(new Command(), {
   )
   .option("-d, --description <description:string>", "Label description")
   .option(
-    "-t, --team <teamKey:string>",
-    "Team key for team-specific label (omit for workspace label)",
+    "-t, --team <team:string>",
+    "Team key or UUID for team-specific label (omit for workspace label)",
   )
   .option(
     "-i, --interactive",
     "Interactive mode (default if no flags provided)",
   )
   .action(async (options) => {
-    setMachineOutput(options.json ?? false)
     try {
       if (options.json && options.interactive) {
         throw new ValidationError(
@@ -89,7 +90,7 @@ export const createCommand = withUsageMetadata(new Command(), {
       let name = providedName
       let color = providedColor
       let description = providedDescription
-      let teamKey = providedTeam
+      let teamId: string | undefined
 
       // Determine if we should run in interactive mode
       const noFlagsProvided = !name
@@ -148,18 +149,21 @@ export const createCommand = withUsageMetadata(new Command(), {
         }
 
         // Team selection (optional)
-        if (teamKey === undefined) {
+        if (providedTeam === undefined) {
           const allTeams = await getAllTeams()
           const teamOptions = [
             { name: "Workspace (shared by all teams)", value: "__workspace__" },
             ...allTeams.map((t) => ({
               name: `${t.name} (${t.key})`,
-              value: t.key,
+              value: t.id,
             })),
           ]
 
           // Try to get default team from config
-          const defaultTeam = getTeamKey()
+          const defaultTeamKey = getTeamKey()
+          const defaultTeam = allTeams.find((team) =>
+            team.key === defaultTeamKey
+          )?.id
           const defaultIndex = defaultTeam
             ? teamOptions.findIndex((t) => t.value === defaultTeam)
             : 0
@@ -172,7 +176,7 @@ export const createCommand = withUsageMetadata(new Command(), {
               : "__workspace__",
           })
 
-          teamKey = selectedTeam === "__workspace__" ? undefined : selectedTeam
+          teamId = selectedTeam === "__workspace__" ? undefined : selectedTeam
         }
       }
 
@@ -196,12 +200,8 @@ export const createCommand = withUsageMetadata(new Command(), {
       }
 
       // Build input
-      let teamId: string | undefined
-      if (teamKey) {
-        teamId = await getTeamIdByKey(teamKey.toUpperCase())
-        if (!teamId) {
-          throw new NotFoundError("Team", teamKey)
-        }
+      if (providedTeam != null) {
+        teamId = (await resolveWriteTeam(providedTeam)).id
       }
 
       const input = {
@@ -228,7 +228,7 @@ export const createCommand = withUsageMetadata(new Command(), {
         spinner?.stop()
         assertMutationReceipt(label, result?.issueLabelCreate)
         if (options.json) {
-          printWriteResult(label)
+          printWriteResult({ issueLabel: label })
           return
         }
 

@@ -61,6 +61,11 @@ Deno.test("delivery production plan is read-only and CLI apply exposes one machi
     assertEquals(cliPlan.success, true, cliPlan.stderr)
     assertEquals(cliPlan.json().status, "ready")
     assertEquals(await loadCheckpoint(f.path), null)
+    assertEquals(
+      (await Array.fromAsync(Deno.readDir(f.dir))).map((entry) => entry.name),
+      ["delivery.json"],
+      "plan must not create a lock, ledger or temporary file",
+    )
     const cliApply = await f.cli("apply")
     assertEquals(cliApply.success, true, cliApply.stdout + cliApply.stderr)
     assertEquals(cliApply.json().ok, true)
@@ -766,6 +771,15 @@ Deno.test("delivery cannot emit a mutation when its initial checkpoint cannot be
     }
     assertEquals(f.mutations().length, 0)
     assertEquals(await loadCheckpoint(f.path), null)
+    using probe = await Deno.open(`${checkpointPath(f.path)}.lock`, {
+      read: true,
+      write: true,
+    })
+    assertEquals(
+      await probe.tryLock(true),
+      true,
+      "persistence throw releases lock",
+    )
   } finally {
     await f.cleanup()
   }
@@ -775,12 +789,20 @@ Deno.test("delivery retains a completed upload when a comment fails before sendi
   const original = issue()
   const f = await fixture({ issues: [original] })
   try {
-    await Deno.writeFile(join(f.dir, "proof.yrp"), new Uint8Array([1, 2, 3]))
+    const body = "\uFEFF  Evidence  \r\n    code\r\n\\n\r\n"
+    await Deno.writeFile(
+      join(f.dir, "proof]draft.yrp"),
+      new Uint8Array([1, 2, 3]),
+    )
+    await Deno.writeFile(join(f.dir, "screenshot.png"), new Uint8Array([4, 5]))
     const loaded = await f.load(
       manifest([{
         operation: "update",
         identifier: original.identifier,
-        comments: [{ body: "Evidence", files: [{ path: "proof.yrp" }] }],
+        comments: [{
+          body,
+          files: [{ path: "proof]draft.yrp" }, { path: "screenshot.png" }],
+        }],
       }]),
     )
     const first = await apply(loaded, {
@@ -792,7 +814,7 @@ Deno.test("delivery retains a completed upload when a comment fails before sendi
     })
     assertEquals(first.status, "stopped-on-failure")
     assertEquals(first.summary.unknown, 0)
-    assertEquals(f.server.uploadRequests.length, 1)
+    assertEquals(f.server.uploadRequests.length, 2)
     assertEquals(f.state.comments.size, 0)
     const checkpoint = (await loadCheckpoint(f.path))!
     assertEquals(
@@ -808,11 +830,12 @@ Deno.test("delivery retains a completed upload when a comment fails before sendi
     assertEquals(JSON.stringify(checkpoint).includes("uploadUrl"), false)
     const resumed = await apply(loaded)
     assertEquals(resumed.status, "completed")
-    assertEquals(f.server.uploadRequests.length, 1)
+    assertEquals(f.server.uploadRequests.length, 2)
     assertEquals(f.state.comments.size, 1)
-    assertStringIncludes(
+    assertEquals(
       [...f.state.comments.values()][0].body,
-      "https://uploads.linear.app/file-1",
+      body + "\n\n[proof\\]draft.yrp](https://uploads.linear.app/file-1)" +
+        "\n\n![screenshot.png](https://uploads.linear.app/file-2)",
     )
   } finally {
     await f.cleanup()
@@ -1417,6 +1440,41 @@ Deno.test("delivery read-back deadline cancels only the read and preserves appli
   }
 })
 
+Deno.test("delivery rejects label removal that became invalid after plan without recording unknown", async () => {
+  const original = issue(1001, { labels: connection([LABEL, OTHER_LABEL]) })
+  const f = await fixture({ issues: [original] })
+  try {
+    const loaded = await f.load(manifest([{
+      ...update(original, {
+        title: "Must not be written",
+        removeLabel: [LABEL.name, OTHER_LABEL.name],
+      }),
+      comments: [{ body: "Must not be appended" }],
+    }]))
+    assertEquals((await planManifest({ loaded })).status, "ready")
+    f.state.find(original.id)!.labels = connection([LABEL])
+    const result = await f.cli("apply")
+    assertEquals(result.success, false)
+    assertEquals(result.json().effect, "none")
+    assertEquals(result.json().data.summary.failed, 1)
+    assertEquals(result.json().data.summary.unknown, 0)
+    assertEquals(result.json().data.summary.unattempted, 1)
+    assertStringIncludes(result.stdout, "Cannot remove labels that are not on")
+    assertEquals(f.mutations(), [])
+    assertEquals(f.state.find(original.id)!.title, original.title)
+    assertEquals(f.state.find(original.id)!.labels.nodes, [LABEL])
+    const entries = Object.values((await loadCheckpoint(f.path))!.items)
+    assertEquals(entries.map(({ status, effect }) => ({ status, effect })), [
+      { status: "failed", effect: "none" },
+    ])
+    const plan = await planManifest({ loaded })
+    assertEquals(plan.status, "failed")
+    assertEquals(plan.issues[0].error?.error.code, "ValidationError")
+  } finally {
+    await f.cleanup()
+  }
+})
+
 for (const mode of ["add", "remove"] as const) {
   Deno.test(`delivery verifies native ${mode}Label membership and resume does not reapply the increment`, async () => {
     const original = issue(1001, {
@@ -1481,8 +1539,8 @@ Deno.test("delivery submits captured description and comment bytes without refre
   const original = issue()
   const f = await fixture({ issues: [original] })
   try {
-    const description = " \nCaptured description\n ",
-      body = " \nCaptured comment\n "
+    const description = "\uFEFF \r\n    Captured description\r\n\\n\r\n ",
+      body = "\uFEFF \r\nCaptured comment  \r\n\\n\r\n "
     await Deno.writeTextFile(join(f.dir, "description.md"), description)
     await Deno.writeTextFile(join(f.dir, "comment.md"), body)
     const loaded = await f.load(

@@ -7,14 +7,14 @@
 ```sh
 linear recipe doctor --source > doctor.js
 deno run --allow-run --allow-env doctor.js self --json >doctor.json
-# 其他范围：team ENG、project <UUID/slug/name>、workspace。
+# 其他范围：team ENG、project <project>、workspace。
 ```
 
-四个范围分别是本人负责的任务及相关项目、指定团队、指定项目、整个工作区。项目名必须精确且唯一；重名时使用 UUID。
+四个范围分别是本人负责的任务及相关项目、指定团队、指定项目、整个工作区。`<project>` 接受 UUID、slug 或名称；项目名必须精确且唯一，重名时使用 UUID。
 
 默认纳入进行中和待办任务，排除名称为 Merged 的历史任务。`--history` 取消任务状态过滤；`--include-archived` 独立纳入归档对象。项目进展规则只检查进行中和计划中的项目，history 不扩大这些规则的范围。项目与团队归属检查始终包含归档团队。
 
-`--limit` 只限制人类报告的显示数量，不限制扫描或 JSON；默认 4，0 显示全部。`--stale-days` 控制停滞与项目更新阈值，默认 14 天。跨页读取不保证来自同一数据库时刻。
+`--limit` 只限制人类报告的显示数量，不限制扫描或 JSON；默认 4，0 显示全部。`--stale-days` 控制停滞与项目进展阈值，默认 14 天。跨页读取不保证来自同一数据库时刻。
 
 九条规则是脚本中的普通条件：`project-team-mismatch`、`missing-project`、`missing-priority`、`missing-estimate`、`missing-cycle`、`stale-started`、`missing-project-update`、`stale-project-update`、`project-health-risk`。可重复传 `--rule`：
 

@@ -2,7 +2,7 @@ import { Command } from "@cliffy/command"
 import { dirname, join, resolve } from "@std/path"
 import {
   fetchIssueDetailsRaw,
-  getIssueIdentifier,
+  getIssueReference,
   isLinearUuid,
 } from "../../utils/linear.ts"
 import {
@@ -14,9 +14,9 @@ import { handleError, ValidationError } from "../../utils/errors.ts"
 export const exportCommand = new Command()
   .name("export")
   .description(
-    "Save an Issue's original JSON with all comments and attachments, and its exact Markdown draft for local editing, without changing Linear.\n\nCreates original.json and desired.md in a new directory. Read the saved discussion before editing desired.md, then use issue update --base-file original.json --description-file desired.md. Markdown is not a lossless rich-text backup; see linear guide markdown.",
+    "Save an Issue's original JSON with all comments and attachments, and its exact Markdown draft for local editing, without changing Linear. Accepts an issue UUID, identifier (e.g. ENG-123), number in the configured team, or Linear URL.\n\nCreates original.json and desired.md in a new directory. Read the saved discussion before editing desired.md, then use issue update --base-file original.json --description-file desired.md. Markdown is not a lossless rich-text backup; see linear guide markdown.",
   )
-  .arguments("<issueId:string>")
+  .arguments("<issue:string>")
   .option(
     "--output <directory:string>",
     "New directory for the editing files",
@@ -26,21 +26,21 @@ export const exportCommand = new Command()
     },
   )
   .option("--json", "Output saved paths and stable Issue identity as JSON")
-  .action(async ({ output, json }, issueId) => {
+  .action(async ({ output, json }, issueArg) => {
     try {
-      if (!output.trim() || !issueId.trim()) {
+      if (!output.trim() || !issueArg.trim()) {
         throw new ValidationError("Issue and output directory cannot be empty")
       }
       const directory = resolve(output)
-      const resolvedId = await getIssueIdentifier(issueId)
-      if (!resolvedId) {
-        throw new ValidationError("Could not determine issue identifier")
+      const issueReference = await getIssueReference(issueArg)
+      if (!issueReference) {
+        throw new ValidationError("Could not determine issue reference")
       }
-      const original = await fetchIssueDetailsRaw(resolvedId, true, true)
-      if (isLinearUuid(resolvedId)) {
+      const original = await fetchIssueDetailsRaw(issueReference, true, true)
+      if (isLinearUuid(issueReference)) {
         assertReadIdentity(
           original.issue,
-          resolvedId,
+          issueReference,
           original.organization,
           original.organization?.id ?? "",
           "Issue",

@@ -1,10 +1,9 @@
 import { Command } from "@cliffy/command"
+import { rgb24, underline } from "@std/fmt/colors"
 import { gql } from "../../__codegen__/gql.ts"
 import {
   formatRelativeTime,
   padDisplay,
-  printStyled,
-  printStyledHeader,
   truncateText,
 } from "../../utils/display.ts"
 import {
@@ -14,67 +13,7 @@ import {
 } from "../../utils/errors.ts"
 import { getGraphQLClient } from "../../utils/graphql.ts"
 import { shouldShowSpinner } from "../../utils/hyperlink.ts"
-
-/**
- * Resolve initiative ID from UUID, slug, or name
- */
-async function resolveInitiativeId(
-  client: ReturnType<typeof getGraphQLClient>,
-  idOrSlugOrName: string,
-): Promise<string | undefined> {
-  // Try as UUID first
-  if (
-    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(
-      idOrSlugOrName,
-    )
-  ) {
-    return idOrSlugOrName
-  }
-
-  // Try as slug
-  const slugQuery = gql(`
-    query GetInitiativeBySlugForListUpdates($slugId: String!) {
-      initiatives(filter: { slugId: { eq: $slugId } }) {
-        nodes {
-          id
-          slugId
-        }
-      }
-    }
-  `)
-
-  try {
-    const result = await client.request(slugQuery, { slugId: idOrSlugOrName })
-    if (result.initiatives?.nodes?.length > 0) {
-      return result.initiatives.nodes[0].id
-    }
-  } catch {
-    // Continue to name lookup
-  }
-
-  // Try as name (case-insensitive)
-  const nameQuery = gql(`
-    query GetInitiativeByNameForListUpdates($name: String!) {
-      initiatives(filter: { name: { eqIgnoreCase: $name } }) {
-        nodes {
-          id
-          name
-        }
-      }
-    }
-  `)
-
-  try {
-    const result = await client.request(nameQuery, { name: idOrSlugOrName })
-    if (result.initiatives?.nodes?.length > 0) {
-      return result.initiatives.nodes[0].id
-    }
-  } catch {
-    // Not found
-  }
-
-  return undefined
-}
+import { resolveInitiativeId } from "../initiative/initiative-resolve.ts"
 
 // Health display colors
 const HEALTH_COLORS: Record<string, string> = {
@@ -91,14 +30,16 @@ const HEALTH_DISPLAY: Record<string, string> = {
 
 export const listCommand = new Command()
   .name("list")
-  .description("List status updates for an initiative")
+  .description(
+    "List status updates for an initiative by UUID, slug ID, or name",
+  )
   .alias("l")
-  .arguments("<initiativeId:string>")
+  .arguments("<initiative:string>")
   .option("-j, --json", "Output as JSON")
   .option("--limit <limit:number>", "Maximum results (positive integer)", {
     default: 10,
   })
-  .action(async ({ json, limit }, initiativeId) => {
+  .action(async ({ json, limit }, initiativeReference) => {
     const { Spinner } = await import("@std/cli/unstable-spinner")
     const showSpinner = shouldShowSpinner() && !json
     const spinner = showSpinner ? new Spinner() : null
@@ -112,11 +53,7 @@ export const listCommand = new Command()
       const client = getGraphQLClient()
 
       // Resolve initiative ID
-      const resolvedId = await resolveInitiativeId(client, initiativeId)
-      if (!resolvedId) {
-        spinner?.stop()
-        throw new NotFoundError("Initiative", initiativeId)
-      }
+      const resolvedId = await resolveInitiativeId(client, initiativeReference)
 
       const listQuery = gql(`
         query ListInitiativeUpdates($id: String!, $first: Int) {
@@ -152,7 +89,7 @@ export const listCommand = new Command()
 
       const initiative = result.initiative
       if (!initiative) {
-        throw new NotFoundError("Initiative", initiativeId)
+        throw new NotFoundError("Initiative", initiativeReference)
       }
 
       const updates = initiative.initiativeUpdates?.nodes || []
@@ -211,7 +148,7 @@ export const listCommand = new Command()
         padDisplay("AUTHOR", AUTHOR_WIDTH),
       ]
 
-      printStyledHeader(headerCells)
+      console.log(underline(headerCells.join(" ")))
 
       // Print each update
       for (const update of updates) {
@@ -225,12 +162,20 @@ export const listCommand = new Command()
         const date = formatRelativeTime(update.createdAt)
         const author = update.user?.name || "-"
 
-        printStyled(
-          `${padDisplay(shortId, ID_WIDTH)} `,
-          [padDisplay(healthDisplay, HEALTH_WIDTH), `color: ${healthColor}`],
-          " ",
-          [padDisplay(date, DATE_WIDTH), "color: gray"],
-          ` ${padDisplay(author, AUTHOR_WIDTH)}`,
+        console.log(
+          `${padDisplay(shortId, ID_WIDTH)} ${
+            rgb24(
+              `${padDisplay(healthDisplay, HEALTH_WIDTH)} `,
+              parseInt(healthColor.replace("#", ""), 16),
+            )
+          }${
+            rgb24(
+              `${padDisplay(date, DATE_WIDTH)} ${
+                padDisplay(author, AUTHOR_WIDTH)
+              }`,
+              0x808080,
+            )
+          }`,
         )
 
         // Print body preview if available (indented, on next line)
@@ -239,7 +184,7 @@ export const listCommand = new Command()
             update.body.replace(/\n/g, " ").trim(),
             availableWidth,
           )
-          printStyled("  ", [bodyPreview, "color: gray"])
+          console.log(`  ${rgb24(bodyPreview, 0x808080)}`)
         }
       }
     } catch (error) {

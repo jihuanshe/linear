@@ -1,7 +1,108 @@
 import { snapshotTest as cliffySnapshotTest } from "@cliffy/testing"
+import { assertEquals, assertStringIncludes } from "@std/assert"
+import { stub } from "@std/testing/mock"
 import { listCommand } from "../../../src/commands/initiative/initiative-list.ts"
-import { commonDenoArgs } from "../../utils/test-helpers.ts"
+import {
+  commonDenoArgs,
+  setupMockLinearServer,
+} from "../../utils/test-helpers.ts"
 import { MockLinearServer } from "../../utils/mock_linear_server.ts"
+
+for (
+  const status of [
+    "Planned",
+    "Active",
+    "Completed",
+    "Proposed",
+    "Canceled",
+    "",
+    "unknown",
+  ]
+) {
+  Deno.test(`initiative list explicit status ${JSON.stringify(status)}`, async () => {
+    const { server, cleanup } = await setupMockLinearServer([
+      {
+        queryName: "GetInitiatives",
+        response: {
+          data: {
+            initiatives: {
+              nodes: [],
+              pageInfo: { hasNextPage: false, endCursor: null },
+            },
+          },
+        },
+      },
+    ])
+    try {
+      const result = await new Deno.Command(Deno.execPath(), {
+        args: [
+          "run",
+          ...commonDenoArgs,
+          "src/main.ts",
+          "initiative",
+          "list",
+          "--status",
+          status.toUpperCase(),
+          "--json",
+        ],
+        stdin: "null",
+        stdout: "piped",
+        stderr: "piped",
+      }).output()
+      const valid = status !== "" && status !== "unknown"
+      assertEquals(
+        result.code,
+        valid ? 0 : 1,
+        new TextDecoder().decode(result.stdout),
+      )
+      assertEquals(
+        server.graphqlRequests.map((request) => request.variables),
+        valid
+          ? [{ filter: { status: { eq: status } }, includeArchived: false }]
+          : [],
+      )
+      if (!valid) {
+        const body = JSON.parse(new TextDecoder().decode(result.stdout))
+        assertStringIncludes(body.error.message, "Invalid status")
+      }
+    } finally {
+      await cleanup()
+    }
+  })
+}
+
+Deno.test("initiative list still displays unknown remote statuses", async () => {
+  const { cleanup } = await setupMockLinearServer([
+    {
+      queryName: "GetInitiatives",
+      response: {
+        data: {
+          initiatives: {
+            nodes: [{
+              id: "future",
+              slugId: "future",
+              name: "Future initiative",
+              status: "FutureState",
+              projects: { nodes: [] },
+            }],
+            pageInfo: { hasNextPage: false, endCursor: null },
+          },
+        },
+      },
+    },
+  ])
+  const logs: string[] = []
+  const log = stub(console, "log", (...args: unknown[]) => {
+    logs.push(args.join(" "))
+  })
+  try {
+    await listCommand.parse(["--all-statuses"])
+    assertStringIncludes(logs.join("\n"), "FutureState")
+  } finally {
+    log.restore()
+    await cleanup()
+  }
+})
 
 await cliffySnapshotTest({
   name: "Initiative List Command - JSON Output",

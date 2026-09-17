@@ -396,10 +396,10 @@ export async function fixture(options: {
       queryName: "GetIssueLabelForWrite",
       response: ({ variables }) => ({
         data: {
-          issueLabel:
-            [LABEL, OTHER_LABEL].some((label) => label.id === variables.id)
-              ? { id: variables.id, isGroup: false, team: TEAM }
-              : null,
+          issueLabels: connection(
+            [LABEL, OTHER_LABEL].filter((label) => label.id === variables.id)
+              .map((label) => ({ ...label, isGroup: false, team: TEAM })),
+          ),
         },
       }),
     },

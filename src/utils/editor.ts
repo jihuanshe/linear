@@ -1,3 +1,6 @@
+import { CliError, ValidationError } from "./errors.ts"
+import { readTextSource } from "./text-source.ts"
+
 export async function getEditor(): Promise<string | null> {
   // Try git config first
   try {
@@ -20,19 +23,20 @@ export async function getEditor(): Promise<string | null> {
   return null
 }
 
-export async function openEditor(): Promise<string | undefined> {
+export async function openEditor(initialText = ""): Promise<string> {
   const editor = await getEditor()
   if (!editor) {
-    console.error(
-      "No editor found. Please set EDITOR environment variable or configure git editor with: git config --global core.editor <editor>",
-    )
-    return undefined
+    throw new ValidationError("No editor found", {
+      suggestion:
+        "Set EDITOR or configure git editor with: git config --global core.editor <editor>",
+    })
   }
 
   // Create a temporary file
   const tempFile = await Deno.makeTempFile({ suffix: ".md" })
 
   try {
+    await Deno.writeTextFile(tempFile, initialText)
     // Open the editor
     const process = new Deno.Command(editor, {
       args: [tempFile],
@@ -41,24 +45,21 @@ export async function openEditor(): Promise<string | undefined> {
       stderr: "inherit",
     })
 
-    const { success } = await process.output()
+    const { success } = await process.spawn().status
 
     if (!success) {
-      console.error("Editor exited with an error")
-      return undefined
+      throw new CliError("Editor exited with an error")
     }
 
-    // Read the content back
-    const content = await Deno.readTextFile(tempFile)
-    const cleaned = content.trim()
-
-    return cleaned.length > 0 ? cleaned : undefined
+    return (await readTextSource("content", undefined, tempFile))!
   } catch (error) {
-    console.error(
-      "Failed to open editor:",
-      error instanceof Error ? error.message : String(error),
+    if (error instanceof CliError) throw error
+    throw new CliError(
+      `Failed to open editor: ${
+        error instanceof Error ? error.message : String(error)
+      }`,
+      { cause: error },
     )
-    return undefined
   } finally {
     // Clean up the temporary file
     try {

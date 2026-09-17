@@ -1,13 +1,13 @@
 import { Command } from "@cliffy/command"
-import { resolveProjectContent } from "./project-content.ts"
+import { readTextSource } from "../../utils/text-source.ts"
+import { resolveProjectStatusId } from "./project-status.ts"
 import { withUsageMetadata } from "../usage.ts"
 import { gql } from "../../__codegen__/gql.ts"
 import type { ProjectUpdateInput } from "../../__codegen__/graphql.ts"
 import { getGraphQLClient } from "../../utils/graphql.ts"
+import { resolveWriteTeam } from "../../utils/issue-read.ts"
 import {
-  getProjectLabelIdByName,
-  getTeamIdByKey,
-  isLinearUuid,
+  lookupProjectLabelId,
   lookupUserId,
   resolveProjectId,
 } from "../../utils/linear.ts"
@@ -22,7 +22,6 @@ import {
 } from "../../utils/replacement.ts"
 import { readProject } from "./project-read.ts"
 import { printWriteResult } from "../../utils/write-result.ts"
-import { completeConnection } from "../../utils/pagination.ts"
 import {
   assertMutationReceipt,
   assertMutationSuccess,
@@ -58,33 +57,10 @@ const UpdateProject = gql(`
   }
 `)
 
-const GetProjectStatusesForUpdate = gql(`
-  query GetProjectStatusesForUpdate($after: String) {
-    projectStatuses(first: 100, after: $after) {
-      nodes {
-        id
-        name
-        type
-      }
-      pageInfo { hasNextPage endCursor }
-    }
-  }
-`)
-
-const STATUS_TYPE_MAPPING: Record<string, string> = {
-  "planned": "planned",
-  "in progress": "started",
-  "started": "started",
-  "paused": "paused",
-  "completed": "completed",
-  "canceled": "canceled",
-  "backlog": "backlog",
-}
-
 export const updateCommand = withUsageMetadata(new Command(), { writes: true })
   .name("update")
-  .description("Update a Linear project")
-  .arguments("<projectId:string>")
+  .description("Update a Linear project by UUID, slug ID, or exact name")
+  .arguments("<project:string>")
   .option("-n, --name <name:string>", "Project name", { preserveEmpty: true })
   .option(
     "-d, --description <description:string>",
@@ -93,17 +69,17 @@ export const updateCommand = withUsageMetadata(new Command(), { writes: true })
   )
   .option(
     "-f, --description-file <path:string>",
-    `Read project description from file (still subject to the ${PROJECT_DESCRIPTION_MAX_LENGTH}-character API limit)`,
+    `Read UTF-8 project description from a file (- for stdin; still subject to the ${PROJECT_DESCRIPTION_MAX_LENGTH}-character API limit)`,
     { preserveEmpty: true },
   )
   .option(
-    "--content <markdown:string>",
+    "--content <content:string>",
     "Replace project overview Markdown; empty string clears it",
     { preserveEmpty: true },
   )
   .option(
     "--content-file <path:string>",
-    "Read project overview Markdown from a file; replaces the full content",
+    "Read UTF-8 project overview Markdown from a file (- for stdin); replaces the full content",
     { preserveEmpty: true },
   )
   .option(
@@ -116,15 +92,15 @@ export const updateCommand = withUsageMetadata(new Command(), { writes: true })
     "Project lead (user UUID, username, name, email, 'self', or '@me')",
     { preserveEmpty: true },
   )
-  .option("--start-date <startDate:string>", "Start date (YYYY-MM-DD)", {
+  .option("--start-date <date:string>", "Start date (YYYY-MM-DD)", {
     preserveEmpty: true,
   })
-  .option("--target-date <targetDate:string>", "Target date (YYYY-MM-DD)", {
+  .option("--target-date <date:string>", "Target date (YYYY-MM-DD)", {
     preserveEmpty: true,
   })
   .option(
     "-t, --team <team:string>",
-    "Replace project teams with these keys (can be repeated)",
+    "Replace project teams with these UUIDs or keys (can be repeated)",
     { collect: true, preserveEmpty: true },
   )
   .option("-j, --json", "Output the write result as JSON")
@@ -144,7 +120,7 @@ export const updateCommand = withUsageMetadata(new Command(), { writes: true })
   )
   .option(
     "--label <label:string>",
-    "Replace the project's labels. May be repeated to set multiple labels.",
+    "Replace the project's labels by UUID or exact name. May be repeated to set multiple labels.",
     { collect: true, preserveEmpty: true },
   )
   .action(
@@ -166,7 +142,7 @@ export const updateCommand = withUsageMetadata(new Command(), { writes: true })
         unprotected,
         expectField,
       },
-      projectId,
+      projectReference,
     ) => {
       const { Spinner } = await import("@std/cli/unstable-spinner")
       const showSpinner = shouldShowSpinner() && !json
@@ -219,7 +195,8 @@ export const updateCommand = withUsageMetadata(new Command(), { writes: true })
           description,
           descriptionFile,
         )
-        const resolvedContent = await resolveProjectContent(
+        const resolvedContent = await readTextSource(
+          "content",
           content,
           contentFile,
         )
@@ -243,7 +220,7 @@ export const updateCommand = withUsageMetadata(new Command(), { writes: true })
 
         spinner?.start()
         const client = getGraphQLClient()
-        const resolvedId = await resolveProjectId(projectId)
+        const resolvedId = await resolveProjectId(projectReference)
 
         const input: ProjectUpdateInput = {}
 
@@ -253,46 +230,8 @@ export const updateCommand = withUsageMetadata(new Command(), { writes: true })
         if (startDate != null) input.startDate = startDate
         if (targetDate != null) input.targetDate = targetDate
 
-        if (status != null && isLinearUuid(status)) {
-          input.statusId = status.toLowerCase()
-        } else if (status != null) {
-          const statusLower = status.toLowerCase()
-          const apiStatusType = STATUS_TYPE_MAPPING[statusLower]
-          if (!apiStatusType) {
-            spinner?.stop()
-            throw new ValidationError(`Invalid status: ${status}`, {
-              suggestion:
-                "Valid values: planned, started, paused, completed, canceled, backlog",
-            })
-          }
-          const statusResult = await client.request(
-            GetProjectStatusesForUpdate,
-            {},
-          )
-          const projectStatuses = (await completeConnection(
-            statusResult.projectStatuses,
-            async (after) =>
-              (await client.request(GetProjectStatusesForUpdate, { after }))
-                .projectStatuses,
-            "project statuses",
-          )).nodes
-          const matchingStatuses = projectStatuses.filter(
-            (s: { type: string }) => s.type === apiStatusType,
-          )
-          if (matchingStatuses.length > 1) {
-            throw new ValidationError(
-              `Project status type is ambiguous: ${apiStatusType}`,
-              {
-                suggestion: "Use the exact Project status UUID with --status.",
-              },
-            )
-          }
-          const matchingStatus = matchingStatuses[0]
-          if (!matchingStatus) {
-            spinner?.stop()
-            throw new NotFoundError("Project status", apiStatusType)
-          }
-          input.statusId = matchingStatus.id
+        if (status != null) {
+          input.statusId = await resolveProjectStatusId(status)
         }
 
         if (lead != null) {
@@ -305,14 +244,9 @@ export const updateCommand = withUsageMetadata(new Command(), { writes: true })
         }
 
         if (teams && teams.length > 0) {
-          const teamIds = await Promise.all(
-            teams.map(async (teamKey) => {
-              const teamId = await getTeamIdByKey(teamKey.toUpperCase())
-              if (!teamId) throw new NotFoundError("Team", teamKey)
-              return teamId
-            }),
+          input.teamIds = await Promise.all(
+            teams.map(async (team) => (await resolveWriteTeam(team)).id),
           )
-          input.teamIds = teamIds
         }
 
         if (labels && labels.length > 0) {
@@ -321,7 +255,7 @@ export const updateCommand = withUsageMetadata(new Command(), { writes: true })
           const labelIds: string[] = []
           const seen = new Set<string>()
           for (const label of labels) {
-            const labelId = await getProjectLabelIdByName(label)
+            const labelId = await lookupProjectLabelId(label)
             if (!labelId) {
               spinner?.stop()
               throw new NotFoundError("Project label", label)
@@ -381,7 +315,9 @@ export const updateCommand = withUsageMetadata(new Command(), { writes: true })
         const project = result.projectUpdate.project
         assertMutationReceipt(project, result, resolvedId)
 
-        let outputProject = project
+        let verification:
+          | { status: "verified"; content: string | null }
+          | undefined
         if (plan.input.content === "") {
           try {
             const readBack = await readProject(client, resolvedId)
@@ -391,7 +327,10 @@ export const updateCommand = withUsageMetadata(new Command(), { writes: true })
             ) {
               throw new CliError("Project content is not empty on read-back")
             }
-            outputProject = { ...project, content: readBack.project.content }
+            verification = {
+              status: "verified",
+              content: readBack.project.content,
+            }
           } catch (error) {
             throw new WriteError(
               "The project update was applied, but clearing content could not be verified.",
@@ -416,10 +355,10 @@ export const updateCommand = withUsageMetadata(new Command(), { writes: true })
         }
 
         if (json) {
-          printWriteResult({ project: outputProject }, { fields: plan.fields })
+          printWriteResult({ project }, { fields: plan.fields, verification })
         } else {
-          console.log(`✓ Updated project: ${outputProject.name}`)
-          if (outputProject.url) console.log(outputProject.url)
+          console.log(`✓ Updated project: ${project.name}`)
+          if (project.url) console.log(project.url)
         }
       } catch (error) {
         spinner?.stop()

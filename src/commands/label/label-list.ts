@@ -1,12 +1,13 @@
 import { Command } from "@cliffy/command"
 import { unicodeWidth } from "@std/cli"
+import { underline } from "@std/fmt/colors"
 import { gql } from "../../__codegen__/gql.ts"
 import type {
   GetIssueLabelsQuery,
   GetIssueLabelsQueryVariables,
 } from "../../__codegen__/graphql.ts"
 import { getGraphQLClient } from "../../utils/graphql.ts"
-import { padDisplay, printStyledHeader } from "../../utils/display.ts"
+import { padDisplay } from "../../utils/display.ts"
 import { getTeamKey } from "../../utils/linear.ts"
 import { shouldShowSpinner } from "../../utils/hyperlink.ts"
 import { handleError, ValidationError } from "../../utils/errors.ts"
@@ -38,8 +39,8 @@ export const listCommand = new Command()
   .name("list")
   .description("List issue labels")
   .option(
-    "--team <teamKey:string>",
-    "Show labels available to a team, including workspace-level labels",
+    "--team <key:string>",
+    "Show labels available to a team key, including workspace-level labels",
   )
   .option(
     "--workspace-labels",
@@ -198,7 +199,7 @@ export const listCommand = new Command()
         padDisplay("TEAM", TEAM_WIDTH),
       ]
 
-      printStyledHeader(headerCells)
+      console.log(underline(headerCells.join(" ")))
 
       // Print each label
       for (const label of sortedLabels) {

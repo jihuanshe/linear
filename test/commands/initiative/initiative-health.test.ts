@@ -226,7 +226,7 @@ for (const reference of [id, "example", "Example"]) {
             const result = await runCli(server, [
               command,
               ...(bulk ? ["--bulk", reference] : [reference]),
-              "--force",
+              "--yes",
               "--json",
             ])
             assertEquals(result.code, 0, result.stdout + result.stderr)
@@ -290,7 +290,7 @@ for (const ambiguous of [false, true]) {
             command,
             ...(bulk ? ["--bulk"] : []),
             ambiguous ? "Duplicate" : id,
-            ...(command === "view" ? [] : ["--force"]),
+            ...(command === "view" ? [] : ["--yes"]),
             "--json",
           ])
           assertEquals(result.code, 1, result.stdout + result.stderr)
@@ -588,13 +588,13 @@ for (const bulk of [false, true]) {
       assertEquals(refused.code, 1)
       assertStringIncludes(
         refused.stderr,
-        "Interactive confirmation required. Use --force to skip.",
+        "Interactive confirmation required. Use --yes to skip.",
       )
       assertEquals(
         server.graphqlRequests.filter((r) => /mutation\s/.test(r.query)).length,
         0,
       )
-      const result = await runCli(server, [...args, "--force"])
+      const result = await runCli(server, [...args, "--yes"])
       assertEquals(result.code, 0, result.stderr)
       assertMatch(result.stdout, /moved .*to trash/i)
       assertEquals(

@@ -107,13 +107,12 @@ await snapshotTest({
   },
 })
 
-// Test: URL only (no issue ID) with invalid URL should error
 await snapshotTest({
   name: "Issue Link Command - invalid URL shows error",
   meta: import.meta,
   colors: false,
   canFail: true,
-  args: ["not-a-url"],
+  args: ["ENG-123", "not-a-url"],
   denoArgs: commonDenoArgs,
   async fn() {
     await linkCommand.parse()

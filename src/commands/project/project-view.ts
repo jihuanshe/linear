@@ -1,12 +1,14 @@
 import { Command } from "@cliffy/command"
+import { rgb24 } from "@std/fmt/colors"
 import { renderMarkdown } from "../../utils/markdown.ts"
 import { gql } from "../../__codegen__/gql.ts"
 import { getGraphQLClient } from "../../utils/graphql.ts"
-import { formatRelativeTime, printStyled } from "../../utils/display.ts"
+import { formatRelativeTime } from "../../utils/display.ts"
 import { openProjectPage } from "../../utils/actions.ts"
 import { shouldShowSpinner } from "../../utils/hyperlink.ts"
 import { handleError, NotFoundError } from "../../utils/errors.ts"
 import { completeProjectCollections } from "./project-read.ts"
+import { resolveProjectId } from "../../utils/linear.ts"
 
 const GetProjectDetails = gql(`
   query GetProjectDetails($id: String!, $includeContent: Boolean!) {
@@ -42,6 +44,7 @@ const GetProjectDetails = gql(`
       canceledAt
       updatedAt
       archivedAt
+      trashed
       createdAt
       url
       teams(first: 100) {
@@ -84,22 +87,19 @@ const GetProjectDetails = gql(`
 
 export const viewCommand = new Command()
   .name("view")
-  .description("View project details and full overview")
+  .description(
+    "View project details and full overview by UUID, slug ID, or exact name",
+  )
   .alias("v")
-  .arguments("<projectId:string>")
+  .arguments("<project:string>")
   .option("-w, --web", "Open in web browser")
   .option("-a, --app", "Open in Linear.app")
-  .option("-j, --json", "Output as JSON")
+  .option("-j, --json", "Output JSON, including archivedAt and trashed")
   .option("--include-content", "Include the project's content", {
     default: true,
   })
-  .action(async (options, projectId) => {
+  .action(async (options, projectReference) => {
     const { web, app, json, includeContent } = options
-
-    if (web || app) {
-      await openProjectPage(projectId, { app, web: !app })
-      return
-    }
 
     const { Spinner } = await import("@std/cli/unstable-spinner")
     const showSpinner = shouldShowSpinner() && !json
@@ -108,15 +108,21 @@ export const viewCommand = new Command()
 
     try {
       const client = getGraphQLClient()
+      const resolvedId = await resolveProjectId(projectReference)
+      if (web || app) {
+        spinner?.stop()
+        await openProjectPage(resolvedId, { app, web: !app })
+        return
+      }
       const result = await client.request(GetProjectDetails, {
-        id: projectId,
+        id: resolvedId,
         includeContent: includeContent === true,
       })
       spinner?.stop()
 
       const project = result.project
       if (!project) {
-        throw new NotFoundError("Project", projectId)
+        throw new NotFoundError("Project", projectReference)
       }
 
       if (json) {
@@ -137,10 +143,18 @@ export const viewCommand = new Command()
       lines.push(`**Slug:** ${project.slugId}`)
       lines.push(`**URL:** ${project.url}`)
 
+      if (project.trashed) lines.push("**Lifecycle:** Deleted (in trash)")
+      else if (project.archivedAt) lines.push("**Lifecycle:** Archived")
+
       // Status with color styling
       const statusLine = `**Status:** ${project.status.name}`
       if (Deno.stdout.isTerminal()) {
-        printStyled([statusLine, `color: ${project.status.color}`])
+        console.log(
+          rgb24(
+            statusLine,
+            parseInt(project.status.color.replace("#", ""), 16),
+          ),
+        )
       } else {
         lines.push(statusLine)
       }

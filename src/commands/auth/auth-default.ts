@@ -14,9 +14,9 @@ export const defaultCommand = withUsageMetadata(new Command(), {
   interactive: true,
 })
   .name("default")
-  .description("Set the default workspace")
-  .arguments("[workspace:string]")
-  .action(async (_options, workspace?: string) => {
+  .description("Set the default workspace by locally saved workspace slug")
+  .arguments("[slug:string]")
+  .action(async (_options, slug?: string) => {
     try {
       const workspaces = getWorkspaces()
 
@@ -26,16 +26,13 @@ export const defaultCommand = withUsageMetadata(new Command(), {
         })
       }
 
-      if (workspaces.length === 1) {
-        console.log(`Only one workspace configured: ${workspaces[0]}`)
-        return
-      }
-
       const currentDefault = getDefaultWorkspace()
 
       // If no workspace specified, prompt to select one
-      if (!workspace) {
-        workspace = await Select.prompt({
+      if (slug == null && workspaces.length === 1) {
+        slug = workspaces[0]
+      } else if (slug == null) {
+        slug = await Select.prompt({
           message: "Select default workspace",
           options: workspaces.map((ws) => ({
             name: ws === currentDefault ? `${ws} (current)` : ws,
@@ -44,19 +41,19 @@ export const defaultCommand = withUsageMetadata(new Command(), {
         })
       }
 
-      if (!hasWorkspace(workspace)) {
-        throw new NotFoundError("Workspace", workspace, {
+      if (!hasWorkspace(slug)) {
+        throw new NotFoundError("Workspace", slug, {
           suggestion: `Available workspaces: ${workspaces.join(", ")}`,
         })
       }
 
-      if (workspace === currentDefault) {
-        console.log(`"${workspace}" is already the default workspace`)
+      if (slug === currentDefault) {
+        console.log(`"${slug}" is already the default workspace`)
         return
       }
 
-      await setDefaultWorkspace(workspace)
-      console.log(`Default workspace set to: ${workspace}`)
+      await setDefaultWorkspace(slug)
+      console.log(`Default workspace set to: ${slug}`)
     } catch (error) {
       handleError(error, "Failed to set default workspace")
     }

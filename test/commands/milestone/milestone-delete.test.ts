@@ -16,14 +16,14 @@ await cliffySnapshotTest({
   },
 })
 
-// Test successful milestone deletion with --force flag
+// Test successful milestone deletion with --yes flag
 await cliffySnapshotTest({
-  name: "Milestone Delete Command - With Force Flag",
+  name: "Milestone Delete Command - With Yes Flag",
   meta: import.meta,
   colors: false,
   args: [
     "milestone-123",
-    "--force",
+    "--yes",
   ],
   denoArgs: commonDenoArgs,
   async fn() {

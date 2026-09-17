@@ -1,15 +1,12 @@
 import { completeIssueLabels } from "./issue-read.ts"
 import { gql } from "../__codegen__/gql.ts"
 import type {
-  GetAllTeamsQuery,
-  GetAllTeamsQueryVariables as _GetAllTeamsQueryVariables,
   GetIssueDetailsQuery,
   GetIssueDetailsWithCommentsQuery,
   GetIssuesForQueryQuery,
   GetOrganizationMembersQuery,
   GetProjectIdOptionsByNameQuery,
   GetProjectsForTeamQuery,
-  GetProjectTeamsForDoctorQuery,
   GetTeamMembersQuery,
   IssueFilter,
   IssueSortInput,
@@ -81,11 +78,13 @@ export function isIssueBlocked(issue: {
   return false
 }
 
-export type IssueRelationType =
-  | "blocks"
-  | "blocked-by"
-  | "related"
-  | "duplicate"
+export const ISSUE_RELATION_TYPES = [
+  "blocks",
+  "blocked-by",
+  "related",
+  "duplicate",
+] as const
+export type IssueRelationType = (typeof ISSUE_RELATION_TYPES)[number]
 
 export interface IssueRelationRequest {
   type: IssueRelationType
@@ -318,14 +317,14 @@ export function planIssueRelations(
   })
 }
 
-export function formatIssueIdentifier(providedId: string): string {
-  return normalizeIssueIdentifier(providedId) ?? providedId.toUpperCase()
+export function formatIssueIdentifier(identifier: string): string {
+  return normalizeIssueIdentifier(identifier) ?? identifier.toUpperCase()
 }
 
 export function getTeamKey(): string | undefined {
-  const teamId = getOption("team_id")
-  if (teamId) {
-    return teamId.toUpperCase()
+  const teamKey = getOption("team_key")
+  if (teamKey) {
+    return teamKey.toUpperCase()
   }
   return undefined
 }
@@ -334,16 +333,18 @@ export function getTeamKey(): string | undefined {
  * Resolves an Issue reference: UUID, identifier, or canonical Linear URL.
  * A numeric reference uses the configured team key; omitted input uses VCS context.
  */
-export async function getIssueIdentifier(
-  providedId?: string,
+export async function getIssueReference(
+  providedReference?: string,
 ): Promise<string | undefined> {
-  if (providedId && isLinearUuid(providedId)) return providedId.toLowerCase()
-  if (providedId) {
-    const normalizedIdentifier = normalizeIssueIdentifier(providedId)
+  if (providedReference && isLinearUuid(providedReference)) {
+    return providedReference.toLowerCase()
+  }
+  if (providedReference) {
+    const normalizedIdentifier = normalizeIssueIdentifier(providedReference)
     if (normalizedIdentifier) {
       return normalizedIdentifier
     }
-    const reference = parseLinearIssueUrl(providedId)
+    const reference = parseLinearIssueUrl(providedReference)
     if (reference) {
       if (reference.workspace != null) {
         const query = gql(`
@@ -370,26 +371,26 @@ export async function getIssueIdentifier(
     }
   }
 
-  if (providedId && /^[1-9][0-9]*$/.test(providedId)) {
-    const teamId = getTeamKey()
-    if (teamId) {
-      return normalizeIssueIdentifier(`${teamId}-${providedId}`)
+  if (providedReference && /^[1-9][0-9]*$/.test(providedReference)) {
+    const teamKey = getTeamKey()
+    if (teamKey) {
+      return normalizeIssueIdentifier(`${teamKey}-${providedReference}`)
     }
 
     throw new ValidationError(
-      "an integer id was provided, but no team is set",
+      "An issue number was provided, but no team is set",
       { suggestion: "Run `linear config` to set a team." },
     )
   }
 
-  if (providedId === undefined) {
-    const issueId = await getCurrentIssueFromVcs()
-    return issueId || undefined
+  if (providedReference === undefined) {
+    const identifier = await getCurrentIssueFromVcs()
+    return identifier || undefined
   }
 }
 
 export async function getIssueId(
-  identifier: string,
+  reference: string,
 ): Promise<string | undefined> {
   const query = gql(/* GraphQL */ `
     query GetIssueId($id: String!) {
@@ -400,10 +401,10 @@ export async function getIssueId(
   `)
 
   const client = getGraphQLClient()
-  const data = await client.request(query, { id: identifier })
+  const data = await client.request(query, { id: reference })
   if (
-    isLinearUuid(identifier) &&
-    data.issue?.id?.toLowerCase() !== identifier.toLowerCase()
+    isLinearUuid(reference) &&
+    data.issue?.id?.toLowerCase() !== reference.toLowerCase()
   ) {
     throw new ValidationError(
       "Issue lookup returned a different stable identity",
@@ -413,16 +414,16 @@ export async function getIssueId(
 }
 
 /** Resolve a required Issue UUID using the shared not-found error contract. */
-export async function requireIssueId(identifier: string): Promise<string> {
-  const id = await getIssueId(identifier).catch(
-    handleNotFound("Issue", identifier),
+export async function requireIssueId(reference: string): Promise<string> {
+  const id = await getIssueId(reference).catch(
+    handleNotFound("Issue", reference),
   )
-  if (!id) throw new NotFoundError("Issue", identifier)
+  if (!id) throw new NotFoundError("Issue", reference)
   return id
 }
 
 export async function getWorkflowStates(
-  teamKey: string,
+  teamReference: string,
 ) {
   const query = gql(/* GraphQL */ `
     query GetWorkflowStates($teamKey: String!) {
@@ -440,7 +441,7 @@ export async function getWorkflowStates(
   `)
 
   const client = getGraphQLClient()
-  const result = await client.request(query, { teamKey })
+  const result = await client.request(query, { teamKey: teamReference })
   return result.team.states.nodes.sort(
     (a: { position: number }, b: { position: number }) =>
       a.position - b.position,
@@ -600,27 +601,6 @@ const issueCommentsForUrlLookupQuery = gql(/* GraphQL */ `
   }
 `)
 
-async function fetchAllIssueCommentBodies(issueId: string): Promise<string[]> {
-  const client = getGraphQLClient()
-  const fetchPage = async (after?: string) => {
-    const result = await client.request(issueCommentsForUrlLookupQuery, {
-      id: issueId,
-      after,
-    })
-    const comments = result.issue?.comments
-    if (comments == null) {
-      throw new CliError(`Unable to read comments for ${issueId}`)
-    }
-    return comments
-  }
-  const comments = await completeConnection(
-    await fetchPage(),
-    fetchPage,
-    `comment lookup for ${issueId}`,
-  )
-  return comments.nodes.map((comment) => comment.body)
-}
-
 const issueDetailsQuery = gql(/* GraphQL */ `
   query GetIssueDetails($id: String!) {
     organization { id urlKey }
@@ -725,7 +705,7 @@ const issueAttachmentsQuery = gql(/* GraphQL */ `
 `)
 
 export async function fetchIssueComments(
-  issueId: string,
+  issueReference: string,
   limit = 0,
   initial?: GetIssueDetailsWithCommentsQuery["issue"]["comments"],
 ) {
@@ -734,17 +714,17 @@ export async function fetchIssueComments(
     first = limit > 0 ? Math.min(100, limit) : 100,
   ) => {
     const result = await getGraphQLClient().request(issueCommentsQuery, {
-      id: issueId,
+      id: issueReference,
       first,
       after,
     })
-    if (result.issue == null) throw new NotFoundError("Issue", issueId)
+    if (result.issue == null) throw new NotFoundError("Issue", issueReference)
     return result.issue.comments
   }
   return await completeConnection(
     initial ?? await fetchPage(),
     fetchPage,
-    `comments for ${issueId}`,
+    `comments for ${issueReference}`,
     limit,
   )
 }
@@ -765,31 +745,31 @@ async function completeIssueAttachments(
 }
 
 export function fetchIssueDetailsRaw(
-  issueId: string,
+  issueReference: string,
   includeComments: true,
   complete?: boolean,
 ): Promise<GetIssueDetailsWithCommentsQuery>
 export function fetchIssueDetailsRaw(
-  issueId: string,
+  issueReference: string,
   includeComments?: false,
   complete?: boolean,
 ): Promise<GetIssueDetailsQuery>
 export function fetchIssueDetailsRaw(
-  issueId: string,
+  issueReference: string,
   includeComments: boolean,
   complete?: boolean,
 ): Promise<GetIssueDetailsWithCommentsQuery | GetIssueDetailsQuery>
 export async function fetchIssueDetailsRaw(
-  issueId: string,
+  issueReference: string,
   includeComments = false,
   complete = false,
 ) {
   const client = getGraphQLClient()
   if (includeComments) {
     const data = await client.request(issueDetailsWithCommentsQuery, {
-      id: issueId,
+      id: issueReference,
     })
-    if (data.issue == null) throw new NotFoundError("Issue", issueId)
+    if (data.issue == null) throw new NotFoundError("Issue", issueReference)
     if (!complete) return data
     const [comments, attachments, labels] = await Promise.all([
       fetchIssueComments(data.issue.id, 0, data.issue.comments),
@@ -798,8 +778,8 @@ export async function fetchIssueDetailsRaw(
     ])
     return { ...data, issue: { ...data.issue, comments, attachments, labels } }
   }
-  const data = await client.request(issueDetailsQuery, { id: issueId })
-  if (data.issue == null) throw new NotFoundError("Issue", issueId)
+  const data = await client.request(issueDetailsQuery, { id: issueReference })
+  if (data.issue == null) throw new NotFoundError("Issue", issueReference)
   if (!complete) return data
   const [attachments, labels] = await Promise.all([
     completeIssueAttachments(data.issue.id, data.issue.attachments),
@@ -869,8 +849,6 @@ const queryIssuesQuery = gql(/* GraphQL */ `
     $first: Int
     $after: String
     $includeArchived: Boolean
-    $includeProjectTeamMetadata: Boolean!
-    $includeEstimationMetadata: Boolean!
     $includeDescription: Boolean!
     $includeComments: Boolean!
   ) {
@@ -918,7 +896,6 @@ const queryIssuesQuery = gql(/* GraphQL */ `
           key
           name
           cyclesEnabled
-          issueEstimationType @include(if: $includeEstimationMetadata)
           activeCycle {
             number
           }
@@ -926,18 +903,6 @@ const queryIssuesQuery = gql(/* GraphQL */ `
         project {
           id
           name
-          teams(
-            first: 100
-            includeArchived: $includeArchived
-          ) @include(if: $includeProjectTeamMetadata) {
-            nodes {
-              key
-            }
-            pageInfo {
-              hasNextPage
-              endCursor
-            }
-          }
         }
         projectMilestone {
           id
@@ -982,99 +947,13 @@ const queryIssuesQuery = gql(/* GraphQL */ `
   }
 `)
 
-const projectTeamsQuery = gql(/* GraphQL */ `
-  query GetProjectTeamsForDoctor(
-    $id: String!
-    $first: Int
-    $after: String
-    $includeArchived: Boolean
-  ) {
-    project(id: $id) {
-      teams(
-        first: $first
-        after: $after
-        includeArchived: $includeArchived
-      ) {
-        nodes {
-          key
-        }
-        pageInfo {
-          hasNextPage
-          endCursor
-        }
-      }
-    }
-  }
-`)
-
 type QueryIssuesPayload = GetIssuesForQueryQuery["issues"]
-type QueryIssueNode = QueryIssuesPayload["nodes"][number]
-type ProjectTeamConnection = NonNullable<
-  NonNullable<QueryIssueNode["project"]>["teams"]
->
 
 export type FetchedQueryIssueResult = QueryIssuesPayload["nodes"][number]
 
 export type FetchedQueryIssuePayload = {
   nodes: QueryIssuesPayload["nodes"]
   pageInfo: QueryIssuesPayload["pageInfo"]
-}
-
-async function fetchCompleteProjectTeams(
-  projectId: string,
-  initial: ProjectTeamConnection,
-  includeArchived?: boolean,
-): Promise<ProjectTeamConnection> {
-  const fetchPage = async (after: string, first: number) => {
-    const result: GetProjectTeamsForDoctorQuery = await getGraphQLClient()
-      .request(projectTeamsQuery, {
-        id: projectId,
-        first,
-        after,
-        includeArchived,
-      })
-    if (result.project == null) {
-      throw new NotFoundError("Project", projectId)
-    }
-    return result.project.teams
-  }
-  return await completeConnection(
-    initial,
-    fetchPage,
-    `project teams for ${projectId}`,
-  )
-}
-
-async function completeDoctorProjectTeams(
-  issues: QueryIssuesPayload["nodes"],
-  includeArchived?: boolean,
-): Promise<QueryIssuesPayload["nodes"]> {
-  const completeTeams = new Map<string, ProjectTeamConnection>()
-  for (const issue of issues) {
-    const project = issue.project
-    if (
-      project == null || project.teams == null ||
-      !project.teams.pageInfo.hasNextPage || completeTeams.has(project.id)
-    ) {
-      continue
-    }
-    completeTeams.set(
-      project.id,
-      await fetchCompleteProjectTeams(
-        project.id,
-        project.teams,
-        includeArchived,
-      ),
-    )
-  }
-
-  if (completeTeams.size === 0) return issues
-  return issues.map((issue) => {
-    const project = issue.project
-    if (project == null) return issue
-    const teams = completeTeams.get(project.id)
-    return teams == null ? issue : { ...issue, project: { ...project, teams } }
-  })
 }
 
 function buildWorkflowStateFilter(
@@ -1093,32 +972,33 @@ function buildWorkflowStateFilter(
   }
 }
 
-export interface FetchIssuesForQueryOptions {
+interface IssueFilterOptions {
   teamKeys?: string[]
   allTeams?: boolean
-  state?: string[]
+  stateTypes?: string[]
   stateNames?: string[]
   assignee?: string
   unassigned?: boolean
-  sort?: "manual" | "priority"
-  limit?: number
   projectId?: string
-  noProject?: boolean
+  unprojected?: boolean
   projectLabel?: string
   cycleId?: string
   milestoneId?: string
   labelNames?: string[]
   createdAfter?: string
   updatedAfter?: string
-  includeArchived?: boolean
-  includeProjectTeamMetadata?: boolean
-  includeEstimationMetadata?: boolean
-  /** Exact URL to locate in an issue's URL, description, or comments. */
-  exactUrl?: string
   /** Resolved once by batch callers to avoid repeating user lookup requests. */
   assigneeId?: string
   /** Use Linear's current-principal filter without a separate viewer lookup. */
   assigneeIsMe?: boolean
+}
+
+export interface FetchIssuesForQueryOptions extends IssueFilterOptions {
+  sort?: "manual" | "priority"
+  limit?: number
+  includeArchived?: boolean
+  /** Exact URL to locate in an issue's URL, description, or comments. */
+  exactUrl?: string
 }
 
 interface LinearIssueUrlReference {
@@ -1266,11 +1146,16 @@ async function filterIssuesByExactUrl(
       containsExactUrl(issue.description, target)
     let comments = issue.comments
     if (comments?.pageInfo?.hasNextPage) {
-      const bodies = await fetchAllIssueCommentBodies(issue.id)
-      comments = {
-        nodes: bodies.map((body) => ({ body })),
-        pageInfo: { hasNextPage: false, endCursor: null },
-      }
+      comments = await completeConnection(comments, async (after) => {
+        const result = await getGraphQLClient().request(
+          issueCommentsForUrlLookupQuery,
+          { id: issue.id, after },
+        )
+        if (result.issue?.comments == null) {
+          throw new CliError(`Unable to read comments for ${issue.id}`)
+        }
+        return result.issue.comments
+      }, `comment lookup for ${issue.id}`)
     }
     const commentMatch = comments?.nodes.some((comment) =>
       containsExactUrl(comment.body, target)
@@ -1282,30 +1167,10 @@ async function filterIssuesByExactUrl(
   return matched
 }
 
-export async function fetchIssuesForQuery(
-  options: FetchIssuesForQueryOptions,
-): Promise<FetchedQueryIssuePayload> {
-  let filter: IssueFilter = {}
-  const exactIssueReference = options.exactUrl == null
-    ? undefined
-    : parseLinearIssueUrl(options.exactUrl)
-
-  if (options.exactUrl != null) {
-    if (exactIssueReference != null) {
-      filter.id = { eq: exactIssueReference.identifier }
-    } else {
-      // The URL may have been recorded in the description or a comment. Keep
-      // both paths in the upstream candidate filter so an empty description
-      // match cannot cause a duplicate Issue to be created.
-      filter = {
-        or: [
-          { description: { contains: options.exactUrl } },
-          { comments: { body: { contains: options.exactUrl } } },
-        ],
-      }
-    }
-  }
-
+async function buildIssueFilter(
+  options: IssueFilterOptions,
+): Promise<IssueFilter> {
+  const filter: IssueFilter = {}
   if (options.allTeams) {
     // No team filter — workspace-wide
   } else if (options.teamKeys && options.teamKeys.length > 0) {
@@ -1319,7 +1184,7 @@ export async function fetchIssuesForQuery(
   }
 
   const stateFilter = buildWorkflowStateFilter(
-    options.state,
+    options.stateTypes,
     options.stateNames,
   )
   if (stateFilter != null) filter.state = stateFilter
@@ -1339,7 +1204,7 @@ export async function fetchIssuesForQuery(
 
   if (options.projectId) {
     filter.project = { id: { eq: options.projectId } }
-  } else if (options.noProject) {
+  } else if (options.unprojected) {
     filter.project = { null: true }
   } else if (options.projectLabel) {
     filter.project = {
@@ -1380,6 +1245,28 @@ export async function fetchIssuesForQuery(
       gte: parseDateFilter(options.updatedAfter, "--updated-after"),
     }
   }
+  return filter
+}
+
+export async function fetchIssuesForQuery(
+  options: FetchIssuesForQueryOptions,
+): Promise<FetchedQueryIssuePayload> {
+  const filter = await buildIssueFilter(options)
+  const exactIssueReference = options.exactUrl == null
+    ? undefined
+    : parseLinearIssueUrl(options.exactUrl)
+
+  if (options.exactUrl != null) {
+    if (exactIssueReference != null) {
+      filter.id = { eq: exactIssueReference.identifier }
+    } else {
+      // Both candidate paths are needed before exact local matching.
+      filter.or = [
+        { description: { contains: options.exactUrl } },
+        { comments: { body: { contains: options.exactUrl } } },
+      ]
+    }
+  }
 
   const sort = options.sort ?? "priority"
   let sortPayload: Array<IssueSortInput>
@@ -1418,8 +1305,6 @@ export async function fetchIssuesForQuery(
       first,
       after,
       includeArchived: options.includeArchived,
-      includeProjectTeamMetadata: options.includeProjectTeamMetadata === true,
-      includeEstimationMetadata: options.includeEstimationMetadata === true,
       includeDescription: options.exactUrl != null,
       includeComments: options.exactUrl != null && exactIssueReference == null,
     })
@@ -1432,14 +1317,10 @@ export async function fetchIssuesForQuery(
     fetchAll ? 0 : limit,
   )
 
-  const completedNodes = options.includeProjectTeamMetadata === true
-    ? await completeDoctorProjectTeams(allNodes, options.includeArchived)
-    : allNodes
-
   const matchedNodes = options.exactUrl == null
-    ? completedNodes
+    ? allNodes
     : await filterIssuesByExactUrl(
-      completedNodes,
+      allNodes,
       options.exactUrl,
       exactIssueReference,
     )
@@ -1568,21 +1449,8 @@ export type FetchedIssueSearchPayload = {
   totalCount: SearchIssuesPayload["totalCount"]
 }
 
-export interface SearchIssuesByTermOptions {
-  teamKey?: string
-  teamKeys?: string[]
-  state?: string[]
-  stateNames?: string[]
-  assignee?: string
-  unassigned?: boolean
+export interface SearchIssuesByTermOptions extends IssueFilterOptions {
   limit?: number
-  projectId?: string
-  noProject?: boolean
-  projectLabel?: string
-  cycleId?: string
-  labelNames?: string[]
-  createdAfter?: string
-  updatedAfter?: string
   includeComments?: boolean
   includeArchived?: boolean
   orderBy?: PaginationOrderBy
@@ -1592,76 +1460,7 @@ export async function searchIssuesByTerm(
   term: string,
   options: SearchIssuesByTermOptions = {},
 ): Promise<FetchedIssueSearchPayload> {
-  const filter: IssueFilter = {}
-
-  if (options.teamKeys != null && options.teamKeys.length > 0) {
-    if (options.teamKeys.length === 1) {
-      filter.team = { key: { eq: options.teamKeys[0] } }
-    } else {
-      filter.team = {
-        or: options.teamKeys.map((key) => ({ key: { eq: key } })),
-      }
-    }
-  } else if (options.teamKey != null) {
-    filter.team = { key: { eq: options.teamKey } }
-  }
-
-  const stateFilter = buildWorkflowStateFilter(
-    options.state,
-    options.stateNames,
-  )
-  if (stateFilter != null) filter.state = stateFilter
-
-  if (options.unassigned) {
-    filter.assignee = { null: true }
-  } else if (options.assignee) {
-    const userId = await lookupUserId(options.assignee)
-    if (!userId) {
-      throw new NotFoundError("User", options.assignee)
-    }
-    filter.assignee = { id: { eq: userId } }
-  }
-
-  if (options.projectId) {
-    filter.project = { id: { eq: options.projectId } }
-  } else if (options.noProject) {
-    filter.project = { null: true }
-  } else if (options.projectLabel) {
-    filter.project = {
-      labels: { name: { eqIgnoreCase: options.projectLabel } },
-    }
-  }
-
-  if (options.cycleId) {
-    filter.cycle = { id: { eq: options.cycleId } }
-  }
-
-  if (options.labelNames != null && options.labelNames.length > 0) {
-    if (options.labelNames.length === 1) {
-      filter.labels = {
-        some: { name: { eqIgnoreCase: options.labelNames[0] } },
-      }
-    } else {
-      filter.labels = {
-        and: options.labelNames.map((name) => ({
-          some: { name: { eqIgnoreCase: name } },
-        })),
-      }
-    }
-  }
-
-  if (options.createdAfter) {
-    filter.createdAt = {
-      gte: parseDateFilter(options.createdAfter, "--created-after"),
-    }
-  }
-
-  if (options.updatedAfter) {
-    filter.updatedAt = {
-      gte: parseDateFilter(options.updatedAfter, "--updated-after"),
-    }
-  }
-
+  const filter = await buildIssueFilter(options)
   const client = getGraphQLClient()
   let totalCount = 0
   const first = options.limit === 0
@@ -1710,7 +1509,7 @@ export function isLinearUuid(value: string): boolean {
  * Returns undefined when no project matches. Use [[resolveProjectId]] when
  * you want a missing project to throw.
  */
-export async function getProjectIdByName(
+export async function lookupProjectId(
   input: string,
   includeArchived?: boolean,
 ): Promise<string | undefined> {
@@ -1795,7 +1594,7 @@ function uniqueLookupId(
 export async function resolveProjectId(
   input: string,
 ): Promise<string> {
-  const projectId = await getProjectIdByName(input)
+  const projectId = await lookupProjectId(input)
   if (!projectId) {
     throw new NotFoundError("Project", input, {
       suggestion:
@@ -1895,51 +1694,6 @@ export async function getProjectsForTeam(
   )
 }
 
-export async function getTeamIdByKey(
-  team: string,
-): Promise<string | undefined> {
-  const client = getGraphQLClient()
-  const query = gql(/* GraphQL */ `
-    query GetTeamIdByKey($team: String!) {
-      teams(filter: { key: { eq: $team } }) {
-        nodes {
-          id
-        }
-      }
-    }
-  `)
-  const data = await client.request(query, { team })
-  return data.teams?.nodes[0]?.id
-}
-
-export async function searchTeamsByKeySubstring(
-  keySubstring: string,
-): Promise<Record<string, string>> {
-  const client = getGraphQLClient()
-  const query = gql(/* GraphQL */ `
-    query GetTeamIdOptionsByKey($team: String!) {
-      teams(filter: { key: { containsIgnoreCase: $team } }) {
-        nodes {
-          id
-          key
-          name
-        }
-      }
-    }
-  `)
-  const data = await client.request(query, { team: keySubstring })
-  const qResults = data.teams?.nodes || []
-  const sortedResults = qResults.sort((a, b) =>
-    a.key.toLowerCase().localeCompare(b.key.toLowerCase())
-  )
-  return Object.fromEntries(
-    sortedResults.map((t) => [
-      t.id,
-      `${(t as { id: string; key: string; name: string }).name} (${t.key})`,
-    ]),
-  )
-}
-
 export async function lookupUserId(
   input: "self" | "@me" | string,
 ): Promise<string | undefined> {
@@ -1996,23 +1750,33 @@ export async function lookupUserId(
   return undefined
 }
 
-export async function getIssueLabelIdByNameForTeam(
-  name: string,
+export async function lookupIssueLabelIdForTeam(
+  reference: string,
   team: string,
 ): Promise<string | undefined> {
   const client = getGraphQLClient()
-  if (isLinearUuid(name)) {
+  if (isLinearUuid(reference)) {
     const byId = gql(`
-      query GetIssueLabelForWrite($id: String!) {
-        issueLabel(id: $id) { id isGroup team { id key } }
+      query GetIssueLabelForWrite($id: ID!) {
+        issueLabels(first: 2, filter: { id: { eq: $id } }) {
+          nodes { id isGroup team { id key } }
+          pageInfo { hasNextPage endCursor }
+        }
       }
     `)
-    const data = await client.request(byId, { id: name.toLowerCase() })
-    const label = data?.issueLabel
-    if (label == null) return undefined
-    if (label.id?.toLowerCase() !== name.toLowerCase()) {
+    const data = await client.request(byId, { id: reference.toLowerCase() })
+    const id = uniqueLookupId(data?.issueLabels, reference, "Issue label")
+    if (id == null) return undefined
+    const label = data.issueLabels.nodes[0]!
+    if (id.toLowerCase() !== reference.toLowerCase()) {
       throw new CliError("Issue label lookup returned a different identity")
     }
+    if (
+      typeof label.isGroup !== "boolean" || label.team === undefined ||
+      (label.team != null &&
+        (typeof label.team.id !== "string" ||
+          typeof label.team.key !== "string"))
+    ) throw new CliError("Issue label lookup returned an incomplete label")
     const matches = label.team == null ||
       (isLinearUuid(team)
         ? label.team.id.toLowerCase() === team.toLowerCase()
@@ -2042,23 +1806,53 @@ export async function getIssueLabelIdByNameForTeam(
   const scope = isLinearUuid(team)
     ? { id: { eq: team } }
     : { key: { eq: team } }
-  const data = await client.request(query, { name, team: scope })
-  return uniqueLookupId(data?.issueLabels, name, "Issue label")
+  const data = await client.request(query, { name: reference, team: scope })
+  return uniqueLookupId(data?.issueLabels, reference, "Issue label")
 }
 
-export async function getProjectLabelIdByName(
-  name: string,
+/** Resolve reference lists together, preserving each list's first-input ID order. */
+export async function resolveIssueLabelIdsForTeam(
+  referenceLists: readonly (readonly string[] | undefined)[],
+  teamReference: string,
+): Promise<string[][]> {
+  // Only UUIDs have a client-defined case equivalence. Let Linear decide name
+  // matching and ambiguity for each distinct spelling, regardless of list size.
+  const referenceKey = (reference: string) =>
+    isLinearUuid(reference) ? reference.toLowerCase() : reference
+  const references = new Set<string>()
+  for (const reference of referenceLists.flatMap((list) => list ?? [])) {
+    if (!reference.trim()) {
+      throw new ValidationError("Issue label reference cannot be empty")
+    }
+    references.add(referenceKey(reference))
+  }
+  const resolvedIds = new Map<string, string>()
+  for (const reference of references) {
+    const labelId = await lookupIssueLabelIdForTeam(reference, teamReference)
+    if (labelId == null) throw new NotFoundError("Issue label", reference)
+    resolvedIds.set(reference, labelId.toLowerCase())
+  }
+  return referenceLists.map((list) => {
+    const labelIds = (list ?? []).map((reference) =>
+      resolvedIds.get(referenceKey(reference))!
+    )
+    return [...new Set(labelIds)]
+  })
+}
+
+export async function lookupProjectLabelId(
+  reference: string,
 ): Promise<string | undefined> {
   const client = getGraphQLClient()
-  if (isLinearUuid(name)) {
+  if (isLinearUuid(reference)) {
     const byId = gql(`
       query GetProjectLabelForWrite($id: String!) {
         projectLabel(id: $id) { id isGroup }
       }
     `)
-    const data = await client.request(byId, { id: name.toLowerCase() })
+    const data = await client.request(byId, { id: reference.toLowerCase() })
     if (data?.projectLabel == null) return undefined
-    if (data.projectLabel.id?.toLowerCase() !== name.toLowerCase()) {
+    if (data.projectLabel.id?.toLowerCase() !== reference.toLowerCase()) {
       throw new CliError("Project label lookup returned a different identity")
     }
     if (data.projectLabel.isGroup) {
@@ -2074,8 +1868,8 @@ export async function getProjectLabelIdByName(
       }
     }
   `)
-  const data = await client.request(query, { name })
-  return uniqueLookupId(data?.projectLabels, name, "Project label")
+  const data = await client.request(query, { name: reference })
+  return uniqueLookupId(data?.projectLabels, reference, "Project label")
 }
 
 export async function getIssueLabelOptionsByNameForTeam(
@@ -2130,24 +1924,16 @@ export async function getAllTeams(): Promise<
     }
   `)
 
-  const allTeams = []
-  let hasNextPage = true
-  let after: string | null | undefined = undefined
-
-  while (hasNextPage) {
-    const result: GetAllTeamsQuery = await client.request(query, {
-      first: 100, // Fetch 100 teams per page
-      after,
-    })
-
-    const teams = result.teams.nodes
-    allTeams.push(...teams)
-
-    hasNextPage = result.teams.pageInfo.hasNextPage
-    after = result.teams.pageInfo.endCursor
+  const fetchPage = async (after?: string) => {
+    const result = await client.request(query, { first: 100, after })
+    return result.teams
   }
-
-  return allTeams.sort((a, b) =>
+  const { nodes } = await completeConnection(
+    await fetchPage(),
+    fetchPage,
+    "teams",
+  )
+  return nodes.sort((a, b) =>
     a.name.toLowerCase().localeCompare(b.name.toLowerCase())
   )
 }
@@ -2180,9 +1966,6 @@ export async function getLabelsForTeam(
 
 type TeamMembersConnection = GetTeamMembersQuery["team"]["members"]
 
-// `includeDisabled` is explicit so callers can't silently inherit Linear's
-// default of false, which is what made `team members --all` a no-op: disabled
-// users were never fetched, so filtering on `active` could not reveal them.
 export async function getTeamMembers(
   teamKey: string,
   includeDisabled: boolean,
@@ -2229,39 +2012,20 @@ export async function getTeamMembers(
     }
   `)
 
-  const nodes: TeamMembersConnection["nodes"] = []
-  // Describes the exhausted source connection, so hasNextPage is always false
-  // once pagination completes. Matches label list and project list.
-  let pageInfo: TeamMembersConnection["pageInfo"] = {
-    hasNextPage: false,
-    endCursor: null,
-  }
-  let hasNextPage = true
-  let after: string | null | undefined = undefined
-
-  while (hasNextPage) {
-    // Annotated to break the circular inference between `after` and the
-    // request's own result type.
-    const result: GetTeamMembersQuery = await client.request(query, {
+  const fetchPage = async (after?: string) => {
+    const result = await client.request(query, {
       teamKey,
       includeDisabled,
-      first: 100, // Fetch 100 members per page
+      first: 100,
       after,
     })
-
-    const members = result.team.members
-    nodes.push(...members.nodes)
-    pageInfo = members.pageInfo
-
-    hasNextPage = members.pageInfo.hasNextPage
-    const nextCursor = members.pageInfo.endCursor
-    if (hasNextPage && (nextCursor == null || nextCursor === after)) {
-      throw new CliError(
-        "Linear reported more team members but did not advance the page cursor",
-      )
-    }
-    after = nextCursor
+    return result.team.members
   }
+  const { nodes, pageInfo } = await completeConnection(
+    await fetchPage(),
+    fetchPage,
+    "team members",
+  )
 
   // Sort after all pages are fetched so ordering is global, not per-page.
   nodes.sort((a, b) =>
@@ -2320,34 +2084,19 @@ export async function getOrganizationMembers(
     }
   `)
 
-  const nodes: OrganizationMembersConnection["nodes"] = []
-  let pageInfo: OrganizationMembersConnection["pageInfo"] = {
-    hasNextPage: false,
-    endCursor: null,
-  }
-  let hasNextPage = true
-  let after: string | null | undefined = undefined
-
-  while (hasNextPage) {
-    const result: GetOrganizationMembersQuery = await client.request(query, {
+  const fetchPage = async (after?: string) => {
+    const result = await client.request(query, {
       includeDisabled,
       first: 100,
       after,
     })
-
-    const users = result.viewer.organization.users
-    nodes.push(...users.nodes)
-    pageInfo = users.pageInfo
-
-    hasNextPage = users.pageInfo.hasNextPage
-    const nextCursor = users.pageInfo.endCursor
-    if (hasNextPage && (nextCursor == null || nextCursor === after)) {
-      throw new CliError(
-        "Linear reported more workspace members but did not advance the page cursor",
-      )
-    }
-    after = nextCursor
+    return result.viewer.organization.users
   }
+  const { nodes, pageInfo } = await completeConnection(
+    await fetchPage(),
+    fetchPage,
+    "workspace members",
+  )
 
   nodes.sort((a, b) =>
     a.displayName.toLowerCase().localeCompare(b.displayName.toLowerCase())
@@ -2363,23 +2112,6 @@ export async function getIssueTeam(issueIdentifier: string) {
   const data = await getGraphQLClient().request(query, { id: issueIdentifier })
   if (data.issue == null) throw new NotFoundError("Issue", issueIdentifier)
   return data.issue.team
-}
-
-export async function getIssueProjectId(
-  issueIdentifier: string,
-): Promise<string | undefined> {
-  const client = getGraphQLClient()
-  const query = gql(/* GraphQL */ `
-    query GetIssueProjectId($id: String!) {
-      issue(id: $id) {
-        project {
-          id
-        }
-      }
-    }
-  `)
-  const data = await client.request(query, { id: issueIdentifier })
-  return data.issue?.project?.id ?? undefined
 }
 
 /**
@@ -2495,38 +2227,36 @@ export async function getCycleIdByNameOrNumber(
     )
   }
 
-  const cycles = [...(data.team.cycles?.nodes || [])]
-  let pageInfo = data.team.cycles?.pageInfo
-  while (pageInfo?.hasNextPage) {
-    const page = await client.request(query, {
-      teamId,
-      after: pageInfo.endCursor,
-    })
-    if (!page.team) {
-      throw new NotFoundError("Team", teamId)
-    }
-    cycles.push(...(page.team.cycles?.nodes || []))
-    pageInfo = page.team.cycles?.pageInfo
-  }
   const keyword = cycleNameOrNumber.toLowerCase()
+  if ((keyword === "active" || keyword === "now") && data.team.activeCycle) {
+    return data.team.activeCycle.id
+  }
+  const { nodes: cycles } = await completeConnection(
+    data.team.cycles,
+    async (after) => {
+      const page = await client.request(query, { teamId, after })
+      if (!page.team) {
+        throw new NotFoundError("Team", teamId)
+      }
+      return page.team.cycles
+    },
+    `cycles for ${data.team.key}`,
+  )
 
   // Reserved keywords take precedence over coincidental cycle names; use the
   // cycle number to reach a cycle literally named "next"/"previous"/"active".
   if (keyword === "active" || keyword === "now") {
-    if (!data.team.activeCycle) {
-      const next = cycles.find((c) => c.isNext)
-      throw new CliError(
-        `Team ${data.team.key} has no active cycle`,
-        {
-          suggestion: next != null
-            ? `The next cycle (#${next.number}) starts ${
-              String(next.startsAt).slice(0, 10)
-            } — use --cycle next, a cycle number, or a name.`
-            : "Use a cycle number or name instead.",
-        },
-      )
-    }
-    return data.team.activeCycle.id
+    const next = cycles.find((c) => c.isNext)
+    throw new CliError(
+      `Team ${data.team.key} has no active cycle`,
+      {
+        suggestion: next != null
+          ? `The next cycle (#${next.number}) starts ${
+            String(next.startsAt).slice(0, 10)
+          } — use --cycle next, a cycle number, or a name.`
+          : "Use a cycle number or name instead.",
+      },
+    )
   }
 
   if (keyword === "next") {

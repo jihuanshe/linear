@@ -1,13 +1,8 @@
 import { Command } from "@cliffy/command"
+import { green, red, rgb24, underline, yellow } from "@std/fmt/colors"
 import { gql } from "../../__codegen__/gql.ts"
 import { getGraphQLClient } from "../../utils/graphql.ts"
-import {
-  getTimeAgo,
-  padDisplay,
-  printStyled,
-  printStyledHeader,
-  truncateText,
-} from "../../utils/display.ts"
+import { getTimeAgo, padDisplay, truncateText } from "../../utils/display.ts"
 import { resolveProjectId } from "../../utils/linear.ts"
 import { shouldShowSpinner } from "../../utils/hyperlink.ts"
 import {
@@ -44,14 +39,16 @@ const ListProjectUpdatesQuery = gql(`
 
 export const listCommand = new Command()
   .name("list")
-  .description("List status updates for a project")
+  .description(
+    "List status updates for a project by UUID, slug ID, or exact name",
+  )
   .alias("l")
-  .arguments("<projectId:string>")
+  .arguments("<project:string>")
   .option("--json", "Output as JSON")
   .option("--limit <limit:number>", "Maximum results (positive integer)", {
     default: 10,
   })
-  .action(async ({ json, limit }, projectId) => {
+  .action(async ({ json, limit }, projectReference) => {
     const { Spinner } = await import("@std/cli/unstable-spinner")
     const showSpinner = shouldShowSpinner() && !json
     const spinner = showSpinner ? new Spinner() : null
@@ -63,7 +60,7 @@ export const listCommand = new Command()
       }
 
       // Resolve project ID
-      const resolvedProjectId = await resolveProjectId(projectId)
+      const resolvedProjectId = await resolveProjectId(projectReference)
 
       const client = getGraphQLClient()
       const result = await client.request(ListProjectUpdatesQuery, {
@@ -74,7 +71,7 @@ export const listCommand = new Command()
 
       const project = result.project
       if (!project) {
-        throw new NotFoundError("Project", projectId)
+        throw new NotFoundError("Project", projectReference)
       }
 
       const updates = project.projectUpdates?.nodes || []
@@ -135,7 +132,7 @@ export const listCommand = new Command()
         padDisplay("AUTHOR", AUTHOR_WIDTH),
       ]
 
-      printStyledHeader(header)
+      console.log(underline(header.join(" ")))
 
       // Print each update
       for (const update of updates) {
@@ -144,39 +141,24 @@ export const listCommand = new Command()
         const date = getTimeAgo(new Date(update.createdAt))
         const author = getAuthor(update)
 
-        // Get health color
-        let healthColor = ""
+        let details = `${padDisplay(health, HEALTH_WIDTH)} ${
+          padDisplay(date, DATE_WIDTH)
+        } ${padDisplay(author, AUTHOR_WIDTH)}`
         if (update.health === "onTrack") {
-          healthColor = "color: green"
+          details = green(details)
         } else if (update.health === "atRisk") {
-          healthColor = "color: yellow"
+          details = yellow(details)
         } else if (update.health === "offTrack") {
-          healthColor = "color: red"
+          details = red(details)
         }
 
-        if (healthColor) {
-          printStyled(
-            `${padDisplay(shortId, ID_WIDTH)} `,
-            [padDisplay(health, HEALTH_WIDTH), healthColor],
-            ` ${padDisplay(date, DATE_WIDTH)} ${
-              padDisplay(author, AUTHOR_WIDTH)
-            }`,
-          )
-        } else {
-          console.log(
-            `${padDisplay(shortId, ID_WIDTH)} ${
-              padDisplay(health, HEALTH_WIDTH)
-            } ${padDisplay(date, DATE_WIDTH)} ${
-              padDisplay(author, AUTHOR_WIDTH)
-            }`,
-          )
-        }
+        console.log(`${padDisplay(shortId, ID_WIDTH)} ${details}`)
 
         // Show truncated body if available
         if (update.body) {
           const bodyPreview = update.body.replace(/\n/g, " ").trim()
           const truncatedBody = truncateText(bodyPreview, availableWidth)
-          printStyled([`   ${truncatedBody}`, "color: gray"])
+          console.log(rgb24(`   ${truncatedBody}`, 0x808080))
         }
       }
     } catch (error) {

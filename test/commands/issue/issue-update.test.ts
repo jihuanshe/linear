@@ -2,13 +2,82 @@ import {
   issueWriteId,
   setupIssueWriteServer as setupMockLinearServer,
   teamWriteIds,
+  terminalPage,
 } from "../../utils/issue-write-fixtures.ts"
 import { snapshotTest } from "@cliffy/testing"
 import { assertEquals, assertRejects, assertStringIncludes } from "@std/assert"
 import { stub } from "@std/testing/mock"
 import { stripIgnoredCharacters } from "graphql"
-import { updateCommand } from "../../../src/commands/issue/issue-update.ts"
+import {
+  prepareIssueUpdate,
+  updateCommand,
+} from "../../../src/commands/issue/issue-update.ts"
+import { ValidationError } from "../../../src/utils/errors.ts"
 import { commonDenoArgs } from "../../utils/test-helpers.ts"
+
+Deno.test("issue update requires an explicit valid target without consulting VCS", async () => {
+  const { server, cleanup } = await setupMockLinearServer([])
+  const command = stub(Deno, "Command", () => {
+    throw new Error("Unexpected VCS command")
+  })
+  try {
+    for (
+      const reference of [
+        undefined,
+        "",
+        " \n",
+        "feature/ENG-123",
+        "not-an-issue",
+      ]
+    ) {
+      await assertRejects(
+        () =>
+          prepareIssueUpdate(
+            { title: "Updated", unprotected: true },
+            reference,
+          ),
+        ValidationError,
+        reference?.trim()
+          ? "Invalid issue reference"
+          : "explicit issue reference is required",
+      )
+    }
+    assertEquals(command.calls.length, 0)
+    assertEquals(server.graphqlRequests, [])
+  } finally {
+    command.restore()
+    await cleanup()
+  }
+})
+
+Deno.test("issue update CLI rejects an omitted target before transport", async () => {
+  const { server, cleanup } = await setupMockLinearServer([])
+  try {
+    const result = await new Deno.Command(Deno.execPath(), {
+      args: [
+        "run",
+        ...commonDenoArgs,
+        "src/main.ts",
+        "issue",
+        "update",
+        "--title",
+        "Updated",
+        "--unprotected",
+        "--json",
+      ],
+      stdin: "null",
+      stdout: "piped",
+      stderr: "piped",
+    }).output()
+    assertEquals(result.code, 1)
+    const body = JSON.parse(new TextDecoder().decode(result.stdout))
+    assertEquals(body.effect, "none")
+    assertEquals(body.error.message, "Missing argument(s): issue")
+    assertEquals(server.graphqlRequests, [])
+  } finally {
+    await cleanup()
+  }
+})
 
 for (
   const args of [
@@ -156,7 +225,7 @@ for (const outcome of ["found", "missing", "error"] as const) {
           },
         },
       },
-    ], { LINEAR_TEAM_ID: "ENG" })
+    ], { LINEAR_TEAM_KEY: "ENG" })
     const logs: string[] = []
     const logStub = stub(console, "log", () => {})
     const errorStub = stub(
@@ -260,7 +329,7 @@ for (
           },
         },
       },
-    ], { LINEAR_TEAM_ID: "ENG" })
+    ], { LINEAR_TEAM_KEY: "ENG" })
     const logStub = stub(console, "log", () => {})
     try {
       await updateCommand.parse([
@@ -325,7 +394,6 @@ await snapshotTest({
   denoArgs: commonDenoArgs,
   async fn() {
     const { cleanup } = await setupMockLinearServer([
-      // Mock response for getTeamIdByKey() - converting team key to ID
       {
         queryName: "GetTeamIdByKey",
         variables: { team: "ENG" },
@@ -367,7 +435,7 @@ await snapshotTest({
           },
         },
       },
-    ], { LINEAR_TEAM_ID: "ENG" })
+    ], { LINEAR_TEAM_KEY: "ENG" })
 
     try {
       await updateCommand.parse()
@@ -391,7 +459,6 @@ await snapshotTest({
   denoArgs: commonDenoArgs,
   async fn() {
     const { cleanup } = await setupMockLinearServer([
-      // Mock response for getTeamIdByKey() - team keys may contain digits
       {
         queryName: "GetTeamIdByKey",
         variables: { team: "PLA4" },
@@ -471,7 +538,6 @@ await snapshotTest({
           },
         },
       },
-      // Mock response for getTeamIdByKey()
       {
         queryName: "GetTeamIdByKey",
         variables: { team: "ENG" },
@@ -483,7 +549,7 @@ await snapshotTest({
           },
         },
       },
-      // Mock response for getProjectIdByName()
+      // Mock response for lookupProjectId()
       {
         queryName: "GetProjectIdByName",
         variables: { name: "My Project" },
@@ -530,7 +596,7 @@ await snapshotTest({
           },
         },
       },
-    ], { LINEAR_TEAM_ID: "ENG" })
+    ], { LINEAR_TEAM_KEY: "ENG" })
 
     try {
       await updateCommand.parse()
@@ -554,7 +620,6 @@ await snapshotTest({
   denoArgs: commonDenoArgs,
   async fn() {
     const { cleanup } = await setupMockLinearServer([
-      // Mock response for getTeamIdByKey() - converting team key to ID
       {
         queryName: "GetTeamIdByKey",
         variables: { team: "ENG" },
@@ -566,7 +631,7 @@ await snapshotTest({
           },
         },
       },
-      // Mock response for getIssueLabelIdByNameForTeam("FRONTEND", "ENG") - case insensitive
+      // Mock response for lookupIssueLabelIdForTeam("FRONTEND", "ENG") - case insensitive
       {
         queryName: "GetIssueLabelIdByNameForTeam",
         variables: { name: "FRONTEND", team: { id: { eq: teamWriteIds.ENG } } },
@@ -598,7 +663,7 @@ await snapshotTest({
           },
         },
       },
-    ], { LINEAR_TEAM_ID: "ENG" })
+    ], { LINEAR_TEAM_KEY: "ENG" })
 
     try {
       await updateCommand.parse()
@@ -624,7 +689,6 @@ await snapshotTest({
   denoArgs: commonDenoArgs,
   async fn() {
     const { cleanup } = await setupMockLinearServer([
-      // Mock response for getTeamIdByKey()
       {
         queryName: "GetTeamIdByKey",
         variables: { team: "ENG" },
@@ -665,7 +729,7 @@ await snapshotTest({
           },
         },
       },
-    ], { LINEAR_TEAM_ID: "ENG" })
+    ], { LINEAR_TEAM_KEY: "ENG" })
 
     try {
       await updateCommand.parse()
@@ -689,7 +753,6 @@ await snapshotTest({
   denoArgs: commonDenoArgs,
   async fn() {
     const { cleanup } = await setupMockLinearServer([
-      // Mock response for getTeamIdByKey()
       {
         queryName: "GetTeamIdByKey",
         variables: { team: "ENG" },
@@ -725,6 +788,7 @@ await snapshotTest({
                     name: "Sprint 8",
                   },
                 ],
+                pageInfo: { hasNextPage: false, endCursor: null },
               },
               activeCycle: {
                 id: "cycle-1",
@@ -753,7 +817,7 @@ await snapshotTest({
           },
         },
       },
-    ], { LINEAR_TEAM_ID: "ENG" })
+    ], { LINEAR_TEAM_KEY: "ENG" })
 
     try {
       await updateCommand.parse()
@@ -822,7 +886,7 @@ await snapshotTest({
           },
         },
       },
-    ], { LINEAR_TEAM_ID: "ENG" })
+    ], { LINEAR_TEAM_KEY: "ENG" })
 
     try {
       await updateCommand.parse()
@@ -861,7 +925,7 @@ await snapshotTest({
           },
         },
       },
-    ], { LINEAR_TEAM_ID: "ENG" })
+    ], { LINEAR_TEAM_KEY: "ENG" })
 
     try {
       await updateCommand.parse()
@@ -919,7 +983,7 @@ await snapshotTest({
           },
         },
       },
-    ], { LINEAR_TEAM_ID: "ENG" })
+    ], { LINEAR_TEAM_KEY: "ENG" })
 
     try {
       await updateCommand.parse()
@@ -969,7 +1033,7 @@ await snapshotTest({
           },
         },
       },
-    ], { LINEAR_TEAM_ID: "ENG" })
+    ], { LINEAR_TEAM_KEY: "ENG" })
 
     try {
       await updateCommand.parse()
@@ -1017,7 +1081,7 @@ await snapshotTest({
           },
         },
       },
-    ], { LINEAR_TEAM_ID: "ENG" })
+    ], { LINEAR_TEAM_KEY: "ENG" })
 
     try {
       await updateCommand.parse()
@@ -1068,7 +1132,7 @@ await snapshotTest({
           },
         },
       },
-    ], { LINEAR_TEAM_ID: "ENG" })
+    ], { LINEAR_TEAM_KEY: "ENG" })
 
     try {
       await updateCommand.parse()
@@ -1133,7 +1197,7 @@ await snapshotTest({
           },
         },
       },
-    ], { LINEAR_TEAM_ID: "ENG" })
+    ], { LINEAR_TEAM_KEY: "ENG" })
 
     try {
       await updateCommand.parse()
@@ -1191,6 +1255,7 @@ await snapshotTest({
                     isPrevious: false,
                   },
                 ],
+                pageInfo: { hasNextPage: false, endCursor: null },
               },
               activeCycle: {
                 id: "cycle-6-id",
@@ -1222,7 +1287,7 @@ await snapshotTest({
           },
         },
       },
-    ], { LINEAR_TEAM_ID: "ENG" })
+    ], { LINEAR_TEAM_KEY: "ENG" })
 
     try {
       await updateCommand.parse()
@@ -1272,6 +1337,7 @@ await snapshotTest({
                     isPrevious: false,
                   },
                 ],
+                pageInfo: { hasNextPage: false, endCursor: null },
               },
               activeCycle: {
                 id: "cycle-5-id",
@@ -1303,7 +1369,7 @@ await snapshotTest({
           },
         },
       },
-    ], { LINEAR_TEAM_ID: "ENG" })
+    ], { LINEAR_TEAM_KEY: "ENG" })
 
     try {
       await updateCommand.parse()
@@ -1374,13 +1440,14 @@ Deno.test("Issue Update Command - relative cycle offset requires an active cycle
                   isPrevious: false,
                 },
               ],
+              pageInfo: { hasNextPage: false, endCursor: null },
             },
             activeCycle: null,
           },
         },
       },
     },
-  ], { LINEAR_TEAM_ID: "ENG" })
+  ], { LINEAR_TEAM_KEY: "ENG" })
 
   const errorLogs: string[] = []
   const errorStub = stub(console, "error", (...args: unknown[]) => {
@@ -1493,7 +1560,7 @@ await snapshotTest({
           },
         },
       },
-    ], { LINEAR_TEAM_ID: "ENG" })
+    ], { LINEAR_TEAM_KEY: "ENG" })
 
     try {
       await updateCommand.parse()
@@ -1528,7 +1595,7 @@ Deno.test("Issue Update Command - --cycle errors when team has cycles disabled",
         },
       },
     },
-  ], { LINEAR_TEAM_ID: "ENG" })
+  ], { LINEAR_TEAM_KEY: "ENG" })
 
   const errorLogs: string[] = []
   const errorStub = stub(console, "error", (...args: unknown[]) => {
@@ -1588,7 +1655,7 @@ Deno.test("Issue Update Command - --cycle now errors helpfully when no cycle is 
         },
       },
     },
-  ], { LINEAR_TEAM_ID: "ENG" })
+  ], { LINEAR_TEAM_KEY: "ENG" })
 
   const errorLogs: string[] = []
   const errorStub = stub(console, "error", (...args: unknown[]) => {
@@ -1759,21 +1826,14 @@ Deno.test("Issue Update Command - label additions and removals stay incremental"
   const { cleanup } = await setupMockLinearServer([
     {
       queryName: "GetIssueLabelIdByNameForTeam",
-      variables: { name: "frontend", team: { id: { eq: teamWriteIds.ENG } } },
-      response: {
+      response: ({ variables }) => ({
         data: {
-          issueLabels: { nodes: [{ id: "label-frontend", name: "frontend" }] },
+          issueLabels: {
+            nodes: [{ id: `label-${variables.name}`, name: variables.name }],
+            pageInfo: terminalPage,
+          },
         },
-      },
-    },
-    {
-      queryName: "GetIssueLabelIdByNameForTeam",
-      variables: { name: "backend", team: { id: { eq: teamWriteIds.ENG } } },
-      response: {
-        data: {
-          issueLabels: { nodes: [{ id: "label-backend", name: "backend" }] },
-        },
-      },
+      }),
     },
     {
       queryName: "UpdateIssue",
@@ -1781,7 +1841,7 @@ Deno.test("Issue Update Command - label additions and removals stay incremental"
         id: issueWriteId,
         input: {
           addedLabelIds: ["label-frontend"],
-          removedLabelIds: ["label-backend"],
+          removedLabelIds: ["label-before"],
         },
       },
       response: {
@@ -1809,7 +1869,7 @@ Deno.test("Issue Update Command - label additions and removals stay incremental"
       "--add-label",
       "frontend",
       "--remove-label",
-      "backend",
+      "before",
     ])
   } finally {
     await cleanup()

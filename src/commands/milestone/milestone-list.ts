@@ -1,8 +1,9 @@
 import { Command } from "@cliffy/command"
 import { unicodeWidth } from "@std/cli"
+import { underline } from "@std/fmt/colors"
 import { gql } from "../../__codegen__/gql.ts"
 import { getGraphQLClient } from "../../utils/graphql.ts"
-import { padDisplay, printStyledHeader } from "../../utils/display.ts"
+import { padDisplay } from "../../utils/display.ts"
 import { resolveProjectId } from "../../utils/linear.ts"
 import { shouldShowSpinner } from "../../utils/hyperlink.ts"
 import { handleError, NotFoundError } from "../../utils/errors.ts"
@@ -38,15 +39,16 @@ export const listCommand = new Command()
     "Project (UUID, slug ID, or name)",
     { required: true },
   )
-  .action(async ({ project: projectIdOrSlug }) => {
+  .option("--json", "Output the complete {nodes, pageInfo} connection as JSON")
+  .action(async ({ project: projectReference, json }) => {
     const { Spinner } = await import("@std/cli/unstable-spinner")
-    const showSpinner = shouldShowSpinner()
+    const showSpinner = shouldShowSpinner() && !json
     const spinner = showSpinner ? new Spinner() : null
     spinner?.start()
 
     try {
       // Resolve project slug to full UUID
-      const projectId = await resolveProjectId(projectIdOrSlug)
+      const projectId = await resolveProjectId(projectReference)
 
       const client = getGraphQLClient()
       const result = await client.request(GetProjectMilestones, {
@@ -54,7 +56,7 @@ export const listCommand = new Command()
         after: null,
       })
       if (!result.project) throw new NotFoundError("Project", projectId)
-      const { nodes: milestones } = await completeConnection(
+      const connection = await completeConnection(
         result.project.projectMilestones,
         async (after) => {
           const page = await client.request(GetProjectMilestones, {
@@ -68,6 +70,12 @@ export const listCommand = new Command()
       )
       spinner?.stop()
 
+      if (json) {
+        console.log(JSON.stringify(connection, null, 2))
+        return
+      }
+
+      const milestones = connection.nodes
       if (milestones.length === 0) {
         console.log("No milestones found for this project.")
         return
@@ -116,7 +124,7 @@ export const listCommand = new Command()
         padDisplay("PROJECT", PROJECT_WIDTH),
       ]
 
-      printStyledHeader(headerCells)
+      console.log(underline(headerCells.join(" ")))
 
       // Print each milestone
       for (const milestone of sortedMilestones) {

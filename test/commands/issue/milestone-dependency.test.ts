@@ -128,14 +128,31 @@ for (const unprotected of [false, true]) {
   })
 }
 
-Deno.test("issue milestone name follows its actual lookup project when the initial read differs", async () => {
+Deno.test("issue milestone name rejects project drift from the initial basis", async () => {
   const result = await runUpdate({}, projectB, projectB)
+  assertIsError(
+    result.error,
+    ValidationError,
+    "Issue project changed while resolving the milestone",
+  )
+  assertEquals(result.beforeWrites, 0)
+  assertEquals(result.mutations, [])
+})
+
+Deno.test("issue milestone name resolves against the initial basis during A→B→A drift", async () => {
+  const result = await runUpdate({}, projectB, projectA)
   assertEquals(result.error, undefined)
   assertEquals(result.beforeWrites, 1)
   assertEquals(result.mutations.map((request) => request.variables), [{
     id: issueWriteId,
-    input: { projectMilestoneId: milestoneB },
+    input: { projectMilestoneId: milestoneA },
   }])
+  assertEquals(
+    result.requests.filter((request) =>
+      request.query.includes("query GetIssueProjectId")
+    ),
+    [],
+  )
 })
 
 Deno.test("issue milestone name writes when the lookup project remains unchanged", async () => {

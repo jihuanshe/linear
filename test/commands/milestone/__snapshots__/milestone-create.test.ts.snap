@@ -5,8 +5,7 @@ stdout:
 "
 Usage: create --project <project> --name <name>
 
-Writes: true            
-Output modes: human,json
+Writes: true
 
 Description:
 
@@ -14,12 +13,12 @@ Description:
 
 Options:
 
-  -h, --help                    - Show this help.                             
-  --json                        - Output a JSON write result                  
-  --project      <project>      - Project (UUID, slug ID, or name)  (required)
-  --name         <name>         - Milestone name                    (required)
-  --description  <description>  - Milestone description                       
-  --target-date  <date>         - Target date (YYYY-MM-DD)                    
+  -h, --help                    - Show this help.                                                                          
+  --json                        - Output a JSON write result; the created milestone is in data.projectMilestone            
+  --project      <project>      - Project (UUID, slug ID, or name)                                               (required)
+  --name         <name>         - Milestone name                                                                 (required)
+  --description  <description>  - Milestone description                                                                    
+  --target-date  <date>         - Target date (YYYY-MM-DD)                                                                 
 
 "
 stderr:

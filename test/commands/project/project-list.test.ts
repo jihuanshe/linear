@@ -1,5 +1,6 @@
 import { snapshotTest as cliffySnapshotTest } from "@cliffy/testing"
-import { snapshotTest } from "../../utils/snapshot_with_fake_time.ts"
+import { assertEquals } from "@std/assert"
+import { stubDate } from "../../utils/stub-date.ts"
 import { listCommand } from "../../../src/commands/project/project-list.ts"
 import { commonDenoArgs } from "../../utils/test-helpers.ts"
 import { MockLinearServer } from "../../utils/mock_linear_server.ts"
@@ -18,15 +19,14 @@ await cliffySnapshotTest({
 })
 
 // Test with mock server - Projects list
-await snapshotTest({
+await cliffySnapshotTest({
   name: "Project List Command - With Mock Projects",
   meta: import.meta,
   colors: false,
   args: ["--all-teams"],
   denoArgs: commonDenoArgs,
-  fakeTime: "2025-08-17T15:30:00Z",
-  ignore: true, // TODO: Fix hanging issue with mock server
   async fn() {
+    using _date = stubDate("2025-08-17T15:30:00Z")
     const server = new MockLinearServer([
       {
         queryName: "GetProjects",
@@ -315,15 +315,14 @@ await cliffySnapshotTest({
 })
 
 // Test pagination - multiple pages
-await snapshotTest({
+await cliffySnapshotTest({
   name: "Project List Command - Pagination (Multiple Pages)",
   meta: import.meta,
   colors: false,
   args: ["--all-teams"],
   denoArgs: commonDenoArgs,
-  fakeTime: "2025-08-17T15:30:00Z",
-  ignore: true, // TODO: Fix hanging issue with mock server
   async fn() {
+    using _date = stubDate("2025-08-17T15:30:00Z")
     const server = new MockLinearServer([
       // First page
       {
@@ -495,6 +494,10 @@ await snapshotTest({
       Deno.env.set("LINEAR_API_KEY", "Bearer test-token")
 
       await listCommand.parse()
+      assertEquals(
+        server.graphqlRequests.map((q) => q.variables.after ?? null),
+        [null, "cursor-page-1-end"],
+      )
     } finally {
       await server.stop()
       Deno.env.delete("LINEAR_GRAPHQL_ENDPOINT")

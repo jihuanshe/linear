@@ -78,7 +78,7 @@ Deno.test("project update empty inline description conflicts with file before re
     assertEquals(result.code, 1)
     assertEquals(
       new TextDecoder().decode(result.stdout).includes(
-        "Cannot use --description and --description-file together",
+        "Cannot specify both --description and --description-file",
       ),
       true,
     )
@@ -217,7 +217,7 @@ await cliffySnapshotTest({
   },
 })
 
-// Test project update - status (requires GetProjectStatusesForUpdate)
+// Test project update - status
 await cliffySnapshotTest({
   name: "Project Update Command - Update Status",
   meta: import.meta,
@@ -231,7 +231,7 @@ await cliffySnapshotTest({
   denoArgs: commonDenoArgs,
   async fn() {
     const server = new MockLinearServer([originalProject, {
-      queryName: "GetProjectStatusesForUpdate",
+      queryName: "GetProjectStatuses",
       response: {
         data: {
           projectStatuses: {

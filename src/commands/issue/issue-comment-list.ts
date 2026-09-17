@@ -1,36 +1,41 @@
 import { Command } from "@cliffy/command"
-import { fetchIssueComments, getIssueIdentifier } from "../../utils/linear.ts"
+import { fetchIssueComments, getIssueReference } from "../../utils/linear.ts"
 import { formatRelativeTime } from "../../utils/display.ts"
 import { bold } from "@std/fmt/colors"
 import { handleError, ValidationError } from "../../utils/errors.ts"
 
 export const commentListCommand = new Command()
   .name("list")
-  .description("List comments for an issue")
-  .arguments("[issueId:string]")
+  .description(
+    "List comments for an issue by UUID, identifier (e.g. ENG-123), number in the configured team, or Linear URL; omit to use the current Git or Jujutsu context",
+  )
+  .arguments("[issue:string]")
   .option(
     "--limit <limit:number>",
     "Maximum number of comments (use 0 for all pages)",
     { default: 50 },
   )
   .option("-j, --json", "Output {nodes, pageInfo} as JSON")
-  .action(async (options, issueId) => {
+  .action(async (options, issueArg) => {
     const { json, limit } = options
 
     try {
       if (!Number.isSafeInteger(limit) || limit < 0) {
         throw new ValidationError("--limit must be a non-negative integer")
       }
-      const resolvedIdentifier = await getIssueIdentifier(issueId)
-      if (!resolvedIdentifier) {
+      const issueReference = await getIssueReference(issueArg)
+      if (!issueReference) {
         throw new ValidationError(
-          "Could not determine issue identifier",
-          { suggestion: "Please provide an issue identifier like 'ENG-123'." },
+          "Could not determine issue reference",
+          {
+            suggestion:
+              "Provide an Issue UUID, identifier such as ENG-123, or Linear Issue URL.",
+          },
         )
       }
 
       const commentsConnection = await fetchIssueComments(
-        resolvedIdentifier,
+        issueReference,
         limit,
       )
       const comments = commentsConnection.nodes

@@ -1,8 +1,8 @@
 import { Command } from "@cliffy/command"
 import { handleError, withAppliedReceipts } from "../utils/errors.ts"
 import { printWriteResult } from "../utils/write-result.ts"
+import { formatAsMarkdownLink } from "../operations/issue-content.ts"
 import {
-  formatAsMarkdownLink,
   prepareUploads,
   uploadFile,
   type UploadResult,
@@ -27,16 +27,16 @@ export const uploadCommand = withUsageMetadata(
     .description(
       "Upload files to Linear storage and print their asset URLs for embedding in Markdown",
     )
-    .arguments("<files...:string>")
+    .arguments("<paths...:string>")
     .option(
       "--public",
       "Create unauthenticated public URLs (raster images only; other types fail)",
     )
     .option("--json", "Output upload results as JSON")
-    .action(async (options, ...files: string[]) => {
+    .action(async (options, ...paths: string[]) => {
       const results: UploadResult[] = []
       try {
-        const prepared = await prepareUploads(files, {
+        const prepared = await prepareUploads(paths, {
           makePublic: options.public,
         })
 

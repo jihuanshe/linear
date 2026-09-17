@@ -13,7 +13,7 @@ import {
   printBulkSummary,
 } from "../../utils/bulk.ts"
 import { shouldShowSpinner } from "../../utils/hyperlink.ts"
-import { printWriteResult, setMachineOutput } from "../../utils/write-result.ts"
+import { printWriteResult } from "../../utils/write-result.ts"
 import {
   assertMutationSuccess,
   handleError,
@@ -30,29 +30,31 @@ interface InitiativeArchiveResult extends BulkOperationResult {
 export const archiveCommand = withUsageMetadata(new Command(), {
   writes: true,
   interactive: true,
-  confirmationRequiredUnless: "--force",
-  outputModes: ["human", "json"],
 })
   .name("archive")
   .option("--json", "Output a JSON write result")
-  .description("Archive a Linear initiative")
-  .arguments("[initiativeId:string]")
-  .option("-y, --force", "Skip confirmation prompt")
+  .description(
+    "Archive a Linear initiative by UUID, slug ID, or name; requires an explicit initiative or bulk input",
+  )
+  .arguments("[initiative:string]")
+  .option("-y, --yes", "Skip confirmation prompt")
   .option(
-    "--bulk <ids...:string>",
-    "Archive multiple initiatives by ID, slug, or name",
+    "--bulk <initiatives...:string>",
+    "Archive multiple initiatives by UUID, slug ID, or name",
   )
   .option(
-    "--bulk-file <file:string>",
-    "Read initiative IDs from a file (one per line)",
+    "--bulk-file <path:string>",
+    "Read whitespace/comma-separated initiative UUIDs or slugs from a file (no names with spaces)",
   )
-  .option("--bulk-stdin", "Read initiative IDs from stdin")
+  .option(
+    "--bulk-stdin",
+    "Read whitespace/comma-separated initiative UUIDs or slugs from stdin (no names with spaces)",
+  )
   .action(
     async (
-      { force, bulk, bulkFile, bulkStdin, json },
-      initiativeId,
+      { yes, bulk, bulkFile, bulkStdin, json },
+      initiativeReference,
     ) => {
-      setMachineOutput(json ?? false)
       const client = getGraphQLClient()
 
       // Check if bulk mode
@@ -61,34 +63,38 @@ export const archiveCommand = withUsageMetadata(new Command(), {
           bulk,
           bulkFile,
           bulkStdin,
-          force,
+          yes,
           json,
         })
         return
       }
 
-      // Single mode requires initiativeId
-      if (!initiativeId) {
+      // Single mode requires initiativeReference
+      if (!initiativeReference) {
         throw new ValidationError(
-          "Initiative ID required. Use --bulk for multiple initiatives.",
+          "Initiative UUID, slug ID, or name required. Use --bulk for multiple initiatives.",
         )
       }
 
-      await handleSingleArchive(client, initiativeId, { force, json })
+      await handleSingleArchive(client, initiativeReference, { yes, json })
     },
   )
 
 async function handleSingleArchive(
   client: ReturnType<typeof getGraphQLClient>,
-  initiativeId: string,
-  options: { force?: boolean; json?: boolean },
+  initiativeReference: string,
+  options: { yes?: boolean; json?: boolean },
 ): Promise<void> {
-  const { force, json } = options
+  const { yes, json } = options
 
   // Resolve initiative ID
-  const resolvedId = await resolveInitiativeId(client, initiativeId, true)
+  const resolvedId = await resolveInitiativeId(
+    client,
+    initiativeReference,
+    true,
+  )
   if (!resolvedId) {
-    throw new NotFoundError("Initiative", initiativeId)
+    throw new NotFoundError("Initiative", initiativeReference)
   }
 
   let initiativeDetails
@@ -99,7 +105,7 @@ async function handleSingleArchive(
   }
 
   if (!initiativeDetails?.initiative) {
-    throw new NotFoundError("Initiative", initiativeId)
+    throw new NotFoundError("Initiative", initiativeReference)
   }
 
   const initiative = initiativeDetails.initiative
@@ -115,10 +121,10 @@ async function handleSingleArchive(
   }
 
   // Confirm archival
-  if (!force) {
+  if (!yes) {
     if (json || !Deno.stdin.isTerminal()) {
       throw new ValidationError(
-        "Interactive confirmation required. Use --force to skip.",
+        "Interactive confirmation required. Use --yes to skip.",
       )
     }
     const confirmed = await Confirm.prompt({
@@ -176,11 +182,11 @@ async function handleBulkArchive(
     bulk?: string[]
     bulkFile?: string
     bulkStdin?: boolean
-    force?: boolean
+    yes?: boolean
     json?: boolean
   },
 ): Promise<void> {
-  const { force, json } = options
+  const { yes, json } = options
 
   // Collect all IDs
   const ids = await collectBulkIds({
@@ -196,10 +202,10 @@ async function handleBulkArchive(
   if (!json) console.log(`Found ${ids.length} initiative(s) to archive.`)
 
   // Confirm bulk operation
-  if (!force) {
+  if (!yes) {
     if (json || !Deno.stdin.isTerminal()) {
       throw new ValidationError(
-        "Interactive confirmation required. Use --force to skip.",
+        "Interactive confirmation required. Use --yes to skip.",
       )
     }
     const confirmed = await Confirm.prompt({

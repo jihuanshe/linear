@@ -4,7 +4,8 @@ import { withMarkdownHint } from "../../utils/markdown-help.ts"
 import { gql } from "../../__codegen__/gql.ts"
 import type { DocumentInlineCommentGuardQuery } from "../../__codegen__/graphql.ts"
 import { getGraphQLClient } from "../../utils/graphql.ts"
-import { getEditor } from "../../utils/editor.ts"
+import { openEditor } from "../../utils/editor.ts"
+import { readTextSource } from "../../utils/text-source.ts"
 import { resolveProjectId } from "../../utils/linear.ts"
 import {
   loadBasisFile,
@@ -92,97 +93,18 @@ async function getFirstActiveInlineComment(
   }
 }
 
-/**
- * Open editor with initial content and return the edited content
- */
-async function openEditorWithContent(
-  initialContent: string,
-): Promise<string> {
-  const editor = await getEditor()
-  if (!editor) {
-    throw new ValidationError("No editor found", {
-      suggestion:
-        "Set EDITOR environment variable or configure git editor with: git config --global core.editor <editor>",
-    })
-  }
-
-  // Create a temporary file with initial content
-  const tempFile = await Deno.makeTempFile({ suffix: ".md" })
-
-  try {
-    // Write initial content to temp file
-    await Deno.writeTextFile(tempFile, initialContent)
-
-    // Open the editor
-    const process = new Deno.Command(editor, {
-      args: [tempFile],
-      stdin: "inherit",
-      stdout: "inherit",
-      stderr: "inherit",
-    })
-
-    const { success } = await process.output()
-
-    if (!success) {
-      throw new CliError("Editor exited with an error")
-    }
-
-    // Read the content back
-    return await Deno.readTextFile(tempFile)
-  } catch (error) {
-    if (error instanceof CliError || error instanceof ValidationError) {
-      throw error
-    }
-    throw new CliError(
-      `Failed to open editor: ${
-        error instanceof Error ? error.message : String(error)
-      }`,
-      { cause: error },
-    )
-  } finally {
-    // Clean up the temporary file
-    try {
-      await Deno.remove(tempFile)
-    } catch {
-      // Ignore cleanup errors
-    }
-  }
-}
-
-/**
- * Read piped content through EOF; empty stdin does not replace content.
- */
-async function readContentFromStdin(): Promise<string | undefined> {
-  // Check if stdin has data (not a TTY)
-  if (Deno.stdin.isTerminal()) {
-    return undefined
-  }
-
-  try {
-    const content = await new Response(Deno.stdin.readable).text()
-    return content.length > 0 ? content : undefined
-  } catch (error) {
-    throw new CliError(
-      `Failed to read document content from stdin: ${
-        error instanceof Error ? error.message : String(error)
-      }`,
-      { cause: error },
-    )
-  }
-}
-
 export const updateCommand = withUsageMetadata(new Command(), {
   writes: true,
   interactive: true,
 })
   .name("update")
   .description(withMarkdownHint(
-    "Update an existing document\n\n" +
+    "Update an existing document by UUID or slug ID\n\n" +
       "Without --content, --content-file, or --edit, read piped Markdown through EOF.\n" +
       "Nonempty stdin can be combined with metadata updates; empty stdin leaves content unchanged.",
   ))
   .alias("u")
-  .arguments("<documentId:string>")
+  .arguments("<document:string>")
   .option(
     "-t, --title <title:string>",
     "New title for the document; empty string clears it",
@@ -197,7 +119,7 @@ export const updateCommand = withUsageMetadata(new Command(), {
   )
   .option(
     "-f, --content-file <path:string>",
-    "Read new content from file",
+    "Read UTF-8 content from a file (- for stdin; empty input clears content)",
     { preserveEmpty: true },
   )
   .option("--icon <icon:string>", "New icon (emoji)", { preserveEmpty: true })
@@ -241,7 +163,7 @@ export const updateCommand = withUsageMetadata(new Command(), {
         unprotected,
         expectField,
       },
-      documentId,
+      documentReference,
     ) => {
       try {
         for (
@@ -262,9 +184,7 @@ export const updateCommand = withUsageMetadata(new Command(), {
             "Use only one of --content, --content-file, or --edit",
           )
         }
-        if (contentFile === "") {
-          throw new ValidationError("Content file path cannot be empty")
-        }
+        let finalContent = await readTextSource("content", content, contentFile)
         if (json && edit) {
           throw new ValidationError(
             "JSON mode cannot open an editor; provide --content or --content-file",
@@ -303,42 +223,22 @@ export const updateCommand = withUsageMetadata(new Command(), {
           input.projectId = await resolveProjectId(project)
         }
 
-        // Resolve content from various sources
-        let finalContent: string | undefined
-
-        if (content != null) {
-          // Content provided inline
-          finalContent = content
-        } else if (contentFile != null) {
-          // Content from file
-          try {
-            finalContent = await Deno.readTextFile(contentFile)
-          } catch (error) {
-            if (error instanceof Deno.errors.NotFound) {
-              throw new NotFoundError("File", contentFile)
-            }
-            throw new CliError(
-              `Failed to read content file: ${
-                error instanceof Error ? error.message : String(error)
-              }`,
-              { cause: error },
-            )
-          }
-        } else if (edit) {
+        if (edit) {
           // Edit mode: fetch current content and open in editor
-          const documentData = await readDocument(client, documentId)
+          const documentData = await readDocument(client, documentReference)
 
           if (!documentData?.document) {
-            throw new NotFoundError("Document", documentId)
+            throw new NotFoundError("Document", documentReference)
           }
 
           const currentContent = documentData.document.content || ""
           if (!unprotected) original ??= documentData
           console.log(`Opening ${documentData.document.title} in editor...`)
 
-          finalContent = await openEditorWithContent(currentContent)
-        } else if (!Deno.stdin.isTerminal()) {
-          finalContent = await readContentFromStdin()
+          finalContent = await openEditor(currentContent)
+        } else if (finalContent == null && !Deno.stdin.isTerminal()) {
+          finalContent = await readTextSource("content", undefined, "-") ||
+            undefined
         }
 
         // Add content to input if resolved
@@ -360,7 +260,7 @@ export const updateCommand = withUsageMetadata(new Command(), {
           icon: scalarField("icon"),
           projectId: referenceField("project"),
         }
-        let current = await readDocument(client, documentId)
+        let current = await readDocument(client, documentReference)
         const resolvedId = current.document!.id
         const prepare = (read: typeof current) =>
           prepareReplacement({

@@ -149,8 +149,8 @@ export function evaluateDoctorIssues(
         "missing-project-update",
         severity,
         "project-update",
-        `项目已超过 ${policy.staleDays} 天没有项目更新`,
-        "请发布项目更新，或更新项目状态。",
+        `项目已超过 ${policy.staleDays} 天没有项目进展`,
+        "请发布项目进展，或更新项目状态。",
       )
     }
     if (
@@ -166,10 +166,10 @@ export function evaluateDoctorIssues(
         "stale-project-update",
         severity,
         "project-update",
-        `最近一次项目更新已是 ${age} 天前${
+        `最近一次项目进展已是 ${age} 天前${
           project.lastUpdate.isStale ? "，并被 Linear 标记为过期" : ""
         }`,
-        "请发布新的项目更新，或更新项目状态。",
+        "请发布新的项目进展，或更新项目状态。",
       )
     }
     if (["atRisk", "offTrack"].includes(project.health)) {
@@ -182,7 +182,7 @@ export function evaluateDoctorIssues(
         `项目健康状态为「${
           project.health === "atRisk" ? "有风险" : "偏离计划"
         }」`,
-        "请确认风险原因和下一步，并发布项目更新。",
+        "请确认风险原因和下一步，并发布项目进展。",
       )
     }
   }
@@ -209,13 +209,13 @@ export function evaluateDoctorIssues(
   }
 }
 
-async function readApi(query, variables = {}, paginate = false) {
+async function readApi(document, variables = {}, paginate = false) {
   const result = await new Deno.Command(
     Deno.env.get("LINEAR_BIN") ?? "linear",
     {
       args: [
         "api",
-        query,
+        document,
         "--variables-json",
         JSON.stringify(variables),
         ...(paginate ? ["--paginate"] : []),
@@ -225,7 +225,7 @@ async function readApi(query, variables = {}, paginate = false) {
     },
   ).output()
   if (!result.success) {
-    throw new Error("CLI query failed; no partial report produced")
+    throw new Error("CLI GraphQL request failed; no partial report produced")
   }
   const envelope = JSON.parse(new TextDecoder().decode(result.stdout))
   if (envelope.errors?.length || envelope.data == null) {
@@ -362,7 +362,7 @@ if (import.meta.main) {
     })
     if (flags.help) {
       console.log(
-        "deno run --allow-run --allow-env recipes/doctor.js <self|team|project|workspace> [target] [--history] [--include-archived] [--rule ID] [--stale-days 14] [--limit 4] [--json]",
+        "deno run --allow-run --allow-env doctor.js <self|team|project|workspace> [target] [--history] [--include-archived] [--rule ID] [--stale-days 14] [--limit 4] [--json]",
       )
       Deno.exit(0)
     }

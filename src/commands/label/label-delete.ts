@@ -7,7 +7,7 @@ import { getGraphQLClient } from "../../utils/graphql.ts"
 import { getTeamKey } from "../../utils/linear.ts"
 import { shouldShowSpinner } from "../../utils/hyperlink.ts"
 import { completeConnection } from "../../utils/pagination.ts"
-import { printWriteResult, setMachineOutput } from "../../utils/write-result.ts"
+import { printWriteResult } from "../../utils/write-result.ts"
 import {
   assertMutationSuccess,
   handleError,
@@ -62,7 +62,7 @@ const GetLabelById = gql(`
 
 type Label = GetLabelByNameQuery["issueLabels"]["nodes"][number]
 
-async function resolveLabelId(
+async function resolveLabel(
   client: ReturnType<typeof getGraphQLClient>,
   nameOrId: string,
   teamKey?: string,
@@ -134,20 +134,17 @@ async function resolveLabelId(
 export const deleteCommand = withUsageMetadata(new Command(), {
   writes: true,
   interactive: true,
-  confirmationRequiredUnless: "--force",
-  outputModes: ["human", "json"],
 })
   .name("delete")
   .option("--json", "Output a JSON write result")
-  .description("Delete an issue label")
-  .arguments("<nameOrId:string>")
+  .description("Delete an issue label by UUID or exact name")
+  .arguments("<label:string>")
   .option(
-    "-t, --team <teamKey:string>",
+    "-t, --team <key:string>",
     "Team key to disambiguate labels with same name",
   )
-  .option("-f, --force", "Skip confirmation prompt")
-  .action(async ({ team: teamKey, force, json }, nameOrId) => {
-    setMachineOutput(json ?? false)
+  .option("-y, --yes", "Skip confirmation prompt")
+  .action(async ({ team: teamKey, yes, json }, nameOrId) => {
     try {
       const client = getGraphQLClient()
 
@@ -155,7 +152,7 @@ export const deleteCommand = withUsageMetadata(new Command(), {
       const effectiveTeamKey = teamKey || getTeamKey()
 
       // Resolve label
-      const label = await resolveLabelId(
+      const label = await resolveLabel(
         client,
         nameOrId,
         effectiveTeamKey,
@@ -171,11 +168,11 @@ export const deleteCommand = withUsageMetadata(new Command(), {
 
       const labelDisplay = `${label.name} (${label.team?.key || "Workspace"})`
 
-      // Confirmation prompt unless --force is used
-      if (!force) {
+      // Confirmation prompt unless --yes is used
+      if (!yes) {
         if (json || !Deno.stdin.isTerminal()) {
           throw new ValidationError("Interactive confirmation required", {
-            suggestion: "Use --force to skip confirmation.",
+            suggestion: "Use --yes to skip confirmation.",
           })
         }
         const confirmed = await Confirm.prompt({

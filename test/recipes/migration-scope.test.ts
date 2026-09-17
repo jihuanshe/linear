@@ -1,30 +1,33 @@
 import { assertEquals, assertRejects, assertStringIncludes } from "@std/assert"
 import { fromFileUrl, join } from "@std/path"
+import { loadManifest } from "../../src/delivery/manifest.ts"
 
 const recipe = fromFileUrl(
   new URL("../../recipes/migrate-team.js", import.meta.url),
 )
 const quote = (value: string) => "'" + value.replaceAll("'", "'\\''") + "'"
-const organization = { id: "workspace", urlKey: "example" }
-const source = { id: "source-id", key: "OLD" }
-const target = { id: "target-id", key: "NEW" }
+const uuid = (n: number) =>
+  `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`
+const organization = { id: uuid(1), urlKey: "example" }
+const source = { id: uuid(2), key: "OLD" }
+const target = { id: uuid(3), key: "NEW" }
 
-async function fixture(lifecycle: "active" | "archived" | "trashed") {
+async function fixture(mode = "active") {
   const directory = await Deno.makeTempDir()
   const migration = join(directory, "migration")
   const binary = join(directory, "linear")
   const script = join(directory, "linear-fixture.js")
   const callsFile = join(directory, "calls.jsonl")
-  const bases = [1, 2].map((number) => ({
+  const bases = [11, 12].map((number) => ({
     organization,
     issue: {
-      id: `issue-${number}`,
+      id: uuid(number),
       identifier: `OLD-${number}`,
       team: source,
-      archivedAt: number === 2 && lifecycle === "archived"
-        ? "2026-09-01T00:00:00.000Z"
+      archivedAt: number === 12 && mode === "archived"
+        ? "2026-09-01T00:00:00Z"
         : null,
-      trashed: number === 2 && lifecycle === "trashed",
+      trashed: number === 12 && mode === "trashed",
     },
   }))
   await Deno.writeTextFile(
@@ -32,6 +35,7 @@ async function fixture(lifecycle: "active" | "archived" | "trashed") {
     `
 const args = Deno.args;
 const bases = ${JSON.stringify(bases)};
+const mode = ${JSON.stringify(mode)};
 await Deno.writeTextFile(${
       JSON.stringify(callsFile)
     }, JSON.stringify(args) + '\\n', {append: true});
@@ -39,13 +43,19 @@ let result;
 if (args[0] === 'api' && args[1].includes('MigrationTeams')) {
   result = {data: {organization: ${
       JSON.stringify(organization)
-    }, teams: {nodes: ${JSON.stringify([source, target])}}}};
-} else if (args[0] === 'issue' && args[1] === 'query') {
-  result = {nodes: bases.map(base => base.issue), pageInfo: {hasNextPage: false, endCursor: null}};
+    }, teams: {nodes: ${
+      JSON.stringify([source, target])
+    }, pageInfo: {hasNextPage: false}}}};
+} else if (args[0] === 'api' && args[1].includes('MigrationIssues')) {
+  let nodes = bases.map(base => ({id: base.issue.id}));
+  if (mode === 'duplicate') nodes.push(nodes[0]);
+  if (mode === 'empty') nodes = [];
+  result = {data: {issues: {nodes, pageInfo: {hasNextPage: mode === 'incomplete'}}}};
 } else if (args[0] === 'issue' && args[1] === 'view') {
   result = bases.find(base => base.issue.id === args[2]);
-} else if (args[0] === 'issue' && args[1] === 'update') {
-  result = {ok: true, effect: 'applied', data: {issue: {id: args[2], identifier: 'NEW-' + args[2].slice(-1)}}};
+  if (mode === 'read-failure') { console.error('read unavailable'); Deno.exit(1); }
+  if (mode === 'workspace-drift') result.organization.id = 'other-workspace';
+  if (mode === 'team-drift') result.issue.team.id = 'other-team';
 } else throw new Error('Unexpected CLI invocation: ' + args);
 console.log(JSON.stringify(result));
 `,
@@ -61,7 +71,8 @@ console.log(JSON.stringify(result));
   )
   return {
     migration,
-    async run(args: string[], denyWrite?: string) {
+    bases,
+    async run(args = ["freeze", "OLD", "NEW", migration]) {
       const result = await new Deno.Command(Deno.execPath(), {
         args: [
           "run",
@@ -71,7 +82,6 @@ console.log(JSON.stringify(result));
           "--allow-env=LINEAR_BIN",
           "--allow-read",
           "--allow-write",
-          ...(denyWrite ? [`--deny-write=${denyWrite}`] : []),
           "--deny-net",
           recipe,
           ...args,
@@ -90,36 +100,13 @@ console.log(JSON.stringify(result));
     },
     async calls(): Promise<string[][]> {
       try {
-        return (await Deno.readTextFile(callsFile)).trim().split("\n").map(
-          (line) => JSON.parse(line),
-        )
+        return (await Deno.readTextFile(callsFile)).trim().split("\n").map((
+          line,
+        ) => JSON.parse(line))
       } catch (error) {
         if (error instanceof Deno.errors.NotFound) return []
         throw error
       }
-    },
-    async saveOldScope() {
-      await Deno.mkdir(migration)
-      for (const [index, base] of bases.entries()) {
-        await Deno.writeTextFile(
-          join(migration, `${index}.base.json`),
-          JSON.stringify(base),
-        )
-      }
-      await Deno.writeTextFile(
-        join(migration, "scope.json"),
-        JSON.stringify({
-          organization,
-          source,
-          target,
-          readAt: "2026-09-01T00:00:00.000Z",
-          issues: bases.map((base, index) => ({
-            id: base.issue.id,
-            identifier: base.issue.identifier,
-            baseFile: `${index}.base.json`,
-          })),
-        }),
-      )
     },
     async cleanup() {
       await Deno.remove(directory, { recursive: true })
@@ -127,57 +114,44 @@ console.log(JSON.stringify(result));
   }
 }
 
-for (const lifecycle of ["archived", "trashed"] as const) {
-  Deno.test(`Team freeze rejects an active-first ${lifecycle} scope without executable output`, async () => {
-    const f = await fixture(lifecycle)
+for (
+  const [mode, diagnostic] of [
+    ["archived", "archived or trashed"],
+    ["trashed", "archived or trashed"],
+    ["duplicate", "duplicate issue IDs"],
+    ["incomplete", "Incomplete source issue collection"],
+    ["workspace-drift", "Issue scope changed"],
+    ["team-drift", "Issue scope changed"],
+    ["read-failure", "Read failed: read unavailable"],
+  ]
+) {
+  Deno.test(`Team freeze rejects ${mode} without executable output`, async () => {
+    const f = await fixture(mode)
     try {
-      const result = await f.run(["freeze", "OLD", "NEW", f.migration])
+      const result = await f.run()
       assertEquals(result.code, 1)
-      assertStringIncludes(
-        result.stderr,
-        "Issue issue-2 is archived or trashed",
-      )
-      assertStringIncludes(result.stderr, "No moves executed")
+      assertStringIncludes(result.stderr, diagnostic)
+      assertEquals(result.stdout, "")
       const calls = await f.calls()
-      assertEquals(calls.find((args) => args[1] === "query"), [
-        "issue",
-        "query",
-        "--team",
-        "OLD",
-        "--include-archived",
-        "--limit",
-        "0",
-        "--json",
-      ])
+      const collection = calls.find((args) =>
+        args[1].includes("MigrationIssues")
+      )!
+      assertEquals(collection.includes("--paginate"), true)
+      assertStringIncludes(collection[1], "includeArchived: true")
       assertEquals(
-        calls.filter((args) => args[1] === "view").map((args) => args[2]),
-        ["issue-1", "issue-2"],
+        JSON.parse(collection[collection.indexOf("--variables-json") + 1]),
+        { team: source.id },
       )
-      assertEquals(calls.filter((args) => args[1] === "update"), [])
+      if (["archived", "trashed"].includes(mode)) {
+        assertEquals(
+          JSON.parse(await Deno.readTextFile(join(f.migration, "0.base.json"))),
+          f.bases[0],
+        )
+      }
       await assertRejects(
-        () => Deno.stat(join(f.migration, "scope.json")),
+        () => Deno.stat(join(f.migration, "manifest.json")),
         Deno.errors.NotFound,
       )
-      await assertRejects(
-        () => Deno.stat(join(f.migration, "receipts.jsonl")),
-        Deno.errors.NotFound,
-      )
-    } finally {
-      await f.cleanup()
-    }
-  })
-
-  Deno.test(`Team move rejects saved ${lifecycle} scope before any CLI call or receipt`, async () => {
-    const f = await fixture(lifecycle)
-    try {
-      await f.saveOldScope()
-      const result = await f.run(["move", f.migration])
-      assertEquals(result.code, 1)
-      assertStringIncludes(
-        result.stderr,
-        "Issue issue-2 is archived or trashed",
-      )
-      assertEquals(await f.calls(), [])
       await assertRejects(
         () => Deno.stat(join(f.migration, "receipts.jsonl")),
         Deno.errors.NotFound,
@@ -188,84 +162,76 @@ for (const lifecycle of ["archived", "trashed"] as const) {
   })
 }
 
-Deno.test("Team migration still freezes and moves an active scope with receipts", async () => {
-  const f = await fixture("active")
+Deno.test("Team freeze writes a loadable v2 UUID manifest with unchanged bases and no executor", async () => {
+  const f = await fixture()
   try {
-    const frozen = await f.run(["freeze", "OLD", "NEW", f.migration])
-    assertEquals(frozen.code, 0, frozen.stderr)
-    assertEquals(
-      JSON.parse(frozen.stdout).issues.map((issue: { id: string }) => issue.id),
-      ["issue-1", "issue-2"],
-    )
-    const moved = await f.run(["move", f.migration])
-    assertEquals(moved.code, 0, moved.stderr)
-    const calls = await f.calls()
-    assertEquals(
-      calls.filter((args) => args[1] === "update"),
-      [1, 2].map((number) => [
-        "issue",
-        "update",
-        `issue-${number}`,
-        "--base-file",
-        join(f.migration, `${number - 1}.base.json`),
-        "--team",
-        "target-id",
-        "--json",
-      ]),
-    )
-    const receipts =
-      (await Deno.readTextFile(join(f.migration, "receipts.jsonl"))).trim()
-        .split("\n").map((line) => JSON.parse(line))
-    assertEquals(receipts.map((entry) => entry.phase), [
-      "dispatch",
-      "result",
-      "dispatch",
-      "result",
+    const result = await f.run()
+    assertEquals(result.code, 0, result.stderr)
+    const loaded = await loadManifest(join(f.migration, "manifest.json"))
+    assertEquals(loaded.manifest, {
+      schemaVersion: 2,
+      workspace: organization.urlKey,
+      issues: [11, 12].map((n, index) => ({
+        operation: "update" as const,
+        identifier: uuid(n),
+        set: { team: target.id },
+        baseFile: `${index}.base.json`,
+      })),
+    })
+    assertEquals(JSON.parse(result.stdout), loaded.manifest)
+    assertEquals([...loaded.originals.values()], f.bases)
+    assertEquals((await f.calls()).map((args) => args[0]), [
+      "api",
+      "api",
+      "issue",
+      "issue",
     ])
-    assertEquals(receipts[1].after, "NEW-1")
-    assertEquals(receipts[3].after, "NEW-2")
-    assertEquals(receipts[1].result.effect, "applied")
-    assertEquals(receipts[3].result.effect, "applied")
-    const receiptsBefore = await Deno.readFile(
-      join(f.migration, "receipts.jsonl"),
-    )
-    const repeated = await f.run(["move", f.migration])
-    assertEquals(repeated.code, 1)
-    for (
-      const guidance of [
-        "Receipts already exist",
-        "no moves executed in this attempt",
-        "Preserve receipts and original outputs",
-        "reconcile prior effects by stable issue UUID",
-        "explicitly select any remaining scope",
-        "new directory",
-        "Do not delete the ledger",
-      ]
-    ) assertStringIncludes(repeated.stderr, guidance)
     assertEquals(
-      (await f.calls()).slice(calls.length).filter((args) => args[0] !== "api"),
-      [],
+      (await f.calls()).filter((args) => args[0] === "issue").map((args) =>
+        args[1]
+      ),
+      ["view", "view"],
     )
-    assertEquals(
-      await Deno.readFile(join(f.migration, "receipts.jsonl")),
-      receiptsBefore,
-    )
+    assertEquals((await f.run()).code, 1)
+    assertEquals((await f.calls()).length, 4)
   } finally {
     await f.cleanup()
   }
 })
 
-Deno.test("Team move preserves receipt IO errors instead of claiming prior execution", async () => {
-  const f = await fixture("active")
+Deno.test("Empty team reports no work instead of an invalid executable manifest", async () => {
+  const f = await fixture("empty")
   try {
-    await f.saveOldScope()
-    const receipts = join(f.migration, "receipts.jsonl")
-    const result = await f.run(["move", f.migration], receipts)
-    assertEquals(result.code, 1)
-    assertStringIncludes(result.stderr, "Requires write access")
-    assertEquals(result.stderr.includes("Receipts already exist"), false)
-    assertEquals((await f.calls()).map((args) => args[0]), ["api"])
-    await assertRejects(() => Deno.stat(receipts), Deno.errors.NotFound)
+    const result = await f.run()
+    assertEquals(result.code, 0, result.stderr)
+    assertStringIncludes(result.stdout, "No work")
+    assertEquals(await Array.fromAsync(Deno.readDir(f.migration)), [])
+  } finally {
+    await f.cleanup()
+  }
+})
+
+Deno.test("Old migration scope and unknown receipts are never converted or replayed", async () => {
+  const f = await fixture()
+  try {
+    await Deno.mkdir(f.migration)
+    const old = {
+      "scope.json": '{"issues": ["old scope"]}',
+      "receipts.jsonl": '{"effect":"unknown","phase":"dispatch"}\n',
+    }
+    for (const [name, text] of Object.entries(old)) {
+      await Deno.writeTextFile(join(f.migration, name), text)
+    }
+    assertEquals((await f.run(["move", f.migration])).code, 1)
+    assertEquals((await f.run()).code, 1)
+    assertEquals(await f.calls(), [])
+    for (const [name, text] of Object.entries(old)) {
+      assertEquals(await Deno.readTextFile(join(f.migration, name)), text)
+    }
+    await assertRejects(
+      () => Deno.stat(join(f.migration, "manifest.json")),
+      Deno.errors.NotFound,
+    )
   } finally {
     await f.cleanup()
   }

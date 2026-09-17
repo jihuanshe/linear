@@ -1,12 +1,23 @@
 import { Command } from "@cliffy/command"
 import { withUsageMetadata } from "./usage.ts"
 import { prompt, Select } from "../utils/prompt.ts"
-import { join } from "@std/path"
+import { stringify } from "@std/toml"
 import { gql } from "../__codegen__/gql.ts"
 import { getGraphQLClient } from "../utils/graphql.ts"
 import { getDefaultWorkspace, getWorkspaces } from "../credentials.ts"
-import { getCliWorkspace, getOption, setCliWorkspace } from "../config.ts"
-import { AuthError, handleError, NotFoundError } from "../utils/errors.ts"
+import {
+  getCliWorkspace,
+  getOption,
+  getProjectConfigPath,
+  loadConfig,
+  setCliWorkspace,
+} from "../config.ts"
+import {
+  AuthError,
+  handleError,
+  NotFoundError,
+  ValidationError,
+} from "../utils/errors.ts"
 
 const configQuery = gql(`
   query Config {
@@ -33,6 +44,20 @@ export const configCommand = withUsageMetadata(new Command(), {
   .description("Interactively generate .linear.toml configuration")
   .action(async () => {
     try {
+      loadConfig()
+      const filePath = getProjectConfigPath()
+      try {
+        await Deno.lstat(filePath)
+        throw new ValidationError(
+          `Configuration already exists at ${filePath}`,
+          {
+            suggestion:
+              "Edit the existing file; the config wizard never overwrites it.",
+          },
+        )
+      } catch (error) {
+        if (!(error instanceof Deno.errors.NotFound)) throw error
+      }
       console.log(`
 ██      ██ ███    ██ ███████  █████  ██████      ██████ ██      ██
 ██      ██ ████   ██ ██      ██   ██ ██   ██    ██      ██      ██
@@ -41,10 +66,8 @@ export const configCommand = withUsageMetadata(new Command(), {
 ███████ ██ ██   ████ ███████ ██   ██ ██   ██     ██████ ███████ ██
 `)
 
-      // Check for explicit API key sources (env var, config, or --workspace flag)
-      const hasExplicitApiKey = Deno.env.get("LINEAR_API_KEY") ||
-        getOption("api_key") ||
-        getCliWorkspace()
+      const hasExplicitApiKey = Deno.env.get("LINEAR_API_KEY") != null ||
+        getCliWorkspace() != null || getOption("workspace") != null
 
       if (!hasExplicitApiKey) {
         const workspaces = getWorkspaces()
@@ -81,12 +104,6 @@ export const configCommand = withUsageMetadata(new Command(), {
         a.name.toLowerCase().localeCompare(b.name.toLowerCase())
       )
 
-      interface Team {
-        id: string
-        key: string
-        name: string
-      }
-
       const selectedTeamId = await Select.prompt({
         message: "Select a team:",
         search: true,
@@ -117,33 +134,19 @@ export const configCommand = withUsageMetadata(new Command(), {
       const teamKey = team.key
       const sortChoice = responses.sort
 
-      // Determine file path for .linear.toml: prefer git root .config dir, then git root, then cwd.
-      let filePath: string
-      try {
-        const gitRootProcess = await new Deno.Command("git", {
-          args: ["rev-parse", "--show-toplevel"],
-        }).output()
-        const gitRoot = new TextDecoder().decode(gitRootProcess.stdout).trim()
-        const configDir = join(gitRoot, ".config")
-        try {
-          await Deno.stat(configDir)
-          filePath = join(configDir, "linear.toml")
-        } catch {
-          filePath = join(gitRoot, ".linear.toml")
-        }
-      } catch {
-        filePath = "./.linear.toml"
+      if (getProjectConfigPath() !== filePath) {
+        throw new ValidationError(
+          "Configuration target changed while prompting; no file was written",
+        )
       }
 
       const tomlContent = `# linear cli
 # https://github.com/jihuanshe/linear
 
-workspace = "${workspace}"
-team_id = "${teamKey}"
-issue_sort = "${sortChoice}"
+${stringify({ workspace, team_key: teamKey, issue_sort: sortChoice })}
 `
 
-      await Deno.writeTextFile(filePath, tomlContent)
+      await Deno.writeTextFile(filePath, tomlContent, { createNew: true })
       console.log("Configuration written to", filePath)
     } catch (error) {
       handleError(error, "Failed to generate configuration")

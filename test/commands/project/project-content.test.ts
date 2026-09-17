@@ -44,6 +44,191 @@ async function cli(server: MockLinearServer, args: string[]) {
   return { ...result, stdout, stderr, json: () => JSON.parse(stdout) }
 }
 
+for (const operation of ["create", "update"]) {
+  for (const field of ["description", "content"]) {
+    for (
+      const source of [
+        "inline",
+        "file",
+        "empty-file",
+        "invalid-file",
+        ...(field === "description" ? ["255-file", "256-file"] : []),
+      ]
+    ) {
+      Deno.test(`project ${operation} ${field} preserves ${source}`, async () => {
+        const expected = source === "empty-file"
+          ? ""
+          : source === "255-file"
+          ? "\uFEFF" + "x".repeat(254)
+          : source === "256-file"
+          ? "\uFEFF" + "x".repeat(255)
+          : "\uFEFF \r\nAlpha  \r\n\tBeta\n \t"
+        const file = await Deno.makeTempFile()
+        let remote = structuredClone(project)
+        const server = new MockLinearServer([
+          {
+            queryName: "GetWriteTeamByKey",
+            response: {
+              data: {
+                teams: {
+                  nodes: [{ id: "team-id", key: "ENG" }],
+                  pageInfo: { hasNextPage: false, endCursor: null },
+                },
+              },
+            },
+          },
+          {
+            queryName: "ReadProject",
+            response: () => ({ data: { organization, project: remote } }),
+          },
+          {
+            queryName: operation === "create"
+              ? "CreateProject"
+              : "UpdateProject",
+            response: ({ variables }) => {
+              const input = variables.input as Record<string, unknown>
+              remote = {
+                ...remote,
+                ...input,
+                ...(input.content === "\n" ? { content: "" } : {}),
+              }
+              return {
+                data: {
+                  [operation === "create" ? "projectCreate" : "projectUpdate"]:
+                    { success: true, project: remote },
+                },
+              }
+            },
+          },
+        ])
+        try {
+          await Deno.writeFile(
+            file,
+            source === "invalid-file"
+              ? new Uint8Array([0x41, 0xc3, 0x28, 0x42])
+              : new TextEncoder().encode(expected),
+          )
+          await server.start()
+          const result = await cli(server, [
+            operation,
+            ...(operation === "create"
+              ? ["--name", "New", "--team", "ENG"]
+              : [id, "--unprotected"]),
+            ...(source === "inline"
+              ? [`--${field}`, expected]
+              : [`--${field}-file`, file]),
+          ])
+          const valid = source !== "invalid-file" && source !== "256-file"
+          assertEquals(
+            result.code,
+            valid ? 0 : 1,
+            result.stdout + result.stderr,
+          )
+          const writes = server.graphqlRequests.filter((request) =>
+            request.query.includes("mutation ")
+          )
+          assertEquals(writes.length, valid ? 1 : 0)
+          if (valid) {
+            assertEquals(result.json().effect, "applied")
+            assertEquals(
+              (writes[0].variables.input as Record<string, unknown>)[field],
+              operation === "update" && field === "content" && expected === ""
+                ? "\n"
+                : expected,
+            )
+          } else {
+            assertEquals(result.json().effect, "none")
+            assertStringIncludes(
+              result.json().error.message,
+              source === "invalid-file"
+                ? `Failed to read ${field} file`
+                : "256 characters",
+            )
+            assertEquals(server.graphqlRequests, [])
+          }
+        } finally {
+          await server.stop()
+          await Deno.remove(file)
+        }
+      })
+    }
+  }
+}
+
+for (const observation of ["empty", "different", "unavailable"] as const) {
+  Deno.test(`Project clear content preserves its receipt separately from ${observation} read-back`, async () => {
+    let reads = 0
+    const receipt = {
+      id,
+      name: "Receipt name",
+      content: "\n",
+      url: project.url,
+    }
+    const server = new MockLinearServer([
+      {
+        queryName: "ReadProject",
+        response: () => {
+          if (++reads > 1 && observation === "unavailable") {
+            return { errors: [{ message: "Read-back unavailable" }] }
+          }
+          return {
+            data: {
+              organization,
+              project: {
+                ...project,
+                content: reads === 1
+                  ? "Original"
+                  : observation === "empty"
+                  ? ""
+                  : "Concurrent edit",
+              },
+            },
+          }
+        },
+      },
+      {
+        queryName: "UpdateProject",
+        response: {
+          data: { projectUpdate: { success: true, project: receipt } },
+        },
+      },
+    ])
+    try {
+      await server.start()
+      const result = await cli(server, [
+        "update",
+        id,
+        "--unprotected",
+        "--content",
+        "",
+      ])
+      const body = result.json()
+      assertEquals(
+        result.code,
+        observation === "empty" ? 0 : 1,
+        result.stdout + result.stderr,
+      )
+      assertEquals(body.effect, "applied")
+      assertEquals(body.data.project, receipt)
+      if (observation === "empty") {
+        assertEquals(body.verification, { status: "verified", content: "" })
+      } else {
+        assertStringIncludes(body.error.message, "could not be verified")
+        assertEquals(body.error.details.verification.status, "unverified")
+      }
+      assertEquals(reads, 2)
+      assertEquals(
+        server.graphqlRequests.filter((request) =>
+          request.query.includes("mutation ")
+        ).map((request) => request.variables),
+        [{ id, input: { content: "\n" } }],
+      )
+    } finally {
+      await server.stop()
+    }
+  })
+}
+
 Deno.test("Project content uses the view basis, rejects concurrent edits, preserves Markdown, and clears explicitly", async () => {
   let remote = structuredClone(project)
   const server = new MockLinearServer([

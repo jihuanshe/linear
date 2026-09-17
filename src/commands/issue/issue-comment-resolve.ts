@@ -150,12 +150,12 @@ export const commentResolveCommand = withUsageMetadata(new Command(), {
 })
   .name("resolve")
   .description(
-    "Resolve an Issue comment thread; a reply ID is followed to its root. Reads back the root state; never retries a mutation.",
+    "Resolve an Issue comment thread by comment UUID; a reply UUID is followed to its root. Reads back the root state; never retries a mutation.",
   )
   .arguments("<commentId:string>")
   .option(
-    "--resolving-comment <replyId:string>",
-    "Reply in the same thread that records the resolution",
+    "--resolving-comment <commentId:string>",
+    "UUID of a reply in the same thread that records the resolution",
     { preserveEmpty: true },
   )
   .option(
@@ -181,7 +181,7 @@ export const commentUnresolveCommand = withUsageMetadata(new Command(), {
 })
   .name("unresolve")
   .description(
-    "Reopen an Issue comment thread; a reply ID is followed to its root. Reads back the root state; never retries a mutation.",
+    "Reopen an Issue comment thread by comment UUID; a reply UUID is followed to its root. Reads back the root state; never retries a mutation.",
   )
   .arguments("<commentId:string>")
   .option(

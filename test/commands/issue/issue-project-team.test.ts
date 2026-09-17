@@ -7,11 +7,81 @@ import {
 import { assertEquals, assertRejects, assertStringIncludes } from "@std/assert"
 import { stub } from "@std/testing/mock"
 import { createCommand } from "../../../src/commands/issue/issue-create.ts"
-import { updateCommand } from "../../../src/commands/issue/issue-update.ts"
+import {
+  prepareIssueUpdate,
+  updateCommand,
+} from "../../../src/commands/issue/issue-update.ts"
+import { ValidationError } from "../../../src/utils/errors.ts"
 import { teamsCommand } from "../../../src/commands/project/project-teams.ts"
 
 const projectId = "abcdef01-2345-4678-9abc-def012345678"
 const eligibleTeam = { id: teamWriteIds.ENG, key: "ENG", name: "Engineering" }
+
+for (const unprotected of [false, true]) {
+  Deno.test(`issue team update checks project A, not intermediate compatible B (unprotected=${unprotected})`, async () => {
+    const projectB = "bcdef012-3456-4789-abcd-ef0123456789"
+    const original = issueWriteBasis("OPS-123", {
+      id: teamWriteIds.OPS,
+      key: "OPS",
+    })
+    original.issue.project = { id: projectId }
+    const { server, cleanup } = await setupMockLinearServer([
+      {
+        queryName: "GetIssueForWrite",
+        response: { data: original },
+      },
+      {
+        queryName: "GetTeamIdByKey",
+        response: { data: { teams: { nodes: [eligibleTeam] } } },
+      },
+      {
+        queryName: "GetIssueProjectId",
+        response: { data: { issue: { project: { id: projectB } } } },
+      },
+      {
+        queryName: "ProjectTeams",
+        response: ({ variables }) => ({
+          data: {
+            project: {
+              id: variables.id,
+              name: variables.id === projectId ? "A" : "B",
+              teams: {
+                nodes: variables.id === projectB ? [eligibleTeam] : [],
+                pageInfo: { hasNextPage: false, endCursor: null },
+              },
+            },
+          },
+        }),
+      },
+    ])
+    try {
+      await assertRejects(
+        () =>
+          prepareIssueUpdate({
+            team: "ENG",
+            ...(unprotected ? { unprotected } : { original }),
+          }, "OPS-123"),
+        ValidationError,
+        "Team ENG does not belong to project",
+      )
+      assertEquals(
+        server.graphqlRequests.filter((request) =>
+          request.query.includes("query ProjectTeams")
+        ).map((request) => request.variables.id),
+        [projectId],
+      )
+      assertEquals(
+        server.graphqlRequests.some((request) =>
+          request.query.includes("query GetIssueProjectId") ||
+          request.query.includes("mutation ")
+        ),
+        false,
+      )
+    } finally {
+      await cleanup()
+    }
+  })
+}
 
 for (const operation of ["create", "update", "move"] as const) {
   for (

@@ -561,7 +561,13 @@ Deno.test("Initiative JSON mode refuses interactive flags before reading an obje
       "--interactive",
     ])
     assertEquals(result.code, 1)
-    assertStringIncludes(result.stdout, "JSON mode cannot prompt")
+    const failure = JSON.parse(result.stdout)
+    assertEquals(failure.effect, "none")
+    assertEquals(failure.error.code, "ValidationError")
+    assertEquals(
+      failure.error.message,
+      "--json cannot be combined with --interactive",
+    )
     assertEquals(server.graphqlRequests.length, 0)
   } finally {
     await server.stop()

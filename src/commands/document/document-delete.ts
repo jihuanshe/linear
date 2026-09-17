@@ -3,7 +3,7 @@ import { withUsageMetadata } from "../usage.ts"
 import { Confirm } from "../../utils/prompt.ts"
 import { gql } from "../../__codegen__/gql.ts"
 import { getGraphQLClient } from "../../utils/graphql.ts"
-import { printWriteResult, setMachineOutput } from "../../utils/write-result.ts"
+import { printWriteResult } from "../../utils/write-result.ts"
 import {
   type BulkOperationResult,
   collectBulkIds,
@@ -27,30 +27,32 @@ interface DocumentDeleteResult extends BulkOperationResult {
 export const deleteCommand = withUsageMetadata(new Command(), {
   writes: true,
   interactive: true,
-  confirmationRequiredUnless: "--yes",
-  outputModes: ["human", "json"],
 })
   .name("delete")
   .option("--json", "Output a JSON write result")
-  .description("Delete a document (moves to trash)")
+  .description(
+    "Delete a document by UUID or slug ID (moves to trash); requires an explicit document or bulk input",
+  )
   .alias("d")
-  .arguments("[documentId:string]")
+  .arguments("[document:string]")
   .option("-y, --yes", "Skip confirmation prompt")
   .option(
-    "--bulk <ids...:string>",
-    "Delete multiple documents by slug or ID",
+    "--bulk <documents...:string>",
+    "Delete multiple documents by UUID or slug ID",
   )
   .option(
-    "--bulk-file <file:string>",
-    "Read document slugs/IDs from a file (one per line)",
+    "--bulk-file <path:string>",
+    "Read whitespace/comma-separated document UUIDs or slugs from a file (no names with spaces)",
   )
-  .option("--bulk-stdin", "Read document slugs/IDs from stdin")
+  .option(
+    "--bulk-stdin",
+    "Read whitespace/comma-separated document UUIDs or slugs from stdin (no names with spaces)",
+  )
   .action(
     async (
       { yes, bulk, bulkFile, bulkStdin, json },
-      documentId,
+      documentReference,
     ) => {
-      setMachineOutput(json ?? false)
       try {
         const client = getGraphQLClient()
 
@@ -66,14 +68,14 @@ export const deleteCommand = withUsageMetadata(new Command(), {
           return
         }
 
-        // Single mode requires documentId
-        if (!documentId) {
-          throw new ValidationError("Document ID required", {
+        // Single mode requires documentReference
+        if (!documentReference) {
+          throw new ValidationError("Document UUID or slug ID required", {
             suggestion: "Use --bulk for multiple documents.",
           })
         }
 
-        await handleSingleDelete(client, documentId, { yes, json })
+        await handleSingleDelete(client, documentReference, { yes, json })
       } catch (error) {
         handleError(error, "Failed to delete document")
       }
@@ -82,7 +84,7 @@ export const deleteCommand = withUsageMetadata(new Command(), {
 
 async function handleSingleDelete(
   client: ReturnType<typeof getGraphQLClient>,
-  documentId: string,
+  documentReference: string,
   options: { yes?: boolean; json?: boolean },
 ): Promise<void> {
   const { yes, json } = options
@@ -98,10 +100,12 @@ async function handleSingleDelete(
     }
   `)
 
-  const documentDetails = await client.request(detailsQuery, { id: documentId })
+  const documentDetails = await client.request(detailsQuery, {
+    id: documentReference,
+  })
 
   if (!documentDetails?.document) {
-    throw new NotFoundError("Document", documentId)
+    throw new NotFoundError("Document", documentReference)
   }
 
   const document = documentDetails.document

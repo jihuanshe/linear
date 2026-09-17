@@ -10,15 +10,17 @@ import {
   handleError,
   ValidationError,
 } from "../../utils/errors.ts"
-import { printWriteResult, setMachineOutput } from "../../utils/write-result.ts"
+import { printWriteResult } from "../../utils/write-result.ts"
 
 export const createCommand = withUsageMetadata(new Command(), {
   writes: true,
   interactive: true,
-  outputModes: ["human", "json"],
 })
   .name("create")
-  .option("--json", "Output a JSON write result")
+  .option(
+    "--json",
+    "Output a JSON write result; the created team is in data.team",
+  )
   .description("Create a linear team")
   .option("-n, --name <name:string>", "Name of the team")
   .option("-d, --description <description:string>", "Description of the team")
@@ -37,7 +39,6 @@ export const createCommand = withUsageMetadata(new Command(), {
       interactive,
       json,
     }) => {
-      setMachineOutput(json ?? false)
       interactive = !json && interactive && Deno.stdout.isTerminal()
 
       // If no flags are provided, use interactive mode
@@ -155,7 +156,7 @@ export const createCommand = withUsageMetadata(new Command(), {
 
         spinner?.stop()
         if (json) {
-          printWriteResult(team)
+          printWriteResult({ team })
           return
         }
         console.log(`✓ Created team ${team.key}: ${team.name}`)

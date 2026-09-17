@@ -3,11 +3,18 @@ import {
   assertEquals,
   assertExists,
   assertMatch,
+  assertRejects,
   assertStringIncludes,
 } from "@std/assert"
 import { fromFileUrl } from "@std/path"
 import { assertSnapshot } from "@std/testing/snapshot"
+import { stub } from "@std/testing/mock"
 import { cli } from "../../src/cli.ts"
+import {
+  isMachineOutput,
+  setMachineOutput,
+} from "../../src/utils/write-result.ts"
+import { UnsupportedOutputError } from "../../src/utils/errors.ts"
 import {
   buildUsageDocument,
   type UsageDocument,
@@ -137,12 +144,16 @@ Deno.test("zero-argument domain reuses its usage navigation", async () => {
   assertEquals(aliasResult.stdout, explicitUsage.stdout)
 })
 
-Deno.test("zero-argument commands with their own action stay unchanged", async () => {
-  const result = await run(["document"])
+Deno.test("document navigation reuses generated usage", async () => {
+  const [result, explicitUsage] = await Promise.all([
+    run(["document"]),
+    run(["document", "usage"]),
+  ])
 
   assertEquals(result.code, 0, result.stderr)
   assertEquals(result.stderr, "")
-  assertEquals(result.stdout, "Use --help to see available subcommands\n")
+  assertEquals(explicitUsage.code, 0, explicitUsage.stderr)
+  assertEquals(result.stdout, explicitUsage.stdout)
 })
 
 Deno.test("usage --json exposes the top-level command tree", async () => {
@@ -199,10 +210,6 @@ Deno.test("domain usage includes direct command options", async () => {
   assertStringIncludes(result.stdout, "create options:")
   assertStringIncludes(result.stdout, "--no-interactive")
   assertStringIncludes(result.stdout, "[writes; interactive; json]")
-  assertStringIncludes(
-    result.stdout,
-    "[writes; interactive; confirm: --confirm; json]",
-  )
   assertStringIncludes(result.stdout, "[interactive; json]")
   assertStringIncludes(
     result.stdout,
@@ -251,7 +258,7 @@ Deno.test("Cliffy help keeps canonical human metadata labels", async () => {
   assertEquals(deleteResult.stderr, "")
   assertMatch(
     deleteResult.stdout,
-    /\nWrites: true\s*\nInteractive: true\s*\nConfirmation required unless: --confirm\s*\n/,
+    /\nWrites: true\s*\nInteractive: true\s*\n/,
   )
 
   const apiResult = await run(["api", "--help"])
@@ -275,31 +282,12 @@ Deno.test("domain usage --json preserves arguments, aliases, and option types", 
     false,
   )
 
-  const mine = document.subcommands.find((command) => command.name === "mine")
-  assertEquals(mine?.aliases, ["list", "l"])
-  assertEquals(mine?.writes, false)
-  assertEquals(mine?.interactive, true)
-  assertEquals(
-    mine?.options.some((option) =>
-      ["assignee", "all-assignees", "unassigned"].includes(option.name)
-    ),
-    false,
-  )
-  assertEquals(
-    mine?.options.find((option) => option.name === "state")?.default,
-    ["unstarted"],
-  )
-  assertEquals(
-    mine?.options.find((option) => option.name === "limit")?.default,
-    50,
-  )
-
   const attach = document.subcommands.find((command) =>
     command.name === "attach"
   )
   assertEquals(attach?.arguments.map((argument) => argument.name), [
-    "issueId",
-    "filepath",
+    "issue",
+    "path",
   ])
   assertEquals(
     attach?.arguments.every((argument) => argument.required),
@@ -311,28 +299,99 @@ Deno.test("domain usage --json preserves arguments, aliases, and option types", 
   )
   assertEquals(create?.writes, true)
   assertEquals(create?.interactive, true)
-  assertEquals(create?.confirmation, null)
   assertEquals(create?.outputModes, ["human", "json"])
   const team = create?.options.find((option) => option.name === "team")
   assertEquals(team?.flags, ["--team"])
   assertEquals(team?.arguments[0]?.type, "string")
-  assertEquals(team?.arguments[0]?.list, false)
+
+  const priority = create?.options.find((option) => option.name === "priority")
+  assertEquals(priority?.arguments[0]?.type, "priority")
 
   const deleteCommand = document.subcommands.find((command) =>
     command.name === "delete"
   )
   assertEquals(deleteCommand?.writes, true)
   assertEquals(deleteCommand?.interactive, true)
-  assertEquals(deleteCommand?.confirmation, {
-    requiredUnless: "--confirm",
-  })
 
   const query = document.subcommands.find((command) => command.name === "query")
+  assertEquals(query?.aliases, ["q"])
   assertEquals(query?.interactive, true)
   assertEquals(query?.outputModes, ["human", "json"])
 
   const view = document.subcommands.find((command) => command.name === "view")
   assertEquals(view?.writes, false)
+})
+
+Deno.test("usage names flexible references by resource and reserves Id suffixes for UUIDs", () => {
+  for (
+    const [path, argumentNames] of [
+      ["issue view", ["issue"]],
+      ["issue update", ["issue"]],
+      ["issue delete", ["issue"]],
+      ["issue comment add", ["issue"]],
+      ["issue comment list", ["issue"]],
+      ["project view", ["project"]],
+      ["project update", ["project"]],
+      ["project delete", ["project"]],
+      ["project teams", ["project"]],
+      ["project-update create", ["project"]],
+      ["project-update list", ["project"]],
+      ["initiative view", ["initiative"]],
+      ["initiative update", ["initiative"]],
+      ["initiative delete", ["initiative"]],
+      ["initiative archive", ["initiative"]],
+      ["initiative unarchive", ["initiative"]],
+      ["initiative add-project", ["initiative", "project"]],
+      ["initiative remove-project", ["initiative", "project"]],
+      ["initiative-update create", ["initiative"]],
+      ["initiative-update list", ["initiative"]],
+      ["document view", ["document"]],
+      ["document update", ["document"]],
+      ["document delete", ["document"]],
+      ["label delete", ["label"]],
+      ["cycle view", ["cycle"]],
+      ["team members", ["team"]],
+      ["team states", ["team"]],
+      ["team delete", ["team"]],
+      ["issue comment view", ["commentId"]],
+      ["issue comment update", ["commentId"]],
+      ["issue comment delete", ["commentId"]],
+      ["issue comment resolve", ["commentId"]],
+      ["issue comment unresolve", ["commentId"]],
+      ["milestone update", ["milestoneId"]],
+      ["milestone delete", ["milestoneId"]],
+      ["auth default", ["slug"]],
+      ["auth logout", ["slug"]],
+    ] as const
+  ) {
+    let command = cli
+    for (const segment of path.split(" ")) {
+      const child = command.getCommand(segment)
+      assertExists(child, path)
+      command = child as typeof cli
+    }
+    assertEquals(
+      buildUsageDocument(command).command.arguments.map(({ name }) => name),
+      [...argumentNames],
+      path,
+    )
+  }
+
+  const uuidArguments = ["commentId", "relationId", "updateId", "milestoneId"]
+  const queue = [...cli.getCommands(true)]
+  for (const command of queue) {
+    queue.push(...command.getCommands(true))
+    const metadata = buildUsageDocument(command).command
+    for (const argument of metadata.arguments) {
+      if (argument.name.endsWith("Id")) {
+        assertEquals(
+          uuidArguments.includes(argument.name),
+          true,
+          `${metadata.path}: ${argument.name} is not a UUID-only argument`,
+        )
+      }
+    }
+  }
 })
 
 Deno.test("usage --json exposes required options and canonical alias paths", async () => {
@@ -359,17 +418,18 @@ Deno.test("usage --json exposes required options and canonical alias paths", asy
   assertEquals(aliasDocument.command.path, "linear issue")
 })
 
-Deno.test("usage distinguishes list arguments from repeatable options", () => {
+Deno.test("usage distinguishes scalar and repeatable options", () => {
   const command = new Command()
     .name("sample")
     .description("Sample command")
-    .option("--items <items:string[]>", "Comma-separated items")
+    .option("--title <title:string>", "Title")
     .option("--tag <tag:string>", "Repeatable tag", { collect: true })
   const options = buildUsageDocument(command).command.options
 
-  const items = options.find((option) => option.name === "items")
-  assertEquals(items?.arguments[0]?.list, true)
-  assertEquals(items?.repeatable, false)
+  assertEquals(
+    options.find((option) => option.name === "title")?.repeatable,
+    false,
+  )
   assertEquals(
     options.find((option) => option.name === "tag")?.repeatable,
     true,
@@ -428,16 +488,9 @@ Deno.test("writes metadata exactly matches canonical write commands", () => {
   assertEquals(actual.sort(), CANONICAL_WRITES_COMMAND_PATHS)
 })
 
-Deno.test("pruned workflows stay outside the command tree and replacement options remain discoverable", () => {
-  assertEquals(cli.getCommand("doctor"), undefined)
+Deno.test("selection metadata and protected replacement options remain discoverable", () => {
   const issue = cli.getCommand("issue")!
-  for (const name of ["start", "commits", "pull-request", "pr"]) {
-    assertEquals(issue.getCommand(name), undefined)
-  }
   const team = cli.getCommand("team")!
-  for (const name of ["id", "autolinks"]) {
-    assertEquals(team.getCommand(name), undefined)
-  }
   assertEquals(
     buildUsageDocument(issue.getCommand("pick")!).command.writes,
     false,
@@ -480,26 +533,69 @@ Deno.test("usage metadata stays aligned with the registered command tree", () =>
   ) {
     assertEquals(command.details, `${command.path} usage`)
   }
+})
 
+Deno.test("global JSON inheritance does not advertise unsupported leaves as capable", () => {
   const queue = [...cli.getCommands(true)]
   for (const command of queue) {
     queue.push(...command.getCommands(true))
     const metadata = buildUsageDocument(command).command
-    const confirmationOption = command.getBaseOptions().find((option) =>
-      /skip confirmation prompt/i.test(option.description)
+    const local = command.getBaseOptions().find((option) =>
+      option.name === "json" && !option.global
     )
-    if (confirmationOption == null) continue
+    if (local != null) {
+      assertEquals(local.aliases?.includes("j"), true, metadata.path)
+      assertEquals(local.flags.includes("-j"), true, metadata.path)
+      assertEquals(metadata.outputModes.includes("json"), true, metadata.path)
+    } else if (!command.hasCommands() && metadata.path !== "linear api") {
+      assertEquals(metadata.outputModes, ["human"], metadata.path)
+    }
+  }
+  const auth = buildUsageDocument(cli.getCommand("auth")!)
+  assertEquals(auth.command.outputModes, ["human", "json"])
+  assertEquals(
+    auth.globalOptions.find((option) => option.name === "json")?.flags,
+    [
+      "-j",
+      "--json",
+    ],
+  )
+  assertEquals(
+    auth.subcommands.find((command) => command.name === "login")?.outputModes,
+    ["human"],
+  )
+})
 
-    assertExists(
-      metadata.confirmation,
-      `${metadata.path} has a confirmation bypass option but no metadata`,
-    )
-    assertEquals(
-      confirmationOption.flags.includes(
-        metadata.confirmation.requiredUnless,
-      ),
-      true,
-      `${metadata.path} confirmation metadata does not name its bypass option`,
-    )
+Deno.test("repeated parses isolate JSON selection and preserve standalone human help", async () => {
+  const lines: string[] = []
+  const log = stub(
+    console,
+    "log",
+    (...args: unknown[]) => lines.push(args.join(" ")),
+  )
+  try {
+    for (const json of ["-j", "--json"]) {
+      await cli.parse([json, "version"])
+      assertEquals(JSON.parse(lines.pop()!).distribution, "jihuanshe/linear")
+      assertEquals(isMachineOutput(), true)
+      await cli.parse(["version"])
+      assertMatch(lines.pop()!, /^distribution:/)
+      assertEquals(isMachineOutput(), false)
+      await assertRejects(
+        () => cli.parse(["auth", "login", json]),
+        UnsupportedOutputError,
+      )
+      assertEquals(isMachineOutput(), true)
+      await cli.parse(["--help"])
+      assertMatch(lines.pop()!, /Usage:\s+linear/)
+      assertEquals(isMachineOutput(), false)
+      await cli.parse(["--workspace", json, "version"])
+      assertMatch(lines.pop()!, /^distribution:/)
+      assertEquals(isMachineOutput(), false)
+    }
+    assertEquals(lines, [])
+  } finally {
+    log.restore()
+    setMachineOutput(false)
   }
 })

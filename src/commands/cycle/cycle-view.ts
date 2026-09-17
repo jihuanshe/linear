@@ -3,11 +3,8 @@ import { renderMarkdown } from "../../utils/markdown.ts"
 import { gql } from "../../__codegen__/gql.ts"
 import { getGraphQLClient } from "../../utils/graphql.ts"
 import { formatRelativeTime } from "../../utils/display.ts"
-import {
-  getCycleIdByNameOrNumber,
-  getTeamIdByKey,
-  getTeamKey,
-} from "../../utils/linear.ts"
+import { getCycleIdByNameOrNumber, getTeamKey } from "../../utils/linear.ts"
+import { resolveWriteTeam } from "../../utils/issue-read.ts"
 import { shouldShowSpinner } from "../../utils/hyperlink.ts"
 import {
   handleError,
@@ -52,25 +49,27 @@ const GetCycleDetails = gql(`
 
 export const viewCommand = new Command()
   .name("view")
-  .description("View cycle details")
+  .description(
+    "View a cycle by name, number, active/now, next, previous, or relative offset (e.g. +1 or -1)",
+  )
   .alias("v")
-  .arguments("<cycleRef:string>")
-  .option("--team <team:string>", "Team key (defaults to current team)")
-  .action(async ({ team }, cycleRef) => {
+  .arguments("<cycle:string>")
+  .option(
+    "--team <team:string>",
+    "Team UUID or key (defaults to the configured team)",
+  )
+  .action(async ({ team }, cycleReference) => {
     try {
-      const teamKey = team || getTeamKey()
-      if (!teamKey) {
+      const teamReference = team || getTeamKey()
+      if (!teamReference) {
         throw new ValidationError(
-          "Could not determine team key from directory name or team flag",
+          "No default team configured; specify --team with a team UUID or key, or run `linear config` to set a default team",
         )
       }
 
-      const teamId = await getTeamIdByKey(teamKey)
-      if (!teamId) {
-        throw new NotFoundError("Team", teamKey)
-      }
+      const { id: teamId } = await resolveWriteTeam(teamReference)
 
-      const cycleId = await getCycleIdByNameOrNumber(cycleRef, teamId)
+      const cycleId = await getCycleIdByNameOrNumber(cycleReference, teamId)
 
       const { Spinner } = await import("@std/cli/unstable-spinner")
       const showSpinner = shouldShowSpinner()
@@ -83,7 +82,7 @@ export const viewCommand = new Command()
 
       const cycle = result.cycle
       if (!cycle) {
-        throw new NotFoundError("Cycle", cycleRef)
+        throw new NotFoundError("Cycle", cycleReference)
       }
 
       const lines: string[] = []

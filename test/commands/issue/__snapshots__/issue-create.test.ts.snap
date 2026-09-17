@@ -22,16 +22,16 @@ Options:
 
   -h, --help                                - Show this help.                                                                                         
   -a, --assignee             <assignee>     - Assignee (user UUID, username, name, email, 'self', or '@me')                                           
-  --due-date                 <dueDate>      - Due date of the issue                                                                                   
-  --parent                   <parent>       - Parent issue (if any) as a team_number code                                                             
-  -p, --priority             <priority>     - Priority of the issue (1-4, descending priority)                                                        
+  --due-date                 <date>         - Due date of the issue                                                                                   
+  --parent                   <issue>        - Parent issue (UUID, identifier, number in the configured team, or Linear URL)                           
+  -p, --priority             <priority>     - Priority (0/none, 1/urgent, 2/high, 3/medium, 4/low; names are case-insensitive)                        
   --estimate                 <estimate>     - Points estimate of the issue                                                                            
   -d, --description          <description>  - Description of the issue                                                                                
-  --description-file         <path>         - Read description from a file (preferred for markdown content)                                           
-  -l, --label                <label>        - Issue label associated with the issue. May be repeated.                                                 
-  --team                     <team>         - Team associated with the issue (if not your default team)                                               
+  --description-file         <path>         - Read UTF-8 description from a file (- for stdin; preferred for markdown content)                        
+  -l, --label                <label>        - Issue label (UUID or name). May be repeated.                                                            
+  --team                     <team>         - Team UUID or key (uses the configured default team when omitted)                                        
   --project                  <project>      - Project for the issue (UUID, slug ID, or name)                                                          
-  -s, --state                <state>        - Workflow state for the issue (by name or type)                                                          
+  -s, --state                <state>        - Workflow state for the issue (UUID, name, or type)                                                      
   --milestone                <milestone>    - Project milestone (UUID, or name when --project is set)                                                 
   --cycle                    <cycle>        - Cycle name, number, 'active'/'now', 'next', 'previous', or a relative offset like +1 (use --cycle=-1    
                                               for negatives)                                                                                          

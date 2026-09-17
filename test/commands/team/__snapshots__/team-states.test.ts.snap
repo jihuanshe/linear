@@ -3,11 +3,11 @@ export const snapshot = {};
 snapshot[`Team States Command - Help Text 1`] = `
 stdout:
 "
-Usage: states [teamKey]
+Usage: states [team]
 
 Description:
 
-  List workflow states for a team
+  List workflow states for a team by UUID or key; uses the configured default team when omitted
 
 Options:
 
@@ -100,7 +100,7 @@ snapshot[`Team States Command - No Team Configured 1`] = `
 stdout:
 ""
 stderr:
-"✗ Failed to fetch workflow states: Could not determine team key from directory name
-  Please specify a team key as an argument.
+"✗ Failed to fetch workflow states: No default team configured
+  Specify a team UUID or key as an argument, or run \`linear config\` to set a default team.
 "
 `;

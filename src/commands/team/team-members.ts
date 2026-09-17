@@ -6,23 +6,28 @@ import { handleError, ValidationError } from "../../utils/errors.ts"
 
 export const membersCommand = new Command()
   .name("members")
-  .description("List team members")
-  .arguments("[teamKey:string]")
+  .description(
+    "List members of a team by UUID or key; uses the configured default team when omitted",
+  )
+  .arguments("[team:string]")
   .option("-a, --all", "Include inactive members")
   .option(
     "-j, --json",
     "Output as JSON; use each member's url for Markdown mentions",
   )
-  .action(async ({ all, json }, teamKey?: string) => {
+  .action(async ({ all, json }, teamReference?: string) => {
     const showSpinner = !json && shouldShowSpinner()
     let spinner: { start: () => void; stop: () => void } | null = null
 
     try {
-      const resolvedTeamKey = teamKey || getTeamKey()
-      if (!resolvedTeamKey) {
+      const selectedTeam = teamReference || getTeamKey()
+      if (!selectedTeam) {
         throw new ValidationError(
-          "Could not determine team key from directory name",
-          { suggestion: "Please specify a team key as an argument." },
+          "No default team configured",
+          {
+            suggestion:
+              "Specify a team UUID or key as an argument, or run `linear config` to set a default team.",
+          },
         )
       }
 
@@ -34,7 +39,7 @@ export const membersCommand = new Command()
 
       const includeDisabled = all === true
       const { nodes, pageInfo } = await getTeamMembers(
-        resolvedTeamKey,
+        selectedTeam,
         includeDisabled,
       )
 

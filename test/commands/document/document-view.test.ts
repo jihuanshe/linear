@@ -284,15 +284,11 @@ await snapshotTest({
   },
 })
 
-// With --no-download, image URLs in the markdown are passed through verbatim.
-// Without --no-download, the raw output would contain a local /tmp path
-// (after fetching from the Linear CDN), so this snapshot exercises the
-// wiring that skips the fetch.
 await snapshotTest({
-  name: "Document View Command - No Download Keeps Remote URLs",
+  name: "Document View Command - Raw Content Keeps Remote URLs",
   meta: import.meta,
   colors: false,
-  args: ["d4b93e3b2695", "--raw", "--no-download"],
+  args: ["d4b93e3b2695", "--raw"],
   denoArgs: commonDenoArgs,
   async fn() {
     const server = new MockLinearServer([

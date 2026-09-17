@@ -63,7 +63,7 @@ await cliffySnapshotTest({
   },
 })
 
-// LINEAR_TEAM_ID is deliberately empty: workspace listing must not resolve a
+// LINEAR_TEAM_KEY is deliberately empty: workspace listing must not resolve a
 // team key, and only a GetOrganizationMembers mock is configured, so any team
 // lookup would fail with NO_MOCK_CONFIGURED.
 await cliffySnapshotTest({
@@ -84,13 +84,13 @@ await cliffySnapshotTest({
       await server.start()
       Deno.env.set("LINEAR_GRAPHQL_ENDPOINT", server.getEndpoint())
       Deno.env.set("LINEAR_API_KEY", "Bearer test-token")
-      Deno.env.set("LINEAR_TEAM_ID", "")
+      Deno.env.set("LINEAR_TEAM_KEY", "")
       await listCommand.parse()
     } finally {
       await server.stop()
       Deno.env.delete("LINEAR_GRAPHQL_ENDPOINT")
       Deno.env.delete("LINEAR_API_KEY")
-      Deno.env.delete("LINEAR_TEAM_ID")
+      Deno.env.delete("LINEAR_TEAM_KEY")
     }
   },
 })

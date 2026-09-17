@@ -1,15 +1,237 @@
 import { snapshotTest as cliffySnapshotTest } from "@cliffy/testing"
-import { assertEquals, assertRejects } from "@std/assert"
+import { assertEquals, assertRejects, assertStringIncludes } from "@std/assert"
 import { stub } from "@std/testing/mock"
 import { createCommand } from "../../../src/commands/project/project-create.ts"
-import { resolveProjectContent } from "../../../src/commands/project/project-content.ts"
-import { ValidationError } from "../../../src/utils/errors.ts"
 import { Input, Select } from "../../../src/utils/prompt.ts"
+import { ValidationError } from "../../../src/utils/errors.ts"
 import {
   commonDenoArgs,
   setupMockLinearServer,
 } from "../../utils/test-helpers.ts"
 import { MockLinearServer } from "../../utils/mock_linear_server.ts"
+
+for (const operation of ["create", "update"]) {
+  for (
+    const outcome of [
+      "key",
+      "UUID",
+      "ambiguous",
+      "next-page",
+      "missing",
+      "unavailable",
+    ]
+  ) {
+    Deno.test(`project ${operation} strict Team reference: ${outcome}`, async () => {
+      const id = "abcdef01-2345-4678-9abc-def012345678"
+      const teamId = "abcdef02-2345-4678-9abc-def012345678"
+      const pageInfo = { hasNextPage: false, endCursor: null }
+      const team = { id: teamId, key: "OPS" }
+      const reference = outcome === "UUID" ? teamId : "oPs"
+      const { server, cleanup } = await setupMockLinearServer([
+        {
+          queryName: "GetWriteTeamByKey",
+          variables: { key: reference },
+          response: outcome === "unavailable"
+            ? { errors: [{ message: "Team lookup unavailable" }] }
+            : {
+              data: {
+                teams: {
+                  nodes: outcome === "missing"
+                    ? []
+                    : outcome === "ambiguous"
+                    ? [team, { id, key: "OPS" }]
+                    : [team],
+                  pageInfo: outcome === "next-page"
+                    ? { hasNextPage: true, endCursor: "next" }
+                    : pageInfo,
+                },
+              },
+            },
+        },
+        {
+          queryName: "GetWriteTeamById",
+          variables: { id: teamId },
+          response: { data: { team } },
+        },
+        {
+          queryName: "ReadProject",
+          response: {
+            data: {
+              organization: { id: "workspace", urlKey: "test" },
+              project: {
+                id,
+                name: "Original",
+                teams: { nodes: [], pageInfo },
+                labels: { nodes: [], pageInfo },
+              },
+            },
+          },
+        },
+        {
+          queryName: operation === "create" ? "CreateProject" : "UpdateProject",
+          response: {
+            data: {
+              [operation === "create" ? "projectCreate" : "projectUpdate"]: {
+                success: true,
+                project: { id, name: "New" },
+              },
+            },
+          },
+        },
+      ])
+      try {
+        const result = await new Deno.Command(Deno.execPath(), {
+          args: [
+            "run",
+            ...commonDenoArgs,
+            "src/main.ts",
+            "project",
+            operation,
+            ...(operation === "create"
+              ? ["--name", "New"]
+              : [id, "--unprotected"]),
+            "--team",
+            reference,
+            "--json",
+          ],
+          stdin: "null",
+          stdout: "piped",
+          stderr: "piped",
+        }).output()
+        const body = JSON.parse(new TextDecoder().decode(result.stdout))
+        const success = ["key", "UUID"].includes(outcome)
+        assertEquals(result.code, success ? 0 : 1, JSON.stringify(body))
+        assertEquals(body.effect, success ? "applied" : "none")
+        const writes = server.graphqlRequests.filter((request) =>
+          request.query.includes("mutation ")
+        )
+        assertEquals(writes.length, success ? 1 : 0)
+        if (success) {
+          assertEquals(
+            (writes[0].variables.input as Record<string, unknown>).teamIds,
+            [teamId],
+          )
+        } else {
+          assertStringIncludes(
+            body.error.message,
+            outcome === "missing"
+              ? "Team not found"
+              : outcome === "unavailable"
+              ? "Team lookup unavailable"
+              : "Team is ambiguous",
+          )
+        }
+        assertEquals(
+          server.graphqlRequests.filter((request) =>
+            request.query.includes("query GetWriteTeam")
+          ).map((request) => request.variables),
+          [outcome === "UUID" ? { id: teamId } : { key: reference }],
+        )
+      } finally {
+        await cleanup()
+      }
+    })
+  }
+}
+
+Deno.test("interactive project Team selection retains its UUID without resolving its key again", async () => {
+  const firstId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+  const selectedId = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"
+  const pageInfo = { hasNextPage: false, endCursor: null }
+  const { server, cleanup } = await setupMockLinearServer([
+    {
+      queryName: "GetAllTeams",
+      response: {
+        data: {
+          teams: {
+            nodes: [
+              { id: firstId, key: "ENG", name: "Engineering" },
+              { id: selectedId, key: "OPS", name: "Operations" },
+            ],
+            pageInfo,
+          },
+        },
+      },
+    },
+    {
+      queryName: "LookupUserById",
+      response: { data: { users: { nodes: [{ id: firstId }], pageInfo } } },
+    },
+    {
+      queryName: "CreateProject",
+      response: {
+        data: {
+          projectCreate: {
+            success: true,
+            project: { id: firstId, name: "New" },
+          },
+        },
+      },
+    },
+  ], { LINEAR_TEAM_KEY: "ENG" })
+  const stdin = stub(
+    Object.getPrototypeOf(Deno.stdin),
+    "isTerminal",
+    () => true,
+  )
+  const stdout = stub(
+    Object.getPrototypeOf(Deno.stdout),
+    "isTerminal",
+    () => true,
+  )
+  const select = stub(
+    Select,
+    "prompt",
+    (options: { message: string; options: unknown; default?: unknown }) => {
+      assertEquals(options.message, "Team:")
+      assertEquals(options.options, [
+        { name: "Engineering (ENG)", value: firstId },
+        { name: "Operations (OPS)", value: selectedId },
+      ])
+      assertEquals(options.default, firstId)
+      return Promise.resolve(selectedId)
+    },
+  )
+  const log = stub(console, "log", () => {})
+  try {
+    await createCommand.parse([
+      "--interactive",
+      "--name",
+      "New",
+      "--description",
+      "Description",
+      "--status",
+      firstId,
+      "--lead",
+      firstId,
+      "--start-date",
+      "2026-01-01",
+      "--target-date",
+      "2026-12-31",
+    ])
+    const writes = server.graphqlRequests.filter((request) =>
+      request.query.includes("mutation ")
+    )
+    assertEquals(writes.length, 1)
+    assertEquals(
+      (writes[0].variables.input as Record<string, unknown>).teamIds,
+      [selectedId],
+    )
+    assertEquals(
+      server.graphqlRequests.filter((request) =>
+        request.query.includes("query GetWriteTeam") ||
+        request.query.includes("query GetTeamIdByKey")
+      ),
+      [],
+    )
+  } finally {
+    log.restore()
+    select.restore()
+    stdout.restore()
+    stdin.restore()
+    await cleanup()
+  }
+})
 
 const descriptionFilePath = await Deno.makeTempFile({ suffix: ".md" })
 await Deno.writeTextFile(
@@ -101,8 +323,15 @@ for (const field of ["description", "content"]) {
 Deno.test("project create preserves empty inline bodies in mutation", async () => {
   const server = new MockLinearServer([
     {
-      queryName: "GetTeamIdByKey",
-      response: { data: { teams: { nodes: [{ id: "team-eng" }] } } },
+      queryName: "GetWriteTeamByKey",
+      response: {
+        data: {
+          teams: {
+            nodes: [{ id: "team-eng", key: "ENG" }],
+            pageInfo: { hasNextPage: false, endCursor: null },
+          },
+        },
+      },
     },
     {
       queryName: "CreateProject",
@@ -303,12 +532,13 @@ await cliffySnapshotTest({
   async fn() {
     const server = new MockLinearServer([
       {
-        queryName: "GetTeamIdByKey",
-        variables: { team: "ENG" },
+        queryName: "GetWriteTeamByKey",
+        variables: { key: "ENG" },
         response: {
           data: {
             teams: {
-              nodes: [{ id: "team-eng-123" }],
+              nodes: [{ id: "team-eng-123", key: "ENG" }],
+              pageInfo: { hasNextPage: false, endCursor: null },
             },
           },
         },
@@ -361,12 +591,13 @@ await cliffySnapshotTest({
   async fn() {
     const server = new MockLinearServer([
       {
-        queryName: "GetTeamIdByKey",
-        variables: { team: "ENG" },
+        queryName: "GetWriteTeamByKey",
+        variables: { key: "ENG" },
         response: {
           data: {
             teams: {
-              nodes: [{ id: "team-eng-123" }],
+              nodes: [{ id: "team-eng-123", key: "ENG" }],
+              pageInfo: { hasNextPage: false, endCursor: null },
             },
           },
         },
@@ -443,12 +674,13 @@ await cliffySnapshotTest({
   async fn() {
     const server = new MockLinearServer([
       {
-        queryName: "GetTeamIdByKey",
-        variables: { team: "ENG" },
+        queryName: "GetWriteTeamByKey",
+        variables: { key: "ENG" },
         response: {
           data: {
             teams: {
-              nodes: [{ id: "team-eng-123" }],
+              nodes: [{ id: "team-eng-123", key: "ENG" }],
+              pageInfo: { hasNextPage: false, endCursor: null },
             },
           },
         },
@@ -593,12 +825,13 @@ await cliffySnapshotTest({
 
     const server = new MockLinearServer([
       {
-        queryName: "GetTeamIdByKey",
-        variables: { team: "ENG" },
+        queryName: "GetWriteTeamByKey",
+        variables: { key: "ENG" },
         response: {
           data: {
             teams: {
-              nodes: [{ id: "team-eng-123" }],
+              nodes: [{ id: "team-eng-123", key: "ENG" }],
+              pageInfo: { hasNextPage: false, endCursor: null },
             },
           },
         },
@@ -662,66 +895,43 @@ await cliffySnapshotTest({
   },
 })
 
-Deno.test("resolveProjectContent rejects mutually exclusive content inputs", async () => {
-  await assertRejects(
-    () =>
-      resolveProjectContent(
-        "Inline overview",
-        "overview.md",
-      ),
-    ValidationError,
-    "Cannot specify both --content and --content-file",
-  )
-})
-
-// Error-path coverage for the new create fields. These use a plain Deno.test with
-// a stubbed Deno.exit (handleError calls Deno.exit) and capture stderr, mirroring
-// the validation-error tests in issue-query.test.ts.
-
-// Invalid --priority is rejected before any network call.
+// Invalid --priority is rejected by the shared CLI type before action or transport.
 Deno.test("Project Create Command - rejects an invalid priority", async () => {
-  const errorLogs: string[] = []
-  const errorStub = stub(console, "error", (...args: unknown[]) => {
-    errorLogs.push(args.map(String).join(" "))
-  })
-  const exitStub = stub(Deno, "exit", (_code?: number) => {
-    throw new Error("EXIT")
-  })
-
-  let exited = false
+  const { server, cleanup } = await setupMockLinearServer([])
   try {
-    await createCommand.parse([
-      "--name",
-      "Proj",
-      "--team",
-      "ENG",
-      "--priority",
-      "highest",
-    ])
-  } catch (e) {
-    if (!(e instanceof Error) || e.message !== "EXIT") throw e
-    exited = true
+    await assertRejects(
+      () =>
+        createCommand.parse([
+          "--name",
+          "Proj",
+          "--team",
+          "ENG",
+          "--priority",
+          "highest",
+        ]),
+      ValidationError,
+      "Invalid priority: highest",
+    )
+    assertEquals(server.graphqlRequests, [])
   } finally {
-    errorStub.restore()
-    exitStub.restore()
+    await cleanup()
   }
-
-  // handleError ran and called Deno.exit (never returns normally)...
-  assertEquals(exited, true)
-  // ...with the priority validation message.
-  assertEquals(
-    errorLogs.some((l) => l.includes("Invalid priority: highest")),
-    true,
-  )
 })
 
 // An unknown --label is reported as a NotFoundError.
 Deno.test("Project Create Command - rejects an unknown project label", async () => {
   const server = new MockLinearServer([
     {
-      queryName: "GetTeamIdByKey",
-      variables: { team: "ENG" },
-      response: { data: { teams: { nodes: [{ id: "team-eng-123" }] } } },
+      queryName: "GetWriteTeamByKey",
+      variables: { key: "ENG" },
+      response: {
+        data: {
+          teams: {
+            nodes: [{ id: "team-eng-123", key: "ENG" }],
+            pageInfo: { hasNextPage: false, endCursor: null },
+          },
+        },
+      },
     },
     {
       queryName: "GetProjectLabelIdByName",
@@ -781,9 +991,16 @@ Deno.test("Project Create Command - rejects an unknown project label", async () 
 Deno.test("Project Create Command - rejects an unknown member", async () => {
   const server = new MockLinearServer([
     {
-      queryName: "GetTeamIdByKey",
-      variables: { team: "ENG" },
-      response: { data: { teams: { nodes: [{ id: "team-eng-123" }] } } },
+      queryName: "GetWriteTeamByKey",
+      variables: { key: "ENG" },
+      response: {
+        data: {
+          teams: {
+            nodes: [{ id: "team-eng-123", key: "ENG" }],
+            pageInfo: { hasNextPage: false, endCursor: null },
+          },
+        },
+      },
     },
     {
       queryName: "LookupUser",

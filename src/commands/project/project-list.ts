@@ -1,5 +1,6 @@
 import { Command } from "@cliffy/command"
 import { unicodeWidth } from "@std/cli"
+import { rgb24, underline } from "@std/fmt/colors"
 import { open } from "@opensrc/deno-open"
 import { gql } from "../../__codegen__/gql.ts"
 import type {
@@ -7,15 +8,9 @@ import type {
   ProjectStatusType,
 } from "../../__codegen__/graphql.ts"
 import { getGraphQLClient } from "../../utils/graphql.ts"
-import {
-  getTimeAgo,
-  padDisplay,
-  printStyled,
-  printStyledHeader,
-} from "../../utils/display.ts"
-import { LINEAR_WEB_BASE_URL } from "../../const.ts"
+import { getTimeAgo, padDisplay } from "../../utils/display.ts"
+import { getWorkspaceUrl } from "../../utils/actions.ts"
 import { getTeamKey } from "../../utils/linear.ts"
-import { getOption } from "../../config.ts"
 import { shouldShowSpinner } from "../../utils/hyperlink.ts"
 import { handleError, ValidationError } from "../../utils/errors.ts"
 
@@ -67,37 +62,25 @@ const GetProjects = gql(`
 export const listCommand = new Command()
   .name("list")
   .description("List projects")
-  .option("--team <team:string>", "Filter by team key")
+  .option("--team <key:string>", "Filter by team key")
   .option("--all-teams", "Show projects from all teams")
-  .option("--status <status:string>", "Filter by status name")
+  .option("--status-name <name:string>", "Filter by exact status name")
   .option("-w, --web", "Open in web browser")
   .option("-a, --app", "Open in Linear.app")
   .option("-j, --json", "Output as JSON")
-  .option("--limit <limit:number>", "Limit results")
-  .action(async ({ team, allTeams, status, web, app, json, limit }) => {
+  .option(
+    "--limit <limit:number>",
+    "Maximum results (non-negative integer; 0 or omitted means unlimited)",
+  )
+  .action(async ({ team, allTeams, statusName, web, app, json, limit }) => {
     if (web || app) {
-      let workspace = getOption("workspace")
-      if (!workspace) {
-        // Get workspace from viewer if not configured
-        const client = getGraphQLClient()
-        const viewerQuery = gql(`
-          query GetViewer {
-            viewer {
-              organization {
-                urlKey
-              }
-            }
-          }
-        `)
-        const result = await client.request(viewerQuery)
-        workspace = result.viewer.organization.urlKey
-      }
+      const workspaceUrl = await getWorkspaceUrl()
 
       // Determine team to filter by for URL construction
       const teamKey = allTeams ? null : (team?.toUpperCase() || getTeamKey())
       const url = teamKey
-        ? `${LINEAR_WEB_BASE_URL}/${workspace}/team/${teamKey}/projects/all`
-        : `${LINEAR_WEB_BASE_URL}/${workspace}/projects/all`
+        ? `${workspaceUrl}/team/${teamKey}/projects/all`
+        : `${workspaceUrl}/projects/all`
       const destination = app ? "Linear.app" : "web browser"
       console.log(`Opening ${url} in ${destination}`)
       await open(url, app ? { app: { name: "Linear" } } : undefined)
@@ -130,8 +113,8 @@ export const listCommand = new Command()
           accessibleTeams: { some: { key: { eq: teamKey } } },
         }
       }
-      if (status) {
-        filter = { ...filter, status: { name: { eq: status } } }
+      if (statusName) {
+        filter = { ...filter, status: { name: { eq: statusName } } }
       }
 
       const client = getGraphQLClient()
@@ -340,7 +323,7 @@ export const listCommand = new Command()
         padDisplay("DATE", DATE_WIDTH),
       ]
 
-      printStyledHeader(headerCells)
+      console.log(underline(headerCells.join(" ")))
 
       // Print each project
       for (const project of projects) {
@@ -362,16 +345,17 @@ export const listCommand = new Command()
           ? project.name.slice(0, nameWidth - 3) + "..."
           : padDisplay(project.name, nameWidth)
 
-        printStyled(
-          `${padDisplay(project.slugId, SLUG_WIDTH)} ${truncName} `,
-          [
-            padDisplay(project.status.name, STATUS_WIDTH),
-            `color: ${project.status.color}`,
-          ],
-          ` ${padDisplay(priority, PRIORITY_WIDTH)} ${
-            padDisplay(health, HEALTH_WIDTH)
-          } ${padDisplay(lead, LEAD_WIDTH)} ${padDisplay(teams, TEAMS_WIDTH)} `,
-          [padDisplay(dateDisplay, DATE_WIDTH), "color: gray"],
+        console.log(
+          `${padDisplay(project.slugId, SLUG_WIDTH)} ${truncName} ${
+            rgb24(
+              `${padDisplay(project.status.name, STATUS_WIDTH)} ${
+                padDisplay(priority, PRIORITY_WIDTH)
+              } ${padDisplay(health, HEALTH_WIDTH)} ${
+                padDisplay(lead, LEAD_WIDTH)
+              } ${padDisplay(teams, TEAMS_WIDTH)} `,
+              parseInt(project.status.color.replace("#", ""), 16),
+            )
+          }${rgb24(padDisplay(dateDisplay, DATE_WIDTH), 0x808080)}`,
         )
       }
     } catch (error) {
