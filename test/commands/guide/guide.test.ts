@@ -170,6 +170,15 @@ Deno.test("leaf help shows a Related guides breadcrumb", async () => {
   const api = await run(["api", "--help"])
   assertEquals(api.code, 0, api.stderr)
   assertStringIncludes(api.stdout, "Related guides: automation, graphql")
+
+  for (const domain of ["project", "document"]) {
+    const list = await run([domain, "list", "--help"])
+    assertEquals(list.code, 0, list.stderr)
+    assertStringIncludes(
+      list.stdout,
+      "Related guides: automation, issue-authoring",
+    )
+  }
 })
 
 Deno.test("usage JSON exposes guide metadata additively", async () => {

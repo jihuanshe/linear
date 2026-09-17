@@ -17,10 +17,12 @@ commands:
   - issue comment list
   - issue comment resolve
   - issue comment unresolve
+  - project list
   - project view
   - project update
   - initiative view
   - initiative update
+  - document list
   - document view
   - document update
   - milestone view
@@ -139,7 +141,7 @@ jq '.nodes[] | {id, identifier, title, priority}' issues.json
 
 单个 Initiative 或 Project 的短描述与长正文用 `initiative view <initiative> --json` 或 `project view <project> --json` 读取。Initiative 还返回关联 Project 的 `description` 和完整 `documents` 连接；关联文档的正文继续用 `document view` 读取。
 
-需要批量导出当前凭据可见的 Initiative／Project 说明时，可以组合以下查询。它们分别读到终页，保留 `{data: {organization, initiatives|projects: {nodes, pageInfo}}}`，默认不含归档对象：
+需要批量导出当前凭据可见的 Initiative 说明时，以下查询读到终页，保留 `{data: {organization, initiatives: {nodes, pageInfo}}}`，默认不含归档对象：
 
 ```bash
 linear api 'query ContextInitiatives($after: String) {
@@ -149,16 +151,90 @@ linear api 'query ContextInitiatives($after: String) {
     pageInfo { hasNextPage endCursor }
   }
 }' --paginate > initiatives.json
+```
+
+### 工作区项目上下文
+
+先按 `linear guide core` 核对工作区身份。下面的查询不按默认团队或状态筛选，读取当前凭据可见的全部未归档项目，保留 `{data: {organization, projects: {nodes, pageInfo}}}`。`description` 是短简介；Overview 页中 Description 区的长正文是 `content`，两者均不截断。主要属性和所属 Initiative 随项目读取，Resources 只取文档、外链和附件的目录，不展开其正文或访问链接。
+
+`linear project list` 默认按已配置的团队筛选，即使使用 `--all-teams` 也不返回项目正文或资源目录；`linear document list` 只读取一页。不要用这两个列表代替下面的完整上下文导出。
+
+```bash
 linear api 'query ContextProjects($after: String) {
   organization { id urlKey }
-  projects(first: 100, after: $after) {
-    nodes { id name url description content }
+  projects(first: 25, after: $after) {
+    nodes {
+      id name url description content archivedAt trashed
+      status { name type }
+      lead { id name }
+      priority startDate targetDate
+      teams(first: 20) {
+        nodes { id key name }
+        pageInfo { hasNextPage endCursor }
+      }
+      labels(first: 20) {
+        nodes { id name }
+        pageInfo { hasNextPage endCursor }
+      }
+      initiatives(first: 10) {
+        nodes { id name url }
+        pageInfo { hasNextPage endCursor }
+      }
+      documents(first: 10) {
+        nodes { id title url updatedAt }
+        pageInfo { hasNextPage endCursor }
+      }
+      externalLinks(first: 10) {
+        nodes { id label url }
+        pageInfo { hasNextPage endCursor }
+      }
+      attachments(first: 10) {
+        nodes { id title subtitle url }
+        pageInfo { hasNextPage endCursor }
+      }
+    }
     pageInfo { hasNextPage endCursor }
   }
 }' --paginate > projects.json
 ```
 
-两份查询不限定状态；需要选定范围时用当前 schema 的 `filter`，需要归档对象时显式增加 `includeArchived: true`。短描述和 Markdown 正文均不截断；关联文档是独立对象，按需要继续读取。不要把列表命令的默认范围或嵌套关系预览当成完整上下文导出。更新前用对应的 `view --json` 保存原始依据。Project 和 Initiative 长正文均支持 `update --content-file <path> --base-file original.json`，其中 `original.json` 是对应对象的原始读取；Project 的 `--description-file` 只更新短描述。
+命令成功后检查外层及每个内层连接。`--paginate` 只补齐 `projects`，不会递归补齐资源目录：
+
+```bash
+jq -e '
+  ((.errors // []) | length == 0) and
+  (.data.projects.nodes | type == "array") and
+  (.data.projects.pageInfo.hasNextPage == false) and
+  all(.data.projects.nodes[];
+    all(.teams, .labels, .initiatives, .documents, .externalLinks, .attachments;
+      (.nodes | type == "array") and .pageInfo.hasNextPage == false))
+' projects.json >/dev/null
+```
+
+检查失败时，先区分请求错误、字段缺失和内层分页未结束，不能把结果当成完整目录。内层仍有下一页时，按项目 UUID 单独分页读取该集合；例如补齐某个项目的文档目录，先将它的 UUID 赋给 `PROJECT_ID`：
+
+```bash
+linear api 'query ProjectDocuments($id: String!, $after: String) {
+  organization { id urlKey }
+  project(id: $id) {
+    id
+    documents(first: 100, after: $after) {
+      nodes { id title url updatedAt }
+      pageInfo { hasNextPage endCursor }
+    }
+  }
+}' --variables-json "{\"id\":\"$PROJECT_ID\"}" --paginate > project-documents.json
+```
+
+核对返回的工作区、项目 ID、`errors` 和 `.data.project.documents.pageInfo.hasNextPage == false`，用这份完整目录取代该项目原来的文档预览，不把两份节点直接拼接。其他内层集合按相同方式每次单独分页一个连接；团队也可直接用 `linear project teams <project> --json` 读全，但结果含归档团队，范围比上面的预览更大。完整分页不保证跨页快照一致。
+
+只有成功读到终页且 `nodes` 为空，才能说「没有资源」；有条目但未载入正文是「有资料、内容未读」；分页未结束、请求失败或权限不足都不能解释成空目录。目录中的文档通过 `linear document view <document-id> --json` 继续读取；外部链接按任务需要访问，不能仅凭标题推断内容。上述项目与资源范围均限于当前凭据可见内容，不能证明无权访问的资料不存在。
+
+先完整阅读全部项目说明和资源目录，再按 `linear guide issue-authoring` 判断归属与补读材料。保存 JSON 后可分块阅读；不要因终端截断而省略剩余项目，也不必把全部文档、历史 Issue、评论或外部页面一起展开。需要历史背景时，在对应集合显式增加 `includeArchived: true`；保留状态与归档标识，不把历史项目当成当前承接方。
+
+### 更新项目正文
+
+上下文导出不替代受保护写入的原始依据。更新前用对应的 `view --json` 保存原始依据。Project 和 Initiative 长正文均支持 `update --content-file <path> --base-file original.json`，其中 `original.json` 是对应对象的原始读取；Project 的 `--description-file` 只更新短描述。
 
 例如修改 Project 长正文，先读取并从同一份结果提取草稿，再编辑文件：
 
@@ -170,6 +246,8 @@ linear project update <project> --content-file project-content.md --base-file pr
 ```
 
 读取成功后才提取草稿；保留 `project-original.json` 原样，不把编辑后的内容写回依据。Markdown 往返的富文本限制同样适用，见 `linear guide markdown`。
+
+### 评论与历史
 
 单独导出评论用 `issue comment list <issue> --limit 0 --json`；省略 `--limit 0` 时最多读取 50 条，并返回 `{nodes,pageInfo}`。属性变更经过用 `issue history <issue> --json`，默认读取全部历史页，也返回 `{nodes,pageInfo}`；使用有限 `--limit` 时检查后续游标。
 
