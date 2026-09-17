@@ -4,7 +4,7 @@ import { printWriteResult } from "../../utils/write-result.ts"
 import { assertPromptAllowed, Confirm } from "../../utils/prompt.ts"
 import { gql } from "../../__codegen__/gql.ts"
 import { getGraphQLClient } from "../../utils/graphql.ts"
-import { getTeamIdByKey } from "../../utils/linear.ts"
+import { resolveWriteTeam } from "../../utils/issue-read.ts"
 import {
   assertMutationSuccess,
   handleError,
@@ -26,24 +26,22 @@ const DeleteTeam = gql(`
 export const deleteCommand = withUsageMetadata(new Command(), {
   writes: true,
   interactive: true,
-  confirmationRequiredUnless: "--force",
 })
   .name("delete")
   .description(
-    "Delete an empty Linear team; migrate issues separately before deletion",
+    "Delete an empty Linear team by UUID or key; migrate issues separately before deletion",
   )
-  .arguments("<teamKey:string>")
-  .option("-y, --force", "Skip confirmation prompt")
+  .arguments("<team:string>")
+  .option("-y, --yes", "Skip confirmation prompt")
   .option("--dry-run", "Validate without prompting or mutating")
   .option("--json", "Output the deletion result as JSON")
-  .action(async ({ force, dryRun, json }, teamKey) => {
+  .action(async ({ yes, dryRun, json }, teamReference) => {
     try {
       const client = getGraphQLClient()
-      const teamId = await getTeamIdByKey(teamKey.toUpperCase())
-      if (!teamId) throw new NotFoundError("Team", teamKey)
+      const { id: teamId } = await resolveWriteTeam(teamReference)
       const readEmptyTeam = async () => {
         const { team } = await client.request(GetTeamDetails, { id: teamId })
-        if (!team) throw new NotFoundError("Team", teamKey)
+        if (!team) throw new NotFoundError("Team", teamReference)
         if (team.issueCount !== 0) {
           throw new ValidationError(
             `Team ${team.key} has ${team.issueCount} issue(s); deletion requires an empty team`,
@@ -61,9 +59,9 @@ export const deleteCommand = withUsageMetadata(new Command(), {
         else console.log(`Would delete team ${team.key} (${team.name})`)
         return
       }
-      if (!force) {
+      if (!yes) {
         assertPromptAllowed({
-          suggestion: "Use --force to skip the confirmation prompt.",
+          suggestion: "Use --yes to skip the confirmation prompt.",
         })
         if (
           !await Confirm.prompt({

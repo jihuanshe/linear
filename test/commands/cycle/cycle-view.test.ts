@@ -24,11 +24,12 @@ await snapshotTest({
   async fn() {
     const server = new MockLinearServer([
       {
-        queryName: "GetTeamIdByKey",
+        queryName: "GetWriteTeamByKey",
         response: {
           data: {
             teams: {
-              nodes: [{ id: "team-eng-id" }],
+              nodes: [{ id: "team-eng-id", key: "ENG" }],
+              pageInfo: { hasNextPage: false, endCursor: null },
             },
           },
         },
@@ -140,11 +141,12 @@ await snapshotTest({
   async fn() {
     const server = new MockLinearServer([
       {
-        queryName: "GetTeamIdByKey",
+        queryName: "GetWriteTeamByKey",
         response: {
           data: {
             teams: {
-              nodes: [{ id: "team-eng-id" }],
+              nodes: [{ id: "team-eng-id", key: "ENG" }],
+              pageInfo: { hasNextPage: false, endCursor: null },
             },
           },
         },
@@ -165,6 +167,7 @@ await snapshotTest({
                     name: "Sprint 14",
                   },
                 ],
+                pageInfo: { hasNextPage: false, endCursor: null },
               },
               activeCycle: null,
             },
@@ -226,11 +229,12 @@ await snapshotTest({
   async fn() {
     const server = new MockLinearServer([
       {
-        queryName: "GetTeamIdByKey",
+        queryName: "GetWriteTeamByKey",
         response: {
           data: {
             teams: {
-              nodes: [{ id: "team-eng-id" }],
+              nodes: [{ id: "team-eng-id", key: "ENG" }],
+              pageInfo: { hasNextPage: false, endCursor: null },
             },
           },
         },
@@ -251,6 +255,7 @@ await snapshotTest({
                     name: "Sprint 12",
                   },
                 ],
+                pageInfo: { hasNextPage: false, endCursor: null },
               },
               activeCycle: null,
             },

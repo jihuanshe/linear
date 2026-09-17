@@ -4,12 +4,12 @@ import { withUsageMetadata } from "../usage.ts"
 import { Input, Select } from "../../utils/prompt.ts"
 import { gql } from "../../__codegen__/gql.ts"
 import type { InitiativeUpdateCreateInput } from "../../__codegen__/graphql.ts"
-import { printWriteResult, setMachineOutput } from "../../utils/write-result.ts"
+import { printWriteResult } from "../../utils/write-result.ts"
 import { getEditor, openEditor } from "../../utils/editor.ts"
+import { readTextSource } from "../../utils/text-source.ts"
 import {
   assertMutationReceipt,
   assertMutationSuccess,
-  CliError,
   handleError,
   NotFoundError,
   ValidationError,
@@ -20,67 +20,71 @@ import { shouldShowSpinner } from "../../utils/hyperlink.ts"
 const HEALTH_VALUES = ["onTrack", "atRisk", "offTrack"] as const
 type HealthValue = (typeof HEALTH_VALUES)[number]
 
-/**
- * Read content from stdin if available (piped input)
- */
-async function readContentFromStdin(): Promise<string | undefined> {
-  // Check if stdin has data (not a TTY)
-  if (Deno.stdin.isTerminal()) {
-    return undefined
-  }
-
-  try {
-    const content = await new Response(Deno.stdin.readable).text()
-    return content.length > 0 ? content : undefined
-  } catch (error) {
-    throw new CliError(
-      `Failed to read update content from stdin: ${
-        error instanceof Error ? error.message : String(error)
-      }`,
-      { cause: error },
-    )
-  }
-}
-
-/**
- * Resolve initiative ID from UUID, slug, or name
- */
-
 export const createCommand = withUsageMetadata(new Command(), {
   writes: true,
   interactive: true,
-  outputModes: ["human", "json"],
 })
   .name("create")
-  .option("--json", "Output a JSON write result")
-  .description("Create a new status update for an initiative")
+  .option(
+    "--json",
+    "Output a JSON write result; the created update is in data.initiativeUpdate",
+  )
+  .description(
+    "Create a new status update for an initiative by UUID, slug ID, or name",
+  )
   .alias("c")
-  .arguments("<initiativeId:string>")
-  .option("--body <body:string>", "Update content (markdown)")
-  .option("--body-file <path:string>", "Read content from file")
+  .arguments("<initiative:string>")
+  .option("--body <body:string>", "Update content (markdown)", {
+    preserveEmpty: true,
+  })
+  .option(
+    "--body-file <path:string>",
+    "Read UTF-8 content from a file (- for stdin)",
+    { preserveEmpty: true },
+  )
+  .option(
+    "--edit",
+    "Open an editor, optionally seeded by --body or --body-file",
+  )
   .option(
     "--health <health:string>",
     "Health status (onTrack, atRisk, offTrack)",
   )
   .option("-i, --interactive", "Interactive mode with prompts")
   .action(
-    async ({ body, bodyFile, health, interactive, json }, initiativeId) => {
-      setMachineOutput(json ?? false)
+    async (
+      { body, bodyFile, health, interactive, json, edit },
+      initiativeReference,
+    ) => {
       try {
-        if (json && interactive) {
+        if (json && (interactive || edit)) {
           throw new ValidationError(
-            "--json cannot be combined with --interactive",
+            "--json cannot be combined with --interactive or --edit",
           )
         }
-        if (body !== undefined && bodyFile !== undefined) {
-          throw new ValidationError("Use either --body or --body-file")
+        if (
+          interactive &&
+          (body != null || bodyFile != null || edit || health != null)
+        ) {
+          throw new ValidationError(
+            "--interactive cannot be combined with body or health options",
+          )
         }
+        if (
+          interactive && (!Deno.stdin.isTerminal() || !Deno.stdout.isTerminal())
+        ) {
+          throw new ValidationError("Interactive creation requires a terminal")
+        }
+        let finalBody = await readTextSource("body", body, bodyFile)
         const client = getGraphQLClient()
 
         // Resolve initiative ID
-        const resolvedId = await resolveInitiativeId(client, initiativeId)
+        const resolvedId = await resolveInitiativeId(
+          client,
+          initiativeReference,
+        )
         if (!resolvedId) {
-          throw new NotFoundError("Initiative", initiativeId)
+          throw new NotFoundError("Initiative", initiativeReference)
         }
 
         // Get initiative name for display
@@ -92,7 +96,7 @@ export const createCommand = withUsageMetadata(new Command(), {
           }
         }
       `)
-        let initiativeName = initiativeId
+        let initiativeName = initiativeReference
         try {
           const result = await client.request(initiativeQuery, {
             id: resolvedId,
@@ -104,17 +108,8 @@ export const createCommand = withUsageMetadata(new Command(), {
           // Use provided ID as fallback
         }
 
-        // Determine if we should use interactive mode
-        let useInteractive = !json && interactive && Deno.stdout.isTerminal()
-
-        // If no flags provided and we have a TTY, enter interactive mode
-        const noFlagsProvided = !body && !bodyFile && !health
-        if (!json && noFlagsProvided && Deno.stdout.isTerminal()) {
-          useInteractive = true
-        }
-
         // Interactive mode
-        if (useInteractive) {
+        if (interactive) {
           const result = await promptInteractiveCreate(initiativeName)
 
           await createInitiativeUpdate(client, {
@@ -125,40 +120,10 @@ export const createCommand = withUsageMetadata(new Command(), {
           return
         }
 
-        // Resolve body content from various sources
-        let finalBody: string | undefined
-
-        if (body !== undefined) {
-          // Content provided inline via --body
-          finalBody = body
-        } else if (bodyFile) {
-          // Content from file via --body-file
-          try {
-            finalBody = await Deno.readTextFile(bodyFile)
-          } catch (error) {
-            if (error instanceof Deno.errors.NotFound) {
-              throw new NotFoundError("File", bodyFile)
-            }
-            throw new CliError(
-              `Failed to read body file: ${
-                error instanceof Error ? error.message : String(error)
-              }`,
-              { cause: error },
-            )
-          }
-        } else if (!Deno.stdin.isTerminal()) {
-          // Try reading from stdin if piped
-          const stdinContent = await readContentFromStdin()
-          if (stdinContent) {
-            finalBody = stdinContent
-          }
-        } else if (!json && Deno.stdout.isTerminal()) {
-          // No content provided, open editor
-          console.log("Opening editor for status update content...")
-          finalBody = await openEditor()
-          if (!finalBody) {
-            console.log("No content entered.")
-          }
+        if (edit) {
+          finalBody = await openEditor(finalBody)
+        } else if (finalBody == null && !Deno.stdin.isTerminal()) {
+          finalBody = await readTextSource("body", undefined, "-") || undefined
         }
 
         // Validate health value if provided
@@ -229,7 +194,7 @@ async function promptInteractiveCreate(initiativeName: string): Promise<{
       message: "Content (markdown)",
       default: "",
     })
-    body = inlineContent.trim() || undefined
+    body = inlineContent
   } else if (contentMethod === "editor" && editorDisplayName) {
     console.log(`Opening ${editorDisplayName}...`)
     body = await openEditor()
@@ -240,16 +205,7 @@ async function promptInteractiveCreate(initiativeName: string): Promise<{
     const filePath = await Input.prompt({
       message: "File path",
     })
-    try {
-      body = await Deno.readTextFile(filePath)
-    } catch (error) {
-      throw new CliError(
-        `Failed to read file: ${
-          error instanceof Error ? error.message : String(error)
-        }`,
-        { cause: error },
-      )
-    }
+    body = await readTextSource("body", undefined, filePath)
   }
 
   return { body, health }
@@ -318,7 +274,7 @@ async function createInitiativeUpdate(
   const update = result?.initiativeUpdateCreate.initiativeUpdate
   assertMutationReceipt(update, result?.initiativeUpdateCreate)
   if (json) {
-    printWriteResult(update)
+    printWriteResult({ initiativeUpdate: update })
     return
   }
 

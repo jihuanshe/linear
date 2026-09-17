@@ -1,12 +1,15 @@
-import { createIssueComment } from "../../operations/issue-content.ts"
+import {
+  composeCommentBody,
+  createIssueComment,
+} from "../../operations/issue-content.ts"
 import { printWriteResult } from "../../utils/write-result.ts"
 import { Command } from "@cliffy/command"
 import { withUsageMetadata } from "../usage.ts"
 import { withMarkdownHint } from "../../utils/markdown-help.ts"
-import { Input } from "../../utils/prompt.ts"
-import { getIssueIdentifier, requireIssueId } from "../../utils/linear.ts"
+import { openEditor } from "../../utils/editor.ts"
+import { readTextSource } from "../../utils/text-source.ts"
+import { getIssueReference, requireIssueId } from "../../utils/linear.ts"
 import {
-  formatAsMarkdownLink,
   prepareUploads,
   uploadFile,
   type UploadResult,
@@ -25,23 +28,31 @@ export const commentAddCommand = withUsageMetadata(new Command(), {
   .name("add")
   .description(
     withMarkdownHint(
-      "Add a comment or reply; images uploaded with --attach render inline",
+      "Add a comment or reply; images uploaded with --attach render inline. Accepts an issue UUID, identifier (e.g. ENG-123), number in the configured team, or Linear URL.",
     ),
   )
-  .arguments("[issueId:string]")
-  .option("-b, --body <text:string>", "Comment body text", {
+  .arguments("<issue:string>")
+  .option("-b, --body <body:string>", "Comment body text", {
     preserveEmpty: true,
   })
   .option(
     "--body-file <path:string>",
-    "Read comment body from a file (preferred for markdown content)",
+    "Read UTF-8 comment body from a file (- for stdin)",
     { preserveEmpty: true },
   )
-  .option("-p, --parent <id:string>", "Parent comment ID for replies", {
-    preserveEmpty: true,
-  })
   .option(
-    "-a, --attach <filepath:string>",
+    "--edit",
+    "Open an editor, optionally seeded by --body or --body-file",
+  )
+  .option(
+    "-p, --parent <commentId:string>",
+    "Parent comment UUID for replies",
+    {
+      preserveEmpty: true,
+    },
+  )
+  .option(
+    "-a, --attach <path:string>",
     "Upload a file and add its Markdown link to the comment (images render inline; repeatable)",
     { collect: true, preserveEmpty: true },
   )
@@ -50,7 +61,7 @@ export const commentAddCommand = withUsageMetadata(new Command(), {
     "Upload attached images to a public, unauthenticated URL (default: private, workspace-members only)",
   )
   .option("-j, --json", "Output a JSON write result with the comment")
-  .action(async (options, issueId) => {
+  .action(async (options, issueArg) => {
     const {
       body,
       bodyFile,
@@ -58,70 +69,36 @@ export const commentAddCommand = withUsageMetadata(new Command(), {
       attach,
       public: makePublic,
       json,
+      edit,
     } = options
 
     const uploadedFiles: UploadResult[] = []
     try {
-      // Validate that body and bodyFile are not both provided
-      if (body != null && bodyFile != null) {
-        throw new ValidationError(
-          "Cannot specify both --body and --body-file",
-        )
+      if (!issueArg.trim()) {
+        throw new ValidationError("Issue reference cannot be empty")
       }
-
-      // Read body from file if provided
-      let commentBody = body
-      if (bodyFile === "") {
-        throw new ValidationError("Body file path cannot be empty")
+      if (json && edit) {
+        throw new ValidationError("--json cannot be combined with --edit")
       }
+      let commentBody = await readTextSource("body", body, bodyFile)
       if (parent != null && !parent.trim()) {
         throw new ValidationError("Parent comment reference cannot be empty")
       }
       if (attach?.some((path) => path === "")) {
         throw new ValidationError("Attachment file path cannot be empty")
       }
-      if (bodyFile != null) {
-        try {
-          commentBody = await Deno.readTextFile(bodyFile)
-        } catch (error) {
-          throw new ValidationError(
-            `Failed to read body file: ${bodyFile}`,
-            {
-              suggestion: `Error: ${
-                error instanceof Error ? error.message : String(error)
-              }`,
-            },
-          )
-        }
-      }
-
-      const resolvedIdentifier = await getIssueIdentifier(issueId)
-      if (!resolvedIdentifier) {
-        throw new ValidationError(
-          "Could not determine issue identifier",
-          { suggestion: "Please provide an issue identifier like 'ENG-123'." },
-        )
-      }
-
-      // Validate and upload attachments first
+      if (edit) commentBody = await openEditor(commentBody)
+      composeCommentBody(commentBody)
       const attachments = attach || []
-      if (
-        attachments.length === 0 && commentBody != null &&
-        !commentBody.trim()
-      ) {
-        throw new ValidationError("Comment body cannot be empty", {
-          suggestion: "Provide non-whitespace content or attach a file.",
-        })
-      }
       if (makePublic && attachments.length === 0) {
         throw new ValidationError(
           "--public requires at least one --attach",
-          { suggestion: "Add --attach <file> to upload, or remove --public." },
+          { suggestion: "Add --attach <path> to upload, or remove --public." },
         )
       }
-      if (json && attachments.length === 0 && commentBody == null) {
+      if (attachments.length === 0 && commentBody == null) {
         throw new ValidationError(
-          "--json requires --body, --body-file, or --attach",
+          "Provide --body, --body-file, --attach, or --edit",
           {
             suggestion:
               "Provide the comment content explicitly when producing machine-readable output.",
@@ -130,7 +107,14 @@ export const commentAddCommand = withUsageMetadata(new Command(), {
       }
 
       const prepared = await prepareUploads(attachments, { makePublic })
-      const issueUuid = await requireIssueId(resolvedIdentifier)
+      const issueReference = await getIssueReference(issueArg)
+      if (!issueReference) {
+        throw new ValidationError("Could not determine issue reference", {
+          suggestion:
+            "Provide an Issue UUID, identifier such as ENG-123, or Linear Issue URL.",
+        })
+      }
+      const issueUuid = await requireIssueId(issueReference)
 
       if (prepared.length > 0) {
         // Upload files
@@ -152,37 +136,8 @@ export const commentAddCommand = withUsageMetadata(new Command(), {
         }
       }
 
-      // If no body provided and no attachments, prompt for it
-      if (!commentBody && uploadedFiles.length === 0) {
-        commentBody = await Input.prompt({
-          message: "Comment body",
-          default: "",
-        })
-
-        if (!commentBody.trim()) {
-          throw new ValidationError("Comment body cannot be empty")
-        }
-      }
-
-      // Append attachment links to comment body
-      if (uploadedFiles.length > 0) {
-        const attachmentLinks = uploadedFiles.map((file) => {
-          return formatAsMarkdownLink({
-            filename: file.filename,
-            assetUrl: file.assetUrl,
-            contentType: file.contentType,
-          })
-        })
-
-        if (commentBody) {
-          commentBody = `${commentBody}\n\n${attachmentLinks.join("\n")}`
-        } else {
-          commentBody = attachmentLinks.join("\n")
-        }
-      }
-
       const { comment } = await createIssueComment(issueUuid, {
-        body: commentBody ?? "",
+        body: composeCommentBody(commentBody, uploadedFiles),
         parentId: parent,
       })
       if (json) {
@@ -192,7 +147,7 @@ export const commentAddCommand = withUsageMetadata(new Command(), {
         return
       }
 
-      console.log(`✓ Comment added to ${resolvedIdentifier}`)
+      console.log(`✓ Comment added to ${issueReference}`)
       console.log(comment.url)
     } catch (error) {
       handleError(

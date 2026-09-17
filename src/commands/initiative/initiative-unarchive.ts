@@ -6,7 +6,7 @@ import { Confirm } from "../../utils/prompt.ts"
 import { gql } from "../../__codegen__/gql.ts"
 import { getGraphQLClient } from "../../utils/graphql.ts"
 import { shouldShowSpinner } from "../../utils/hyperlink.ts"
-import { printWriteResult, setMachineOutput } from "../../utils/write-result.ts"
+import { printWriteResult } from "../../utils/write-result.ts"
 import {
   assertMutationReceipt,
   assertMutationSuccess,
@@ -18,22 +18,23 @@ import {
 export const unarchiveCommand = withUsageMetadata(new Command(), {
   writes: true,
   interactive: true,
-  confirmationRequiredUnless: "--force",
-  outputModes: ["human", "json"],
 })
   .name("unarchive")
   .option("--json", "Output a JSON write result")
-  .description("Unarchive a Linear initiative")
-  .arguments("<initiativeId:string>")
-  .option("-y, --force", "Skip confirmation prompt")
-  .action(async ({ force, json }, initiativeId) => {
-    setMachineOutput(json ?? false)
+  .description("Unarchive a Linear initiative by UUID, slug ID, or name")
+  .arguments("<initiative:string>")
+  .option("-y, --yes", "Skip confirmation prompt")
+  .action(async ({ yes, json }, initiativeReference) => {
     const client = getGraphQLClient()
 
     // Resolve initiative ID
-    const resolvedId = await resolveInitiativeId(client, initiativeId, true)
+    const resolvedId = await resolveInitiativeId(
+      client,
+      initiativeReference,
+      true,
+    )
     if (!resolvedId) {
-      throw new NotFoundError("Initiative", initiativeId)
+      throw new NotFoundError("Initiative", initiativeReference)
     }
 
     let initiativeDetails
@@ -44,7 +45,7 @@ export const unarchiveCommand = withUsageMetadata(new Command(), {
     }
 
     if (!initiativeDetails?.initiative) {
-      throw new NotFoundError("Initiative", initiativeId)
+      throw new NotFoundError("Initiative", initiativeReference)
     }
 
     const initiative = initiativeDetails.initiative
@@ -60,10 +61,10 @@ export const unarchiveCommand = withUsageMetadata(new Command(), {
     }
 
     // Confirm unarchive
-    if (!force) {
+    if (!yes) {
       if (json || !Deno.stdin.isTerminal()) {
         throw new ValidationError(
-          "Interactive confirmation required. Use --force to skip.",
+          "Interactive confirmation required. Use --yes to skip.",
         )
       }
       const confirmed = await Confirm.prompt({

@@ -164,7 +164,7 @@ function assertReadFailure(
   assertEquals(result.stderr, "")
 }
 
-for (const mode of ["query", "search", "mine"]) {
+for (const mode of ["query", "search"]) {
   Deno.test(`issue ${mode} rejects a nonadjacent cursor cycle without partial stdout`, async () => {
     const queryName = mode === "search" ? "SearchIssues" : "GetIssuesForQuery"
     const field = mode === "search" ? "searchIssues" : "issues"
@@ -195,23 +195,16 @@ for (const mode of ["query", "search", "mine"]) {
     try {
       const result = await runCli(server, [
         "issue",
-        mode === "mine" ? "mine" : "query",
+        "query",
         "--team",
         "TEST",
         "--limit",
         "0",
-        ...(mode === "mine" ? ["--no-pager"] : ["--json"]),
+        "--json",
         ...(mode === "search" ? ["--search", "evidence"] : []),
       ])
-      assertReadFailure(result, "empty or repeated cursor", mode !== "mine")
+      assertReadFailure(result, "empty or repeated cursor")
       assertEquals(server.graphqlRequests.length, 3)
-      if (mode === "mine") {
-        assertEquals(server.graphqlRequests[0].variables.filter, {
-          team: { key: { eq: "TEST" } },
-          state: { type: { in: ["unstarted"] } },
-          assignee: { isMe: { eq: true } },
-        })
-      }
     } finally {
       await server.stop()
     }
@@ -290,7 +283,6 @@ for (const json of [true, false]) {
         "issue",
         "view",
         "TEST-123",
-        "--no-download",
         "--no-pager",
         ...(json ? ["--json"] : []),
       ])
@@ -323,7 +315,7 @@ for (const json of [true, false]) {
   })
 }
 
-for (const command of ["title", "url", "describe"]) {
+for (const command of ["title", "url"]) {
   Deno.test(`issue ${command} does not depend on attachment pagination`, async () => {
     const server = new MockLinearServer([{
       queryName: "GetIssueHeader",

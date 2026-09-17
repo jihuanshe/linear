@@ -35,7 +35,7 @@ async function fixture(
       response: ({ variables }) => ({
         data: {
           issueLabels: {
-            nodes: [{ id: "label-" + variables.name, name: variables.name }],
+            nodes: [{ id: `label-${variables.name}`, name: variables.name }],
             pageInfo: { hasNextPage: false, endCursor: null },
           },
         },
@@ -121,12 +121,28 @@ Deno.test("issue update retries stale reads and accepts Linear Markdown normaliz
 })
 
 for (
-  const mode of ["different", "unavailable", "workspace", "identity"] as const
+  const mode of [
+    "different",
+    "unavailable",
+    "auth",
+    "shape",
+    "workspace",
+    "identity",
+  ] as const
 ) {
   Deno.test(`issue update ${mode} read-back fails with the applied receipt and no mutation replay`, async () => {
     const f = await fixture((written) =>
       mode === "unavailable"
         ? { errors: [{ message: "Read permission lost" }] }
+        : mode === "auth"
+        ? {
+          errors: [{
+            message: "Authentication required",
+            extensions: { code: "UNAUTHENTICATED" },
+          }],
+        }
+        : mode === "shape"
+        ? { data: { organization: written.organization } }
         : {
           data: {
             ...written,
@@ -157,13 +173,33 @@ for (
         mode === "different" ? "different" : "unavailable",
       )
       assertStringIncludes(result.output.error.suggestion, "do not repeat")
-      assertEquals(f.reads(), 3)
+      assertEquals(f.reads(), mode === "different" ? 3 : 1)
       assertEquals(f.writes(), 1)
     } finally {
       await f.cleanup()
     }
   })
 }
+
+Deno.test("issue update leaves rate-limit retries to transport without restarting failed verification", async () => {
+  const f = await fixture(() => ({
+    errors: [{ message: "Slow down", extensions: { code: "RATELIMITED" } }],
+  }))
+  try {
+    const result = await command(["--title", "Renamed"])
+    assertEquals(result.code, 1)
+    assertEquals(result.output.effect, "applied")
+    assertEquals(result.output.error.details.verification.status, "unavailable")
+    assertStringIncludes(
+      result.output.error.details.verification.detail,
+      "Slow down",
+    )
+    assertEquals(f.reads(), 3)
+    assertEquals(f.writes(), 1)
+  } finally {
+    await f.cleanup()
+  }
+})
 
 for (const visible of [true, false]) {
   Deno.test(`issue update verifies incremental label membership: ${visible}`, async () => {

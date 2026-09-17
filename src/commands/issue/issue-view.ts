@@ -1,7 +1,7 @@
 import { Command } from "@cliffy/command"
 import { renderMarkdown } from "../../utils/markdown.ts"
 import type { Extension } from "@littletof/charmd"
-import { fetchIssueDetailsRaw, getIssueIdentifier } from "../../utils/linear.ts"
+import { fetchIssueDetailsRaw, getIssueReference } from "../../utils/linear.ts"
 import type { FetchedIssueComment } from "../../utils/linear.ts"
 import { Spinner } from "@std/cli/unstable-spinner"
 import { openIssuePage } from "../../utils/actions.ts"
@@ -12,11 +12,7 @@ import {
 } from "../../utils/display.ts"
 import { pipeToUserPager, shouldUsePager } from "../../utils/pager.ts"
 import { bold, underline } from "@std/fmt/colors"
-import { ensureDir } from "@std/fs"
-import { join } from "@std/path"
 import { getOption } from "../../config.ts"
-import { getResolvedApiKey } from "../../utils/graphql.ts"
-import sanitize from "sanitize-filename"
 import {
   hyperlink,
   shouldEnableHyperlinks,
@@ -24,20 +20,14 @@ import {
 } from "../../utils/hyperlink.ts"
 import { createHyperlinkExtension } from "../../utils/charmd-hyperlink-extension.ts"
 import { handleError, ValidationError } from "../../utils/errors.ts"
-import { LINEAR_PRIVATE_UPLOAD_HOST } from "../../const.ts"
-import {
-  downloadMarkdownImages,
-  getLinearUploadHost,
-  replaceImageUrls,
-} from "../../utils/markdown-images.ts"
 
 export const viewCommand = new Command()
   .name("view")
   .description(
-    "View issue details with all comments and attachments, or open in browser/app. For project, assignee and state changes, use issue history.",
+    "View issue details with all comments and attachments, or open in browser/app. Accepts an issue UUID, identifier (e.g. ENG-123), number in the configured team, or Linear URL; omit to use the current Git or Jujutsu context. For project, assignee and state changes, use issue history.",
   )
   .alias("v")
-  .arguments("[issueId:string]")
+  .arguments("[issue:string]")
   .option("-w, --web", "Open in web browser")
   .option("-a, --app", "Open in Linear.app")
   .option("--no-comments", "Exclude comments from the output")
@@ -50,24 +40,25 @@ export const viewCommand = new Command()
     "-j, --json",
     "Output all fetched threads including resolved history; comments and attachments retain {nodes, pageInfo}",
   )
-  .option("--no-download", "Keep remote URLs instead of downloading files")
-  .action(async (options, issueId) => {
-    const { web, app, comments, showResolvedThreads, pager, json, download } =
-      options
+  .action(async (options, issueArg) => {
+    const { web, app, comments, showResolvedThreads, pager, json } = options
     const showComments = comments !== false
     const usePager = pager !== false
 
     if (web || app) {
-      await openIssuePage(issueId, { app, web: !app })
+      await openIssuePage(issueArg, { app, web: !app })
       return
     }
 
     try {
-      const resolvedId = await getIssueIdentifier(issueId)
-      if (!resolvedId) {
+      const issueReference = await getIssueReference(issueArg)
+      if (!issueReference) {
         throw new ValidationError(
-          "Could not determine issue identifier",
-          { suggestion: "Please provide an issue identifier like 'ENG-123'." },
+          "Could not determine issue reference",
+          {
+            suggestion:
+              "Provide an Issue UUID, identifier such as ENG-123, or Linear Issue URL.",
+          },
         )
       }
 
@@ -75,7 +66,11 @@ export const viewCommand = new Command()
       spinner?.start()
       let readData: Awaited<ReturnType<typeof fetchIssueDetailsRaw>>
       try {
-        readData = await fetchIssueDetailsRaw(resolvedId, showComments, true)
+        readData = await fetchIssueDetailsRaw(
+          issueReference,
+          showComments,
+          true,
+        )
       } finally {
         spinner?.stop()
       }
@@ -85,56 +80,13 @@ export const viewCommand = new Command()
       }
 
       const issueData = readData.issue
-      let issueComments = "comments" in issueData
+      const issueComments = "comments" in issueData
         ? issueData.comments.nodes
         : undefined
       const attachments = issueData.attachments?.nodes ?? []
       const documents = issueData.documents?.nodes ?? []
       const children = issueData.children?.nodes ?? []
-
-      let urlToPath: Map<string, string> | undefined
-      const shouldDownload = download && getOption("download_images") !== false
-      if (shouldDownload) {
-        const sources: Array<string | null | undefined> = [
-          issueData.description,
-        ]
-        if (issueComments) {
-          for (const comment of issueComments) {
-            sources.push(comment.body)
-          }
-        }
-        urlToPath = await downloadMarkdownImages(sources)
-      }
-
-      let attachmentPaths: Map<string, string> | undefined
-      const shouldDownloadAttachments = shouldDownload &&
-        getOption("auto_download_attachments") !== false
-      if (
-        shouldDownloadAttachments && attachments &&
-        attachments.length > 0
-      ) {
-        attachmentPaths = await downloadAttachments(
-          issueData.identifier,
-          attachments,
-        )
-      }
-
-      let { description } = issueData
-
-      if (urlToPath && urlToPath.size > 0) {
-        if (description) {
-          description = await replaceImageUrls(description, urlToPath)
-        }
-
-        if (issueComments) {
-          issueComments = await Promise.all(
-            issueComments.map(async (comment) => ({
-              ...comment,
-              body: await replaceImageUrls(comment.body, urlToPath),
-            })),
-          )
-        }
-      }
+      const { description } = issueData
 
       const derivedComments = issueComments
         ? deriveCommentView(issueComments, showResolvedThreads === true)
@@ -219,7 +171,6 @@ export const viewCommand = new Command()
         if (attachments.length > 0) {
           const attachmentsMarkdown = formatAttachmentsAsMarkdown(
             attachments,
-            attachmentPaths,
           )
           const renderedAttachments = renderMarkdown(attachmentsMarkdown, {
             lineWidth: terminalWidth,
@@ -284,7 +235,6 @@ export const viewCommand = new Command()
         if (attachments.length > 0) {
           markdown += formatAttachmentsAsMarkdown(
             attachments,
-            attachmentPaths,
           )
         }
 
@@ -565,87 +515,11 @@ function formatResolvedThreadsSummary(hiddenCount: number): string {
 type AttachmentInfo = IssueDetails["attachments"]["nodes"][number]
 type DocumentInfo = IssueDetails["documents"]["nodes"][number]
 
-function getAttachmentCacheDir(): string {
-  const configuredDir = getOption("attachment_dir")
-  if (configuredDir) {
-    return configuredDir
-  }
-  return join(
-    Deno.env.get("TMPDIR") || Deno.env.get("TMP") || Deno.env.get("TEMP") ||
-      "/tmp",
-    "linear-cli-attachments",
-  )
-}
-
-/**
- * Download attachments to cache directory
- * Returns a map of attachment URL to local file path
- */
-async function downloadAttachments(
-  issueIdentifier: string,
-  attachments: AttachmentInfo[],
-): Promise<Map<string, string>> {
-  const urlToPath = new Map<string, string>()
-  const cacheDir = getAttachmentCacheDir()
-  const issueDir = join(cacheDir, issueIdentifier)
-  await ensureDir(issueDir)
-
-  for (const attachment of attachments) {
-    try {
-      // Skip non-file URLs (e.g., external links)
-      const uploadHost = getLinearUploadHost(attachment.url)
-      if (!uploadHost) {
-        continue
-      }
-
-      const filename = sanitize(attachment.title)
-      const filepath = join(issueDir, filename)
-
-      // Check if file already exists
-      try {
-        await Deno.stat(filepath)
-        urlToPath.set(attachment.url, filepath)
-        continue
-      } catch {
-        // File doesn't exist, download it
-      }
-
-      const headers: Record<string, string> = {}
-      if (uploadHost === LINEAR_PRIVATE_UPLOAD_HOST) {
-        const apiKey = getResolvedApiKey()
-        if (apiKey) {
-          headers["Authorization"] = apiKey
-        }
-      }
-
-      const response = await fetch(attachment.url, { headers })
-      if (!response.ok) {
-        throw new Error(
-          `Failed to download: ${response.status} ${response.statusText}`,
-        )
-      }
-
-      const data = new Uint8Array(await response.arrayBuffer())
-      await Deno.writeFile(filepath, data)
-      urlToPath.set(attachment.url, filepath)
-    } catch (error) {
-      console.error(
-        `Failed to download attachment "${attachment.title}": ${
-          error instanceof Error ? error.message : error
-        }`,
-      )
-    }
-  }
-
-  return urlToPath
-}
-
 /**
  * Format attachments as markdown for display
  */
 function formatAttachmentsAsMarkdown(
   attachments: AttachmentInfo[],
-  localPaths?: Map<string, string>,
 ): string {
   if (attachments.length === 0) {
     return ""
@@ -654,16 +528,11 @@ function formatAttachmentsAsMarkdown(
   let markdown = "\n\n## Attachments\n\n"
 
   for (const attachment of attachments) {
-    const localPath = localPaths?.get(attachment.url)
     const sourceLabel = attachment.sourceType
       ? ` _[${attachment.sourceType}]_`
       : ""
 
-    if (localPath) {
-      markdown += `- **${attachment.title}**: ${localPath}${sourceLabel}\n`
-    } else {
-      markdown += `- **${attachment.title}**: ${attachment.url}${sourceLabel}\n`
-    }
+    markdown += `- **${attachment.title}**: ${attachment.url}${sourceLabel}\n`
 
     if (attachment.subtitle) {
       markdown += `  _${attachment.subtitle}_\n`

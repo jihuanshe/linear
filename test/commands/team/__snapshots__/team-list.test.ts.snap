@@ -11,12 +11,23 @@ Description:
 
 Options:
 
-  -h, --help           - Show this help.      
-  -w, --web            - Open in web browser  
-  -a, --app            - Open in Linear.app   
-  -j, --json           - Output as JSON       
-  --limit     <limit>  - Limit results        
+  -h, --help           - Show this help.                                                       
+  -w, --web            - Open in web browser                                                   
+  -a, --app            - Open in Linear.app                                                    
+  -j, --json           - Output as JSON                                                        
+  --limit     <limit>  - Maximum results (non-negative integer; 0 or omitted means unlimited)  
 
+"
+stderr:
+""
+`;
+
+snapshot[`Team List Command - With Mock Teams 1`] = `
+stdout:
+"KEY      NAME          CYCLES UPDATED      ID    
+BACKEND  Backend Team  Yes    575 days ago team-1
+FRONTEND Frontend Team No     577 days ago team-2
+SEC      Security Team Yes    572 days ago team-3
 "
 stderr:
 ""
@@ -71,6 +82,18 @@ stdout:
   }
 }
 '
+stderr:
+""
+`;
+
+snapshot[`Team List Command - Pagination (Multiple Pages) 1`] = `
+stdout:
+"KEY   NAME       CYCLES UPDATED      ID          
+ALPHA Alpha Team Yes    428 days ago team-page1-1
+BETA  Beta Team  No     427 days ago team-page1-2
+DELTA Delta Team No     425 days ago team-page2-2
+GAMMA Gamma Team Yes    426 days ago team-page2-1
+"
 stderr:
 ""
 `;

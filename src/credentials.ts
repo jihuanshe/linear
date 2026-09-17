@@ -4,6 +4,7 @@ import { ensureDir } from "@std/fs"
 import { yellow } from "@std/fmt/colors"
 import { deletePassword, getPassword, setPassword } from "./keyring/index.ts"
 import { withTerminalColors } from "./utils/terminal.ts"
+import { AuthError, ValidationError } from "./utils/errors.ts"
 
 function errorDetail(error: unknown): string {
   return error instanceof Error ? error.message : String(error)
@@ -37,8 +38,13 @@ export interface Credentials {
 
 let credentials: Credentials = { workspaces: [] }
 let isInlineFormat = false
+let loaded = false
 
 const apiKeyCache = new Map<string, string>()
+
+function ensureCredentials(): void {
+  if (!loaded) loadCredentials()
+}
 
 /**
  * Get the path to the credentials file.
@@ -127,62 +133,61 @@ function parseKeyringCredentials(parsed: Record<string, unknown>): Credentials {
   }
 }
 
-async function populateKeyringCache(workspaces: string[]): Promise<void> {
-  await Promise.all(workspaces.map(async (ws) => {
-    try {
-      const key = await getPassword(ws)
-      if (key != null) {
-        apiKeyCache.set(ws, key)
-      } else {
-        withTerminalColors(Deno.stderr, () =>
-          console.error(
-            yellow(
-              `Warning: No keyring entry for workspace "${ws}". Run \`linear auth login\` to re-authenticate.`,
-            ),
-          ))
-      }
-    } catch (error) {
-      withTerminalColors(Deno.stderr, () =>
-        console.error(
-          yellow(
-            `Warning: Failed to read keyring for workspace "${ws}": ${
-              errorDetail(error)
-            }`,
-          ),
-        ))
-    }
-  }))
-}
-
 /**
- * Load credentials from the credentials file.
+ * Read local inventory only. Keyring secrets are resolved for one selected
+ * workspace, never during module import or inventory listing.
  */
-export async function loadCredentials(): Promise<Credentials> {
+export function loadCredentials(): Credentials {
   const path = getCredentialsPath()
   if (!path) {
-    return { workspaces: [] }
+    credentials = { workspaces: [] }
+    apiKeyCache.clear()
+    isInlineFormat = false
+    loaded = true
+    return credentials
   }
 
   let file: string
   try {
-    file = await Deno.readTextFile(path)
+    file = Deno.readTextFileSync(path)
   } catch (error) {
     if (error instanceof Deno.errors.NotFound) {
-      return { workspaces: [] }
+      credentials = { workspaces: [] }
+      apiKeyCache.clear()
+      isInlineFormat = false
+      loaded = true
+      return credentials
     }
-    throw new Error(
-      `Failed to read credentials file at ${path}: ${errorDetail(error)}`,
+    throw new AuthError(
+      `Failed to read credentials file at ${path}`,
     )
   }
 
   let parsed: Record<string, unknown>
   try {
     parsed = parse(file) as Record<string, unknown>
-  } catch (error) {
-    throw new Error(
-      `Failed to parse credentials file at ${path}. The file may be corrupted.\n` +
-        `You can delete it and re-authenticate with \`linear auth login\`.\n` +
-        `Parse error: ${errorDetail(error)}`,
+  } catch {
+    throw new AuthError(
+      `Failed to parse credentials file at ${path}. Repair the file before changing credentials.`,
+    )
+  }
+
+  const keyringFormat = Object.hasOwn(parsed, "workspaces")
+  if (
+    (parsed.default !== undefined && typeof parsed.default !== "string") ||
+    (keyringFormat && (!Array.isArray(parsed.workspaces) ||
+      !parsed.workspaces.every((workspace) =>
+        typeof workspace === "string" && workspace !== ""
+      ))) ||
+    Object.entries(parsed).some(([key, value]) =>
+      key !== "default" &&
+      (keyringFormat
+        ? key !== "workspaces"
+        : typeof value !== "string" || value === "")
+    )
+  ) {
+    throw new AuthError(
+      `Invalid credentials file at ${path}. Repair the file before changing credentials.`,
     )
   }
 
@@ -191,14 +196,14 @@ export async function loadCredentials(): Promise<Credentials> {
   if (hasInlineKeys(parsed)) {
     isInlineFormat = true
     credentials = parseInlineCredentials(parsed)
+    loaded = true
     return credentials
   }
 
   isInlineFormat = false
 
   credentials = parseKeyringCredentials(parsed)
-  await populateKeyringCache(credentials.workspaces)
-
+  loaded = true
   return credentials
 }
 
@@ -294,12 +299,27 @@ async function saveAllInlineCredentials(): Promise<void> {
  * Returns the list of workspaces that were migrated.
  */
 export async function migrateToKeyring(): Promise<string[]> {
+  ensureCredentials()
   if (!isInlineFormat) {
     return []
   }
 
+  // Explicit migration may inspect its entire input, unlike login or list.
+  // Never overwrite an independently stored key or delete it during rollback.
+  const existing = new Set<string>()
+  for (const ws of credentials.workspaces) {
+    const stored = await getPassword(ws)
+    if (stored == null) continue
+    if (stored !== apiKeyCache.get(ws)) {
+      throw new AuthError(
+        `Keyring already contains a different credential for workspace "${ws}"`,
+      )
+    }
+    existing.add(ws)
+  }
   const migrated: string[] = []
   for (const ws of credentials.workspaces) {
+    if (existing.has(ws)) continue
     const key = apiKeyCache.get(ws)
     if (key == null) continue
     try {
@@ -322,15 +342,16 @@ export async function migrateToKeyring(): Promise<string[]> {
     }
   }
 
-  isInlineFormat = false
   await saveCredentials()
-  return migrated
+  isInlineFormat = false
+  return [...credentials.workspaces]
 }
 
 /**
  * Check whether the current credentials file uses inline (plaintext) format.
  */
 export function isUsingInlineFormat(): boolean {
+  ensureCredentials()
   return isInlineFormat
 }
 
@@ -345,38 +366,15 @@ export async function addCredential(
   apiKey: string,
   options?: { plaintext?: boolean },
 ): Promise<void> {
+  ensureCredentials()
   const useInline = options?.plaintext ?? isInlineFormat
 
-  // When explicitly requesting keyring storage while currently in inline format,
-  // migrate all existing keys to keyring first to avoid data loss.
-  if (options?.plaintext === false && isInlineFormat) {
-    apiKeyCache.set(workspace, apiKey)
-    const isNew = !credentials.workspaces.includes(workspace)
-    if (isNew) {
-      credentials.workspaces.push(workspace)
-    }
-    if (isNew && credentials.workspaces.length === 1) {
-      credentials.default = workspace
-    }
-
-    // Migrate all keys (including the new one) to keyring
-    for (const ws of credentials.workspaces) {
-      const key = apiKeyCache.get(ws)
-      if (key == null) continue
-      try {
-        await setPassword(ws, key)
-      } catch (error) {
-        throw new Error(
-          `Failed to store API key in system keyring for workspace "${ws}": ${
-            errorDetail(error)
-          }`,
-        )
-      }
-    }
-
-    isInlineFormat = false
-    await saveCredentials()
-    return
+  if (credentials.workspaces.length > 0 && useInline !== isInlineFormat) {
+    throw new ValidationError("Cannot change credential storage during login", {
+      suggestion: isInlineFormat
+        ? "Run `linear auth migrate` to explicitly migrate all plaintext credentials to the keyring."
+        : "Omit --plaintext to preserve existing keyring credentials.",
+    })
   }
 
   if (!useInline) {
@@ -408,6 +406,7 @@ export async function addCredential(
   } else {
     await saveCredentials()
   }
+  isInlineFormat = useInline
 }
 
 /**
@@ -415,6 +414,7 @@ export async function addCredential(
  * If removing the default, reassign to another workspace or clear.
  */
 export async function removeCredential(workspace: string): Promise<void> {
+  ensureCredentials()
   if (!isInlineFormat) {
     try {
       await deletePassword(workspace)
@@ -446,6 +446,7 @@ export async function removeCredential(workspace: string): Promise<void> {
  * Set the default workspace.
  */
 export async function setDefaultWorkspace(workspace: string): Promise<void> {
+  ensureCredentials()
   if (!credentials.workspaces.includes(workspace)) {
     throw new Error(`Workspace "${workspace}" not found in credentials`)
   }
@@ -461,20 +462,34 @@ export async function setDefaultWorkspace(workspace: string): Promise<void> {
 /**
  * Get the API key for a workspace, or the default if not specified.
  */
-export function getCredentialApiKey(workspace?: string): string | undefined {
-  if (workspace != null) {
-    return apiKeyCache.get(workspace)
+export async function getCredentialApiKey(
+  workspace?: string,
+): Promise<string | undefined> {
+  ensureCredentials()
+  const selected = workspace ?? credentials.default
+  if (selected == null || !credentials.workspaces.includes(selected)) return
+  const cached = apiKeyCache.get(selected)
+  if (cached != null) return cached
+  let key: string | null
+  try {
+    key = await getPassword(selected)
+  } catch {
+    throw new AuthError(
+      `Could not read keyring credential for workspace "${selected}"`,
+    )
   }
-  if (credentials.default != null) {
-    return apiKeyCache.get(credentials.default)
+  if (key == null || key === "") {
+    throw new AuthError(`No keyring credential for workspace "${selected}"`)
   }
-  return undefined
+  apiKeyCache.set(selected, key)
+  return key
 }
 
 /**
  * Get the current default workspace slug.
  */
 export function getDefaultWorkspace(): string | undefined {
+  ensureCredentials()
   return credentials.default
 }
 
@@ -482,6 +497,7 @@ export function getDefaultWorkspace(): string | undefined {
  * Get all configured workspaces.
  */
 export function getWorkspaces(): string[] {
+  ensureCredentials()
   return [...credentials.workspaces]
 }
 
@@ -489,8 +505,6 @@ export function getWorkspaces(): string[] {
  * Check if a workspace is configured.
  */
 export function hasWorkspace(workspace: string): boolean {
+  ensureCredentials()
   return credentials.workspaces.includes(workspace)
 }
-
-// Load credentials at startup
-await loadCredentials()

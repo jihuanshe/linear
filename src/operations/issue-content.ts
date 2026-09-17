@@ -1,10 +1,47 @@
 import { gql } from "../__codegen__/gql.ts"
 import { getGraphQLClient } from "../utils/graphql.ts"
+import type { UploadResult } from "../utils/upload.ts"
 import {
   assertMutationReferences,
   assertMutationSuccess,
   ValidationError,
 } from "../utils/errors.ts"
+
+export function formatAsMarkdownLink(
+  result: Pick<UploadResult, "filename" | "assetUrl" | "contentType">,
+): string {
+  // Entities keep line breaks in filenames inside the generated link label.
+  const label = result.filename.replace(/[\\`*_[\]<>!&\r\n]/g, (character) => {
+    if (character === "\r") return "&#13;"
+    if (character === "\n") return "&#10;"
+    return `\\${character}`
+  })
+  const url = result.assetUrl.replace(
+    /[\s()<>\\]/g,
+    (character) =>
+      encodeURIComponent(character).replace(/\(/g, "%28").replace(/\)/g, "%29"),
+  ).replaceAll("&", "&amp;")
+  return `${
+    result.contentType.startsWith("image/") ? "!" : ""
+  }[${label}](${url})`
+}
+
+/** Validate supplied prose before uploading; append generated snippets without rewriting it. */
+export function composeCommentBody(
+  body: string | undefined,
+  files: readonly Pick<
+    UploadResult,
+    "filename" | "assetUrl" | "contentType"
+  >[] = [],
+): string {
+  if (body != null && !body.trim()) {
+    throw new ValidationError("Comment body cannot be empty")
+  }
+  return [
+    ...(body == null ? [] : [body]),
+    ...files.map(formatAsMarkdownLink),
+  ].join("\n\n")
+}
 
 /** These functions own one remote object each; the caller already resolved its Issue UUID. */
 export async function createIssueComment(
@@ -81,7 +118,6 @@ export async function createIssueAttachment(
   options: {
     url: string
     title: string
-    commentBody?: string
     beforeWrite?: () => Promise<void>
   },
 ) {
@@ -99,7 +135,6 @@ export async function createIssueAttachment(
       issueId,
       title: options.title,
       url: options.url,
-      commentBody: options.commentBody,
     },
   })
   assertMutationSuccess(data?.attachmentCreate, data)

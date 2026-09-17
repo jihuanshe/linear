@@ -114,7 +114,7 @@ Deno.test("named recipe JSON returns the installed instructions and exact source
 })
 
 Deno.test("recipe source exports exact bytes without executing the script", async () => {
-  const recipe = recipes.find((item) => item.name === "guarded-edit")!
+  const recipe = recipes.find((item) => item.name === "doctor")!
   const result = await run(["recipe", recipe.name, "--source"])
   assertEquals(result.code, 0, result.stderr)
   assertEquals(result.stderr, "")

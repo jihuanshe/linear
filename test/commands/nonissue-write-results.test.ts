@@ -117,12 +117,12 @@ for (
   const write of [
     {
       name: "initiative archive",
-      args: ["initiative", "archive", id, "--force"],
+      args: ["initiative", "archive", id, "--yes"],
       field: "initiativeArchive",
     },
     {
       name: "initiative delete",
-      args: ["initiative", "delete", id, "--force"],
+      args: ["initiative", "delete", id, "--yes"],
       field: "initiativeDelete",
     },
     {
@@ -155,14 +155,16 @@ const writes = [
     args: ["label", "create", "--name", "Example"],
     field: "issueLabelCreate",
     entity: "issueLabel",
+    resourceKey: "issueLabel",
     object: { id, name: "Example", color: "#5E6AD2", team: null },
     id,
   },
-  { args: ["label", "delete", id, "--force"], field: "issueLabelDelete", id },
+  { args: ["label", "delete", id, "--yes"], field: "issueLabelDelete", id },
   {
     args: ["milestone", "create", "--project", projectId, "--name", "Example"],
     field: "projectMilestoneCreate",
     entity: "projectMilestone",
+    resourceKey: "projectMilestone",
     object: {
       id,
       name: "Example",
@@ -172,12 +174,12 @@ const writes = [
     id,
   },
   {
-    args: ["milestone", "delete", id, "--force"],
+    args: ["milestone", "delete", id, "--yes"],
     field: "projectMilestoneDelete",
     id,
   },
   {
-    args: ["project", "delete", projectId, "--force"],
+    args: ["project", "delete", projectId, "--yes"],
     field: "projectDelete",
     entity: "entity",
     object: { id: projectId, name: "Example project" },
@@ -187,6 +189,7 @@ const writes = [
     args: ["initiative", "create", "--name", "Example"],
     field: "initiativeCreate",
     entity: "initiative",
+    resourceKey: "initiative",
     object: {
       id,
       name: "Example",
@@ -196,17 +199,17 @@ const writes = [
     id,
   },
   {
-    args: ["initiative", "archive", id, "--force"],
+    args: ["initiative", "archive", id, "--yes"],
     field: "initiativeArchive",
     id,
   },
   {
-    args: ["initiative", "delete", id, "--force"],
+    args: ["initiative", "delete", id, "--yes"],
     field: "initiativeDelete",
     id,
   },
   {
-    args: ["initiative", "unarchive", id, "--force"],
+    args: ["initiative", "unarchive", id, "--yes"],
     field: "initiativeUnarchive",
     entity: "entity",
     object: {
@@ -229,7 +232,7 @@ const writes = [
     id: linkId,
   },
   {
-    args: ["initiative", "remove-project", id, projectId, "--force"],
+    args: ["initiative", "remove-project", id, projectId, "--yes"],
     field: "initiativeToProjectDelete",
     id: linkId,
   },
@@ -237,6 +240,7 @@ const writes = [
     args: ["initiative-update", "create", id, "--body", "A status update"],
     field: "initiativeUpdateCreate",
     entity: "initiativeUpdate",
+    resourceKey: "initiativeUpdate",
     object: {
       id,
       body: "A status update",
@@ -250,6 +254,7 @@ const writes = [
     args: ["project-update", "create", projectId, "--body", "A status update"],
     field: "projectUpdateCreate",
     entity: "projectUpdate",
+    resourceKey: "projectUpdate",
     object: {
       id,
       body: "A status update",
@@ -272,6 +277,7 @@ const writes = [
     ],
     field: "documentCreate",
     entity: "document",
+    resourceKey: "document",
     object: {
       id,
       title: "Example",
@@ -285,6 +291,7 @@ const writes = [
     args: ["team", "create", "--name", "Example", "--key", "EX"],
     field: "teamCreate",
     entity: "team",
+    resourceKey: "team",
     object: { id, key: "EX", name: "Example" },
     id,
   },
@@ -324,7 +331,15 @@ for (const write of writes) {
         result.result.effect,
         outcome === "applied" ? "applied" : "unknown",
       )
-      if (outcome === "applied") assertEquals(result.result.data.id, write.id)
+      if (outcome === "applied") {
+        if (write.resourceKey) {
+          assertEquals(result.result.data, {
+            [write.resourceKey]: write.object,
+          })
+        } else {
+          assertEquals(result.result.data.id, write.id)
+        }
+      }
     })
   }
   if (write.entity) {
@@ -392,8 +407,8 @@ for (
 for (
   const [args, field] of [
     [["document", "delete", "--yes"], "documentDelete"],
-    [["initiative", "archive", "--force"], "initiativeArchive"],
-    [["initiative", "delete", "--force"], "initiativeDelete"],
+    [["initiative", "archive", "--yes"], "initiativeArchive"],
+    [["initiative", "delete", "--yes"], "initiativeDelete"],
   ] as const
 ) {
   Deno.test(`write result ${args.slice(0, 2).join(" ")}: bulk stops unknown and preserves earlier receipt`, async () => {
@@ -429,7 +444,7 @@ Deno.test("write result remove-project reads later pages before treating the lin
     "remove-project",
     id,
     projectId,
-    "--force",
+    "--yes",
   ], (request) => {
     if (/^mutation\b/.test(request.query.trim())) {
       return { data: { initiativeToProjectDelete: { success: true } } }
@@ -591,7 +606,7 @@ Deno.test("write result keeps Markdown stdin bytes in a project status update", 
     body,
   )
   assertEquals(result.code, 0, result.stdout)
-  assertEquals(result.result.data.body, body)
+  assertEquals(result.result.data.projectUpdate.body, body)
   assertEquals(
     (result.mutations[0]?.variables.input as { body: string }).body,
     body,
@@ -600,7 +615,7 @@ Deno.test("write result keeps Markdown stdin bytes in a project status update", 
 
 Deno.test("write result label delete fails a UUID read without falling back to a name", async () => {
   const result = await runCli(
-    ["label", "delete", id, "--force"],
+    ["label", "delete", id, "--yes"],
     () => ({ errors: [{ message: "Read unavailable" }] }),
   )
   assertEquals(result.code, 1)
@@ -611,7 +626,7 @@ Deno.test("write result label delete fails a UUID read without falling back to a
 
 Deno.test("write result label delete sees ambiguity beyond the first page", async () => {
   const result = await runCli(
-    ["label", "delete", "Duplicate", "--force"],
+    ["label", "delete", "Duplicate", "--yes"],
     (request) => ({
       data: {
         issueLabels: {
@@ -639,7 +654,7 @@ Deno.test("write result bulk archive reports no effects for already archived ini
   const result = await runCli([
     "initiative",
     "archive",
-    "--force",
+    "--yes",
     "--bulk",
     id,
     nextId,
@@ -667,8 +682,8 @@ Deno.test("write result bulk archive reports no effects for already archived ini
 
 for (
   const [args, field, expectedId] of [
-    [["project", "delete", projectId, "--force"], "projectDelete", projectId],
-    [["initiative", "unarchive", id, "--force"], "initiativeUnarchive", id],
+    [["project", "delete", projectId, "--yes"], "projectDelete", projectId],
+    [["initiative", "unarchive", id, "--yes"], "initiativeUnarchive", id],
   ] as const
 ) {
   Deno.test(`write result ${args.slice(0, 2).join(" ")}: mismatched receipt retains applied effect`, async () => {

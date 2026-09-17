@@ -6,7 +6,7 @@ import { listCommand } from "./auth-list.ts"
 import { loginCommand } from "./auth-login.ts"
 import { logoutCommand } from "./auth-logout.ts"
 import { migrateCommand } from "./auth-migrate.ts"
-import { tokenCommand } from "./auth-token.ts"
+import { keyCommand } from "./auth-key.ts"
 import { whoamiCommand } from "./auth-whoami.ts"
 
 export const authCommand = new Command()
@@ -16,6 +16,6 @@ export const authCommand = new Command()
   .command("logout", logoutCommand)
   .command("list", listCommand)
   .command("default", defaultCommand)
-  .command("token", tokenCommand)
+  .command("key", keyCommand)
   .command("whoami", whoamiCommand)
   .command("migrate", migrateCommand)

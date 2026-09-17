@@ -2,5 +2,5 @@
 # https://github.com/jihuanshe/linear
 
 workspace = "jihuanshe"
-team_id = "JHS"
+team_key = "JHS"
 issue_sort = "priority"

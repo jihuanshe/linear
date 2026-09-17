@@ -1,23 +1,15 @@
 import { Command } from "@cliffy/command"
 import { unicodeWidth } from "@std/cli"
+import { rgb24, underline } from "@std/fmt/colors"
 import { open } from "@opensrc/deno-open"
 import { gql } from "../../__codegen__/gql.ts"
 import type { GetInitiativesQueryVariables } from "../../__codegen__/graphql.ts"
 import { getGraphQLClient } from "../../utils/graphql.ts"
-import {
-  padDisplay,
-  printStyled,
-  printStyledHeader,
-  truncateText,
-} from "../../utils/display.ts"
-import { getOption } from "../../config.ts"
+import { padDisplay, truncateText } from "../../utils/display.ts"
+import { getWorkspaceUrl } from "../../utils/actions.ts"
 import { shouldShowSpinner } from "../../utils/hyperlink.ts"
-import { LINEAR_WEB_BASE_URL } from "../../const.ts"
-import {
-  handleError,
-  NotFoundError,
-  ValidationError,
-} from "../../utils/errors.ts"
+import { handleError, NotFoundError } from "../../utils/errors.ts"
+import { parseInitiativeStatus } from "./initiative-status.ts"
 
 const GetInitiatives = gql(`
   query GetInitiatives($filter: InitiativeFilter, $includeArchived: Boolean) {
@@ -58,25 +50,11 @@ const GetInitiatives = gql(`
   }
 `)
 
-// Initiative status display names and order
-// Note: InitiativeStatus enum values are: Planned, Active, Completed
+// Human display order; unlisted upstream statuses retain their original value.
 const INITIATIVE_STATUS_ORDER: Record<string, number> = {
   "Active": 1,
   "Planned": 2,
   "Completed": 3,
-}
-
-const INITIATIVE_STATUS_DISPLAY: Record<string, string> = {
-  "Active": "Active",
-  "Planned": "Planned",
-  "Completed": "Completed",
-}
-
-// Map user input (lowercase) to API values (capitalized)
-const STATUS_INPUT_MAP: Record<string, string> = {
-  "active": "Active",
-  "planned": "Planned",
-  "completed": "Completed",
 }
 
 export const listCommand = new Command()
@@ -84,7 +62,8 @@ export const listCommand = new Command()
   .description("List initiatives")
   .option(
     "-s, --status <status:string>",
-    "Filter by status (active, planned, completed)",
+    "Filter by status (planned, active, completed, proposed, canceled)",
+    { preserveEmpty: true },
   )
   .option("--all-statuses", "Show all statuses (default: active only)")
   .option(
@@ -98,24 +77,7 @@ export const listCommand = new Command()
   .action(async ({ status, allStatuses, owner, web, app, json, archived }) => {
     // Handle open in browser/app
     if (web || app) {
-      let workspace = getOption("workspace")
-      if (!workspace) {
-        // Get workspace from viewer if not configured
-        const client = getGraphQLClient()
-        const viewerQuery = gql(`
-          query GetViewerForInitiatives {
-            viewer {
-              organization {
-                urlKey
-              }
-            }
-          }
-        `)
-        const result = await client.request(viewerQuery)
-        workspace = result.viewer.organization.urlKey
-      }
-
-      const url = `${LINEAR_WEB_BASE_URL}/${workspace}/initiatives`
+      const url = `${await getWorkspaceUrl()}/initiatives`
       const destination = app ? "Linear.app" : "web browser"
       console.log(`Opening ${url} in ${destination}`)
       await open(url, app ? { app: { name: "Linear" } } : undefined)
@@ -132,18 +94,8 @@ export const listCommand = new Command()
       const filter: NonNullable<GetInitiativesQueryVariables["filter"]> = {}
 
       // Status filter
-      if (status) {
-        const statusLower = status.toLowerCase()
-        const apiStatus = STATUS_INPUT_MAP[statusLower]
-        if (!apiStatus) {
-          spinner?.stop()
-          throw new ValidationError(
-            `Invalid status: ${status}. Valid values: ${
-              Object.keys(STATUS_INPUT_MAP).join(", ")
-            }`,
-          )
-        }
-        filter.status = { eq: apiStatus }
+      if (status != null) {
+        filter.status = { eq: parseInitiativeStatus(status) }
       } else if (!allStatuses) {
         // Default to active only
         filter.status = { eq: "Active" }
@@ -224,7 +176,7 @@ export const listCommand = new Command()
         6,
         ...initiatives.map(
           (init) =>
-            ((INITIATIVE_STATUS_DISPLAY[init.status] || init.status) +
+            (init.status +
               (init.trashed
                 ? " (trashed)"
                 : init.archivedAt
@@ -277,12 +229,11 @@ export const listCommand = new Command()
         padDisplay("TARGET", TARGET_WIDTH),
       ]
 
-      printStyledHeader(headerCells)
+      console.log(underline(headerCells.join(" ")))
 
       // Print each initiative
       for (const init of initiatives) {
-        const statusDisplay = (INITIATIVE_STATUS_DISPLAY[init.status] ||
-          init.status) +
+        const statusDisplay = init.status +
           (init.trashed ? " (trashed)" : init.archivedAt ? " (archived)" : "")
         const health = init.health || "-"
         const owner = init.owner?.initials || "-"
@@ -300,13 +251,17 @@ export const listCommand = new Command()
         }
         const statusColor = statusColors[init.status] || "#6B6F76"
 
-        printStyled(
-          `${padDisplay(init.slugId, SLUG_WIDTH)} ${paddedName} `,
-          [padDisplay(statusDisplay, STATUS_WIDTH), `color: ${statusColor}`],
-          ` ${padDisplay(health, HEALTH_WIDTH)} ${
-            padDisplay(owner, OWNER_WIDTH)
-          } ${padDisplay(projectCount, PROJECTS_WIDTH)} `,
-          [padDisplay(target, TARGET_WIDTH), "color: gray"],
+        console.log(
+          `${padDisplay(init.slugId, SLUG_WIDTH)} ${paddedName} ${
+            rgb24(
+              `${padDisplay(statusDisplay, STATUS_WIDTH)} ${
+                padDisplay(health, HEALTH_WIDTH)
+              } ${padDisplay(owner, OWNER_WIDTH)} ${
+                padDisplay(projectCount, PROJECTS_WIDTH)
+              } `,
+              parseInt(statusColor.replace("#", ""), 16),
+            )
+          }${rgb24(padDisplay(target, TARGET_WIDTH), 0x808080)}`,
         )
       }
     } catch (error) {

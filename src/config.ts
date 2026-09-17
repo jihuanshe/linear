@@ -1,178 +1,176 @@
 import { parse } from "@std/toml"
-import { join } from "@std/path"
-import { load } from "@std/dotenv"
+import { join, resolve } from "@std/path"
+import { loadSync } from "@std/dotenv"
 import * as v from "valibot"
 import { ValidationError } from "./utils/errors.ts"
 
-let config: Record<string, unknown> = {}
+let config: Record<string, unknown> | undefined
+let environmentLoaded = false
 
-function errorDetail(error: unknown): string {
-  return error instanceof Error ? error.message : String(error)
-}
-
-async function loadConfigFromPath(
-  path: string,
-): Promise<Record<string, unknown> | null> {
-  let file: string
+function exists(path: string): boolean {
   try {
-    file = await Deno.readTextFile(path)
+    Deno.statSync(path)
+    return true
   } catch (error) {
-    if (error instanceof Deno.errors.NotFound) return null
-    throw new Error(
-      `Failed to read config file at ${path}: ${errorDetail(error)}`,
-    )
-  }
-
-  try {
-    return parse(file) as Record<string, unknown>
-  } catch (error) {
-    throw new Error(
-      `Failed to parse config file at ${path}: ${errorDetail(error)}`,
-    )
+    if (error instanceof Deno.errors.NotFound) return false
+    throw new ValidationError(`Could not inspect configuration path: ${path}`)
   }
 }
 
-async function loadConfig() {
-  // Build list of global config paths (lowest priority)
-  const globalConfigPaths: string[] = []
-  if (Deno.build.os === "windows") {
-    // Windows: use APPDATA (Roaming) for user config
-    const appData = Deno.env.get("APPDATA")
-    if (appData) {
-      globalConfigPaths.push(join(appData, "linear", "linear.toml"))
-    }
-  } else {
-    // Unix-like: follow XDG Base Directory Specification
-    const xdgConfigHome = Deno.env.get("XDG_CONFIG_HOME")
-    const homeDir = Deno.env.get("HOME")
-    if (xdgConfigHome) {
-      globalConfigPaths.push(join(xdgConfigHome, "linear", "linear.toml"))
-    } else if (homeDir) {
-      globalConfigPaths.push(join(homeDir, ".config", "linear", "linear.toml"))
-    }
-  }
-
-  // Build list of project config paths (higher priority, overrides global)
-  const projectConfigPaths = [
-    "./linear.toml",
-    "./.linear.toml",
-  ]
+function gitRoot(): string | undefined {
   try {
-    const gitProcess = await new Deno.Command("git", {
+    const result = new Deno.Command("git", {
       args: ["rev-parse", "--show-toplevel"],
-    }).output()
-    const gitRoot = new TextDecoder().decode(gitProcess.stdout).trim()
-    projectConfigPaths.push(join(gitRoot, "linear.toml"))
-    projectConfigPaths.push(join(gitRoot, ".linear.toml"))
-    projectConfigPaths.push(join(gitRoot, ".config", "linear.toml"))
+      stderr: "null",
+    }).outputSync()
+    if (!result.success) return
+    return new TextDecoder().decode(result.stdout).trim() || undefined
   } catch {
-    // Not in a git repository; ignore additional paths.
-  }
-
-  // Load global config first (lowest priority)
-  for (const path of globalConfigPaths) {
-    const globalConfig = await loadConfigFromPath(path)
-    if (globalConfig) {
-      config = globalConfig
-      break
-    }
-  }
-
-  // Load project config and merge on top (project overrides global)
-  for (const path of projectConfigPaths) {
-    const projectConfig = await loadConfigFromPath(path)
-    if (projectConfig) {
-      config = { ...config, ...projectConfig }
-      break
-    }
+    // Git is optional, including when running outside a repository.
+    return
   }
 }
 
-// Load .env files
-async function loadEnvFiles() {
-  let envVars: Record<string, string> = {}
-  if (await Deno.stat(".env").catch(() => null)) {
-    envVars = await load()
-  } else {
-    try {
-      const gitRoot = new TextDecoder()
-        .decode(
-          await new Deno.Command("git", {
-            args: ["rev-parse", "--show-toplevel"],
-          })
-            .output()
-            .then((output) => output.stdout),
-        )
-        .trim()
-
-      const gitRootEnvPath = join(gitRoot, ".env")
-      if (await Deno.stat(gitRootEnvPath).catch(() => null)) {
-        envVars = await load({ envPath: gitRootEnvPath })
-      }
-    } catch {
-      // Silently continue if not in a git repo
+/** Load dotenv only for an executing action, never while building navigation. */
+export function loadEnvironment(): void {
+  if (environmentLoaded) return
+  const root = gitRoot()
+  const envPath = exists(".env") ? ".env" : root && join(root, ".env")
+  if (envPath && exists(envPath)) {
+    const variables = loadSync({ envPath })
+    for (const [key, value] of Object.entries(variables)) {
+      if (
+        ["LINEAR_", "GH_", "GITHUB_"].some((prefix) =>
+          key.startsWith(prefix)
+        ) &&
+        Deno.env.get(key) === undefined
+      ) Deno.env.set(key, value)
     }
   }
-
-  // Apply known environment variables from .env
-  const ALLOWED_ENV_VAR_PREFIXES = ["LINEAR_", "GH_", "GITHUB_"]
-  for (const [key, value] of Object.entries(envVars)) {
-    if (ALLOWED_ENV_VAR_PREFIXES.some((prefix) => key.startsWith(prefix))) {
-      // Use same precedence as dotenv
-      if (Deno.env.get(key) !== undefined) continue
-      Deno.env.set(key, value)
-    }
-  }
+  environmentLoaded = true
 }
 
-await loadEnvFiles()
-await loadConfig()
+function globalConfigPath(): string | undefined {
+  if (Deno.build.os === "windows") {
+    const appData = Deno.env.get("APPDATA")
+    return appData ? join(appData, "linear", "linear.toml") : undefined
+  }
+  const home = Deno.env.get("HOME")
+  const directory = Deno.env.get("XDG_CONFIG_HOME") ||
+    (home ? join(home, ".config") : undefined)
+  return directory ? join(directory, "linear", "linear.toml") : undefined
+}
 
-// Boolean coercion following Python's distutils.util.strtobool standard
+/** The reader and wizard use exactly the same project precedence. */
+export function getProjectConfigPath(): string {
+  const root = gitRoot()
+  const global = globalConfigPath()
+  for (
+    const path of new Set([
+      resolve("linear.toml"),
+      ...(root ? [join(root, "linear.toml")] : []),
+    ])
+  ) {
+    if (path !== global && exists(path)) {
+      throw new ValidationError(`Unsupported project config file: ${path}`, {
+        suggestion:
+          "Move its non-secret settings to .linear.toml. Project linear.toml is no longer supported; store credentials with `linear auth login` or LINEAR_API_KEY.",
+      })
+    }
+  }
+  const paths = [
+    resolve(".linear.toml"),
+    ...(root
+      ? [join(root, ".linear.toml"), join(root, ".config", "linear.toml")]
+      : []),
+  ]
+  return paths.find(exists) ?? (root ? join(root, ".linear.toml") : paths[0])
+}
+
+function readConfig(path: string): Record<string, unknown> {
+  let source: string
+  try {
+    source = Deno.readTextFileSync(path)
+  } catch (error) {
+    if (error instanceof Deno.errors.NotFound) return {}
+    throw new ValidationError(`Failed to read config file at ${path}`)
+  }
+  let parsed: Record<string, unknown>
+  try {
+    parsed = parse(source)
+  } catch {
+    // TOML diagnostics can contain the source line, including a secret.
+    throw new ValidationError(`Failed to parse config file at ${path}`)
+  }
+  if (Object.hasOwn(parsed, "api_key")) {
+    throw new ValidationError(`Unsupported api_key in config file at ${path}`, {
+      suggestion:
+        "Remove api_key from this file and use LINEAR_API_KEY or `linear auth login`. No fallback credential was selected.",
+    })
+  }
+  if (Object.hasOwn(parsed, "team_id")) {
+    throw new ValidationError(`Unsupported team_id in config file at ${path}`, {
+      suggestion:
+        "Replace team_id with team_key containing the Team.key (for example, ENG), not a team UUID. team_id is no longer supported.",
+    })
+  }
+  return parsed
+}
+
+export function loadConfig(): void {
+  loadEnvironment()
+  if (Deno.env.get("LINEAR_TEAM_ID") != null) {
+    throw new ValidationError(
+      "Unsupported environment variable LINEAR_TEAM_ID",
+      {
+        suggestion:
+          "Unset LINEAR_TEAM_ID and use LINEAR_TEAM_KEY containing the Team.key (for example, ENG), not a team UUID.",
+      },
+    )
+  }
+  if (config != null) return
+  const project = getProjectConfigPath()
+  const global = globalConfigPath()
+  config = { ...(global ? readConfig(global) : {}), ...readConfig(project) }
+}
+
 const TRUTHY = ["true", "yes", "y", "on", "1", "t"]
 const FALSY = ["false", "no", "n", "off", "0", "f"]
 
-function coerceBool(value: unknown): boolean | undefined {
-  if (value === true) return true
-  if (value === false) return false
-  if (value == null) return undefined
+function coerceBool(value: unknown): unknown {
   if (typeof value === "string") {
     const lower = value.toLowerCase()
     if (TRUTHY.includes(lower)) return true
     if (FALSY.includes(lower)) return false
   }
-  return undefined
+  return value
 }
 
-// Custom valibot schema for boolean coercion
-const BooleanLike = v.pipe(v.unknown(), v.transform(coerceBool))
+const BooleanLike = v.pipe(v.unknown(), v.transform(coerceBool), v.boolean())
+const NonEmptyString = v.pipe(v.string(), v.minLength(1))
 
 export const ISSUE_SORT_VALUES = ["manual", "priority"] as const
 export type IssueSort = (typeof ISSUE_SORT_VALUES)[number]
 export const DEFAULT_ISSUE_SORT: IssueSort = "priority"
 
-// Options schema
 const OptionsSchema = v.object({
-  team_id: v.optional(v.string()),
-  api_key: v.optional(v.string()),
-  workspace: v.optional(v.string()),
+  team_key: v.optional(NonEmptyString),
+  workspace: v.optional(NonEmptyString),
   issue_sort: v.optional(v.picklist(ISSUE_SORT_VALUES)),
   issue_create_ask_project: v.optional(BooleanLike),
   issue_create_assign_self: v.optional(v.picklist(["always", "auto", "never"])),
   vcs: v.optional(v.picklist(["git", "jj"])),
-  download_images: v.optional(BooleanLike),
   hyperlink_format: v.optional(v.string()),
-  attachment_dir: v.optional(v.string()),
-  auto_download_attachments: v.optional(BooleanLike),
 })
 
 export type Options = v.InferOutput<typeof OptionsSchema>
 export type OptionName = keyof Options
 
 function getRawOption(optionName: OptionName, cliValue?: string): unknown {
+  loadConfig()
   return cliValue ??
     Deno.env.get("LINEAR_" + optionName.toUpperCase()) ??
-    config[optionName]
+    config?.[optionName]
 }
 
 export function getOption<T extends OptionName>(
@@ -181,36 +179,17 @@ export function getOption<T extends OptionName>(
 ): Options[T] {
   const raw = getRawOption(optionName, cliValue)
   const result = v.safeParse(OptionsSchema, { [optionName]: raw })
-  if (result.success) {
-    return result.output[optionName] as Options[T]
-  }
-  return undefined as Options[T]
+  if (result.success) return result.output[optionName] as Options[T]
+  throw new ValidationError(`Invalid value for ${optionName}`, {
+    suggestion:
+      `Check the command option, LINEAR_${optionName.toUpperCase()}, and configuration file. An invalid value is not treated as unset.`,
+  })
 }
 
-/**
- * Resolve the issue sort order from CLI flag, LINEAR_ISSUE_SORT env var, or
- * issue_sort config, defaulting to priority when nothing is set. Unlike
- * getOption, an explicitly configured but invalid value errors instead of
- * silently falling back to the default.
- */
 export function resolveIssueSort(cliValue?: string): IssueSort {
-  const raw = getRawOption("issue_sort", cliValue)
-  if (raw == null) return DEFAULT_ISSUE_SORT
-  const parsed = v.safeParse(v.picklist(ISSUE_SORT_VALUES), raw)
-  if (!parsed.success) {
-    throw new ValidationError(
-      `Invalid issue sort: ${JSON.stringify(raw)}`,
-      {
-        suggestion: `Use one of: ${
-          ISSUE_SORT_VALUES.join(", ")
-        } (via --sort, the issue_sort config option, or the LINEAR_ISSUE_SORT environment variable)`,
-      },
-    )
-  }
-  return parsed.output
+  return getOption("issue_sort", cliValue) ?? DEFAULT_ISSUE_SORT
 }
 
-// CLI workspace set via --workspace flag
 let cliWorkspace: string | undefined
 
 export function setCliWorkspace(workspace: string | undefined) {

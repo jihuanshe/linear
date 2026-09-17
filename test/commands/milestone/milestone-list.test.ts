@@ -175,15 +175,23 @@ await cliffySnapshotTest({
 })
 
 for (
-  const scenario of ["sorted", "missing cursor", "cycle", "missing pageInfo"]
+  const { scenario, json } of [
+    "sorted",
+    "empty",
+    "missing cursor",
+    "cycle",
+    "missing pageInfo",
+  ].flatMap((scenario) => [{ scenario, json: false }, { scenario, json: true }])
 ) {
-  Deno.test(`milestone list - complete pagination ${scenario}`, async () => {
+  Deno.test(`milestone list - complete pagination ${scenario} ${json ? "JSON" : "human"}`, async () => {
     const projectId = "11111111-1111-4111-8111-111111111111"
     const server = new MockLinearServer([{
       queryName: "GetProjectMilestones",
       response: ({ variables }) => {
         const later = variables.after != null
-        const entries = later
+        const entries = scenario === "empty"
+          ? []
+          : later
           ? [["Alpha", "2026-01-01"], ["Earlier", "2025-01-01"], [
             "Undated A",
             null,
@@ -204,11 +212,13 @@ for (
                 })),
                 ...(scenario === "missing pageInfo" ? {} : {
                   pageInfo: {
-                    hasNextPage: !later || scenario === "cycle",
+                    hasNextPage: scenario !== "empty" &&
+                      (!later || scenario === "cycle"),
                     endCursor: scenario === "missing cursor"
                       ? null
-                      : later && scenario !== "cycle"
-                      ? null
+                      : scenario === "empty" ||
+                          (later && scenario !== "cycle")
+                      ? "terminal-cursor"
                       : "cursor-1",
                   },
                 }),
@@ -225,6 +235,7 @@ for (
           "run",
           ...commonDenoArgs,
           "src/main.ts",
+          ...(json ? ["-j"] : []),
           "milestone",
           "list",
           "--project",
@@ -240,21 +251,79 @@ for (
       }).output()
       const stdout = new TextDecoder().decode(result.stdout)
       const stderr = new TextDecoder().decode(result.stderr)
-      assertEquals(result.code, scenario === "sorted" ? 0 : 1)
-      if (scenario === "sorted") {
+      const success = scenario === "sorted" || scenario === "empty"
+      assertEquals(result.code, success ? 0 : 1)
+      if (json && success) {
+        const connection = JSON.parse(stdout)
+        assertEquals(Object.keys(connection).sort(), ["nodes", "pageInfo"])
+        assertEquals(connection.pageInfo, {
+          hasNextPage: false,
+          endCursor: "terminal-cursor",
+        })
+        assertEquals(
+          connection.nodes.map((node: {
+            id: string
+            name: string
+            targetDate: string | null
+            sortOrder: number
+            project: { id: string; name: string }
+          }) => [
+            node.id,
+            node.name,
+            node.targetDate,
+            node.sortOrder,
+            node.project,
+          ]),
+          scenario === "empty" ? [] : [
+            ["milestone-false-0", "Undated Z", null, 0, {
+              id: projectId,
+              name: "Project",
+            }],
+            ["milestone-false-1", "Zulu", "2026-01-01", -1, {
+              id: projectId,
+              name: "Project",
+            }],
+            ["milestone-true-0", "Alpha", "2026-01-01", 0, {
+              id: projectId,
+              name: "Project",
+            }],
+            ["milestone-true-1", "Earlier", "2025-01-01", -1, {
+              id: projectId,
+              name: "Project",
+            }],
+            ["milestone-true-2", "Undated A", null, -2, {
+              id: projectId,
+              name: "Project",
+            }],
+          ],
+        )
+        assertEquals(stderr, "")
+      } else if (scenario === "sorted") {
         assertEquals(
           stdout.trim().split("\n").slice(1).map((line) =>
             line.split(/\s+milestone-/)[0].trim()
           ),
           ["Earlier", "Alpha", "Zulu", "Undated A", "Undated Z"],
         )
+      } else if (scenario === "empty") {
+        assertEquals(stdout.trim(), "No milestones found for this project.")
+      } else if (json) {
+        const failure = JSON.parse(stdout)
+        assertEquals(failure.ok, false)
+        assertEquals(failure.effect, "none")
+        assertStringIncludes(
+          failure.error.message,
+          "Incomplete project milestones pagination",
+        )
+        assertEquals(stderr, "")
       } else {
         assertEquals(stdout, "")
         assertStringIncludes(stderr, "Incomplete project milestones pagination")
       }
       assertEquals(
         server.graphqlRequests.map((request) => request.variables),
-        scenario === "missing cursor" || scenario === "missing pageInfo"
+        scenario === "empty" || scenario === "missing cursor" ||
+          scenario === "missing pageInfo"
           ? [{ projectId, after: null }]
           : [{ projectId, after: null }, { projectId, after: "cursor-1" }],
       )

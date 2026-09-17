@@ -94,7 +94,6 @@ for (
           "issue",
           "view",
           "ENG-123",
-          "--no-download",
           "--no-pager",
           ...(mode === "json"
             ? ["--json"]

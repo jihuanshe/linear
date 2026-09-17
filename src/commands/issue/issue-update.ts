@@ -5,16 +5,17 @@ import { withMarkdownHint } from "../../utils/markdown-help.ts"
 import { gql } from "../../__codegen__/gql.ts"
 import type { IssueUpdateInput } from "../../__codegen__/graphql.ts"
 import { getGraphQLClient } from "../../utils/graphql.ts"
+import { readTextSource } from "../../utils/text-source.ts"
+import { priorityType } from "../../utils/priority.ts"
 import {
   getCycleIdByNameOrNumber,
   getIssueId,
-  getIssueIdentifier,
-  getIssueLabelIdByNameForTeam,
-  getIssueProjectId,
-  getProjectIdByName,
+  getIssueReference,
   getWorkflowStates,
   isLinearUuid,
+  lookupProjectId,
   lookupUserId,
+  resolveIssueLabelIdsForTeam,
   resolveMilestoneId,
   resolveWorkflowState,
   workflowStateNotFoundError,
@@ -74,7 +75,14 @@ export interface UpdateIssueOptions {
   beforeWrite?: () => Promise<void>
 }
 
-export function validateIssueWriteStrings(options: UpdateIssueOptions) {
+export function validateIssueWriteOptions(options: UpdateIssueOptions) {
+  if (
+    options.priority !== undefined &&
+    (!Number.isInteger(options.priority) || options.priority < 0 ||
+      options.priority > 4)
+  ) {
+    throw new ValidationError("Priority must be an integer from 0 to 4")
+  }
   for (
     const field of [
       "assignee",
@@ -121,9 +129,14 @@ export const issueReplacementFields = {
 /** Shared by the direct command and delivery; returns values, never exits or prints. */
 export async function prepareIssueUpdate(
   options: UpdateIssueOptions,
-  issueIdArg?: string,
+  issueArg?: string,
 ) {
-  validateIssueWriteStrings(options)
+  if (issueArg == null || !issueArg.trim()) {
+    throw new ValidationError(
+      "An explicit issue reference is required (UUID, identifier, or Linear Issue URL)",
+    )
+  }
+  validateIssueWriteOptions(options)
   const {
     assignee,
     unassign,
@@ -134,9 +147,9 @@ export async function prepareIssueUpdate(
     estimate,
     description,
     descriptionFile,
-    label: labels,
-    addLabel: addedLabels,
-    removeLabel: removedLabels,
+    label: labelReferences,
+    addLabel: addedLabelReferences,
+    removeLabel: removedLabelReferences,
     team,
     project,
     state,
@@ -165,7 +178,7 @@ export async function prepareIssueUpdate(
     milestone,
     cycle,
     title,
-    labels,
+    labelReferences,
   ].some((value) => value !== undefined) || unassign === true ||
     clearCycle === true
   if (
@@ -177,9 +190,9 @@ export async function prepareIssueUpdate(
       expectFields: options.expectField,
     })
   }
-  const replacesLabels = labels != null && labels.length > 0
-  const addsLabels = addedLabels != null && addedLabels.length > 0
-  const removesLabels = removedLabels != null && removedLabels.length > 0
+  const replacesLabels = (labelReferences?.length ?? 0) > 0
+  const addsLabels = (addedLabelReferences?.length ?? 0) > 0
+  const removesLabels = (removedLabelReferences?.length ?? 0) > 0
 
   if (replacesLabels && (addsLabels || removesLabels)) {
     throw new ValidationError(
@@ -211,13 +224,6 @@ export async function prepareIssueUpdate(
     )
   }
 
-  // Validate that description and descriptionFile are not both provided
-  if (description != null && descriptionFile != null) {
-    throw new ValidationError(
-      "Cannot specify both --description and --description-file",
-    )
-  }
-
   if (
     assignee == null && !unassign && dueDate == null && parent == null &&
     priority == null && estimate == null && description == null &&
@@ -234,39 +240,24 @@ export async function prepareIssueUpdate(
     )
   }
 
-  // Read description from file if provided
-  let finalDescription = description
-  if (descriptionFile === "") {
-    throw new ValidationError("Description file path cannot be empty")
-  }
-  if (descriptionFile != null) {
-    try {
-      finalDescription = await Deno.readTextFile(descriptionFile)
-    } catch (error) {
-      throw new ValidationError(
-        `Failed to read description file: ${descriptionFile}`,
-        {
-          suggestion: `Error: ${
-            error instanceof Error ? error.message : String(error)
-          }`,
-        },
-      )
-    }
-  }
+  const finalDescription = await readTextSource(
+    "description",
+    description,
+    descriptionFile,
+  )
 
-  // Resolve the Issue reference from the argument or current VCS context.
-  const issueId = await getIssueIdentifier(issueIdArg)
-  if (!issueId) {
+  const issueReference = await getIssueReference(issueArg)
+  if (!issueReference) {
     throw new ValidationError(
-      "Could not determine issue identifier",
+      `Invalid issue reference: ${issueArg}`,
       {
         suggestion:
-          "Provide an issue identifier such as ENG-123, a UUID, or a VCS context containing an issue identifier.",
+          "Provide an issue identifier such as ENG-123, a UUID, or a Linear Issue URL.",
       },
     )
   }
 
-  const target = await readIssueBasis(issueId)
+  const target = await readIssueBasis(issueReference)
   const writeTeam = team == null
     ? target.issue.team
     : await resolveWriteTeam(team)
@@ -292,23 +283,11 @@ export async function prepareIssueUpdate(
     }
   }
 
-  const resolveLabelIds = async (
-    labelNames: string[] | undefined,
-  ): Promise<string[]> => {
-    const ids = new Set<string>()
-    for (const label of labelNames ?? []) {
-      const labelId = await getIssueLabelIdByNameForTeam(label, teamId)
-      if (!labelId) {
-        throw new NotFoundError("Issue label", label)
-      }
-      ids.add(labelId)
-    }
-    return [...ids]
-  }
-
-  const labelIds = await resolveLabelIds(labels)
-  const addedLabelIds = await resolveLabelIds(addedLabels)
-  const removedLabelIds = await resolveLabelIds(removedLabels)
+  const [labelIds, addedLabelIds, removedLabelIds] =
+    await resolveIssueLabelIdsForTeam(
+      [labelReferences, addedLabelReferences, removedLabelReferences],
+      teamId,
+    )
   const removedLabelIdSet = new Set(removedLabelIds)
   if (addedLabelIds.some((labelId) => removedLabelIdSet.has(labelId))) {
     throw new ValidationError(
@@ -322,7 +301,7 @@ export async function prepareIssueUpdate(
 
   let projectId: string | undefined = undefined
   if (project !== undefined) {
-    projectId = await getProjectIdByName(project)
+    projectId = await lookupProjectId(project)
     if (projectId === undefined) {
       throw new NotFoundError("Project", project, {
         suggestion:
@@ -332,7 +311,7 @@ export async function prepareIssueUpdate(
   }
 
   const targetProjectId = projectId ??
-    (team != null ? await getIssueProjectId(target.issue.id) : undefined)
+    (team != null ? target.issue.project?.id : undefined)
   if (targetProjectId != null) {
     await requireProjectTeam(
       targetProjectId,
@@ -348,7 +327,7 @@ export async function prepareIssueUpdate(
       projectMilestoneId = milestone
     } else {
       milestoneProjectId = projectId ??
-        await getIssueProjectId(target.issue.id)
+        target.issue.project?.id
       if (milestoneProjectId == null) {
         throw new ValidationError(
           "--milestone requires --project to be set (issue has no existing project)",
@@ -386,15 +365,15 @@ export async function prepareIssueUpdate(
   }
   if (dueDate !== undefined) input.dueDate = dueDate
   if (parent !== undefined) {
-    const parentIdentifier = await getIssueIdentifier(parent)
-    if (!parentIdentifier) {
+    const parentReference = await getIssueReference(parent)
+    if (!parentReference) {
       throw new ValidationError(
-        `Could not resolve parent issue identifier: ${parent}`,
+        `Could not resolve parent issue reference: ${parent}`,
       )
     }
-    const parentId = await getIssueId(parentIdentifier)
+    const parentId = await getIssueId(parentReference)
     if (!parentId) {
-      throw new NotFoundError("Parent issue", parentIdentifier)
+      throw new NotFoundError("Parent issue", parentReference)
     }
     input.parentId = parentId
   }
@@ -430,7 +409,7 @@ export async function prepareIssueUpdate(
       "Issue project changed while checking team compatibility",
     )
   }
-  // A milestone name uses the project observed by its own lookup.
+  // A milestone name uses the explicit project or the initial read's project.
   if (
     project == null && milestoneProjectId != null &&
     current.issue.project?.id !== milestoneProjectId
@@ -438,6 +417,23 @@ export async function prepareIssueUpdate(
     throw new ValidationError(
       "Issue project changed while resolving the milestone",
     )
+  }
+  if (remove != null) {
+    const currentLabelIds = new Set(
+      current.issue.labels.nodes.map(({ id }) => id),
+    )
+    const missing = remove.filter((id) => !currentLabelIds.has(id))
+    if (missing.length > 0) {
+      throw new ValidationError(
+        `Cannot remove labels that are not on ${current.issue.identifier}: ${
+          missing.join(", ")
+        }`,
+        {
+          suggestion:
+            "Read the issue's current labels before changing --remove-label.",
+        },
+      )
+    }
   }
   const planned = prepareReplacement({
     objectKey: "issue",
@@ -497,9 +493,9 @@ const updateIssueMutation = gql(`
 
 export async function updateIssue(
   options: UpdateIssueOptions,
-  issueIdArg?: string,
+  issueArg?: string,
 ) {
-  const prepared = await prepareIssueUpdate(options, issueIdArg)
+  const prepared = await prepareIssueUpdate(options, issueArg)
   return await executeIssueUpdate(prepared, options.beforeWrite)
 }
 
@@ -527,10 +523,10 @@ async function executeIssueUpdate(
 
 export async function updateIssueAndVerify(
   options: UpdateIssueOptions,
-  issueIdArg?: string,
+  issueArg?: string,
   verificationOptions: ReadBackOptions = {},
 ) {
-  const prepared = await prepareIssueUpdate(options, issueIdArg)
+  const prepared = await prepareIssueUpdate(options, issueArg)
   const result = await executeIssueUpdate(prepared, options.beforeWrite)
   if (result.effect === "none") return result
   const expected = Object.fromEntries(
@@ -586,10 +582,11 @@ export async function updateIssueAndVerify(
 
 export const updateCommand = withUsageMetadata(new Command(), { writes: true })
   .name("update")
+  .type("priority", priorityType)
   .description(withMarkdownHint(
-    "Update an issue; verify fields with up to 3 reads without repeating the write",
+    "Update an issue by UUID, identifier (e.g. ENG-123), number in the configured team, or Linear URL; verify fields with up to 3 reads without repeating the write",
   ))
-  .arguments("[issueId:string]")
+  .arguments("<issue:string>")
   .option(
     "-a, --assignee <assignee:string>",
     "Assignee (user UUID, username, name, email, 'self', or '@me')",
@@ -600,18 +597,18 @@ export const updateCommand = withUsageMetadata(new Command(), { writes: true })
     "Clear the issue's assignee (cannot be combined with --assignee)",
   )
   .option(
-    "--due-date <dueDate:string>",
+    "--due-date <date:string>",
     "Due date of the issue",
     { preserveEmpty: true },
   )
   .option(
-    "--parent <parent:string>",
-    "Parent issue (if any) as a team_number code",
+    "--parent <issue:string>",
+    "Parent issue (UUID, identifier, number in the configured team, or Linear URL)",
     { preserveEmpty: true },
   )
   .option(
-    "-p, --priority <priority:number>",
-    "Priority of the issue (1-4, descending priority)",
+    "-p, --priority <priority:priority>",
+    "Priority (0/none, 1/urgent, 2/high, 3/medium, 4/low; names are case-insensitive)",
     { preserveEmpty: true },
   )
   .option(
@@ -626,27 +623,27 @@ export const updateCommand = withUsageMetadata(new Command(), { writes: true })
   )
   .option(
     "--description-file <path:string>",
-    "Read description from a file (preferred for markdown content)",
+    "Read UTF-8 description from a file (- for stdin; preferred for markdown content)",
     { preserveEmpty: true },
   )
   .option(
     "-l, --label <label:string>",
-    "Replace all issue labels. May be repeated.",
+    "Replace all issue labels (UUID or name). May be repeated.",
     { collect: true, preserveEmpty: true },
   )
   .option(
     "--add-label <label:string>",
-    "Add an issue label without replacing existing labels. May be repeated.",
+    "Add an issue label (UUID or name) without replacing existing labels. May be repeated.",
     { collect: true, preserveEmpty: true },
   )
   .option(
     "--remove-label <label:string>",
-    "Remove an issue label without replacing other labels. May be repeated.",
+    "Remove an issue label (UUID or name) without replacing other labels. May be repeated.",
     { collect: true, preserveEmpty: true },
   )
   .option(
     "--team <team:string>",
-    "Move the issue to this team (UUID or key)",
+    "Move the issue to this team (UUID or key); Linear may also move child issues",
     { preserveEmpty: true },
   )
   .option(
@@ -656,7 +653,7 @@ export const updateCommand = withUsageMetadata(new Command(), { writes: true })
   )
   .option(
     "-s, --state <state:string>",
-    "Workflow state for the issue (by name or type)",
+    "Workflow state for the issue (UUID, name, or type)",
     { preserveEmpty: true },
   )
   .option(
@@ -692,11 +689,11 @@ export const updateCommand = withUsageMetadata(new Command(), { writes: true })
   )
   .option(
     "-j, --json",
-    "Output a JSON write result with the mutation receipt, verification, and readBack",
+    "Output data.issue plus top-level verification and readBack after a write",
   )
-  .action(async (options, issueIdArg) => {
+  .action(async (options, issueArg) => {
     try {
-      const result = await updateIssueAndVerify(options, issueIdArg)
+      const result = await updateIssueAndVerify(options, issueArg)
       if (options.json) console.log(JSON.stringify(result, null, 2))
       else {
         const issue = result.data.issue

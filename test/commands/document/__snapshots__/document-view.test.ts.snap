@@ -3,19 +3,18 @@ export const snapshot = {};
 snapshot[`Document View Command - Help Text 1`] = `
 stdout:
 "
-Usage: view <id>
+Usage: view <document>
 
 Description:
 
-  View a document's content
+  View a document's content by UUID or slug ID
 
 Options:
 
-  -h, --help     - Show this help.                                
-  --raw          - Output raw markdown without rendering          
-  -w, --web      - Open document in browser                       
-  --json         - Output full document as JSON                   
-  --no-download  - Keep remote URLs instead of downloading files  
+  -h, --help  - Show this help.                                         
+  --raw       - Output raw markdown without rendering                   
+  -w, --web   - Open document in browser                                
+  --json      - Output document JSON, including archivedAt and trashed  
 
 "
 stderr:
@@ -128,7 +127,7 @@ stderr:
 ""
 `;
 
-snapshot[`Document View Command - No Download Keeps Remote URLs 1`] = `
+snapshot[`Document View Command - Raw Content Keeps Remote URLs 1`] = `
 stdout:
 "# Doc
 

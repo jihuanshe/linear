@@ -72,17 +72,20 @@ export async function completeIssueLabels(
   }, `labels for ${issueId}`)
 }
 
-export async function readIssueBasis(issueId: string, signal?: AbortSignal) {
+export async function readIssueBasis(
+  issueReference: string,
+  signal?: AbortSignal,
+) {
   const result = await getGraphQLClient().request({
     document: IssueForWrite,
-    variables: { id: issueId },
+    variables: { id: issueReference },
     signal,
   })
-  if (result.issue == null) throw new NotFoundError("Issue", issueId)
-  if (isLinearUuid(issueId)) {
+  if (result.issue == null) throw new NotFoundError("Issue", issueReference)
+  if (isLinearUuid(issueReference)) {
     assertReadIdentity(
       result.issue,
-      issueId,
+      issueReference,
       result.organization,
       result.organization?.id ?? "",
       "Issue",
@@ -122,9 +125,11 @@ const IssueHeader = gql(`
 `)
 
 /** Small terminal projections do not need comments, attachments or details. */
-export async function readIssueHeader(issueId: string) {
-  const data = await getGraphQLClient().request(IssueHeader, { id: issueId })
-  if (data.issue == null) throw new NotFoundError("Issue", issueId)
+export async function readIssueHeader(issueReference: string) {
+  const data = await getGraphQLClient().request(IssueHeader, {
+    id: issueReference,
+  })
+  if (data.issue == null) throw new NotFoundError("Issue", issueReference)
   if (
     typeof data.issue.id !== "string" || !data.issue.id ||
     typeof data.issue.identifier !== "string" || !data.issue.identifier
@@ -132,8 +137,8 @@ export async function readIssueHeader(issueId: string) {
     throw new ValidationError("Issue header returned no stable identity")
   }
   if (
-    isLinearUuid(issueId) &&
-    data.issue.id.toLowerCase() !== issueId.toLowerCase()
+    isLinearUuid(issueReference) &&
+    data.issue.id.toLowerCase() !== issueReference.toLowerCase()
   ) {
     throw new ValidationError(
       "Issue header resolved to a different stable identity",

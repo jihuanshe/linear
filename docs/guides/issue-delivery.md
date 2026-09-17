@@ -49,7 +49,7 @@ linear issue view ENG-123 --json >original.json
 
 `original.json` 必须是原始读取产生、符合 `{organization,issue}` 结构的 JSON；其工作区、对象和所需字段必须匹配。可以用 `base` 内嵌同一结构，不能与 `baseFile` 同时使用。明确无保护替换使用 `unprotected: true`，不能附 `base`／`baseFile`；`expectFields` 必须有原始依据，且只接受该对象支持的 API 字段。
 
-`set` 与共享 Issue 操作的选项对应，使用 camelCase：例如 `descriptionFile`、`dueDate`、`addLabel`、`removeLabel`、`unassign` 和 `clearCycle`。团队位于 `set.team`，完整标签替换是 `set.label`。完整字段和有效值以 `issue create --help`、`issue update --help` 及清单校验为准，不另定义一套名称解析规则。
+`set` 与共享 Issue 操作的选项对应，使用 camelCase：例如 `descriptionFile`、`dueDate`、`addLabel`、`removeLabel`、`unassign` 和 `clearCycle`。团队位于 `set.team`，完整标签替换是 `set.label`。`label`、`addLabel`、`removeLabel` 对应可重复选项，因此值是字符串数组；清单的 `expectFields` 对应重复的 `--expect-field`。这些是输入选项名，读取和 mutation 仍保留 API 的字段名与结构。完整字段和有效值以 `issue create --help`、`issue update --help` 及清单校验为准，不另定义一套名称解析规则。
 
 `create` 要求 `set.title` 和 `set.team`，不接受已有 `identifier`、原始依据或期望字段。`update` 要求 `identifier`，可用 UUID 或完整编号。`unassign: true` 清除负责人，`clearCycle: true` 清除周期；不能分别与 `assignee`、`cycle` 同用。标签增删与完整 `label` 替换互斥；空 `label` 替换不受支持，须逐项 `removeLabel`。只追加评论、附件或关系时省略 `set` 和原始依据。
 
@@ -88,11 +88,11 @@ jq -e '.ok == true and .data.status == "completed"' apply.json >/dev/null
 
 正文读回按 Markdown 结构比较，识别链接尖括号、URL 非 ASCII 字符的编码、列表标记及单段列表项之间空行的规范化。文字、链接目标、段落、显式换行与代码内容的变化仍会报差异。这不证明富文本节点或提及通知等价；写入前的原始依据检查继续精确比较 API 字符串。
 
-读回最多尝试 3 次，默认每个 Issue 的总时限为 10 秒。仅取消读回，不能据此推断此前 mutation 被取消。`.data.readBack` 按 `issues` 的零起始下标保存 `{organization,issue,receipts}`，不是完整 `issue view`；`createdIdentifiers` 同样按下标记录新建 Issue 的编号。
+读到不同值时最多尝试 3 次，默认每个 Issue 的总时限为 10 秒；不可用结果直接报告。仅取消读回，不能据此推断此前 mutation 被取消。`.data.readBack` 按 `issues` 的零起始下标保存 `{organization,issue,receipts}`，不是完整 `issue view`；`createdIdentifiers` 同样按下标记录新建 Issue 的编号。
 
 ## 执行账本与恢复
 
-`<manifest>.checkpoint.json` 使用 `schemaVersion: 2`，包含工作区身份和 `items`。执行项 key 绑定清单位置、目标、内容及文件指纹。每次真实派发写入前先保存 `unknown`，收到有效回执后保存 `completed`；上传有独立回执，后续关联失败不会重复上传已完成资产。
+执行账本在交付清单路径后追加 `.checkpoint.json`；例如 `delivery.json` 对应 `delivery.json.checkpoint.json`。账本使用 `schemaVersion: 2`，包含工作区身份和 `items`。执行项 key 绑定清单位置、目标、内容及文件指纹。每次真实派发写入前先保存 `unknown`，收到有效回执后保存 `completed`；上传有独立回执，后续关联失败不会重复上传已完成资产。
 
 执行账本中的状态与本次输出不同：
 
@@ -104,6 +104,10 @@ jq -e '.ok == true and .data.status == "completed"' apply.json >/dev/null
 
 遇到 `unknown` 时保留交付清单、引用文件、执行账本和原始结果。按稳定 ID、上传 URL、回执及实际远端对象对账，确认效果后再修订执行账本：已完成项补正确类型的 `receipt` 并置 `completed`，已确认未执行的项才置 `failed` 且 `effect` 为 `none`。无法确定的项继续保留 `unknown`，不用正文相似、标题或 URL 猜测对象。需要人工修改执行账本时，保留修改前副本和对账证据。
 
-`completed` 的 Issue 回执包含 `id` 与 `identifier`，Comment／Attachment／Relation 回执包含对象 `id`，上传回执包含 `assetUrl`、`filename`、`size`、`contentType`、`public`。字段预期仅属于 Issue 回执。回执不匹配、工作区改变或已有执行项 key 从计划中消失时，拒绝续跑；不要删除执行账本来重放原意图。
+`completed` 的 Issue 回执包含 `id` 与 `identifier`，Comment／Attachment／Relation 回执包含对象 `id`，上传回执包含 `assetUrl`、`filename`、`size`、`contentType`、`public`。字段预期保存在执行账本的 `items[key].expected`，与 `receipt` 同级，仅允许用于持有 Issue 回执的执行项，不是回执内的字段。回执不匹配、工作区改变或已有执行项 key 从计划中消失时，拒绝续跑；不要删除执行账本来重放原意图。
 
-恢复已完成项不重新执行原始比较，但继续做读回核验。未完成项仍使用原始依据；修改目标值或重新排序可能改变执行项 key。需要新意图时先对账旧效果，再建立只含明确剩余工作的独立交付清单。同一交付清单只能有一个执行者；执行账本不提供并发锁、事务或 exactly-once。
+恢复已完成项不重新执行原始比较，但继续做读回核验。未完成项仍使用原始依据；修改目标值或重新排序可能改变执行项 key。需要新意图时先对账旧效果，再建立只含明确剩余工作的独立交付清单。
+
+`apply` 在读取执行账本前取得账本旁 `.lock` 文件的系统排他锁，例如 `delivery.json.checkpoint.json.lock`，持有到执行和读回结束。同机使用同一锁文件的另一个执行者会等待；取得锁后重新读取执行账本，跳过已完成项，遇到 `unknown` 仍拒绝续跑。锁随文件关闭或进程退出释放；空锁文件会保留，其存在不表示正在执行，不要删除或替换它。`plan` 不创建锁文件。
+
+这只约束使用同一本地锁文件的 CLI 执行者。复制清单、使用不同的账本路径或移到另一台机器不会共享执行权；交接前仍须停止原执行者并传递清单、引用材料和执行账本。其他客户端直接修改 Linear 不受此锁约束；执行账本不提供远端锁、事务或 exactly-once。

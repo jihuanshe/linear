@@ -1,9 +1,4 @@
-import {
-  type ArgumentValue,
-  Command,
-  Type,
-  ValidationError,
-} from "@cliffy/command"
+import { Command } from "@cliffy/command"
 import { withUsageMetadata } from "./usage.ts"
 import denoConfig from "../../deno.json" with { type: "json" }
 import {
@@ -14,6 +9,7 @@ import {
   type SelectionSetNode,
 } from "graphql"
 import { getGraphQLEndpoint, getResolvedApiKey } from "../utils/graphql.ts"
+import { graphqlFetch } from "../utils/graphql-transport.ts"
 import { completeConnection, type Connection } from "../utils/pagination.ts"
 import { setMachineOutput } from "../utils/write-result.ts"
 import {
@@ -23,36 +19,23 @@ import {
   WriteError,
 } from "../utils/errors.ts"
 
-class VariableType extends Type<[string, string]> {
-  parse({ value }: ArgumentValue): [string, string] {
-    const [key, ...rest] = value.split("=")
-    if (rest.length === 0) {
-      throw new ValidationError(
-        `Invalid variable format: ${value}. Variables must be in key=value format, e.g. --variable teamId=abc`,
-      )
-    }
-    return [key, rest.join("=")]
-  }
-}
-
 export const apiCommand = withUsageMetadata(new Command(), {
   writes: true,
   outputModes: ["json"],
 })
   .name("api")
   .description(
-    "Run raw GraphQL queries or explicitly unprotected mutations.\n\nRaw mutations require --unprotected and do not provide domain guards, receipts or checkpoints. Requests are not retried; inspect data/errors and reconcile uncertain writes.",
+    "Run raw GraphQL queries or explicitly unprotected mutations.\n\nPass a GraphQL document or '-' to read stdin to EOF.\n\nRaw mutations require --unprotected and do not provide domain guards, receipts or checkpoints. Queries may retry explicit server overload responses within a bounded deadline; mutations are never retried. Inspect data/errors and reconcile uncertain writes.",
   )
-  .type("variable", new VariableType())
-  .arguments("[query:string]")
-  .option(
-    "--variable <variable:variable>",
-    "Variable in key=value format (coerces booleans, numbers, null; @file reads from path)",
-    { collect: true },
-  )
+  .arguments("[document:string]")
   .option(
     "--variables-json <json:string>",
-    "JSON object of variables (merged with --variable, which takes precedence)",
+    "JSON object of variables (mutually exclusive with --variables-file)",
+    { preserveEmpty: true },
+  )
+  .option(
+    "--variables-file <path:string>",
+    "Read a JSON object of variables from a file, not stdin (mutually exclusive with --variables-json)",
     { preserveEmpty: true },
   )
   .option(
@@ -68,15 +51,15 @@ export const apiCommand = withUsageMetadata(new Command(), {
     "--paginate",
     "Read one query connection to its final page using $after (mutations are rejected)",
   )
-  .option(
-    "--silent",
-    "Suppress response output (exit code still reflects errors)",
-  )
-  .action(async (options, query?: string) => {
+  .action(async (options, documentArg?: string) => {
     setMachineOutput(true)
     try {
-      const resolvedQuery = await resolveQuery(query)
-      const document = parseDocument(resolvedQuery)
+      const variables = await buildVariables(
+        options.variablesJson,
+        options.variablesFile,
+      )
+      const documentText = await readDocument(documentArg)
+      const document = parseDocument(documentText)
       const operation = selectOperation(document, options.operationName)
       if (options.paginate && operation.operation !== "query") {
         throw new AppValidationError(
@@ -102,10 +85,6 @@ export const apiCommand = withUsageMetadata(new Command(), {
       const connectionPath = options.paginate
         ? paginationPath(document, operation)
         : undefined
-      const variables = await buildVariables(
-        options.variable,
-        options.variablesJson,
-      )
       if (options.paginate && variables.after != null) {
         throw new AppValidationError(
           "--paginate starts at the first page; omit the after variable",
@@ -116,13 +95,12 @@ export const apiCommand = withUsageMetadata(new Command(), {
         )
       }
 
-      const apiKey = getResolvedApiKey()
+      const apiKey = await getResolvedApiKey()
       if (!apiKey) {
         throw new AppValidationError(
           "No API key configured",
           {
-            suggestion:
-              "Set LINEAR_API_KEY, add api_key to .linear.toml, or run `linear auth login`.",
+            suggestion: "Set LINEAR_API_KEY or run `linear auth login`.",
           },
         )
       }
@@ -134,7 +112,7 @@ export const apiCommand = withUsageMetadata(new Command(), {
       }
 
       const request = {
-        query: resolvedQuery,
+        query: documentText,
         ...(options.operationName
           ? { operationName: options.operationName }
           : {}),
@@ -144,7 +122,6 @@ export const apiCommand = withUsageMetadata(new Command(), {
           request,
           variables,
           headers,
-          options.silent ?? false,
           connectionPath,
         )
       } else {
@@ -152,7 +129,6 @@ export const apiCommand = withUsageMetadata(new Command(), {
           request,
           variables,
           headers,
-          options.silent ?? false,
           operation.operation === "mutation",
         )
       }
@@ -161,9 +137,9 @@ export const apiCommand = withUsageMetadata(new Command(), {
     }
   })
 
-function parseDocument(query: string): DocumentNode {
+function parseDocument(documentText: string): DocumentNode {
   try {
-    return parse(query)
+    return parse(documentText)
   } catch (error) {
     throw new AppValidationError(
       `Invalid GraphQL document: ${
@@ -276,14 +252,13 @@ async function requestPage(
   request: RawRequest,
   variables: Record<string, unknown>,
   headers: Record<string, string>,
-  silent: boolean,
 ): Promise<Record<string, unknown>> {
   const body: Record<string, unknown> = { ...request }
   if (Object.keys(variables).length > 0) {
     body.variables = variables
   }
 
-  const response = await fetch(getGraphQLEndpoint(), {
+  const response = await graphqlFetch(getGraphQLEndpoint(), {
     method: "POST",
     headers,
     body: JSON.stringify(body),
@@ -296,8 +271,8 @@ async function requestPage(
     parsed.errors.length > 0
   if (!response.ok || hasGraphQLErrors) {
     // Preserve partial data and GraphQL errors, including HTTP 400 RATELIMITED.
-    // No retry: a raw mutation may already have had effects.
-    if (!silent) outputJSON(parsed, text)
+    // The shared transport only retries definitively selected queries.
+    outputJSON(parsed, text)
     Deno.exit(1)
   }
   return parsed
@@ -307,12 +282,11 @@ async function executeSingle(
   request: RawRequest,
   variables: Record<string, unknown>,
   headers: Record<string, string>,
-  silent: boolean,
   mutation: boolean,
 ): Promise<void> {
   let parsed: Record<string, unknown>
   try {
-    parsed = await requestPage(request, variables, headers, silent)
+    parsed = await requestPage(request, variables, headers)
   } catch (error) {
     if (mutation) {
       throw new WriteError(
@@ -327,14 +301,13 @@ async function executeSingle(
     }
     throw error
   }
-  if (!silent) outputJSON(parsed, JSON.stringify(parsed))
+  outputJSON(parsed, JSON.stringify(parsed))
 }
 
 async function executePaginated(
   request: RawRequest,
   variables: Record<string, unknown>,
   headers: Record<string, string>,
-  silent: boolean,
   connectionPath: string[],
 ): Promise<void> {
   let mergedResponse: Record<string, unknown> | undefined
@@ -343,7 +316,6 @@ async function executePaginated(
       request,
       { ...variables, after },
       headers,
-      silent,
     )
     if (countConnections(parsed.data) > 1) {
       throw new AppValidationError(
@@ -363,7 +335,7 @@ async function executePaginated(
     readPage,
     "API",
   )
-  if (!silent && mergedResponse) {
+  if (mergedResponse) {
     replaceConnectionPage(
       mergedResponse,
       connectionPath,
@@ -481,145 +453,61 @@ function outputJSON(parsed: unknown, rawText: string): void {
   }
 }
 
-async function resolveQuery(positionalArg?: string): Promise<string> {
+async function readDocument(positionalArg?: string): Promise<string> {
   if (positionalArg && positionalArg !== "-") {
     return positionalArg
   }
 
-  const explicit = positionalArg === "-"
-
-  if (explicit || !Deno.stdin.isTerminal()) {
-    const content = explicit
-      ? await readAllStdin()
-      : await readStdinWithTimeout()
+  if (positionalArg === "-") {
+    const content = (await new Response(Deno.stdin.readable).text()).trim()
     if (content) {
       return content
     }
   }
 
-  throw new AppValidationError("No query provided", {
+  throw new AppValidationError("No GraphQL document provided", {
     suggestion:
-      "Provide a query as an argument: linear api '{ viewer { id } }'\n  Or pipe from stdin: echo '{ viewer { id } }' | linear api",
+      "Provide a GraphQL document as an argument: linear api '{ viewer { id } }'\n  Or read stdin explicitly: linear api - < document.graphql",
   })
 }
 
-async function readAllStdin(): Promise<string | undefined> {
-  const chunks: Uint8Array[] = []
-  for await (const chunk of Deno.stdin.readable) {
-    chunks.push(chunk)
-  }
-  const text = new TextDecoder().decode(concatChunks(chunks)).trim()
-  return text.length > 0 ? text : undefined
-}
-
-async function readStdinWithTimeout(): Promise<string | undefined> {
-  try {
-    const timeoutPromise = new Promise<never>((_, reject) => {
-      setTimeout(() => reject(new Error("stdin timeout")), 100)
-    })
-    const result = await Promise.race([readAllStdin(), timeoutPromise])
-    return result
-  } catch {
-    return undefined
-  }
-}
-
-function concatChunks(chunks: Uint8Array[]): Uint8Array {
-  const totalLength = chunks.reduce((sum, c) => sum + c.length, 0)
-  const combined = new Uint8Array(totalLength)
-  let offset = 0
-  for (const chunk of chunks) {
-    combined.set(chunk, offset)
-    offset += chunk.length
-  }
-  return combined
-}
-
 async function buildVariables(
-  variableEntries?: [string, string][],
   variablesJson?: string,
+  variablesFile?: string,
 ): Promise<Record<string, unknown>> {
-  const variables: Record<string, unknown> = {}
-
-  if (variablesJson != null) {
-    let parsed: unknown
-    try {
-      parsed = JSON.parse(variablesJson)
-    } catch {
+  if (variablesJson != null && variablesFile != null) {
+    throw new AppValidationError(
+      "--variables-json and --variables-file are mutually exclusive",
+    )
+  }
+  if (variablesFile != null) {
+    if (variablesFile === "" || variablesFile === "-") {
       throw new AppValidationError(
-        `Invalid JSON for --variables-json: ${variablesJson}`,
-        {
-          suggestion:
-            'Provide a valid JSON object, e.g. --variables-json \'{"key": "value"}\'',
-        },
+        "--variables-file requires a file path, not stdin",
       )
     }
-    if (parsed == null || typeof parsed !== "object" || Array.isArray(parsed)) {
-      throw new AppValidationError(
-        `--variables-json must be a JSON object, got ${
-          Array.isArray(parsed) ? "array" : typeof parsed
-        }`,
-        {
-          suggestion:
-            'Provide a JSON object, e.g. --variables-json \'{"key": "value"}\'',
-        },
-      )
-    }
-    Object.assign(variables, parsed)
-  }
-
-  if (variableEntries) {
-    for (const [key, rawValue] of variableEntries) {
-      variables[key] = await resolveTypedValue(rawValue)
-    }
-  }
-
-  return variables
-}
-
-async function resolveTypedValue(value: string): Promise<unknown> {
-  if (value === "@-") {
-    const content = await readAllStdin()
-    if (content == null) {
-      throw new AppValidationError("No data on stdin for @- value")
-    }
-    return parseJSONOrString(content)
-  }
-
-  if (value.startsWith("@")) {
-    const filePath = value.slice(1)
     try {
-      const content = await Deno.readTextFile(filePath)
-      return parseJSONOrString(content.trim())
+      variablesJson = await Deno.readTextFile(variablesFile)
     } catch (error) {
       if (error instanceof Deno.errors.NotFound) {
-        throw new AppValidationError(`File not found: ${filePath}`)
+        throw new AppValidationError(`File not found: ${variablesFile}`)
       }
       throw new CliError(
-        `Failed to read file: ${filePath}`,
+        `Failed to read file: ${variablesFile}`,
         { cause: error },
       )
     }
   }
-
-  return coerceValue(value)
-}
-
-function parseJSONOrString(content: string): unknown {
+  if (variablesJson == null) return {}
+  const source = variablesFile == null ? "--variables-json" : "--variables-file"
+  let parsed: unknown
   try {
-    return JSON.parse(content)
+    parsed = JSON.parse(variablesJson)
   } catch {
-    return content
+    throw new AppValidationError(`Invalid JSON for ${source}`)
   }
-}
-
-function coerceValue(value: string): unknown {
-  if (value === "true") return true
-  if (value === "false") return false
-  if (value === "null") return null
-
-  const num = Number(value)
-  if (value !== "" && !isNaN(num) && String(num) === value) return num
-
-  return value
+  if (parsed == null || typeof parsed !== "object" || Array.isArray(parsed)) {
+    throw new AppValidationError(`${source} must be a JSON object`)
+  }
+  return parsed as Record<string, unknown>
 }

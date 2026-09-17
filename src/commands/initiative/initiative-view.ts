@@ -1,9 +1,10 @@
 import { Command } from "@cliffy/command"
+import { rgb24 } from "@std/fmt/colors"
 import { renderMarkdown } from "../../utils/markdown.ts"
 import { open } from "@opensrc/deno-open"
 import { readInitiative } from "./initiative-read.ts"
 import { getGraphQLClient } from "../../utils/graphql.ts"
-import { formatRelativeTime, printStyled } from "../../utils/display.ts"
+import { formatRelativeTime } from "../../utils/display.ts"
 import { shouldShowSpinner } from "../../utils/hyperlink.ts"
 import { handleError, NotFoundError } from "../../utils/errors.ts"
 import { resolveInitiativeId } from "./initiative-resolve.ts"
@@ -28,9 +29,11 @@ const STATUS_COLORS: Record<string, string> = {
 
 export const viewCommand = new Command()
   .name("view")
-  .description("View initiative details, full content and document links")
+  .description(
+    "View initiative details, full content and document links by UUID, slug ID, or name",
+  )
   .alias("v")
-  .arguments("<initiativeId:string>")
+  .arguments("<initiative:string>")
   .option("-w, --web", "Open in web browser")
   .option("-a, --app", "Open in Linear.app")
   .option("-j, --json", "Output as JSON")
@@ -39,15 +42,19 @@ export const viewCommand = new Command()
     "Include the initiative's markdown content and associated document links",
     { default: true },
   )
-  .action(async (options, initiativeId) => {
+  .action(async (options, initiativeReference) => {
     const { web, app, json, includeContent } = options
 
     const client = getGraphQLClient()
 
     // Resolve initiative ID (can be UUID, slug, or name)
-    const resolvedId = await resolveInitiativeId(client, initiativeId, true)
+    const resolvedId = await resolveInitiativeId(
+      client,
+      initiativeReference,
+      true,
+    )
     if (!resolvedId) {
-      throw new NotFoundError("Initiative", initiativeId)
+      throw new NotFoundError("Initiative", initiativeReference)
     }
 
     // Handle open in browser/app
@@ -58,7 +65,7 @@ export const viewCommand = new Command()
       })
       const initiative = result.initiative
       if (!initiative?.url) {
-        throw new NotFoundError("Initiative", initiativeId)
+        throw new NotFoundError("Initiative", initiativeReference)
       }
 
       const destination = app ? "Linear.app" : "web browser"
@@ -80,7 +87,7 @@ export const viewCommand = new Command()
 
       const initiative = result.initiative
       if (!initiative) {
-        throw new NotFoundError("Initiative", initiativeId)
+        throw new NotFoundError("Initiative", initiativeReference)
       }
 
       if (json) {
@@ -106,7 +113,9 @@ export const viewCommand = new Command()
       const statusLine = `**Status:** ${statusDisplay}`
       if (Deno.stdout.isTerminal()) {
         const statusColor = STATUS_COLORS[initiative.status] || "#6B6F76"
-        printStyled([statusLine, `color: ${statusColor}`])
+        console.log(
+          rgb24(statusLine, parseInt(statusColor.replace("#", ""), 16)),
+        )
       } else {
         lines.push(statusLine)
       }

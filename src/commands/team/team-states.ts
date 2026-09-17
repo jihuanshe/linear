@@ -1,25 +1,31 @@
 import { Command } from "@cliffy/command"
 import { unicodeWidth } from "@std/cli"
+import { underline } from "@std/fmt/colors"
 import { getTeamKey, getWorkflowStates } from "../../utils/linear.ts"
-import { padDisplay, printStyled } from "../../utils/display.ts"
+import { padDisplay } from "../../utils/display.ts"
 import { shouldShowSpinner } from "../../utils/hyperlink.ts"
 import { handleError, ValidationError } from "../../utils/errors.ts"
 
 export const statesCommand = new Command()
   .name("states")
-  .description("List workflow states for a team")
-  .arguments("[teamKey:string]")
+  .description(
+    "List workflow states for a team by UUID or key; uses the configured default team when omitted",
+  )
+  .arguments("[team:string]")
   .option("-j, --json", "Output as JSON")
-  .action(async ({ json }, teamKey?: string) => {
+  .action(async ({ json }, teamReference?: string) => {
     const showSpinner = !json && shouldShowSpinner()
     let spinner: { start: () => void; stop: () => void } | null = null
 
     try {
-      const resolvedTeamKey = teamKey || getTeamKey()
-      if (!resolvedTeamKey) {
+      const selectedTeam = teamReference || getTeamKey()
+      if (!selectedTeam) {
         throw new ValidationError(
-          "Could not determine team key from directory name",
-          { suggestion: "Please specify a team key as an argument." },
+          "No default team configured",
+          {
+            suggestion:
+              "Specify a team UUID or key as an argument, or run `linear config` to set a default team.",
+          },
         )
       }
 
@@ -29,7 +35,7 @@ export const statesCommand = new Command()
         spinner.start()
       }
 
-      const states = await getWorkflowStates(resolvedTeamKey)
+      const states = await getWorkflowStates(selectedTeam)
 
       spinner?.stop()
 
@@ -53,14 +59,14 @@ export const statesCommand = new Command()
         ...states.map((s) => unicodeWidth(s.type)),
       )
 
-      printStyled(
-        [padDisplay("NAME", NAME_WIDTH), "text-decoration: underline"],
-        " ",
-        [padDisplay("TYPE", TYPE_WIDTH), "text-decoration: underline"],
+      console.log(
+        underline(
+          `${padDisplay("NAME", NAME_WIDTH)} ${padDisplay("TYPE", TYPE_WIDTH)}`,
+        ),
       )
 
       for (const state of states) {
-        printStyled(
+        console.log(
           `${padDisplay(state.name, NAME_WIDTH)} ${
             padDisplay(state.type, TYPE_WIDTH)
           }`,

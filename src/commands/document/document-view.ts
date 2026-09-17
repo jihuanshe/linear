@@ -5,12 +5,7 @@ import { gql } from "../../__codegen__/gql.ts"
 import { getGraphQLClient } from "../../utils/graphql.ts"
 import { formatRelativeTime } from "../../utils/display.ts"
 import { shouldShowSpinner } from "../../utils/hyperlink.ts"
-import { getOption } from "../../config.ts"
 import { completeConnection } from "../../utils/pagination.ts"
-import {
-  downloadMarkdownImages,
-  replaceImageUrls,
-} from "../../utils/markdown-images.ts"
 import {
   handleError,
   isClientError,
@@ -28,6 +23,7 @@ const GetDocument = gql(`
       content
       icon
       archivedAt
+      trashed
       url
       createdAt
       updatedAt
@@ -58,6 +54,7 @@ const GetDocumentWithComments = gql(`
       content
       icon
       archivedAt
+      trashed
       url
       createdAt
       updatedAt
@@ -136,14 +133,13 @@ async function getDocumentWithAllComments(
 
 export const viewCommand = new Command()
   .name("view")
-  .description("View a document's content")
+  .description("View a document's content by UUID or slug ID")
   .alias("v")
-  .arguments("<id:string>")
+  .arguments("<document:string>")
   .option("--raw", "Output raw markdown without rendering")
   .option("-w, --web", "Open document in browser")
-  .option("--json", "Output full document as JSON")
-  .option("--no-download", "Keep remote URLs instead of downloading files")
-  .action(async ({ raw, web, json, download }, id) => {
+  .option("--json", "Output document JSON, including archivedAt and trashed")
+  .action(async ({ raw, web, json }, documentReference) => {
     const { Spinner } = await import("@std/cli/unstable-spinner")
     const showSpinner = shouldShowSpinner() && !raw && !json
     const spinner = showSpinner ? new Spinner() : null
@@ -152,13 +148,13 @@ export const viewCommand = new Command()
     try {
       const client = getGraphQLClient()
       const result = json
-        ? await getDocumentWithAllComments(client, id)
-        : await client.request(GetDocument, { id })
+        ? await getDocumentWithAllComments(client, documentReference)
+        : await client.request(GetDocument, { id: documentReference })
       spinner?.stop()
 
       const document = result.document
       if (!document) {
-        throw new NotFoundError("Document", id)
+        throw new NotFoundError("Document", documentReference)
       }
 
       // Open in browser if requested
@@ -168,20 +164,12 @@ export const viewCommand = new Command()
         return
       }
 
-      // JSON output preserves the raw GraphQL response; skip image rewrites.
       if (json) {
         console.log(JSON.stringify(result, null, 2))
         return
       }
 
-      let content = document.content
-      const shouldDownload = download && getOption("download_images") !== false
-      if (shouldDownload && content) {
-        const urlToPath = await downloadMarkdownImages([content])
-        if (urlToPath.size > 0) {
-          content = await replaceImageUrls(content, urlToPath)
-        }
-      }
+      const content = document.content
 
       // Raw output (for piping)
       if (raw || !Deno.stdout.isTerminal()) {
@@ -201,6 +189,9 @@ export const viewCommand = new Command()
       // Metadata
       lines.push(`**Slug:** ${document.slugId}`)
       lines.push(`**URL:** ${document.url}`)
+
+      if (document.trashed) lines.push("**Lifecycle:** Deleted (in trash)")
+      else if (document.archivedAt) lines.push("**Lifecycle:** Archived")
 
       if (document.creator) {
         lines.push(`**Creator:** ${document.creator.name}`)
@@ -232,7 +223,7 @@ export const viewCommand = new Command()
     } catch (error) {
       spinner?.stop()
       if (isClientError(error) && isNotFoundError(error)) {
-        throw new NotFoundError("Document", id)
+        throw new NotFoundError("Document", documentReference)
       }
       handleError(error, "Failed to view document")
     }

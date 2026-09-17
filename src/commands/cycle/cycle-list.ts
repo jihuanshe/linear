@@ -4,14 +4,11 @@ import { green } from "@std/fmt/colors"
 import { gql } from "../../__codegen__/gql.ts"
 import { getGraphQLClient } from "../../utils/graphql.ts"
 import { padDisplay } from "../../utils/display.ts"
-import { getTeamIdByKey, getTeamKey } from "../../utils/linear.ts"
+import { getTeamKey } from "../../utils/linear.ts"
+import { resolveWriteTeam } from "../../utils/issue-read.ts"
 import { shouldShowSpinner } from "../../utils/hyperlink.ts"
 import { header, muted } from "../../utils/styling.ts"
-import {
-  handleError,
-  NotFoundError,
-  ValidationError,
-} from "../../utils/errors.ts"
+import { handleError, ValidationError } from "../../utils/errors.ts"
 
 const GetTeamCycles = gql(`
   query GetTeamCycles($teamId: String!) {
@@ -55,20 +52,20 @@ function formatDate(dateString: string): string {
 export const listCommand = new Command()
   .name("list")
   .description("List cycles for a team")
-  .option("--team <team:string>", "Team key (defaults to current team)")
+  .option(
+    "--team <team:string>",
+    "Team UUID or key (defaults to the configured team)",
+  )
   .action(async ({ team }) => {
     try {
-      const teamKey = team || getTeamKey()
-      if (!teamKey) {
+      const teamReference = team || getTeamKey()
+      if (!teamReference) {
         throw new ValidationError(
-          "Could not determine team key from directory name or team flag",
+          "No default team configured; specify --team with a team UUID or key, or run `linear config` to set a default team",
         )
       }
 
-      const teamId = await getTeamIdByKey(teamKey)
-      if (!teamId) {
-        throw new NotFoundError("Team", teamKey)
-      }
+      const { id: teamId } = await resolveWriteTeam(teamReference)
 
       const { Spinner } = await import("@std/cli/unstable-spinner")
       const showSpinner = shouldShowSpinner()

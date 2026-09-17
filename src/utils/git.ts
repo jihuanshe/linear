@@ -1,4 +1,3 @@
-import { basename } from "@std/path"
 import { CliError } from "./errors.ts"
 
 export async function getCurrentBranch(): Promise<string | null> {
@@ -21,22 +20,6 @@ export async function getCurrentBranch(): Promise<string | null> {
   return branch || null
 }
 
-export async function getRepoDir(): Promise<string> {
-  const process = new Deno.Command("git", {
-    args: ["rev-parse", "--show-toplevel"],
-    stderr: "piped",
-  })
-  const { success, stdout, stderr } = await process.output()
-
-  if (!success) {
-    const errorMsg = new TextDecoder().decode(stderr).trim()
-    throw new CliError(`Failed to get repository directory: ${errorMsg}`)
-  }
-
-  const fullPath = new TextDecoder().decode(stdout).trim()
-  return basename(fullPath)
-}
-
 /**
  * Best-effort check for whether the current directory is inside a git work
  * tree. Any failure — git not installed, not a repository, dubious
@@ -53,18 +36,6 @@ export async function isInsideGitRepo(): Promise<boolean> {
     // Prints "false" (exit 0) inside a .git dir or bare repo, so the exit
     // code alone is not enough.
     return success && new TextDecoder().decode(stdout).trim() === "true"
-  } catch {
-    return false
-  }
-}
-
-export async function branchExists(branch: string): Promise<boolean> {
-  try {
-    const process = new Deno.Command("git", {
-      args: ["rev-parse", "--verify", branch],
-    })
-    const { success } = await process.output()
-    return success
   } catch {
     return false
   }

@@ -3,11 +3,12 @@ export const snapshot = {};
 snapshot[`Issue View Command - Help Text 1`] = `
 stdout:
 "
-Usage: view [issueId]
+Usage: view [issue]
 
 Description:
 
-  View issue details with all comments and attachments, or open in browser/app. For project, assignee and state changes, use issue history.
+  View issue details with all comments and attachments, or open in browser/app. Accepts an issue UUID, identifier (e.g. ENG-123), number in the
+  configured team, or Linear URL; omit to use the current Git or Jujutsu context. For project, assignee and state changes, use issue history.  
 
 Options:
 
@@ -18,7 +19,6 @@ Options:
   --show-resolved-threads  - Include resolved threads in human output; JSON always retains all fetched threads                         
   --no-pager               - Disable automatic paging for long output                                                                  
   -j, --json               - Output all fetched threads including resolved history; comments and attachments retain {nodes, pageInfo}  
-  --no-download            - Keep remote URLs instead of downloading files                                                             
 
 "
 stderr:

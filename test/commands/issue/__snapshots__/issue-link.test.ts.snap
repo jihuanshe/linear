@@ -3,13 +3,13 @@ export const snapshot = {};
 snapshot[`Issue Link Command - Help Text 1`] = `
 stdout:
 '
-Usage: link <urlOrIssueId> [url]
+Usage: link <issue> <url>
 
 Writes: true
 
 Description:
 
-  Link a URL to an issue
+  Link a URL to an issue by UUID, identifier (e.g. ENG-123), number in the configured team, or Linear URL
 
 Options:
 
@@ -19,9 +19,8 @@ Options:
 
 Examples:
 
-  Link a URL to issue detected from branch linear issue link https://github.com/org/repo/pull/123            
-  Link a URL to a specific issue           linear issue link ENG-123 https://github.com/org/repo/pull/123    
-  Link with a custom title                 linear issue link ENG-123 https://example.com --title "Design doc"
+  Link a URL to a specific issue linear issue link ENG-123 https://github.com/org/repo/pull/123    
+  Link with a custom title       linear issue link ENG-123 https://example.com --title "Design doc"
 
 '
 stderr:
@@ -48,7 +47,7 @@ snapshot[`Issue Link Command - invalid URL shows error 1`] = `
 stdout:
 ""
 stderr:
-"✗ Failed to link URL: Expected a URL but got 'not-a-url'
+"✗ Failed to link URL: Invalid URL: 'not-a-url'
   Provide a URL starting with http:// or https://.
 "
 `;

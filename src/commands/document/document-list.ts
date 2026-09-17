@@ -1,14 +1,14 @@
 import { Command } from "@cliffy/command"
+import { rgb24, underline } from "@std/fmt/colors"
 import { gql } from "../../__codegen__/gql.ts"
 import type { ListDocumentsQueryVariables } from "../../__codegen__/graphql.ts"
 import { getGraphQLClient } from "../../utils/graphql.ts"
+import { getTimeAgo, padDisplay } from "../../utils/display.ts"
 import {
-  getTimeAgo,
-  padDisplay,
-  printStyled,
-  printStyledHeader,
-} from "../../utils/display.ts"
-import { getIssueId, resolveProjectId } from "../../utils/linear.ts"
+  getIssueId,
+  getIssueReference,
+  resolveProjectId,
+} from "../../utils/linear.ts"
 import { shouldShowSpinner } from "../../utils/hyperlink.ts"
 import {
   handleError,
@@ -53,7 +53,11 @@ export const listCommand = new Command()
     "--project <project:string>",
     "Filter by project (UUID, slug ID, or exact name)",
   )
-  .option("--issue <issue:string>", "Filter by issue (identifier like TC-123)")
+  .option(
+    "--issue <issue:string>",
+    "Filter by issue (UUID, identifier, number in the configured team, or Linear URL)",
+    { preserveEmpty: true },
+  )
   .option("--json", "Output as JSON")
   .option("--limit <limit:number>", "Maximum results (positive integer)", {
     default: 50,
@@ -81,8 +85,12 @@ export const listCommand = new Command()
         }
       }
 
-      if (issue) {
-        const issueId = await getIssueId(issue.toUpperCase())
+      if (issue != null) {
+        const reference = await getIssueReference(issue)
+        if (!reference) {
+          throw new ValidationError(`Invalid issue reference: ${issue}`)
+        }
+        const issueId = await getIssueId(reference)
         if (!issueId) {
           throw new NotFoundError("Issue", issue)
         }
@@ -162,7 +170,7 @@ export const listCommand = new Command()
         padDisplay("UPDATED", UPDATED_WIDTH),
       ]
 
-      printStyledHeader(header)
+      console.log(underline(header.join(" ")))
 
       // Print each document
       for (const doc of documents) {
@@ -173,11 +181,10 @@ export const listCommand = new Command()
         const attachment = getAttachment(doc)
         const updated = getTimeAgo(new Date(doc.updatedAt))
 
-        printStyled(
+        console.log(
           `${padDisplay(doc.slugId, SLUG_WIDTH)} ${truncTitle} ${
             padDisplay(attachment, ATTACHMENT_WIDTH)
-          } `,
-          [padDisplay(updated, UPDATED_WIDTH), "color: gray"],
+          } ${rgb24(padDisplay(updated, UPDATED_WIDTH), 0x808080)}`,
         )
       }
     } catch (error) {

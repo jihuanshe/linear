@@ -1,11 +1,166 @@
 import { snapshotTest } from "@cliffy/testing"
-import { assertEquals } from "@std/assert"
+import { assertEquals, assertStringIncludes } from "@std/assert"
 import { stub } from "@std/testing/mock"
 import { viewCommand } from "../../../src/commands/project/project-view.ts"
 import { MockLinearServer } from "../../utils/mock_linear_server.ts"
+import { setupMockLinearServer } from "../../utils/test-helpers.ts"
 
 // Common Deno args for permissions
 const denoArgs = ["--allow-all", "--quiet"]
+
+for (const flag of ["--web", "--app"]) {
+  Deno.test(`project view ${flag} resolves the project before opening`, async () => {
+    const id = "abcdef01-2345-4678-9abc-def012345678"
+    const url = "https://linear.app/actual/project/release-project/overview"
+    const { server, cleanup } = await setupMockLinearServer([
+      {
+        queryName: "GetProjectIdByName",
+        variables: { name: "Release Project" },
+        response: {
+          data: {
+            projects: {
+              nodes: [{ id }],
+              pageInfo: { hasNextPage: false, endCursor: null },
+            },
+          },
+        },
+      },
+      {
+        queryName: "BrowserProject",
+        variables: { id },
+        response: { data: { project: { url } } },
+      },
+    ], { LINEAR_WORKSPACE: "test" })
+    const OriginalCommand = Deno.Command
+    const launches: Deno.CommandOptions[] = []
+    const command = stub(Deno, "Command", (...args: unknown[]) => {
+      const [executable, options] = args as ConstructorParameters<
+        typeof OriginalCommand
+      >
+      if (executable === "git") return new OriginalCommand(executable, options)
+      launches.push(options ?? {})
+      return new OriginalCommand(Deno.execPath(), {
+        args: ["eval", ""],
+        stdout: "null",
+        stderr: "null",
+      })
+    })
+    const log = stub(console, "log", () => {})
+    try {
+      await viewCommand.parse(["Release Project", flag])
+      assertEquals(server.graphqlRequests.length, 2)
+      assertEquals(launches.length, 1)
+      assertEquals(
+        launches[0].args?.includes(url),
+        true,
+      )
+    } finally {
+      log.restore()
+      command.restore()
+      await cleanup()
+    }
+  })
+}
+
+for (
+  const scenario of [
+    "UUID",
+    "name",
+    "slug",
+    "ambiguous",
+    "read-failure",
+    "missing",
+  ]
+) {
+  Deno.test(`project view resolves ${scenario} to a stable target`, async () => {
+    const id = "abcdef01-2345-4678-9abc-def012345678"
+    const pageInfo = { hasNextPage: false, endCursor: null }
+    const server = new MockLinearServer([
+      {
+        queryName: "GetProjectIdByName",
+        response: scenario === "read-failure"
+          ? { errors: [{ message: "Project lookup unavailable" }] }
+          : {
+            data: {
+              projects: {
+                nodes: scenario === "name"
+                  ? [{ id }]
+                  : scenario === "ambiguous"
+                  ? [{ id }, { id: "other" }]
+                  : [],
+                pageInfo,
+              },
+            },
+          },
+      },
+      {
+        queryName: "GetProjectIdBySlugId",
+        response: {
+          data: {
+            projects: { nodes: scenario === "slug" ? [{ id }] : [], pageInfo },
+          },
+        },
+      },
+      {
+        queryName: "GetProjectDetails",
+        response: {
+          data: {
+            organization: { id: "workspace", urlKey: "test" },
+            project: {
+              id,
+              name: "Release",
+              teams: { nodes: [], pageInfo },
+              labels: { nodes: [], pageInfo },
+            },
+          },
+        },
+      },
+    ])
+    try {
+      await server.start()
+      const result = await new Deno.Command(Deno.execPath(), {
+        args: [
+          "run",
+          ...denoArgs,
+          "src/main.ts",
+          "project",
+          "view",
+          scenario === "UUID" ? id.toUpperCase() : "Release",
+          "--json",
+        ],
+        env: {
+          LINEAR_GRAPHQL_ENDPOINT: server.getEndpoint(),
+          LINEAR_API_KEY: "test-token",
+        },
+        stdin: "null",
+        stdout: "piped",
+        stderr: "piped",
+      }).output()
+      const body = JSON.parse(new TextDecoder().decode(result.stdout))
+      const success = ["UUID", "name", "slug"].includes(scenario)
+      assertEquals(result.code, success ? 0 : 1, JSON.stringify(body))
+      assertEquals(
+        server.graphqlRequests.filter((request) =>
+          request.query.includes("query GetProjectDetails")
+        ).map((request) => request.variables),
+        success ? [{ id, includeContent: true }] : [],
+      )
+      if (!success) {
+        assertStringIncludes(
+          body.error.message,
+          scenario === "ambiguous"
+            ? "ambiguous"
+            : scenario === "missing"
+            ? "not found"
+            : "Project lookup unavailable",
+        )
+      }
+      if (scenario === "UUID") assertEquals(server.graphqlRequests.length, 1)
+    } finally {
+      await server.stop()
+    }
+  })
+}
 
 // Test help output
 await snapshotTest({
@@ -29,6 +184,18 @@ await snapshotTest({
   denoArgs,
   async fn() {
     const server = new MockLinearServer([
+      {
+        queryName: "GetProjectIdByName",
+        variables: { name: "project-123" },
+        response: {
+          data: {
+            projects: {
+              nodes: [{ id: "project-123" }],
+              pageInfo: { hasNextPage: false, endCursor: null },
+            },
+          },
+        },
+      },
       {
         queryName: "GetProjectDetails",
         variables: { id: "project-123", includeContent: true },
@@ -168,6 +335,18 @@ await snapshotTest({
   async fn() {
     const server = new MockLinearServer([
       {
+        queryName: "GetProjectIdByName",
+        variables: { name: "minimal-project" },
+        response: {
+          data: {
+            projects: {
+              nodes: [{ id: "minimal-project" }],
+              pageInfo: { hasNextPage: false, endCursor: null },
+            },
+          },
+        },
+      },
+      {
         queryName: "GetProjectDetails",
         variables: { id: "minimal-project", includeContent: true },
         response: {
@@ -232,6 +411,18 @@ await snapshotTest({
 
 Deno.test("Project View includes full content by default", async () => {
   const server = new MockLinearServer([
+    {
+      queryName: "GetProjectIdByName",
+      variables: { name: "project-with-content" },
+      response: {
+        data: {
+          projects: {
+            nodes: [{ id: "project-with-content" }],
+            pageInfo: { hasNextPage: false, endCursor: null },
+          },
+        },
+      },
+    },
     {
       queryName: "GetProjectDetails",
       variables: { id: "project-with-content", includeContent: true },

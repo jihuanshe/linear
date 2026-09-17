@@ -1,19 +1,14 @@
 import { Command } from "@cliffy/command"
 import { unicodeWidth } from "@std/cli"
+import { rgb24, underline } from "@std/fmt/colors"
 import { open } from "@opensrc/deno-open"
 import { gql } from "../../__codegen__/gql.ts"
 import type { GetTeamsQuery } from "../../__codegen__/graphql.ts"
 import { getGraphQLClient } from "../../utils/graphql.ts"
-import {
-  getTimeAgo,
-  padDisplay,
-  printStyled,
-  printStyledHeader,
-} from "../../utils/display.ts"
-import { getOption } from "../../config.ts"
+import { getTimeAgo, padDisplay } from "../../utils/display.ts"
+import { getWorkspaceUrl } from "../../utils/actions.ts"
 import { shouldShowSpinner } from "../../utils/hyperlink.ts"
 import { handleError, ValidationError } from "../../utils/errors.ts"
-import { LINEAR_WEB_BASE_URL } from "../../const.ts"
 
 const GetTeams = gql(`
   query GetTeams($filter: TeamFilter, $first: Int, $after: String) {
@@ -48,7 +43,10 @@ export const listCommand = new Command()
   .option("-w, --web", "Open in web browser")
   .option("-a, --app", "Open in Linear.app")
   .option("-j, --json", "Output as JSON")
-  .option("--limit <limit:number>", "Limit results")
+  .option(
+    "--limit <limit:number>",
+    "Maximum results (non-negative integer; 0 or omitted means unlimited)",
+  )
   .action(async ({ web, app, json, limit }) => {
     const { Spinner } = await import("@std/cli/unstable-spinner")
     const showSpinner = shouldShowSpinner() && !json
@@ -56,14 +54,7 @@ export const listCommand = new Command()
 
     try {
       if (web || app) {
-        const workspace = getOption("workspace")
-        if (!workspace) {
-          throw new ValidationError(
-            "workspace is not set via command line, configuration file, or environment",
-          )
-        }
-
-        const url = `${LINEAR_WEB_BASE_URL}/${workspace}/settings/teams`
+        const url = `${await getWorkspaceUrl()}/settings/teams`
         const destination = app ? "Linear.app" : "web browser"
         console.log(`Opening ${url} in ${destination}`)
         await open(url, app ? { app: { name: "Linear" } } : undefined)
@@ -178,7 +169,7 @@ export const listCommand = new Command()
         padDisplay("ID", ID_WIDTH),
       ]
 
-      printStyledHeader(headerCells)
+      console.log(underline(headerCells.join(" ")))
 
       // Print each team
       for (const team of teams) {
@@ -189,15 +180,22 @@ export const listCommand = new Command()
           ? team.name.slice(0, nameWidth - 3) + "..."
           : padDisplay(team.name, nameWidth)
 
-        printStyled(
-          [
-            padDisplay(team.key, KEY_WIDTH),
-            `color: ${team.color || "#ffffff"}`,
-          ],
-          ` ${truncName} ${padDisplay(cycles, CYCLES_WIDTH)} `,
-          [padDisplay(updated, UPDATED_WIDTH), "color: gray"],
-          " ",
-          [padDisplay(team.id, ID_WIDTH), "color: gray"],
+        console.log(
+          `${
+            rgb24(
+              `${padDisplay(team.key, KEY_WIDTH)} ${truncName} ${
+                padDisplay(cycles, CYCLES_WIDTH)
+              } `,
+              parseInt((team.color || "#ffffff").replace("#", ""), 16),
+            )
+          }${
+            rgb24(
+              `${padDisplay(updated, UPDATED_WIDTH)} ${
+                padDisplay(team.id, ID_WIDTH)
+              }`,
+              0x808080,
+            )
+          }`,
         )
       }
     } catch (error) {

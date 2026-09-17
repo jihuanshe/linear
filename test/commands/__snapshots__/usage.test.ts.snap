@@ -4,32 +4,33 @@ snapshot[`zero-argument root reuses concise usage navigation 1`] = `
 "linear — Handy linear commands from the command line.
 
 commands:
-  auth                            Manage Linear authentication
-  issue, i                        Manage Linear issues
-  team, t                         Manage Linear teams
-  user, u                         Manage Linear users
-  project, p                      Manage Linear projects
-  project-update, pu              Manage project status updates
-  cycle, cy                       Manage Linear team cycles
-  milestone, m                    Manage Linear project milestones
-  initiative, init                Manage Linear initiatives
-  initiative-update, iu           Manage initiative status updates (timeline posts)
-  label, l                        Manage Linear issue labels
-  document, docs, doc             Manage Linear documents
-  guide [name] [options]          Read bundled workflow guides [json]
-  recipe [name] [options]         Read bundled workflow examples and script source [json]
-  completions                     Generate shell completions.
-  config, configure               Interactively generate .linear.toml configuration [writes; interactive]
-  schema [options]                Print the GraphQL schema to stdout [json]
-  api [query] [options]           Run raw GraphQL queries or explicitly unprotected mutations. [writes; json]
-  upload <files...> [options]     Upload files to Linear storage and print their asset URLs for embedding in Markdown [writes; json]
-  download <asset-url> [options]  Download a Linear asset and verify its SHA-256 [json]
-  update [options]                Update the Linear CLI [writes]
-  version [options]               Show the CLI distribution and build version [json]
+  auth                           Manage Linear authentication
+  issue, i                       Manage Linear issues
+  team, t                        Manage Linear teams
+  user, u                        Manage Linear users
+  project, p                     Manage Linear projects
+  project-update, pu             Manage project status updates
+  cycle, cy                      Manage Linear team cycles
+  milestone, m                   Manage Linear project milestones
+  initiative, init               Manage Linear initiatives
+  initiative-update, iu          Manage initiative status updates (timeline posts)
+  label, l                       Manage Linear issue labels
+  document, docs, doc            Manage Linear documents
+  guide [name] [options]         Read bundled workflow guides [json]
+  recipe [name] [options]        Read bundled workflow examples and script source [json]
+  completions                    Generate shell completions.
+  config, configure              Interactively generate .linear.toml configuration [writes; interactive]
+  schema [options]               Print the GraphQL schema to stdout [json]
+  api [document] [options]       Run raw GraphQL queries or explicitly unprotected mutations. [writes; json]
+  upload <paths...> [options]    Upload files to Linear storage and print their asset URLs for embedding in Markdown [writes; json]
+  download <assetUrl> [options]  Download a Linear asset and verify its SHA-256 [json]
+  update [options]               Update the Linear CLI [writes]
+  version [options]              Show the CLI distribution and build version [json]
 
 global options:
   -h, --help          Show this help.
   --workspace <slug>  Target workspace (uses credentials)
+  -j, --json          Output JSON where supported
 
 detail: linear <domain> usage; linear <command> --help
 machine-readable: linear usage --json
@@ -44,7 +45,6 @@ snapshot[`usage JSON describes command metadata 1`] = `
       "i",
     ],
     arguments: [],
-    confirmation: null,
     description: "Manage Linear issues",
     details: "linear issue usage",
     guides: [
@@ -79,6 +79,7 @@ snapshot[`usage JSON describes command metadata 1`] = `
     options: [],
     outputModes: [
       "human",
+      "json",
     ],
     path: "linear issue",
     usage: "linear issue",
@@ -99,7 +100,6 @@ snapshot[`usage JSON describes command metadata 1`] = `
     {
       arguments: [
         {
-          list: false,
           name: "slug",
           required: true,
           type: "string",
@@ -114,290 +114,33 @@ snapshot[`usage JSON describes command metadata 1`] = `
       repeatable: false,
       staticallyRequired: false,
     },
+    {
+      arguments: [],
+      description: "Output JSON where supported",
+      flags: [
+        "-j",
+        "--json",
+      ],
+      name: "json",
+      repeatable: false,
+      staticallyRequired: false,
+    },
   ],
   subcommands: [
     {
       aliases: [],
       arguments: [],
-      confirmation: null,
       description: "Print the issue identifier from the current Git or Jujutsu context",
-      details: "linear issue id --help",
+      details: "linear issue identifier --help",
       hasSubcommands: false,
       interactive: false,
-      name: "id",
+      name: "identifier",
       options: [],
       outputModes: [
         "human",
       ],
-      path: "linear issue id",
-      usage: "linear issue id",
-      writes: false,
-    },
-    {
-      aliases: [
-        "list",
-        "l",
-      ],
-      arguments: [],
-      confirmation: null,
-      description: "List your issues",
-      details: "linear issue mine --help",
-      hasSubcommands: false,
-      interactive: true,
-      name: "mine",
-      options: [
-        {
-          arguments: [
-            {
-              list: false,
-              name: "state",
-              required: true,
-              type: "state",
-              variadic: false,
-            },
-          ],
-          default: [
-            "unstarted",
-          ],
-          description: "Filter by issue state (can be repeated for multiple states)",
-          flags: [
-            "-s",
-            "--state",
-          ],
-          name: "state",
-          repeatable: true,
-          staticallyRequired: false,
-        },
-        {
-          arguments: [],
-          description: "Show issues from all states",
-          flags: [
-            "--all-states",
-          ],
-          name: "all-states",
-          repeatable: false,
-          staticallyRequired: false,
-        },
-        {
-          arguments: [
-            {
-              list: false,
-              name: "sort",
-              required: true,
-              type: "sort",
-              variadic: false,
-            },
-          ],
-          description: "Sort order (default: priority, can also be set via LINEAR_ISSUE_SORT)",
-          flags: [
-            "--sort",
-          ],
-          name: "sort",
-          repeatable: false,
-          staticallyRequired: false,
-        },
-        {
-          arguments: [
-            {
-              list: false,
-              name: "team",
-              required: true,
-              type: "string",
-              variadic: false,
-            },
-          ],
-          description: "Team to list issues for (if not your default team)",
-          flags: [
-            "--team",
-          ],
-          name: "team",
-          repeatable: false,
-          staticallyRequired: false,
-        },
-        {
-          arguments: [
-            {
-              list: false,
-              name: "project",
-              required: true,
-              type: "string",
-              variadic: false,
-            },
-          ],
-          description: "Filter by project (UUID, slug ID, or name)",
-          flags: [
-            "--project",
-          ],
-          name: "project",
-          repeatable: false,
-          staticallyRequired: false,
-        },
-        {
-          arguments: [
-            {
-              list: false,
-              name: "projectLabel",
-              required: true,
-              type: "string",
-              variadic: false,
-            },
-          ],
-          description: "Filter by project label name (shows issues from all projects with this label)",
-          flags: [
-            "--project-label",
-          ],
-          name: "project-label",
-          repeatable: false,
-          staticallyRequired: false,
-        },
-        {
-          arguments: [
-            {
-              list: false,
-              name: "cycle",
-              required: true,
-              type: "string",
-              variadic: false,
-            },
-          ],
-          description: "Filter by cycle name, number, 'active'/'now', 'next', 'previous', or a relative offset like +1",
-          flags: [
-            "--cycle",
-          ],
-          name: "cycle",
-          repeatable: false,
-          staticallyRequired: false,
-        },
-        {
-          arguments: [
-            {
-              list: false,
-              name: "milestone",
-              required: true,
-              type: "string",
-              variadic: false,
-            },
-          ],
-          description: "Filter by project milestone (UUID, or name when --project is set)",
-          flags: [
-            "--milestone",
-          ],
-          name: "milestone",
-          repeatable: false,
-          staticallyRequired: false,
-        },
-        {
-          arguments: [
-            {
-              list: false,
-              name: "label",
-              required: true,
-              type: "string",
-              variadic: false,
-            },
-          ],
-          description: "Filter by label name (can be repeated for multiple labels)",
-          flags: [
-            "-l",
-            "--label",
-          ],
-          name: "label",
-          repeatable: true,
-          staticallyRequired: false,
-        },
-        {
-          arguments: [
-            {
-              list: false,
-              name: "limit",
-              required: true,
-              type: "number",
-              variadic: false,
-            },
-          ],
-          default: 50,
-          description: "Maximum number of issues to fetch (default: 50, use 0 for unlimited)",
-          flags: [
-            "--limit",
-          ],
-          name: "limit",
-          repeatable: false,
-          staticallyRequired: false,
-        },
-        {
-          arguments: [
-            {
-              list: false,
-              name: "date",
-              required: true,
-              type: "string",
-              variadic: false,
-            },
-          ],
-          description: "Filter issues created after this date (ISO 8601 or YYYY-MM-DD)",
-          flags: [
-            "--created-after",
-          ],
-          name: "created-after",
-          repeatable: false,
-          staticallyRequired: false,
-        },
-        {
-          arguments: [
-            {
-              list: false,
-              name: "date",
-              required: true,
-              type: "string",
-              variadic: false,
-            },
-          ],
-          description: "Filter issues updated after this date (ISO 8601 or YYYY-MM-DD)",
-          flags: [
-            "--updated-after",
-          ],
-          name: "updated-after",
-          repeatable: false,
-          staticallyRequired: false,
-        },
-        {
-          arguments: [],
-          description: "Open in web browser",
-          flags: [
-            "-w",
-            "--web",
-          ],
-          name: "web",
-          repeatable: false,
-          staticallyRequired: false,
-        },
-        {
-          arguments: [],
-          description: "Open in Linear.app",
-          flags: [
-            "-a",
-            "--app",
-          ],
-          name: "app",
-          repeatable: false,
-          staticallyRequired: false,
-        },
-        {
-          arguments: [],
-          description: "Disable automatic paging for long output",
-          flags: [
-            "--no-pager",
-          ],
-          name: "no-pager",
-          repeatable: false,
-          staticallyRequired: false,
-        },
-      ],
-      outputModes: [
-        "human",
-      ],
-      path: "linear issue mine",
-      usage: "linear issue mine [options]",
+      path: "linear issue identifier",
+      usage: "linear issue identifier",
       writes: false,
     },
     {
@@ -405,7 +148,6 @@ snapshot[`usage JSON describes command metadata 1`] = `
         "q",
       ],
       arguments: [],
-      confirmation: null,
       description: "Query issues with structured filters",
       details: "linear issue query --help",
       guides: [
@@ -425,7 +167,6 @@ snapshot[`usage JSON describes command metadata 1`] = `
         {
           arguments: [
             {
-              list: false,
               name: "term",
               required: true,
               type: "string",
@@ -443,7 +184,6 @@ snapshot[`usage JSON describes command metadata 1`] = `
         {
           arguments: [
             {
-              list: false,
               name: "url",
               required: true,
               type: "string",
@@ -461,7 +201,6 @@ snapshot[`usage JSON describes command metadata 1`] = `
         {
           arguments: [
             {
-              list: false,
               name: "path",
               required: true,
               type: "string",
@@ -489,8 +228,7 @@ snapshot[`usage JSON describes command metadata 1`] = `
         {
           arguments: [
             {
-              list: false,
-              name: "team",
+              name: "key",
               required: true,
               type: "string",
               variadic: false,
@@ -517,26 +255,24 @@ snapshot[`usage JSON describes command metadata 1`] = `
         {
           arguments: [
             {
-              list: false,
-              name: "state",
+              name: "type",
               required: true,
               type: "state",
               variadic: false,
             },
           ],
-          description: "Filter by issue state (can be repeated for multiple states)",
+          description: "Filter by workflow state type: triage, backlog, unstarted, started, completed, canceled (repeatable)",
           flags: [
             "-s",
-            "--state",
+            "--state-type",
           ],
-          name: "state",
+          name: "state-type",
           repeatable: true,
           staticallyRequired: false,
         },
         {
           arguments: [
             {
-              list: false,
               name: "name",
               required: true,
               type: "string",
@@ -554,7 +290,6 @@ snapshot[`usage JSON describes command metadata 1`] = `
         {
           arguments: [
             {
-              list: false,
               name: "assignee",
               required: true,
               type: "string",
@@ -583,7 +318,6 @@ snapshot[`usage JSON describes command metadata 1`] = `
         {
           arguments: [
             {
-              list: false,
               name: "sort",
               required: true,
               type: "sort",
@@ -601,7 +335,6 @@ snapshot[`usage JSON describes command metadata 1`] = `
         {
           arguments: [
             {
-              list: false,
               name: "project",
               required: true,
               type: "string",
@@ -629,8 +362,7 @@ snapshot[`usage JSON describes command metadata 1`] = `
         {
           arguments: [
             {
-              list: false,
-              name: "projectLabel",
+              name: "name",
               required: true,
               type: "string",
               variadic: false,
@@ -647,7 +379,6 @@ snapshot[`usage JSON describes command metadata 1`] = `
         {
           arguments: [
             {
-              list: false,
               name: "cycle",
               required: true,
               type: "string",
@@ -665,7 +396,6 @@ snapshot[`usage JSON describes command metadata 1`] = `
         {
           arguments: [
             {
-              list: false,
               name: "milestone",
               required: true,
               type: "string",
@@ -683,8 +413,7 @@ snapshot[`usage JSON describes command metadata 1`] = `
         {
           arguments: [
             {
-              list: false,
-              name: "label",
+              name: "name",
               required: true,
               type: "string",
               variadic: false,
@@ -702,7 +431,6 @@ snapshot[`usage JSON describes command metadata 1`] = `
         {
           arguments: [
             {
-              list: false,
               name: "limit",
               required: true,
               type: "number",
@@ -721,7 +449,6 @@ snapshot[`usage JSON describes command metadata 1`] = `
         {
           arguments: [
             {
-              list: false,
               name: "date",
               required: true,
               type: "string",
@@ -739,7 +466,6 @@ snapshot[`usage JSON describes command metadata 1`] = `
         {
           arguments: [
             {
-              list: false,
               name: "date",
               required: true,
               type: "string",
@@ -798,15 +524,13 @@ snapshot[`usage JSON describes command metadata 1`] = `
       aliases: [],
       arguments: [
         {
-          list: false,
-          name: "issueId",
+          name: "issue",
           required: false,
           type: "string",
           variadic: false,
         },
       ],
-      confirmation: null,
-      description: "Print the issue title",
+      description: "Print the issue title by UUID, identifier (e.g. ENG-123), number in the configured team, or Linear URL; omit to use the current Git or Jujutsu context",
       details: "linear issue title --help",
       hasSubcommands: false,
       interactive: false,
@@ -816,13 +540,12 @@ snapshot[`usage JSON describes command metadata 1`] = `
         "human",
       ],
       path: "linear issue title",
-      usage: "linear issue title [issueId]",
+      usage: "linear issue title [issue]",
       writes: false,
     },
     {
       aliases: [],
       arguments: [],
-      confirmation: null,
       description: "Choose an unstarted issue and print its identifier; does not change Linear or VCS state",
       details: "linear issue pick --help",
       hasSubcommands: false,
@@ -865,15 +588,13 @@ snapshot[`usage JSON describes command metadata 1`] = `
       ],
       arguments: [
         {
-          list: false,
-          name: "issueId",
+          name: "issue",
           required: false,
           type: "string",
           variadic: false,
         },
       ],
-      confirmation: null,
-      description: "View issue details with all comments and attachments, or open in browser/app. For project, assignee and state changes, use issue history.",
+      description: "View issue details with all comments and attachments, or open in browser/app. Accepts an issue UUID, identifier (e.g. ENG-123), number in the configured team, or Linear URL; omit to use the current Git or Jujutsu context. For project, assignee and state changes, use issue history.",
       details: "linear issue view --help",
       guides: [
         {
@@ -952,38 +673,26 @@ snapshot[`usage JSON describes command metadata 1`] = `
           repeatable: false,
           staticallyRequired: false,
         },
-        {
-          arguments: [],
-          description: "Keep remote URLs instead of downloading files",
-          flags: [
-            "--no-download",
-          ],
-          name: "no-download",
-          repeatable: false,
-          staticallyRequired: false,
-        },
       ],
       outputModes: [
         "human",
         "json",
       ],
       path: "linear issue view",
-      usage: "linear issue view [issueId] [options]",
+      usage: "linear issue view [issue] [options]",
       writes: false,
     },
     {
       aliases: [],
       arguments: [
         {
-          list: false,
-          name: "issueId",
+          name: "issue",
           required: true,
           type: "string",
           variadic: false,
         },
       ],
-      confirmation: null,
-      description: "Save an Issue's original JSON with all comments and attachments, and its exact Markdown draft for local editing, without changing Linear.
+      description: "Save an Issue's original JSON with all comments and attachments, and its exact Markdown draft for local editing, without changing Linear. Accepts an issue UUID, identifier (e.g. ENG-123), number in the configured team, or Linear URL.
 
 Creates original.json and desired.md in a new directory. Read the saved discussion before editing desired.md, then use issue update --base-file original.json --description-file desired.md. Markdown is not a lossless rich-text backup; see linear guide markdown.",
       details: "linear issue export --help",
@@ -1008,7 +717,6 @@ Creates original.json and desired.md in a new directory. Read the saved discussi
         {
           arguments: [
             {
-              list: false,
               name: "directory",
               required: true,
               type: "string",
@@ -1027,6 +735,7 @@ Creates original.json and desired.md in a new directory. Read the saved discussi
           arguments: [],
           description: "Output saved paths and stable Issue identity as JSON",
           flags: [
+            "-j",
             "--json",
           ],
           name: "json",
@@ -1039,22 +748,20 @@ Creates original.json and desired.md in a new directory. Read the saved discussi
         "json",
       ],
       path: "linear issue export",
-      usage: "linear issue export <issueId> [options]",
+      usage: "linear issue export <issue> [options]",
       writes: false,
     },
     {
       aliases: [],
       arguments: [
         {
-          list: false,
-          name: "issueId",
+          name: "issue",
           required: false,
           type: "string",
           variadic: false,
         },
       ],
-      confirmation: null,
-      description: "Show issue history (project, assignee and state changes)",
+      description: "Show upstream issue history (all pages by default). Accepts an issue UUID, identifier (e.g. ENG-123), number in the configured team, or Linear URL; omit to use the current Git or Jujutsu context. Not every write produces a separate entry; use view for current state and write receipts for reconciliation.",
       details: "linear issue history --help",
       guides: [
         {
@@ -1071,8 +778,26 @@ Creates original.json and desired.md in a new directory. Read the saved discussi
       name: "history",
       options: [
         {
+          arguments: [
+            {
+              name: "limit",
+              required: true,
+              type: "number",
+              variadic: false,
+            },
+          ],
+          default: 0,
+          description: "Maximum history entries (0 for all pages)",
+          flags: [
+            "--limit",
+          ],
+          name: "limit",
+          repeatable: false,
+          staticallyRequired: false,
+        },
+        {
           arguments: [],
-          description: "Output history as JSON",
+          description: "Output history as a JSON connection",
           flags: [
             "-j",
             "--json",
@@ -1087,79 +812,20 @@ Creates original.json and desired.md in a new directory. Read the saved discussi
         "json",
       ],
       path: "linear issue history",
-      usage: "linear issue history [issueId] [options]",
+      usage: "linear issue history [issue] [options]",
       writes: false,
     },
     {
       aliases: [],
       arguments: [
         {
-          list: false,
-          name: "issueId",
+          name: "issue",
           required: false,
           type: "string",
           variadic: false,
         },
       ],
-      confirmation: null,
-      description: "Read an issue snapshot and its paginated change history",
-      details: "linear issue audit --help",
-      hasSubcommands: false,
-      interactive: false,
-      name: "audit",
-      options: [
-        {
-          arguments: [
-            {
-              list: false,
-              name: "limit",
-              required: true,
-              type: "number",
-              variadic: false,
-            },
-          ],
-          default: 50,
-          description: "Maximum history entries (default: 50, use 0 for all pages)",
-          flags: [
-            "--limit",
-          ],
-          name: "limit",
-          repeatable: false,
-          staticallyRequired: false,
-        },
-        {
-          arguments: [],
-          description: "Output the issue audit envelope as JSON",
-          flags: [
-            "-j",
-            "--json",
-          ],
-          name: "json",
-          repeatable: false,
-          staticallyRequired: false,
-        },
-      ],
-      outputModes: [
-        "human",
-        "json",
-      ],
-      path: "linear issue audit",
-      usage: "linear issue audit [issueId] [options]",
-      writes: false,
-    },
-    {
-      aliases: [],
-      arguments: [
-        {
-          list: false,
-          name: "issueId",
-          required: false,
-          type: "string",
-          variadic: false,
-        },
-      ],
-      confirmation: null,
-      description: "Print the issue URL",
+      description: "Print the issue URL by UUID, identifier (e.g. ENG-123), number in the configured team, or Linear URL; omit to use the current Git or Jujutsu context",
       details: "linear issue url --help",
       guides: [
         {
@@ -1179,45 +845,7 @@ Creates original.json and desired.md in a new directory. Read the saved discussi
         "human",
       ],
       path: "linear issue url",
-      usage: "linear issue url [issueId]",
-      writes: false,
-    },
-    {
-      aliases: [],
-      arguments: [
-        {
-          list: false,
-          name: "issueId",
-          required: false,
-          type: "string",
-          variadic: false,
-        },
-      ],
-      confirmation: null,
-      description: "Print the issue title and Linear-issue trailer",
-      details: "linear issue describe --help",
-      hasSubcommands: false,
-      interactive: false,
-      name: "describe",
-      options: [
-        {
-          arguments: [],
-          description: "Use 'References' instead of 'Fixes' for the Linear issue link",
-          flags: [
-            "-r",
-            "--references",
-            "--ref",
-          ],
-          name: "references",
-          repeatable: false,
-          staticallyRequired: false,
-        },
-      ],
-      outputModes: [
-        "human",
-      ],
-      path: "linear issue describe",
-      usage: "linear issue describe [issueId] [options]",
+      usage: "linear issue url [issue]",
       writes: false,
     },
     {
@@ -1226,17 +854,13 @@ Creates original.json and desired.md in a new directory. Read the saved discussi
       ],
       arguments: [
         {
-          list: false,
-          name: "issueId",
+          name: "issue",
           required: false,
           type: "string",
           variadic: false,
         },
       ],
-      confirmation: {
-        requiredUnless: "--confirm",
-      },
-      description: "Delete an issue by identifier or UUID; bulk stops after an unknown outcome",
+      description: "Delete (trash) an issue by UUID, identifier (e.g. ENG-123), number in the configured team, or Linear URL; requires an explicit issue or bulk input. Bulk stops after an unknown outcome.",
       details: "linear issue delete --help",
       hasSubcommands: false,
       interactive: true,
@@ -1247,23 +871,22 @@ Creates original.json and desired.md in a new directory. Read the saved discussi
           description: "Skip confirmation prompt",
           flags: [
             "-y",
-            "--confirm",
+            "--yes",
           ],
-          name: "confirm",
+          name: "yes",
           repeatable: false,
           staticallyRequired: false,
         },
         {
           arguments: [
             {
-              list: false,
-              name: "ids",
+              name: "issues",
               required: true,
               type: "string",
               variadic: true,
             },
           ],
-          description: "Delete multiple issues by identifier or UUID",
+          description: "Delete multiple issues by UUID, identifier, number in the configured team, or Linear URL",
           flags: [
             "--bulk",
           ],
@@ -1274,14 +897,13 @@ Creates original.json and desired.md in a new directory. Read the saved discussi
         {
           arguments: [
             {
-              list: false,
-              name: "file",
+              name: "path",
               required: true,
               type: "string",
               variadic: false,
             },
           ],
-          description: "Read issue identifiers or UUIDs from a file (one per line)",
+          description: "Read whitespace/comma-separated issue UUIDs, identifiers, numbers in the configured team, or Linear URLs from a file",
           flags: [
             "--bulk-file",
           ],
@@ -1291,7 +913,7 @@ Creates original.json and desired.md in a new directory. Read the saved discussi
         },
         {
           arguments: [],
-          description: "Read issue identifiers or UUIDs from stdin",
+          description: "Read whitespace/comma-separated issue UUIDs, identifiers, numbers in the configured team, or Linear URLs from stdin",
           flags: [
             "--bulk-stdin",
           ],
@@ -1303,6 +925,7 @@ Creates original.json and desired.md in a new directory. Read the saved discussi
           arguments: [],
           description: "Output deletion effects and per-item bulk results as JSON",
           flags: [
+            "-j",
             "--json",
           ],
           name: "json",
@@ -1315,13 +938,12 @@ Creates original.json and desired.md in a new directory. Read the saved discussi
         "json",
       ],
       path: "linear issue delete",
-      usage: "linear issue delete [issueId] [options]",
+      usage: "linear issue delete [issue] [options]",
       writes: true,
     },
     {
       aliases: [],
       arguments: [],
-      confirmation: null,
       description: "Create a linear issue
 
 For API Markdown bodies, prefer a bare Linear URL for mentions.
@@ -1351,7 +973,6 @@ Run \`linear guide markdown\` for mentions, collapsible sections and rewrite ris
         {
           arguments: [
             {
-              list: false,
               name: "assignee",
               required: true,
               type: "string",
@@ -1370,8 +991,7 @@ Run \`linear guide markdown\` for mentions, collapsible sections and rewrite ris
         {
           arguments: [
             {
-              list: false,
-              name: "dueDate",
+              name: "date",
               required: true,
               type: "string",
               variadic: false,
@@ -1388,14 +1008,13 @@ Run \`linear guide markdown\` for mentions, collapsible sections and rewrite ris
         {
           arguments: [
             {
-              list: false,
-              name: "parent",
+              name: "issue",
               required: true,
               type: "string",
               variadic: false,
             },
           ],
-          description: "Parent issue (if any) as a team_number code",
+          description: "Parent issue (UUID, identifier, number in the configured team, or Linear URL)",
           flags: [
             "--parent",
           ],
@@ -1406,14 +1025,13 @@ Run \`linear guide markdown\` for mentions, collapsible sections and rewrite ris
         {
           arguments: [
             {
-              list: false,
               name: "priority",
               required: true,
-              type: "number",
+              type: "priority",
               variadic: false,
             },
           ],
-          description: "Priority of the issue (1-4, descending priority)",
+          description: "Priority (0/none, 1/urgent, 2/high, 3/medium, 4/low; names are case-insensitive)",
           flags: [
             "-p",
             "--priority",
@@ -1425,7 +1043,6 @@ Run \`linear guide markdown\` for mentions, collapsible sections and rewrite ris
         {
           arguments: [
             {
-              list: false,
               name: "estimate",
               required: true,
               type: "number",
@@ -1443,7 +1060,6 @@ Run \`linear guide markdown\` for mentions, collapsible sections and rewrite ris
         {
           arguments: [
             {
-              list: false,
               name: "description",
               required: true,
               type: "string",
@@ -1462,14 +1078,13 @@ Run \`linear guide markdown\` for mentions, collapsible sections and rewrite ris
         {
           arguments: [
             {
-              list: false,
               name: "path",
               required: true,
               type: "string",
               variadic: false,
             },
           ],
-          description: "Read description from a file (preferred for markdown content)",
+          description: "Read UTF-8 description from a file (- for stdin; preferred for markdown content)",
           flags: [
             "--description-file",
           ],
@@ -1480,14 +1095,13 @@ Run \`linear guide markdown\` for mentions, collapsible sections and rewrite ris
         {
           arguments: [
             {
-              list: false,
               name: "label",
               required: true,
               type: "string",
               variadic: false,
             },
           ],
-          description: "Issue label associated with the issue. May be repeated.",
+          description: "Issue label (UUID or name). May be repeated.",
           flags: [
             "-l",
             "--label",
@@ -1499,14 +1113,13 @@ Run \`linear guide markdown\` for mentions, collapsible sections and rewrite ris
         {
           arguments: [
             {
-              list: false,
               name: "team",
               required: true,
               type: "string",
               variadic: false,
             },
           ],
-          description: "Team associated with the issue (if not your default team)",
+          description: "Team UUID or key (uses the configured default team when omitted)",
           flags: [
             "--team",
           ],
@@ -1517,7 +1130,6 @@ Run \`linear guide markdown\` for mentions, collapsible sections and rewrite ris
         {
           arguments: [
             {
-              list: false,
               name: "project",
               required: true,
               type: "string",
@@ -1535,14 +1147,13 @@ Run \`linear guide markdown\` for mentions, collapsible sections and rewrite ris
         {
           arguments: [
             {
-              list: false,
               name: "state",
               required: true,
               type: "string",
               variadic: false,
             },
           ],
-          description: "Workflow state for the issue (by name or type)",
+          description: "Workflow state for the issue (UUID, name, or type)",
           flags: [
             "-s",
             "--state",
@@ -1554,7 +1165,6 @@ Run \`linear guide markdown\` for mentions, collapsible sections and rewrite ris
         {
           arguments: [
             {
-              list: false,
               name: "milestone",
               required: true,
               type: "string",
@@ -1572,7 +1182,6 @@ Run \`linear guide markdown\` for mentions, collapsible sections and rewrite ris
         {
           arguments: [
             {
-              list: false,
               name: "cycle",
               required: true,
               type: "string",
@@ -1610,7 +1219,6 @@ Run \`linear guide markdown\` for mentions, collapsible sections and rewrite ris
         {
           arguments: [
             {
-              list: false,
               name: "title",
               required: true,
               type: "string",
@@ -1650,15 +1258,13 @@ Run \`linear guide markdown\` for mentions, collapsible sections and rewrite ris
       aliases: [],
       arguments: [
         {
-          list: false,
-          name: "issueId",
-          required: false,
+          name: "issue",
+          required: true,
           type: "string",
           variadic: false,
         },
       ],
-      confirmation: null,
-      description: "Update an issue; verify fields with up to 3 reads without repeating the write
+      description: "Update an issue by UUID, identifier (e.g. ENG-123), number in the configured team, or Linear URL; verify fields with up to 3 reads without repeating the write
 
 For API Markdown bodies, prefer a bare Linear URL for mentions.
 Named profile links can also mention people; \`@name\` handling varies by body.
@@ -1691,7 +1297,6 @@ Run \`linear guide markdown\` for mentions, collapsible sections and rewrite ris
         {
           arguments: [
             {
-              list: false,
               name: "assignee",
               required: true,
               type: "string",
@@ -1720,8 +1325,7 @@ Run \`linear guide markdown\` for mentions, collapsible sections and rewrite ris
         {
           arguments: [
             {
-              list: false,
-              name: "dueDate",
+              name: "date",
               required: true,
               type: "string",
               variadic: false,
@@ -1738,14 +1342,13 @@ Run \`linear guide markdown\` for mentions, collapsible sections and rewrite ris
         {
           arguments: [
             {
-              list: false,
-              name: "parent",
+              name: "issue",
               required: true,
               type: "string",
               variadic: false,
             },
           ],
-          description: "Parent issue (if any) as a team_number code",
+          description: "Parent issue (UUID, identifier, number in the configured team, or Linear URL)",
           flags: [
             "--parent",
           ],
@@ -1756,14 +1359,13 @@ Run \`linear guide markdown\` for mentions, collapsible sections and rewrite ris
         {
           arguments: [
             {
-              list: false,
               name: "priority",
               required: true,
-              type: "number",
+              type: "priority",
               variadic: false,
             },
           ],
-          description: "Priority of the issue (1-4, descending priority)",
+          description: "Priority (0/none, 1/urgent, 2/high, 3/medium, 4/low; names are case-insensitive)",
           flags: [
             "-p",
             "--priority",
@@ -1775,7 +1377,6 @@ Run \`linear guide markdown\` for mentions, collapsible sections and rewrite ris
         {
           arguments: [
             {
-              list: false,
               name: "estimate",
               required: true,
               type: "number",
@@ -1793,7 +1394,6 @@ Run \`linear guide markdown\` for mentions, collapsible sections and rewrite ris
         {
           arguments: [
             {
-              list: false,
               name: "description",
               required: true,
               type: "string",
@@ -1812,14 +1412,13 @@ Run \`linear guide markdown\` for mentions, collapsible sections and rewrite ris
         {
           arguments: [
             {
-              list: false,
               name: "path",
               required: true,
               type: "string",
               variadic: false,
             },
           ],
-          description: "Read description from a file (preferred for markdown content)",
+          description: "Read UTF-8 description from a file (- for stdin; preferred for markdown content)",
           flags: [
             "--description-file",
           ],
@@ -1830,14 +1429,13 @@ Run \`linear guide markdown\` for mentions, collapsible sections and rewrite ris
         {
           arguments: [
             {
-              list: false,
               name: "label",
               required: true,
               type: "string",
               variadic: false,
             },
           ],
-          description: "Replace all issue labels. May be repeated.",
+          description: "Replace all issue labels (UUID or name). May be repeated.",
           flags: [
             "-l",
             "--label",
@@ -1849,14 +1447,13 @@ Run \`linear guide markdown\` for mentions, collapsible sections and rewrite ris
         {
           arguments: [
             {
-              list: false,
               name: "label",
               required: true,
               type: "string",
               variadic: false,
             },
           ],
-          description: "Add an issue label without replacing existing labels. May be repeated.",
+          description: "Add an issue label (UUID or name) without replacing existing labels. May be repeated.",
           flags: [
             "--add-label",
           ],
@@ -1867,14 +1464,13 @@ Run \`linear guide markdown\` for mentions, collapsible sections and rewrite ris
         {
           arguments: [
             {
-              list: false,
               name: "label",
               required: true,
               type: "string",
               variadic: false,
             },
           ],
-          description: "Remove an issue label without replacing other labels. May be repeated.",
+          description: "Remove an issue label (UUID or name) without replacing other labels. May be repeated.",
           flags: [
             "--remove-label",
           ],
@@ -1885,14 +1481,13 @@ Run \`linear guide markdown\` for mentions, collapsible sections and rewrite ris
         {
           arguments: [
             {
-              list: false,
               name: "team",
               required: true,
               type: "string",
               variadic: false,
             },
           ],
-          description: "Move the issue to this team (UUID or key)",
+          description: "Move the issue to this team (UUID or key); Linear may also move child issues",
           flags: [
             "--team",
           ],
@@ -1903,7 +1498,6 @@ Run \`linear guide markdown\` for mentions, collapsible sections and rewrite ris
         {
           arguments: [
             {
-              list: false,
               name: "project",
               required: true,
               type: "string",
@@ -1921,14 +1515,13 @@ Run \`linear guide markdown\` for mentions, collapsible sections and rewrite ris
         {
           arguments: [
             {
-              list: false,
               name: "state",
               required: true,
               type: "string",
               variadic: false,
             },
           ],
-          description: "Workflow state for the issue (by name or type)",
+          description: "Workflow state for the issue (UUID, name, or type)",
           flags: [
             "-s",
             "--state",
@@ -1940,7 +1533,6 @@ Run \`linear guide markdown\` for mentions, collapsible sections and rewrite ris
         {
           arguments: [
             {
-              list: false,
               name: "milestone",
               required: true,
               type: "string",
@@ -1958,7 +1550,6 @@ Run \`linear guide markdown\` for mentions, collapsible sections and rewrite ris
         {
           arguments: [
             {
-              list: false,
               name: "cycle",
               required: true,
               type: "string",
@@ -1986,7 +1577,6 @@ Run \`linear guide markdown\` for mentions, collapsible sections and rewrite ris
         {
           arguments: [
             {
-              list: false,
               name: "title",
               required: true,
               type: "string",
@@ -2005,7 +1595,6 @@ Run \`linear guide markdown\` for mentions, collapsible sections and rewrite ris
         {
           arguments: [
             {
-              list: false,
               name: "path",
               required: true,
               type: "string",
@@ -2033,7 +1622,6 @@ Run \`linear guide markdown\` for mentions, collapsible sections and rewrite ris
         {
           arguments: [
             {
-              list: false,
               name: "field",
               required: true,
               type: "string",
@@ -2050,7 +1638,7 @@ Run \`linear guide markdown\` for mentions, collapsible sections and rewrite ris
         },
         {
           arguments: [],
-          description: "Output a JSON write result with the mutation receipt, verification, and readBack",
+          description: "Output data.issue plus top-level verification and readBack after a write",
           flags: [
             "-j",
             "--json",
@@ -2065,13 +1653,12 @@ Run \`linear guide markdown\` for mentions, collapsible sections and rewrite ris
         "json",
       ],
       path: "linear issue update",
-      usage: "linear issue update [issueId] [options]",
+      usage: "linear issue update <issue> [options]",
       writes: true,
     },
     {
       aliases: [],
       arguments: [],
-      confirmation: null,
       description: "Manage issue comments",
       details: "linear issue comment usage",
       guides: [
@@ -2098,6 +1685,7 @@ Run \`linear guide markdown\` for mentions, collapsible sections and rewrite ris
       options: [],
       outputModes: [
         "human",
+        "json",
       ],
       path: "linear issue comment",
       usage: "linear issue comment",
@@ -2107,22 +1695,19 @@ Run \`linear guide markdown\` for mentions, collapsible sections and rewrite ris
       aliases: [],
       arguments: [
         {
-          list: false,
-          name: "issueId",
+          name: "issue",
           required: true,
           type: "string",
           variadic: false,
         },
         {
-          list: false,
-          name: "filepath",
+          name: "path",
           required: true,
           type: "string",
           variadic: false,
         },
       ],
-      confirmation: null,
-      description: "Create a sidebar attachment on an issue (images do not render inline)",
+      description: "Create a sidebar attachment on an issue (images do not render inline). Accepts an issue UUID, identifier (e.g. ENG-123), number in the configured team, or Linear URL.",
       details: "linear issue attach --help",
       guides: [
         {
@@ -2142,6 +1727,7 @@ Run \`linear guide markdown\` for mentions, collapsible sections and rewrite ris
           arguments: [],
           description: "Output a JSON write result with the attachment",
           flags: [
+            "-j",
             "--json",
           ],
           name: "json",
@@ -2151,7 +1737,6 @@ Run \`linear guide markdown\` for mentions, collapsible sections and rewrite ris
         {
           arguments: [
             {
-              list: false,
               name: "title",
               required: true,
               type: "string",
@@ -2164,25 +1749,6 @@ Run \`linear guide markdown\` for mentions, collapsible sections and rewrite ris
             "--title",
           ],
           name: "title",
-          repeatable: false,
-          staticallyRequired: false,
-        },
-        {
-          arguments: [
-            {
-              list: false,
-              name: "body",
-              required: true,
-              type: "string",
-              variadic: false,
-            },
-          ],
-          description: "Create a linked comment with this body; the file remains a sidebar attachment",
-          flags: [
-            "-c",
-            "--comment",
-          ],
-          name: "comment",
           repeatable: false,
           staticallyRequired: false,
         },
@@ -2202,29 +1768,26 @@ Run \`linear guide markdown\` for mentions, collapsible sections and rewrite ris
         "json",
       ],
       path: "linear issue attach",
-      usage: "linear issue attach <issueId> <filepath> [options]",
+      usage: "linear issue attach <issue> <path> [options]",
       writes: true,
     },
     {
       aliases: [],
       arguments: [
         {
-          list: false,
-          name: "urlOrIssueId",
+          name: "issue",
           required: true,
           type: "string",
           variadic: false,
         },
         {
-          list: false,
           name: "url",
-          required: false,
+          required: true,
           type: "string",
           variadic: false,
         },
       ],
-      confirmation: null,
-      description: "Link a URL to an issue",
+      description: "Link a URL to an issue by UUID, identifier (e.g. ENG-123), number in the configured team, or Linear URL",
       details: "linear issue link --help",
       guides: [
         {
@@ -2240,6 +1803,7 @@ Run \`linear guide markdown\` for mentions, collapsible sections and rewrite ris
           arguments: [],
           description: "Output a JSON write result with the attachment",
           flags: [
+            "-j",
             "--json",
           ],
           name: "json",
@@ -2249,7 +1813,6 @@ Run \`linear guide markdown\` for mentions, collapsible sections and rewrite ris
         {
           arguments: [
             {
-              list: false,
               name: "title",
               required: true,
               type: "string",
@@ -2271,13 +1834,12 @@ Run \`linear guide markdown\` for mentions, collapsible sections and rewrite ris
         "json",
       ],
       path: "linear issue link",
-      usage: "linear issue link <urlOrIssueId> [url] [options]",
+      usage: "linear issue link <issue> <url> [options]",
       writes: true,
     },
     {
       aliases: [],
       arguments: [],
-      confirmation: null,
       description: "Manage issue relations",
       details: "linear issue relation usage",
       hasSubcommands: true,
@@ -2286,6 +1848,7 @@ Run \`linear guide markdown\` for mentions, collapsible sections and rewrite ris
       options: [],
       outputModes: [
         "human",
+        "json",
       ],
       path: "linear issue relation",
       usage: "linear issue relation",
@@ -2294,7 +1857,6 @@ Run \`linear guide markdown\` for mentions, collapsible sections and rewrite ris
     {
       aliases: [],
       arguments: [],
-      confirmation: null,
       description: "Preview an Issue delivery using the same preparation as apply; no remote writes or checkpoint writes",
       details: "linear issue plan --help",
       guides: [
@@ -2318,7 +1880,6 @@ Run \`linear guide markdown\` for mentions, collapsible sections and rewrite ris
         {
           arguments: [
             {
-              list: false,
               name: "path",
               required: true,
               type: "string",
@@ -2338,6 +1899,7 @@ Run \`linear guide markdown\` for mentions, collapsible sections and rewrite ris
           arguments: [],
           description: "Output the plan as JSON",
           flags: [
+            "-j",
             "--json",
           ],
           name: "json",
@@ -2356,9 +1918,6 @@ Run \`linear guide markdown\` for mentions, collapsible sections and rewrite ris
     {
       aliases: [],
       arguments: [],
-      confirmation: {
-        requiredUnless: "--confirm-workspace",
-      },
       description: "Apply an Issue delivery manifest sequentially with per-item results and a resumable checkpoint",
       details: "linear issue apply --help",
       guides: [
@@ -2382,7 +1941,6 @@ Run \`linear guide markdown\` for mentions, collapsible sections and rewrite ris
         {
           arguments: [
             {
-              list: false,
               name: "path",
               required: true,
               type: "string",
@@ -2401,7 +1959,6 @@ Run \`linear guide markdown\` for mentions, collapsible sections and rewrite ris
         {
           arguments: [
             {
-              list: false,
               name: "slug",
               required: true,
               type: "string",
@@ -2430,6 +1987,7 @@ Run \`linear guide markdown\` for mentions, collapsible sections and rewrite ris
           arguments: [],
           description: "Output per-item results and read-back as JSON; progress goes to stderr",
           flags: [
+            "-j",
             "--json",
           ],
           name: "json",
@@ -2444,23 +2002,6 @@ Run \`linear guide markdown\` for mentions, collapsible sections and rewrite ris
       path: "linear issue apply",
       usage: "linear issue apply [options]",
       writes: true,
-    },
-    {
-      aliases: [],
-      arguments: [],
-      confirmation: null,
-      description: "Manage agent sessions for an issue",
-      details: "linear issue agent-session usage",
-      hasSubcommands: true,
-      interactive: false,
-      name: "agent-session",
-      options: [],
-      outputModes: [
-        "human",
-      ],
-      path: "linear issue agent-session",
-      usage: "linear issue agent-session",
-      writes: false,
     },
   ],
 }

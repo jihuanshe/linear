@@ -3,7 +3,9 @@ import { gql } from "../../__codegen__/gql.ts"
 import { getGraphQLClient } from "../../utils/graphql.ts"
 import {
   extractIssueRelationSnapshot,
-  getIssueIdentifier,
+  getIssueReference,
+  ISSUE_RELATION_TYPES,
+  type IssueRelationType,
   planIssueRelations,
 } from "../../utils/linear.ts"
 import { readIssueHeader } from "../../utils/issue-read.ts"
@@ -17,10 +19,7 @@ import {
   ValidationError,
 } from "../../utils/errors.ts"
 import { printWriteResult, writeResult } from "../../utils/write-result.ts"
-import { withUsageMetadata } from "../usage.ts"
-
-const RELATION_TYPES = ["blocks", "blocked-by", "related", "duplicate"] as const
-export type RelationType = (typeof RELATION_TYPES)[number]
+import { printJsonUsage, withUsageMetadata } from "../usage.ts"
 
 const ExistingRelations = gql(`
   query GetExistingIssueRelations($issueId: String!) {
@@ -70,24 +69,24 @@ const DeleteRelation = gql(`
   }
 `)
 
-function parseType(value: string): RelationType {
-  const type = value.toLowerCase() as RelationType
-  if (!RELATION_TYPES.includes(type)) {
+function parseType(value: string): IssueRelationType {
+  const type = value.toLowerCase() as IssueRelationType
+  if (!ISSUE_RELATION_TYPES.includes(type)) {
     throw new ValidationError(`Invalid relation type: ${value}`, {
-      suggestion: `Must be one of: ${RELATION_TYPES.join(", ")}`,
+      suggestion: `Must be one of: ${ISSUE_RELATION_TYPES.join(", ")}`,
     })
   }
   return type
 }
 
 async function resolveIssue(ref?: string) {
-  const identifier = await getIssueIdentifier(ref)
-  if (!identifier) {
+  const reference = await getIssueReference(ref)
+  if (!reference) {
     throw new ValidationError(
-      `Could not resolve issue identifier: ${ref ?? "current issue"}`,
+      `Could not resolve issue reference: ${ref ?? "current issue"}`,
     )
   }
-  const issue = await readIssueHeader(identifier)
+  const issue = await readIssueHeader(reference)
   if (!issue.id) throw new CliError("Issue lookup returned no stable identity")
   return issue
 }
@@ -137,7 +136,7 @@ export function assertDistinctIssueTargets(
 
 async function relationContext(
   issueRef: string,
-  type: RelationType,
+  type: IssueRelationType,
   relatedRef: string,
 ) {
   parseType(type)
@@ -164,7 +163,7 @@ async function relationContext(
       relatedIssueId: issue.id,
     })),
   ]
-  const relation = edges.find((r) =>
+  const existingEdge = edges.find((r) =>
     r.type === input.type && (
       (r.issueId === input.issueId &&
         r.relatedIssueId === input.relatedIssueId) ||
@@ -172,13 +171,18 @@ async function relationContext(
         r.relatedIssueId === input.issueId)
     )
   )
+  const relation = existingEdge && {
+    id: existingEdge.id,
+    issue: { id: existingEdge.issueId },
+    relatedIssue: { id: existingEdge.relatedIssueId },
+  }
   return { issue, relatedIssue, type, input, inventory, relation }
 }
 
 /** Read-only preparation for plan; apply calls addIssueRelation to read again. */
 export async function prepareIssueRelation(
   issueRef: string,
-  type: RelationType,
+  type: IssueRelationType,
   relatedRef: string,
 ) {
   const context = await relationContext(issueRef, type, relatedRef)
@@ -207,7 +211,7 @@ export async function prepareIssueRelation(
 /** The command and delivery call this mutation owner; preparation has no effects. */
 export async function addIssueRelation(
   issueRef: string,
-  type: RelationType,
+  type: IssueRelationType,
   relatedRef: string,
   options: { beforeWrite?: () => Promise<void> } = {},
 ) {
@@ -235,8 +239,10 @@ export async function addIssueRelation(
 
 const addRelationCommand = withUsageMetadata(new Command(), { writes: true })
   .name("add")
-  .description("Add a relation without replacing an existing type or direction")
-  .arguments("<issueId:string> <relationType:string> <relatedIssueId:string>")
+  .description(
+    "Add a relation without replacing an existing type or direction. Issues accept UUIDs, identifiers, or Linear Issue URLs.",
+  )
+  .arguments("<issue:string> <type:string> <relatedIssue:string>")
   .option("--json", "Output the confirmed relation or no-op as JSON")
   .example(
     "Mark issue as blocked by another",
@@ -274,8 +280,10 @@ const addRelationCommand = withUsageMetadata(new Command(), { writes: true })
 
 const deleteRelationCommand = withUsageMetadata(new Command(), { writes: true })
   .name("delete")
-  .description("Delete the specified relation between two issues")
-  .arguments("<issueId:string> <relationType:string> <relatedIssueId:string>")
+  .description(
+    "Delete the specified relation between two issues (UUIDs, identifiers, or Linear Issue URLs)",
+  )
+  .arguments("<issue:string> <type:string> <relatedIssue:string>")
   .option("--json", "Output the confirmed deletion as JSON")
   .action(async ({ json }, issueRef, typeArg, relatedRef) => {
     try {
@@ -312,8 +320,10 @@ const deleteRelationCommand = withUsageMetadata(new Command(), { writes: true })
 
 const listRelationsCommand = new Command()
   .name("list")
-  .description("List all outgoing and incoming relations for an issue")
-  .arguments("[issueId:string]")
+  .description(
+    "List all outgoing and incoming relations for an issue (UUID, identifier, or Linear Issue URL; omit to infer from Git/Jujutsu)",
+  )
+  .arguments("[issue:string]")
   .option(
     "--json",
     "Output the issue and complete relation connections as JSON",
@@ -363,7 +373,8 @@ const listRelationsCommand = new Command()
 export const relationCommand = new Command()
   .name("relation")
   .description("Manage issue relations")
-  .action(function () {
+  .action(function (options) {
+    if (printJsonUsage(this, options)) return
     this.showHelp()
   })
   .command("add", addRelationCommand)

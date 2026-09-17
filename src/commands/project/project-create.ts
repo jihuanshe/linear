@@ -1,16 +1,18 @@
 import { Command } from "@cliffy/command"
-import { resolveProjectContent } from "./project-content.ts"
+import { readTextSource } from "../../utils/text-source.ts"
+import { getProjectStatuses, resolveProjectStatusId } from "./project-status.ts"
 import { withUsageMetadata } from "../usage.ts"
 import { printWriteResult } from "../../utils/write-result.ts"
 import { Input, Select } from "../../utils/prompt.ts"
 import { gql } from "../../__codegen__/gql.ts"
 import type { ProjectCreateInput } from "../../__codegen__/graphql.ts"
 import { getGraphQLClient } from "../../utils/graphql.ts"
+import { resolveWriteTeam } from "../../utils/issue-read.ts"
+import { priorityType } from "../../utils/priority.ts"
 import {
   getAllTeams,
-  getProjectLabelIdByName,
-  getTeamIdByKey,
   getTeamKey,
+  lookupProjectLabelId,
   lookupUserId,
 } from "../../utils/linear.ts"
 import { shouldShowSpinner } from "../../utils/hyperlink.ts"
@@ -40,41 +42,12 @@ const CreateProject = gql(`
   }
 `)
 
-const GetProjectStatuses = gql(`
-  query GetProjectStatuses {
-    projectStatuses {
-      nodes {
-        id
-        name
-        type
-      }
-    }
-  }
-`)
-
-const PRIORITY_MAPPING: Record<string, number> = {
-  "none": 0,
-  "urgent": 1,
-  "high": 2,
-  "medium": 3,
-  "low": 4,
-}
-
-function parsePriority(priority: string): number {
-  const mapped = PRIORITY_MAPPING[priority.toLowerCase()]
-  if (mapped == null) {
-    throw new ValidationError(`Invalid priority: ${priority}`, {
-      suggestion: "Valid values: none, urgent, high, medium, low",
-    })
-  }
-  return mapped
-}
-
 export const createCommand = withUsageMetadata(new Command(), {
   writes: true,
   interactive: true,
 })
   .name("create")
+  .type("priority", priorityType)
   .description(
     "Create a new Linear project; link it separately with initiative add-project",
   )
@@ -88,20 +61,20 @@ export const createCommand = withUsageMetadata(new Command(), {
   )
   .option(
     "-f, --description-file <path:string>",
-    `Read project description from file (still subject to the ${PROJECT_DESCRIPTION_MAX_LENGTH}-character API limit)`,
+    `Read UTF-8 project description from a file (- for stdin; still subject to the ${PROJECT_DESCRIPTION_MAX_LENGTH}-character API limit)`,
     { preserveEmpty: true },
   )
-  .option("--content <markdown:string>", "Project overview markdown", {
+  .option("--content <content:string>", "Project overview markdown", {
     preserveEmpty: true,
   })
   .option(
     "--content-file <path:string>",
-    "Read project overview markdown from a file",
+    "Read UTF-8 project overview markdown from a file (- for stdin)",
     { preserveEmpty: true },
   )
   .option(
     "-t, --team <team:string>",
-    "Team key (required, can be repeated for multiple teams)",
+    "Team UUID or key (repeatable; uses the configured default team when omitted)",
     { collect: true, preserveEmpty: true },
   )
   .option(
@@ -111,25 +84,25 @@ export const createCommand = withUsageMetadata(new Command(), {
   )
   .option(
     "-s, --status <status:string>",
-    "Project status (planned, started, paused, completed, canceled, backlog)",
+    "Status UUID or type (planned, started, paused, completed, canceled, backlog)",
     { preserveEmpty: true },
   )
-  .option("--start-date <startDate:string>", "Start date (YYYY-MM-DD)", {
+  .option("--start-date <date:string>", "Start date (YYYY-MM-DD)", {
     preserveEmpty: true,
   })
   .option(
-    "--target-date <targetDate:string>",
+    "--target-date <date:string>",
     "Target completion date (YYYY-MM-DD)",
     { preserveEmpty: true },
   )
   .option(
-    "--priority <priority:string>",
-    "Project priority (none, urgent, high, medium, low)",
+    "--priority <priority:priority>",
+    "Priority (0/none, 1/urgent, 2/high, 3/medium, 4/low; names are case-insensitive)",
     { preserveEmpty: true },
   )
   .option(
     "--label <label:string>",
-    "Project label associated with the project. May be repeated.",
+    "Project label UUID or exact name. May be repeated.",
     { collect: true, preserveEmpty: true },
   )
   .option(
@@ -170,7 +143,6 @@ export const createCommand = withUsageMetadata(new Command(), {
             status: options.status,
             "start-date": options.startDate,
             "target-date": options.targetDate,
-            priority: options.priority,
           })
         ) {
           if (value != null && value.trim() === "") {
@@ -199,7 +171,7 @@ export const createCommand = withUsageMetadata(new Command(), {
           status: providedStatus,
           startDate: providedStartDate,
           targetDate: providedTargetDate,
-          priority: providedPriority,
+          priority,
           label: providedLabels,
           member: providedMembers,
           icon: providedIcon,
@@ -208,13 +180,11 @@ export const createCommand = withUsageMetadata(new Command(), {
           json: jsonOutput,
         } = options
 
-        const content = await resolveProjectContent(
+        const content = await readTextSource(
+          "content",
           providedContent,
           providedContentFile,
         )
-        const priority = providedPriority != null
-          ? parsePriority(providedPriority)
-          : undefined
         const client = getGraphQLClient()
 
         let name = providedName
@@ -222,8 +192,8 @@ export const createCommand = withUsageMetadata(new Command(), {
           providedDescription,
           providedDescriptionFile,
         )
-        const descriptionFile = providedDescriptionFile
         let teams = providedTeams || []
+        let teamIds: string[] | undefined
         let lead = providedLead
         let status = providedStatus
         let startDate = providedStartDate
@@ -248,12 +218,10 @@ export const createCommand = withUsageMetadata(new Command(), {
             })
           }
 
-          // Description (optional) — skip the prompt when --description-file was passed.
-          if (description == null && descriptionFile == null) {
+          if (description == null) {
             description = await Input.prompt({
               message: "Description (optional):",
             })
-            if (!description) description = undefined
           }
 
           // Team selection (required)
@@ -261,47 +229,45 @@ export const createCommand = withUsageMetadata(new Command(), {
             const allTeams = await getAllTeams()
             const teamOptions = allTeams.map((t) => ({
               name: `${t.name} (${t.key})`,
-              value: t.key,
+              value: t.id,
             }))
 
             // Try to get default team from config
             const defaultTeam = getTeamKey()
-            const defaultIndex = defaultTeam
-              ? teamOptions.findIndex((t) => t.value === defaultTeam)
-              : -1
+            const defaultTeamId = allTeams.find((team) =>
+              team.id.toLowerCase() === defaultTeam?.toLowerCase() ||
+              team.key.toLowerCase() === defaultTeam?.toLowerCase()
+            )?.id
 
             const selectedTeam = await Select.prompt({
               message: "Team:",
               options: teamOptions,
-              default: defaultIndex >= 0
-                ? teamOptions[defaultIndex].value
-                : undefined,
+              default: defaultTeamId,
             })
-            teams = [selectedTeam]
+            teamIds = [selectedTeam]
           }
 
           // Status selection - get actual statuses from API
           if (!status) {
-            const statusResult = await client.request(GetProjectStatuses)
-            const projectStatuses = statusResult.projectStatuses?.nodes || []
+            const projectStatuses = await getProjectStatuses()
 
             if (projectStatuses.length > 0) {
               const statusOptions = projectStatuses.map(
-                (s: { id: string; name: string; type: string }) => ({
+                (s) => ({
                   name: s.name,
-                  value: s.type,
+                  value: s.id,
                 }),
               )
 
               // Find default (planned) status
-              const defaultStatus = statusOptions.find(
-                (s: { value: string }) => s.value === "planned",
+              const defaultStatus = projectStatuses.find(
+                (s) => s.type === "planned",
               )
 
               const selectedStatus = await Select.prompt({
                 message: "Status:",
                 options: statusOptions,
-                default: defaultStatus?.value || statusOptions[0]?.value,
+                default: defaultStatus?.id || statusOptions[0]?.value,
               })
               status = selectedStatus
             }
@@ -344,7 +310,7 @@ export const createCommand = withUsageMetadata(new Command(), {
           })
         }
 
-        if (teams.length === 0) {
+        if (teams.length === 0 && teamIds == null) {
           // Try default team from config
           const defaultTeam = getTeamKey()
           if (defaultTeam) {
@@ -357,12 +323,8 @@ export const createCommand = withUsageMetadata(new Command(), {
         }
 
         // Resolve team IDs
-        const teamIds = await Promise.all(
-          teams.map(async (teamKey) => {
-            const teamId = await getTeamIdByKey(teamKey.toUpperCase())
-            if (!teamId) throw new NotFoundError("Team", teamKey)
-            return teamId
-          }),
+        teamIds ??= await Promise.all(
+          teams.map(async (team) => (await resolveWriteTeam(team)).id),
         )
 
         // Build input - resolve all optional fields first
@@ -374,42 +336,13 @@ export const createCommand = withUsageMetadata(new Command(), {
           }
         }
 
-        let statusId: string | undefined
-        if (status != null) {
-          // Map display value to API type if needed
-          const statusLower = status.toLowerCase()
-          const statusTypeMapping: Record<string, string> = {
-            "planned": "planned",
-            "in progress": "started",
-            "started": "started",
-            "paused": "paused",
-            "completed": "completed",
-            "canceled": "canceled",
-            "backlog": "backlog",
-          }
-          const apiStatusType = statusTypeMapping[statusLower]
-          if (!apiStatusType) {
-            throw new ValidationError(`Invalid status: ${status}`, {
-              suggestion:
-                "Valid values: planned, started, paused, completed, canceled, backlog",
-            })
-          }
-
-          // Look up the actual status ID from the organization's project statuses
-          const statusResult = await client.request(GetProjectStatuses)
-          const projectStatuses = statusResult.projectStatuses?.nodes || []
-          const matchingStatus = projectStatuses.find(
-            (s: { type: string }) => s.type === apiStatusType,
-          )
-          if (!matchingStatus) {
-            throw new NotFoundError("Project status", apiStatusType)
-          }
-          statusId = matchingStatus.id
-        }
+        const statusId = status == null
+          ? undefined
+          : await resolveProjectStatusId(status)
 
         const labelIds: string[] = []
         for (const label of labels) {
-          const labelId = await getProjectLabelIdByName(label)
+          const labelId = await lookupProjectLabelId(label)
           if (!labelId) {
             throw new NotFoundError("Project label", label)
           }

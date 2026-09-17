@@ -1,6 +1,5 @@
 import { snapshotTest as cliffySnapshotTest } from "@cliffy/testing"
 import { assertEquals, assertStringIncludes } from "@std/assert"
-import { setColorEnabled } from "@std/fmt/colors"
 import { fromFileUrl } from "@std/path"
 import { apiCommand } from "../../src/commands/api.ts"
 import { loadCredentials } from "../../src/credentials.ts"
@@ -16,65 +15,55 @@ const { denoDir } = JSON.parse(new TextDecoder().decode(
 )) as { denoDir: string }
 
 for (const paginate of [false, true]) {
-  for (const silent of [false, true]) {
-    Deno.test(`API HTTP boundary - invalid JSON paginate=${paginate} silent=${silent}`, async () => {
-      const result = await runApiResponse("<html>Upstream unavailable</html>", [
+  Deno.test(`API HTTP boundary - invalid JSON paginate=${paginate}`, async () => {
+    const result = await runApiResponse("<html>Upstream unavailable</html>", [
+      ...(paginate ? ["--paginate"] : []),
+    ])
+    assertEquals(result.code, 1)
+    const failure = JSON.parse(result.stdout)
+    assertEquals(failure.ok, false)
+    assertEquals(failure.effect, "none")
+    assertStringIncludes(
+      failure.error.message,
+      "API response is not valid JSON",
+    )
+    assertEquals(result.stderr, "")
+    assertEquals(result.stdout.includes("<html>"), false)
+  })
+  Deno.test(`API HTTP boundary - invalid envelope paginate=${paginate}`, async () => {
+    for (const value of [null, [], "invalid", 42, {}]) {
+      const result = await runApiResponse(JSON.stringify(value), [
         ...(paginate ? ["--paginate"] : []),
-        ...(silent ? ["--silent"] : []),
       ])
       assertEquals(result.code, 1)
       const failure = JSON.parse(result.stdout)
       assertEquals(failure.ok, false)
       assertEquals(failure.effect, "none")
+      assertEquals(failure.data, undefined)
       assertStringIncludes(
         failure.error.message,
-        "API response is not valid JSON",
+        "API response is not a GraphQL response object",
       )
       assertEquals(result.stderr, "")
-      assertEquals(result.stdout.includes("<html>"), false)
-    })
-    Deno.test(`API HTTP boundary - invalid envelope paginate=${paginate} silent=${silent}`, async () => {
-      for (const value of [null, [], "invalid", 42, {}]) {
-        const result = await runApiResponse(JSON.stringify(value), [
-          ...(paginate ? ["--paginate"] : []),
-          ...(silent ? ["--silent"] : []),
-        ])
-        assertEquals(result.code, 1)
-        const failure = JSON.parse(result.stdout)
-        assertEquals(failure.ok, false)
-        assertEquals(failure.effect, "none")
-        assertEquals(failure.data, undefined)
-        assertStringIncludes(
-          failure.error.message,
-          "API response is not a GraphQL response object",
-        )
-        assertEquals(result.stderr, "")
-      }
-    })
-  }
+    }
+  })
 }
 
 for (const hasErrors of [false, true]) {
-  for (const silent of [false, true]) {
-    Deno.test(`API HTTP boundary - envelope errors=${hasErrors} silent=${silent}`, async () => {
-      const envelope = {
-        data: { viewer: { id: "user-1" } },
-        ...(hasErrors ? { errors: [{ message: "Partial failure" }] } : {}),
-        extensions: { traceId: "trace-1" },
-      }
-      const result = await runApiResponse(
-        JSON.stringify(envelope),
-        silent ? ["--silent"] : [],
-      )
-      assertEquals(result.code, hasErrors ? 1 : 0, result.stderr)
-      assertEquals(result.stderr, "")
-      if (silent) {
-        assertEquals(result.stdout, "")
-      } else {
-        assertEquals(JSON.parse(result.stdout), envelope)
-      }
-    })
-  }
+  Deno.test(`API HTTP boundary - envelope errors=${hasErrors}`, async () => {
+    const envelope = {
+      data: { viewer: { id: "user-1" } },
+      ...(hasErrors ? { errors: [{ message: "Partial failure" }] } : {}),
+      extensions: { traceId: "trace-1" },
+    }
+    const result = await runApiResponse(
+      JSON.stringify(envelope),
+      [],
+    )
+    assertEquals(result.code, hasErrors ? 1 : 0, result.stderr)
+    assertEquals(result.stderr, "")
+    assertEquals(JSON.parse(result.stdout), envelope)
+  })
 }
 
 for (const mutation of [false, true]) {
@@ -226,13 +215,13 @@ await cliffySnapshotTest({
 })
 
 await cliffySnapshotTest({
-  name: "API Command - Variable Flag",
+  name: "API Command - JSON String Variable",
   meta: import.meta,
   colors: false,
   args: [
     "query GetTeam($teamId: String!) { team(id: $teamId) { name } }",
-    "--variable",
-    "teamId=abc123",
+    "--variables-json",
+    '{"teamId":"abc123"}',
   ],
   denoArgs,
   async fn() {
@@ -265,15 +254,13 @@ await cliffySnapshotTest({
 })
 
 await cliffySnapshotTest({
-  name: "API Command - Variable Type Coercion",
+  name: "API Command - JSON Boolean And Number",
   meta: import.meta,
   colors: false,
   args: [
     "query GetIssues($first: Int!, $active: Boolean!) { issues(first: $first, filter: { active: $active }) { nodes { title } } }",
-    "--variable",
-    "first=5",
-    "--variable",
-    "active=true",
+    "--variables-json",
+    '{"first":5,"active":true}',
   ],
   denoArgs,
   async fn() {
@@ -326,15 +313,13 @@ await cliffySnapshotTest({
 })
 
 await cliffySnapshotTest({
-  name: "API Command - Invalid Variable Format",
+  name: "API Command - Variables File Rejects Stdin",
   meta: import.meta,
   colors: false,
-  args: ["query GetViewer { viewer { id } }", "--variable", "badformat"],
+  args: ["query GetViewer { viewer { id } }", "--variables-file", "-"],
   denoArgs,
   canFail: true,
   async fn() {
-    setColorEnabled(false)
-    apiCommand.help({ colors: false })
     Deno.env.set("LINEAR_API_KEY", "Bearer test-token")
     try {
       await apiCommand.parse()
@@ -381,12 +366,11 @@ await cliffySnapshotTest({
 })
 
 await cliffySnapshotTest({
-  name: "API Command - Silent Flag",
+  name: "API Command - Response Output",
   meta: import.meta,
   colors: false,
   args: [
     "query GetViewer { viewer { id } }",
-    "--silent",
   ],
   denoArgs,
   async fn() {
@@ -416,19 +400,20 @@ await cliffySnapshotTest({
 })
 
 await cliffySnapshotTest({
-  name: "API Command - Variable From File",
+  name: "API Command - Variables File",
   meta: import.meta,
   colors: false,
   args: [
-    "query GetTeam($filter: TeamFilter!) { teams(filter: $filter) { nodes { name } } }",
-    "--variable",
-    `filter=@${Deno.cwd()}/test/commands/fixtures/api-filter.json`,
+    "query GetTeam($name: StringComparator!) { teams(filter: { name: $name }) { nodes { name } } }",
+    "--variables-file",
+    `${Deno.cwd()}/test/commands/fixtures/api-filter.json`,
   ],
   denoArgs,
   async fn() {
     const server = new MockLinearServer([
       {
         queryName: "GetTeam",
+        variables: { name: { eq: "Backend" } },
         response: {
           data: {
             teams: {
@@ -524,9 +509,11 @@ await cliffySnapshotTest({
   canFail: true,
   async fn() {
     const tmpDir = await Deno.makeTempDir()
+    const cwd = Deno.cwd()
     try {
       Deno.env.delete("LINEAR_API_KEY")
-      Deno.env.set("LINEAR_WORKSPACE", "")
+      Deno.env.delete("LINEAR_WORKSPACE")
+      Deno.chdir(tmpDir)
       // Write an empty credentials file so loadCredentials() resets the cached credentials
       await Deno.mkdir(`${tmpDir}/linear`, { recursive: true })
       await Deno.writeTextFile(`${tmpDir}/linear/credentials.toml`, "")
@@ -534,7 +521,7 @@ await cliffySnapshotTest({
       await loadCredentials()
       await apiCommand.parse()
     } finally {
-      Deno.env.delete("LINEAR_WORKSPACE")
+      Deno.chdir(cwd)
       Deno.env.delete("XDG_CONFIG_HOME")
       await loadCredentials() // restore credentials from real path
       await Deno.remove(tmpDir, { recursive: true })
@@ -543,15 +530,13 @@ await cliffySnapshotTest({
 })
 
 await cliffySnapshotTest({
-  name: "API Command - Variable Coercion Null And False",
+  name: "API Command - JSON Null And False",
   meta: import.meta,
   colors: false,
   args: [
     "query GetIssues($active: Boolean, $label: String) { issues(filter: { active: $active, label: $label }) { nodes { title } } }",
-    "--variable",
-    "active=false",
-    "--variable",
-    "label=null",
+    "--variables-json",
+    '{"active":false,"label":null}',
   ],
   denoArgs,
   async fn() {
@@ -587,15 +572,15 @@ await cliffySnapshotTest({
   colors: false,
   args: [
     "query GetIssues($filter: String!) { issues(filter: $filter) { nodes { title } } }",
-    "--variable",
-    "filter=name eq backend",
+    "--variables-json",
+    '{"filter":"name=backend"}',
   ],
   denoArgs,
   async fn() {
     const server = new MockLinearServer([
       {
         queryName: "GetIssues",
-        variables: { filter: "name eq backend" },
+        variables: { filter: "name=backend" },
         response: {
           data: {
             issues: { nodes: [{ title: "Test" }] },
@@ -704,8 +689,8 @@ await cliffySnapshotTest({
   colors: false,
   args: [
     "query GetTeam { team { name } }",
-    "--variable",
-    "filter=@/nonexistent/path.json",
+    "--variables-file",
+    "/nonexistent/path.json",
   ],
   denoArgs,
   canFail: true,
@@ -804,12 +789,11 @@ await cliffySnapshotTest({
 })
 
 await cliffySnapshotTest({
-  name: "API Command - Silent Flag With HTTP Error",
+  name: "API Command - HTTP Error Output",
   meta: import.meta,
   colors: false,
   args: [
     "query BadQuery { nonexistent { id } }",
-    "--silent",
   ],
   denoArgs,
   canFail: true,
@@ -842,13 +826,13 @@ await cliffySnapshotTest({
 })
 
 await cliffySnapshotTest({
-  name: "API Command - Variable Coercion Preserves Leading Zeros",
+  name: "API Command - JSON String Preserves Leading Zeros",
   meta: import.meta,
   colors: false,
   args: [
     "query GetIssue($id: String!) { issue(id: $id) { title } }",
-    "--variable",
-    "id=007",
+    "--variables-json",
+    '{"id":"007"}',
   ],
   denoArgs,
   async fn() {
@@ -879,13 +863,13 @@ await cliffySnapshotTest({
 })
 
 await cliffySnapshotTest({
-  name: "API Command - Variable Coercion Preserves Scientific Notation",
+  name: "API Command - JSON String Preserves Scientific Notation",
   meta: import.meta,
   colors: false,
   args: [
     "query GetIssue($id: String!) { issue(id: $id) { title } }",
-    "--variable",
-    "id=1e5",
+    "--variables-json",
+    '{"id":"1e5"}',
   ],
   denoArgs,
   async fn() {
@@ -1007,43 +991,23 @@ await cliffySnapshotTest({
 })
 
 await cliffySnapshotTest({
-  name: "API Command - Variable Overrides Variables JSON",
+  name: "API Command - Conflicting Variable Selectors",
   meta: import.meta,
   colors: false,
   args: [
     "query GetIssues($first: Int!, $active: Boolean!) { issues(first: $first, filter: { active: $active }) { nodes { title } } }",
     "--variables-json",
     '{"first": 10, "active": false}',
-    "--variable",
-    "first=5",
+    "--variables-file",
+    "/nonexistent/path.json",
   ],
   denoArgs,
+  canFail: true,
   async fn() {
-    const server = new MockLinearServer([
-      {
-        queryName: "GetIssues",
-        variables: { first: 5, active: false },
-        response: {
-          data: {
-            issues: {
-              nodes: [
-                { title: "Issue One" },
-              ],
-            },
-          },
-        },
-      },
-    ])
-
     try {
-      await server.start()
-      Deno.env.set("LINEAR_GRAPHQL_ENDPOINT", server.getEndpoint())
       Deno.env.set("LINEAR_API_KEY", "Bearer test-token")
-
       await apiCommand.parse()
     } finally {
-      await server.stop()
-      Deno.env.delete("LINEAR_GRAPHQL_ENDPOINT")
       Deno.env.delete("LINEAR_API_KEY")
     }
   },

@@ -12,12 +12,24 @@ async function run(
   transport: typeof fetch,
   existing?: string,
   source = assetUrl,
+  forbidCredentials = false,
 ) {
   const dir = await Deno.makeTempDir()
   const path = join(dir, "asset.bin")
   if (existing != null) await Deno.writeTextFile(path, existing)
   const previousKey = Deno.env.get("LINEAR_API_KEY")
   Deno.env.set("LINEAR_API_KEY", "download-test-secret")
+  let credentialReads = 0
+  const getEnv = Deno.env.get.bind(Deno.env)
+  using _env = stub(Deno.env, "get", (name: string) => {
+    if (name === "LINEAR_API_KEY") {
+      credentialReads++
+      if (forbidCredentials) {
+        throw new Error("Private credentials must not be resolved")
+      }
+    }
+    return getEnv(name)
+  })
   const logs: string[] = []
   const errors: string[] = []
   const exit = new Error("test exit")
@@ -61,6 +73,7 @@ async function run(
       files,
       content,
       path,
+      credentialReads,
     }
   } finally {
     if (previousKey == null) Deno.env.delete("LINEAR_API_KEY")
@@ -100,6 +113,7 @@ Deno.test("download CLI verifies bytes and strips credentials on storage redirec
     },
   )
   assertEquals(requests, 2)
+  assertEquals(result.credentialReads, 1)
   assertEquals(result.code, 0)
   assertEquals(result.stderr, "")
   assertEquals(result.content, "abc")
@@ -110,6 +124,53 @@ Deno.test("download CLI verifies bytes and strips credentials on storage redirec
     size: 3,
     sha256: abcHash,
   })
+})
+
+Deno.test("public download never resolves credentials or sends Authorization, including redirects back to private origin", async () => {
+  const source = "https://public.linear.app/asset"
+  let calls = 0
+  const result = await run(
+    ["--sha256", abcHash],
+    (input, init) => {
+      assertEquals(new Headers(init?.headers).has("authorization"), false)
+      assertEquals(init?.redirect, "manual")
+      calls++
+      if (calls === 1) {
+        assertEquals(String(input), source)
+        return Promise.resolve(
+          new Response(null, { status: 302, headers: { location: assetUrl } }),
+        )
+      }
+      assertEquals(String(input), assetUrl)
+      return Promise.resolve(new Response("abc"))
+    },
+    undefined,
+    source,
+    true,
+  )
+  assertEquals(result.credentialReads, 0)
+  assertEquals(calls, 2)
+  assertEquals(result.code, 0, result.stderr)
+  assertEquals(result.content, "abc")
+  assertEquals(JSON.parse(result.stdout).sha256, abcHash)
+})
+
+Deno.test("private same-origin redirects also strip Authorization", async () => {
+  let calls = 0
+  const result = await run([], (_input, init) => {
+    calls++
+    assertEquals(
+      new Headers(init?.headers).get("authorization"),
+      calls === 1 ? "download-test-secret" : null,
+    )
+    return Promise.resolve(
+      calls === 1
+        ? new Response(null, { status: 307, headers: { location: "/other" } })
+        : new Response("abc"),
+    )
+  })
+  assertEquals(calls, 2)
+  assertEquals(result.code, 0, result.stderr)
 })
 
 Deno.test("download CLI mismatch fails without publishing a file", async () => {
@@ -228,6 +289,10 @@ Deno.test("download CLI refuses spoofed or insecure asset URLs before authentica
       "https://example.com/uploads.linear.app/asset",
       "https://user:secret@uploads.linear.app/asset",
       "https://uploads.linear.app:444/asset",
+      "http://public.linear.app/asset",
+      "https://public.linear.app.example.com/asset",
+      "https://user:secret@public.linear.app/asset",
+      "https://public.linear.app:444/asset",
     ]
   ) {
     const result = await run(
@@ -237,8 +302,10 @@ Deno.test("download CLI refuses spoofed or insecure asset URLs before authentica
       },
       undefined,
       url,
+      true,
     )
     assertEquals(result.code, 1)
+    assertEquals(result.credentialReads, 0)
     assertEquals(result.stdout, "")
     assertStringIncludes(result.stderr, "Expected an HTTPS uploads.linear.app")
     assertEquals(result.files, [])

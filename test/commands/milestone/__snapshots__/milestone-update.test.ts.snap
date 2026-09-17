@@ -3,13 +3,13 @@ export const snapshot = {};
 snapshot[`Milestone Update Command - Help Text 1`] = `
 stdout:
 "
-Usage: update <id>
+Usage: update <milestoneId>
 
 Writes: true
 
 Description:
 
-  Update an existing project milestone
+  Update an existing project milestone by UUID
 
 Options:
 
@@ -17,7 +17,7 @@ Options:
   --name          <name>         - Milestone name                                                                        
   --description   <description>  - Milestone description; empty string clears it                                         
   --target-date   <date>         - Target date (YYYY-MM-DD)                                                              
-  --sort-order    <value>        - Sort order relative to other milestones                                               
+  --sort-order    <order>        - Sort order relative to other milestones                                               
   --project       <project>      - Move to a different project (UUID, slug ID, or name)                                  
   -j, --json                     - Output the write result as JSON                                                       
   --base-file     <path>         - Saved view --json output from before editing; compare original values before writing  

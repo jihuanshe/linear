@@ -50,7 +50,7 @@ const GetMilestoneDetails = gql(`
 export const viewCommand = new Command()
   .name("view")
   .description(
-    "View milestone details. By default lists the first " +
+    "View milestone details by UUID, or by name with --project. By default lists the first " +
       LIST_PREVIEW +
       " attached issues from the first page of " + PAGE_SIZE +
       "; use --all to paginate the full set.",

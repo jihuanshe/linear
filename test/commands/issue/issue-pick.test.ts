@@ -46,7 +46,7 @@ Deno.test("Issue Pick Command - Does Not Require Sort Config", async () => {
         },
       },
     },
-  ], { LINEAR_TEAM_ID: "ENG", NO_COLOR: "true" })
+  ], { LINEAR_TEAM_KEY: "ENG", NO_COLOR: "true" })
 
   const errorLogs: string[] = []
   const errorStub = stub(console, "error", (...args: unknown[]) => {
@@ -90,7 +90,7 @@ Deno.test("Issue Pick Command - selection prints one identifier and performs no 
         },
       },
     },
-  ], { LINEAR_TEAM_ID: "ENG" })
+  ], { LINEAR_TEAM_KEY: "ENG" })
   const { Select } = await import("../../../src/utils/prompt.ts")
   const logs: string[] = []
   const prompt = stub(Select, "prompt", (options) => {

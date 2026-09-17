@@ -3,25 +3,23 @@ export const snapshot = {};
 snapshot[`Document Delete Command - Help Text 1`] = `
 stdout:
 "
-Usage: delete [documentId]
+Usage: delete [document]
 
-Writes: true                       
-Interactive: true                  
-Confirmation required unless: --yes
-Output modes: human,json           
+Writes: true     
+Interactive: true
 
 Description:
 
-  Delete a document (moves to trash)
+  Delete a document by UUID or slug ID (moves to trash); requires an explicit document or bulk input
 
 Options:
 
-  -h, --help              - Show this help.                                     
-  --json                  - Output a JSON write result                          
-  -y, --yes               - Skip confirmation prompt                            
-  --bulk        <ids...>  - Delete multiple documents by slug or ID             
-  --bulk-file   <file>    - Read document slugs/IDs from a file (one per line)  
-  --bulk-stdin            - Read document slugs/IDs from stdin                  
+  -h, --help                    - Show this help.                                                                             
+  --json                        - Output a JSON write result                                                                  
+  -y, --yes                     - Skip confirmation prompt                                                                    
+  --bulk        <documents...>  - Delete multiple documents by UUID or slug ID                                                
+  --bulk-file   <path>          - Read whitespace/comma-separated document UUIDs or slugs from a file (no names with spaces)  
+  --bulk-stdin                  - Read whitespace/comma-separated document UUIDs or slugs from stdin (no names with spaces)   
 
 "
 stderr:
@@ -58,7 +56,7 @@ snapshot[`Document Delete Command - Missing ID 1`] = `
 stdout:
 ""
 stderr:
-"✗ Failed to delete document: Document ID required
+"✗ Failed to delete document: Document UUID or slug ID required
   Use --bulk for multiple documents.
 "
 `;

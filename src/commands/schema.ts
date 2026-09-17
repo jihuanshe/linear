@@ -21,8 +21,8 @@ export const schemaCommand = new Command()
     "Fetch the public schema without sending credentials",
   )
   .option(
-    "-o, --output <file:string>",
-    "Write schema to file instead of stdout",
+    "-o, --output <path:string>",
+    "Write schema to file (with --json, leave stdout empty on success)",
   )
   .action(async (options) => {
     try {
@@ -46,7 +46,7 @@ export const schemaCommand = new Command()
 
       if (output) {
         await Deno.writeTextFile(output, content + "\n")
-        console.log(`Schema written to ${output}`)
+        if (!json) console.log(`Schema written to ${output}`)
       } else {
         console.log(content)
       }
