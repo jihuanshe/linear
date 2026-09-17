@@ -78,11 +78,13 @@ export function isIssueBlocked(issue: {
   return false
 }
 
-export type IssueRelationType =
-  | "blocks"
-  | "blocked-by"
-  | "related"
-  | "duplicate"
+export const ISSUE_RELATION_TYPES = [
+  "blocks",
+  "blocked-by",
+  "related",
+  "duplicate",
+] as const
+export type IssueRelationType = (typeof ISSUE_RELATION_TYPES)[number]
 
 export interface IssueRelationRequest {
   type: IssueRelationType
@@ -315,14 +317,14 @@ export function planIssueRelations(
   })
 }
 
-export function formatIssueIdentifier(providedId: string): string {
-  return normalizeIssueIdentifier(providedId) ?? providedId.toUpperCase()
+export function formatIssueIdentifier(identifier: string): string {
+  return normalizeIssueIdentifier(identifier) ?? identifier.toUpperCase()
 }
 
 export function getTeamKey(): string | undefined {
-  const teamId = getOption("team_id")
-  if (teamId) {
-    return teamId.toUpperCase()
+  const teamKey = getOption("team_key")
+  if (teamKey) {
+    return teamKey.toUpperCase()
   }
   return undefined
 }
@@ -331,16 +333,18 @@ export function getTeamKey(): string | undefined {
  * Resolves an Issue reference: UUID, identifier, or canonical Linear URL.
  * A numeric reference uses the configured team key; omitted input uses VCS context.
  */
-export async function getIssueIdentifier(
-  providedId?: string,
+export async function getIssueReference(
+  providedReference?: string,
 ): Promise<string | undefined> {
-  if (providedId && isLinearUuid(providedId)) return providedId.toLowerCase()
-  if (providedId) {
-    const normalizedIdentifier = normalizeIssueIdentifier(providedId)
+  if (providedReference && isLinearUuid(providedReference)) {
+    return providedReference.toLowerCase()
+  }
+  if (providedReference) {
+    const normalizedIdentifier = normalizeIssueIdentifier(providedReference)
     if (normalizedIdentifier) {
       return normalizedIdentifier
     }
-    const reference = parseLinearIssueUrl(providedId)
+    const reference = parseLinearIssueUrl(providedReference)
     if (reference) {
       if (reference.workspace != null) {
         const query = gql(`
@@ -367,26 +371,26 @@ export async function getIssueIdentifier(
     }
   }
 
-  if (providedId && /^[1-9][0-9]*$/.test(providedId)) {
-    const teamId = getTeamKey()
-    if (teamId) {
-      return normalizeIssueIdentifier(`${teamId}-${providedId}`)
+  if (providedReference && /^[1-9][0-9]*$/.test(providedReference)) {
+    const teamKey = getTeamKey()
+    if (teamKey) {
+      return normalizeIssueIdentifier(`${teamKey}-${providedReference}`)
     }
 
     throw new ValidationError(
-      "an integer id was provided, but no team is set",
+      "An issue number was provided, but no team is set",
       { suggestion: "Run `linear config` to set a team." },
     )
   }
 
-  if (providedId === undefined) {
-    const issueId = await getCurrentIssueFromVcs()
-    return issueId || undefined
+  if (providedReference === undefined) {
+    const identifier = await getCurrentIssueFromVcs()
+    return identifier || undefined
   }
 }
 
 export async function getIssueId(
-  identifier: string,
+  reference: string,
 ): Promise<string | undefined> {
   const query = gql(/* GraphQL */ `
     query GetIssueId($id: String!) {
@@ -397,10 +401,10 @@ export async function getIssueId(
   `)
 
   const client = getGraphQLClient()
-  const data = await client.request(query, { id: identifier })
+  const data = await client.request(query, { id: reference })
   if (
-    isLinearUuid(identifier) &&
-    data.issue?.id?.toLowerCase() !== identifier.toLowerCase()
+    isLinearUuid(reference) &&
+    data.issue?.id?.toLowerCase() !== reference.toLowerCase()
   ) {
     throw new ValidationError(
       "Issue lookup returned a different stable identity",
@@ -410,16 +414,16 @@ export async function getIssueId(
 }
 
 /** Resolve a required Issue UUID using the shared not-found error contract. */
-export async function requireIssueId(identifier: string): Promise<string> {
-  const id = await getIssueId(identifier).catch(
-    handleNotFound("Issue", identifier),
+export async function requireIssueId(reference: string): Promise<string> {
+  const id = await getIssueId(reference).catch(
+    handleNotFound("Issue", reference),
   )
-  if (!id) throw new NotFoundError("Issue", identifier)
+  if (!id) throw new NotFoundError("Issue", reference)
   return id
 }
 
 export async function getWorkflowStates(
-  teamKey: string,
+  teamReference: string,
 ) {
   const query = gql(/* GraphQL */ `
     query GetWorkflowStates($teamKey: String!) {
@@ -437,7 +441,7 @@ export async function getWorkflowStates(
   `)
 
   const client = getGraphQLClient()
-  const result = await client.request(query, { teamKey })
+  const result = await client.request(query, { teamKey: teamReference })
   return result.team.states.nodes.sort(
     (a: { position: number }, b: { position: number }) =>
       a.position - b.position,
@@ -701,7 +705,7 @@ const issueAttachmentsQuery = gql(/* GraphQL */ `
 `)
 
 export async function fetchIssueComments(
-  issueId: string,
+  issueReference: string,
   limit = 0,
   initial?: GetIssueDetailsWithCommentsQuery["issue"]["comments"],
 ) {
@@ -710,17 +714,17 @@ export async function fetchIssueComments(
     first = limit > 0 ? Math.min(100, limit) : 100,
   ) => {
     const result = await getGraphQLClient().request(issueCommentsQuery, {
-      id: issueId,
+      id: issueReference,
       first,
       after,
     })
-    if (result.issue == null) throw new NotFoundError("Issue", issueId)
+    if (result.issue == null) throw new NotFoundError("Issue", issueReference)
     return result.issue.comments
   }
   return await completeConnection(
     initial ?? await fetchPage(),
     fetchPage,
-    `comments for ${issueId}`,
+    `comments for ${issueReference}`,
     limit,
   )
 }
@@ -741,31 +745,31 @@ async function completeIssueAttachments(
 }
 
 export function fetchIssueDetailsRaw(
-  issueId: string,
+  issueReference: string,
   includeComments: true,
   complete?: boolean,
 ): Promise<GetIssueDetailsWithCommentsQuery>
 export function fetchIssueDetailsRaw(
-  issueId: string,
+  issueReference: string,
   includeComments?: false,
   complete?: boolean,
 ): Promise<GetIssueDetailsQuery>
 export function fetchIssueDetailsRaw(
-  issueId: string,
+  issueReference: string,
   includeComments: boolean,
   complete?: boolean,
 ): Promise<GetIssueDetailsWithCommentsQuery | GetIssueDetailsQuery>
 export async function fetchIssueDetailsRaw(
-  issueId: string,
+  issueReference: string,
   includeComments = false,
   complete = false,
 ) {
   const client = getGraphQLClient()
   if (includeComments) {
     const data = await client.request(issueDetailsWithCommentsQuery, {
-      id: issueId,
+      id: issueReference,
     })
-    if (data.issue == null) throw new NotFoundError("Issue", issueId)
+    if (data.issue == null) throw new NotFoundError("Issue", issueReference)
     if (!complete) return data
     const [comments, attachments, labels] = await Promise.all([
       fetchIssueComments(data.issue.id, 0, data.issue.comments),
@@ -774,8 +778,8 @@ export async function fetchIssueDetailsRaw(
     ])
     return { ...data, issue: { ...data.issue, comments, attachments, labels } }
   }
-  const data = await client.request(issueDetailsQuery, { id: issueId })
-  if (data.issue == null) throw new NotFoundError("Issue", issueId)
+  const data = await client.request(issueDetailsQuery, { id: issueReference })
+  if (data.issue == null) throw new NotFoundError("Issue", issueReference)
   if (!complete) return data
   const [attachments, labels] = await Promise.all([
     completeIssueAttachments(data.issue.id, data.issue.attachments),
@@ -971,12 +975,12 @@ function buildWorkflowStateFilter(
 interface IssueFilterOptions {
   teamKeys?: string[]
   allTeams?: boolean
-  state?: string[]
+  stateTypes?: string[]
   stateNames?: string[]
   assignee?: string
   unassigned?: boolean
   projectId?: string
-  noProject?: boolean
+  unprojected?: boolean
   projectLabel?: string
   cycleId?: string
   milestoneId?: string
@@ -1180,7 +1184,7 @@ async function buildIssueFilter(
   }
 
   const stateFilter = buildWorkflowStateFilter(
-    options.state,
+    options.stateTypes,
     options.stateNames,
   )
   if (stateFilter != null) filter.state = stateFilter
@@ -1200,7 +1204,7 @@ async function buildIssueFilter(
 
   if (options.projectId) {
     filter.project = { id: { eq: options.projectId } }
-  } else if (options.noProject) {
+  } else if (options.unprojected) {
     filter.project = { null: true }
   } else if (options.projectLabel) {
     filter.project = {
@@ -1505,7 +1509,7 @@ export function isLinearUuid(value: string): boolean {
  * Returns undefined when no project matches. Use [[resolveProjectId]] when
  * you want a missing project to throw.
  */
-export async function getProjectIdByName(
+export async function lookupProjectId(
   input: string,
   includeArchived?: boolean,
 ): Promise<string | undefined> {
@@ -1590,7 +1594,7 @@ function uniqueLookupId(
 export async function resolveProjectId(
   input: string,
 ): Promise<string> {
-  const projectId = await getProjectIdByName(input)
+  const projectId = await lookupProjectId(input)
   if (!projectId) {
     throw new NotFoundError("Project", input, {
       suggestion:
@@ -1746,12 +1750,12 @@ export async function lookupUserId(
   return undefined
 }
 
-export async function getIssueLabelIdByNameForTeam(
-  name: string,
+export async function lookupIssueLabelIdForTeam(
+  reference: string,
   team: string,
 ): Promise<string | undefined> {
   const client = getGraphQLClient()
-  if (isLinearUuid(name)) {
+  if (isLinearUuid(reference)) {
     const byId = gql(`
       query GetIssueLabelForWrite($id: ID!) {
         issueLabels(first: 2, filter: { id: { eq: $id } }) {
@@ -1760,11 +1764,11 @@ export async function getIssueLabelIdByNameForTeam(
         }
       }
     `)
-    const data = await client.request(byId, { id: name.toLowerCase() })
-    const id = uniqueLookupId(data?.issueLabels, name, "Issue label")
+    const data = await client.request(byId, { id: reference.toLowerCase() })
+    const id = uniqueLookupId(data?.issueLabels, reference, "Issue label")
     if (id == null) return undefined
     const label = data.issueLabels.nodes[0]!
-    if (id.toLowerCase() !== name.toLowerCase()) {
+    if (id.toLowerCase() !== reference.toLowerCase()) {
       throw new CliError("Issue label lookup returned a different identity")
     }
     if (
@@ -1802,8 +1806,8 @@ export async function getIssueLabelIdByNameForTeam(
   const scope = isLinearUuid(team)
     ? { id: { eq: team } }
     : { key: { eq: team } }
-  const data = await client.request(query, { name, team: scope })
-  return uniqueLookupId(data?.issueLabels, name, "Issue label")
+  const data = await client.request(query, { name: reference, team: scope })
+  return uniqueLookupId(data?.issueLabels, reference, "Issue label")
 }
 
 /** Resolve reference lists together, preserving each list's first-input ID order. */
@@ -1824,7 +1828,7 @@ export async function resolveIssueLabelIdsForTeam(
   }
   const resolvedIds = new Map<string, string>()
   for (const reference of references) {
-    const labelId = await getIssueLabelIdByNameForTeam(reference, teamReference)
+    const labelId = await lookupIssueLabelIdForTeam(reference, teamReference)
     if (labelId == null) throw new NotFoundError("Issue label", reference)
     resolvedIds.set(reference, labelId.toLowerCase())
   }
@@ -1836,19 +1840,19 @@ export async function resolveIssueLabelIdsForTeam(
   })
 }
 
-export async function getProjectLabelIdByName(
-  name: string,
+export async function lookupProjectLabelId(
+  reference: string,
 ): Promise<string | undefined> {
   const client = getGraphQLClient()
-  if (isLinearUuid(name)) {
+  if (isLinearUuid(reference)) {
     const byId = gql(`
       query GetProjectLabelForWrite($id: String!) {
         projectLabel(id: $id) { id isGroup }
       }
     `)
-    const data = await client.request(byId, { id: name.toLowerCase() })
+    const data = await client.request(byId, { id: reference.toLowerCase() })
     if (data?.projectLabel == null) return undefined
-    if (data.projectLabel.id?.toLowerCase() !== name.toLowerCase()) {
+    if (data.projectLabel.id?.toLowerCase() !== reference.toLowerCase()) {
       throw new CliError("Project label lookup returned a different identity")
     }
     if (data.projectLabel.isGroup) {
@@ -1864,8 +1868,8 @@ export async function getProjectLabelIdByName(
       }
     }
   `)
-  const data = await client.request(query, { name })
-  return uniqueLookupId(data?.projectLabels, name, "Project label")
+  const data = await client.request(query, { name: reference })
+  return uniqueLookupId(data?.projectLabels, reference, "Project label")
 }
 
 export async function getIssueLabelOptionsByNameForTeam(

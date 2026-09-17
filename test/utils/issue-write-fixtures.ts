@@ -94,7 +94,7 @@ export async function setupIssueWriteServer(
   for (const response of responses) {
     if (response.queryName !== "GetTeamIdByKey") continue
     const key = String(
-      response.variables?.team ?? envVars?.LINEAR_TEAM_ID ?? "ENG",
+      response.variables?.team ?? envVars?.LINEAR_TEAM_KEY ?? "ENG",
     )
     fixtures.push({
       queryName: "GetWriteTeamByKey",

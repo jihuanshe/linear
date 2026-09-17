@@ -11,14 +11,14 @@ Description:
 
 Options:
 
-  -h, --help             - Show this help.               
-  --team       <team>    - Filter by team key            
-  --all-teams            - Show projects from all teams  
-  --status     <status>  - Filter by status name         
-  -w, --web              - Open in web browser           
-  -a, --app              - Open in Linear.app            
-  -j, --json             - Output as JSON                
-  --limit      <limit>   - Limit results                 
+  -h, --help              - Show this help.                                                       
+  --team         <key>    - Filter by team key                                                    
+  --all-teams             - Show projects from all teams                                          
+  --status-name  <name>   - Filter by exact status name                                           
+  -w, --web               - Open in web browser                                                   
+  -a, --app               - Open in Linear.app                                                    
+  -j, --json              - Output as JSON                                                        
+  --limit        <limit>  - Maximum results (non-negative integer; 0 or omitted means unlimited)  
 
 "
 stderr:

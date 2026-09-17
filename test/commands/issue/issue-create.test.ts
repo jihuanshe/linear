@@ -74,7 +74,7 @@ for (const outcome of ["missing", "ambiguous", "unauthorized", "unavailable"]) {
         },
       },
     ], {
-      LINEAR_TEAM_ID: "OLD",
+      LINEAR_TEAM_KEY: "OLD",
       LINEAR_ISSUE_CREATE_ASSIGN_SELF: "never",
       LINEAR_ISSUE_CREATE_ASK_PROJECT: "false",
     })
@@ -247,7 +247,7 @@ for (
           },
         },
       },
-    ], { LINEAR_TEAM_ID: "ENG", LINEAR_ISSUE_CREATE_ASSIGN_SELF: "always" })
+    ], { LINEAR_TEAM_KEY: "ENG", LINEAR_ISSUE_CREATE_ASSIGN_SELF: "always" })
     const stdin = stub(
       Object.getPrototypeOf(Deno.stdin),
       "isTerminal",
@@ -409,7 +409,7 @@ Deno.test("create CLI preserves a legal explicit empty description", async () =>
         },
       },
     },
-  ], { LINEAR_TEAM_ID: "ENG", LINEAR_ISSUE_CREATE_ASSIGN_SELF: "never" })
+  ], { LINEAR_TEAM_KEY: "ENG", LINEAR_ISSUE_CREATE_ASSIGN_SELF: "never" })
   try {
     const result = await new Deno.Command(Deno.execPath(), {
       args: [
@@ -460,7 +460,7 @@ Deno.test("Issue Create Command - JSON receipt includes the server title in data
       queryName: "CreateIssue",
       response: { data: { issueCreate: { success: true, issue } } },
     },
-  ], { LINEAR_TEAM_ID: "ENG", LINEAR_ISSUE_CREATE_ASSIGN_SELF: "never" })
+  ], { LINEAR_TEAM_KEY: "ENG", LINEAR_ISSUE_CREATE_ASSIGN_SELF: "never" })
   try {
     const result = await new Deno.Command(Deno.execPath(), {
       args: [
@@ -518,7 +518,7 @@ for (
 ) {
   Deno.test(`interactive create rejects explicit blank options ${JSON.stringify(args)} before prompts or defaults`, async () => {
     const { server, cleanup } = await setupMockLinearServer([], {
-      LINEAR_TEAM_ID: "ENG",
+      LINEAR_TEAM_KEY: "ENG",
       LINEAR_ISSUE_CREATE_ASSIGN_SELF: "always",
     })
     const stdout = stub(
@@ -591,7 +591,7 @@ for (const outcome of ["found", "missing", "error"] as const) {
           },
         },
       },
-    ], { LINEAR_TEAM_ID: "ENG", LINEAR_ISSUE_CREATE_ASSIGN_SELF: "always" })
+    ], { LINEAR_TEAM_KEY: "ENG", LINEAR_ISSUE_CREATE_ASSIGN_SELF: "always" })
     const logs: string[] = []
     const logStub = stub(console, "log", () => {})
     const errorStub = stub(
@@ -738,7 +738,7 @@ await snapshotTest({
           },
         },
       },
-    ], { LINEAR_TEAM_ID: "ENG" })
+    ], { LINEAR_TEAM_KEY: "ENG" })
 
     try {
       await createCommand.parse()
@@ -797,7 +797,7 @@ await snapshotTest({
           },
         },
       },
-      // Mock response for getProjectIdByName()
+      // Mock response for lookupProjectId()
       {
         queryName: "GetProjectIdByName",
         variables: { name: "My Project" },
@@ -847,7 +847,7 @@ await snapshotTest({
           },
         },
       },
-    ], { LINEAR_TEAM_ID: "ENG" })
+    ], { LINEAR_TEAM_KEY: "ENG" })
 
     try {
       await createCommand.parse()
@@ -887,7 +887,7 @@ await snapshotTest({
           },
         },
       },
-      // Mock response for getIssueLabelIdByNameForTeam("BUG", "ENG") - case insensitive
+      // Mock response for lookupIssueLabelIdForTeam("BUG", "ENG") - case insensitive
       {
         queryName: "GetIssueLabelIdByNameForTeam",
         variables: { name: "BUG", team: { id: { eq: teamWriteIds.ENG } } },
@@ -922,7 +922,7 @@ await snapshotTest({
           },
         },
       },
-    ], { LINEAR_TEAM_ID: "ENG" })
+    ], { LINEAR_TEAM_KEY: "ENG" })
 
     try {
       await createCommand.parse()
@@ -997,7 +997,7 @@ await snapshotTest({
           },
         },
       },
-    ], { LINEAR_TEAM_ID: "ENG" })
+    ], { LINEAR_TEAM_KEY: "ENG" })
 
     try {
       await createCommand.parse()
@@ -1101,7 +1101,7 @@ await snapshotTest({
           },
         },
       },
-    ], { LINEAR_TEAM_ID: "ENG" })
+    ], { LINEAR_TEAM_KEY: "ENG" })
 
     try {
       await createCommand.parse()
@@ -1217,7 +1217,7 @@ Deno.test("Issue Create Command - Explicit Project Still Uses Interactive Mode",
         },
       },
     },
-  ], { LINEAR_TEAM_ID: "ENG" })
+  ], { LINEAR_TEAM_KEY: "ENG" })
 
   const stdoutTerminalStub = stub(
     Object.getPrototypeOf(Deno.stdout),
@@ -1371,7 +1371,7 @@ Deno.test("Issue Create Command - Interactive Project Prompt Uses Team Projects"
       },
     },
   ], {
-    LINEAR_TEAM_ID: "ENG",
+    LINEAR_TEAM_KEY: "ENG",
     LINEAR_ISSUE_CREATE_ASK_PROJECT: "true",
   })
 
@@ -1532,7 +1532,7 @@ Deno.test("Issue Create Command - Additional Fields Can Set Project", async () =
         },
       },
     },
-  ], { LINEAR_TEAM_ID: "ENG" })
+  ], { LINEAR_TEAM_KEY: "ENG" })
 
   const stdoutTerminalStub = stub(
     Object.getPrototypeOf(Deno.stdout),
@@ -1610,7 +1610,7 @@ for (const mode of ["flags", "interactive"] as const) {
         variables: { id: "ENG-123" },
         response: { errors: [{ message: "Parent project read failed" }] },
       },
-    ], { LINEAR_TEAM_ID: "ENG" })
+    ], { LINEAR_TEAM_KEY: "ENG" })
     const terminalStub = stub(
       Object.getPrototypeOf(Deno.stdout),
       "isTerminal",
@@ -1733,7 +1733,7 @@ Deno.test("Issue Create Command - Inherits Parent Project When Project Not Set",
         },
       },
     },
-  ], { LINEAR_TEAM_ID: "ENG" })
+  ], { LINEAR_TEAM_KEY: "ENG" })
 
   try {
     await createCommand.parse([
@@ -1838,7 +1838,7 @@ Deno.test("Issue Create Command - Explicit Project Overrides Parent Project", as
         },
       },
     },
-  ], { LINEAR_TEAM_ID: "ENG" })
+  ], { LINEAR_TEAM_KEY: "ENG" })
 
   try {
     await createCommand.parse([
@@ -1924,7 +1924,7 @@ Deno.test("Issue Create Command - Invalid Parent Project Combination Surfaces Ba
         }],
       },
     },
-  ], { LINEAR_TEAM_ID: "ENG" })
+  ], { LINEAR_TEAM_KEY: "ENG" })
 
   const errors: string[] = []
   const errorStub = stub(console, "error", (...args: unknown[]) => {
@@ -2016,7 +2016,7 @@ Deno.test("Issue Create Command - Config Can Assign Self By Default", async () =
       },
     },
   ], {
-    LINEAR_TEAM_ID: "ENG",
+    LINEAR_TEAM_KEY: "ENG",
     LINEAR_ISSUE_CREATE_ASSIGN_SELF: "always",
   })
 
@@ -2109,7 +2109,7 @@ Deno.test("Issue Create Command - Auto Assign Mode Respects Linear User Setting 
         },
       },
     },
-  ], { LINEAR_TEAM_ID: "ENG" })
+  ], { LINEAR_TEAM_KEY: "ENG" })
 
   const stdoutTerminalStub = stub(
     Object.getPrototypeOf(Deno.stdout),
@@ -2234,7 +2234,7 @@ Deno.test("Issue Create Command - Explicit Assignee Overrides Config Self Assign
       },
     },
   ], {
-    LINEAR_TEAM_ID: "ENG",
+    LINEAR_TEAM_KEY: "ENG",
     LINEAR_ISSUE_CREATE_ASSIGN_SELF: "always",
   })
 
@@ -2321,7 +2321,7 @@ Deno.test("Issue Create Command - Interactive Assignee Can Override Config Self 
       },
     },
   ], {
-    LINEAR_TEAM_ID: "ENG",
+    LINEAR_TEAM_KEY: "ENG",
     LINEAR_ISSUE_CREATE_ASSIGN_SELF: "always",
   })
 
@@ -2443,7 +2443,7 @@ await snapshotTest({
           },
         },
       },
-    ], { LINEAR_TEAM_ID: "ENG" })
+    ], { LINEAR_TEAM_KEY: "ENG" })
 
     try {
       await createCommand.parse()

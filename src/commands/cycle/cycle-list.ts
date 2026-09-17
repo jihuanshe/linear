@@ -52,17 +52,20 @@ function formatDate(dateString: string): string {
 export const listCommand = new Command()
   .name("list")
   .description("List cycles for a team")
-  .option("--team <team:string>", "Team key (defaults to current team)")
+  .option(
+    "--team <team:string>",
+    "Team UUID or key (defaults to the configured team)",
+  )
   .action(async ({ team }) => {
     try {
-      const teamKey = team || getTeamKey()
-      if (!teamKey) {
+      const teamReference = team || getTeamKey()
+      if (!teamReference) {
         throw new ValidationError(
-          "Could not determine team key from directory name or team flag",
+          "No default team configured; specify --team with a team UUID or key, or run `linear config` to set a default team",
         )
       }
 
-      const { id: teamId } = await resolveWriteTeam(teamKey)
+      const { id: teamId } = await resolveWriteTeam(teamReference)
 
       const { Spinner } = await import("@std/cli/unstable-spinner")
       const showSpinner = shouldShowSpinner()

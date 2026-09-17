@@ -46,7 +46,7 @@ Deno.test("Issue Delete Command - Accepts UUID For A Single Issue", async () => 
     logs.push(args.join(" "))
   })
   try {
-    await deleteCommand.parse([issue.id, "--confirm"])
+    await deleteCommand.parse([issue.id, "--yes"])
     assertEquals(logs, ["✓ Successfully deleted issue: TARGET-42: Moved issue"])
     assertEquals(server.graphqlRequests[1].variables, { id: issue.id })
   } finally {
@@ -65,7 +65,7 @@ Deno.test("Issue Delete Command - Accepts UUID In Bulk Mode", async () => {
     errors.push(args.join(" "))
   })
   try {
-    await deleteCommand.parse(["--confirm", "--bulk", issue.id])
+    await deleteCommand.parse(["--yes", "--bulk", issue.id])
     assertEquals(errors, ["Found 1 issue(s) to delete."])
     assertEquals(logs, ["", "✓ Successfully deleted 1 issue"])
   } finally {
@@ -81,7 +81,7 @@ Deno.test("Issue delete resolves an old identifier once and deletes the stable U
     removed(),
   ])
   try {
-    const result = await runDelete(["OLD-123", "--confirm", "--json"])
+    const result = await runDelete(["OLD-123", "--yes", "--json"])
     assertEquals(result.code, 0, result.stdout + result.stderr)
     assertEquals(result.stderr, "")
     const output = JSON.parse(result.stdout)
@@ -111,7 +111,7 @@ for (
       removed(issue.id, payload),
     ])
     try {
-      const result = await runDelete([issue.id, "--confirm", "--json"])
+      const result = await runDelete([issue.id, "--yes", "--json"])
       assertEquals(result.code, 1)
       const output = JSON.parse(result.stdout)
       assertEquals(output.ok, false)
@@ -150,7 +150,7 @@ Deno.test("Bulk issue delete keeps confirmed receipts and stops before later iss
   try {
     const result = await runDelete([
       "--json",
-      "--confirm",
+      "--yes",
       "--bulk",
       issue.id,
       second.id,
@@ -190,7 +190,7 @@ Deno.test("Bulk issue delete does not turn a failed identity lookup into a delet
   try {
     const result = await runDelete([
       "--json",
-      "--confirm",
+      "--yes",
       "--bulk",
       "MISSING-1",
       issue.id,

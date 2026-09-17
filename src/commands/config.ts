@@ -143,7 +143,7 @@ export const configCommand = withUsageMetadata(new Command(), {
       const tomlContent = `# linear cli
 # https://github.com/jihuanshe/linear
 
-${stringify({ workspace, team_id: teamKey, issue_sort: sortChoice })}
+${stringify({ workspace, team_key: teamKey, issue_sort: sortChoice })}
 `
 
       await Deno.writeTextFile(filePath, tomlContent, { createNew: true })

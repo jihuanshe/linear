@@ -3,6 +3,7 @@ import { assertEquals, assertRejects, assertStringIncludes } from "@std/assert"
 import { stub } from "@std/testing/mock"
 import { createCommand } from "../../../src/commands/project/project-create.ts"
 import { Input, Select } from "../../../src/utils/prompt.ts"
+import { ValidationError } from "../../../src/utils/errors.ts"
 import {
   commonDenoArgs,
   setupMockLinearServer,
@@ -167,7 +168,7 @@ Deno.test("interactive project Team selection retains its UUID without resolving
         },
       },
     },
-  ], { LINEAR_TEAM_ID: "ENG" })
+  ], { LINEAR_TEAM_KEY: "ENG" })
   const stdin = stub(
     Object.getPrototypeOf(Deno.stdin),
     "isTerminal",
@@ -894,45 +895,27 @@ await cliffySnapshotTest({
   },
 })
 
-// Error-path coverage for the new create fields. These use a plain Deno.test with
-// a stubbed Deno.exit (handleError calls Deno.exit) and capture stderr, mirroring
-// the validation-error tests in issue-query.test.ts.
-
-// Invalid --priority is rejected before any network call.
+// Invalid --priority is rejected by the shared CLI type before action or transport.
 Deno.test("Project Create Command - rejects an invalid priority", async () => {
-  const errorLogs: string[] = []
-  const errorStub = stub(console, "error", (...args: unknown[]) => {
-    errorLogs.push(args.map(String).join(" "))
-  })
-  const exitStub = stub(Deno, "exit", (_code?: number) => {
-    throw new Error("EXIT")
-  })
-
-  let exited = false
+  const { server, cleanup } = await setupMockLinearServer([])
   try {
-    await createCommand.parse([
-      "--name",
-      "Proj",
-      "--team",
-      "ENG",
-      "--priority",
-      "highest",
-    ])
-  } catch (e) {
-    if (!(e instanceof Error) || e.message !== "EXIT") throw e
-    exited = true
+    await assertRejects(
+      () =>
+        createCommand.parse([
+          "--name",
+          "Proj",
+          "--team",
+          "ENG",
+          "--priority",
+          "highest",
+        ]),
+      ValidationError,
+      "Invalid priority: highest",
+    )
+    assertEquals(server.graphqlRequests, [])
   } finally {
-    errorStub.restore()
-    exitStub.restore()
+    await cleanup()
   }
-
-  // handleError ran and called Deno.exit (never returns normally)...
-  assertEquals(exited, true)
-  // ...with the priority validation message.
-  assertEquals(
-    errorLogs.some((l) => l.includes("Invalid priority: highest")),
-    true,
-  )
 })
 
 // An unknown --label is reported as a NotFoundError.

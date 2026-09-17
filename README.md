@@ -57,10 +57,10 @@ linear recipe doctor              # 示例的完整说明
 
 ## 使用示例
 
-读取可从 Git 分支名中的编号（如 `eng-123-fix-login`）或 Jujutsu 提交的 `Linear-issue` 尾注推断当前 Issue；写入须显式提供目标。`issue id` 可将当前工作上下文转换为编号：
+读取可从 Git 分支名中的编号（如 `eng-123-fix-login`）或 Jujutsu 提交的 `Linear-issue` 尾注推断当前 Issue；写入须显式提供目标。`issue identifier` 可将当前工作上下文转换为编号：
 
 ```bash
-linear issue query --team ENG --assignee self --state unstarted
+linear issue query --team ENG --assignee self --state-type unstarted
 linear issue query --search "login bug"
 linear issue view ENG-123
 linear issue pick
@@ -75,7 +75,7 @@ linear issue update ENG-123 --base-file original.json --state "In Progress"
 ```bash
 linear recipe doctor
 linear recipe doctor --source > doctor.js
-linear recipe doctor --json > doctor.json
+linear recipe doctor --json > doctor-recipe.json
 ```
 
 `--json` 返回 `name`、`description`、`filename`、`body` 和 `source`；`--source` 原样输出一个脚本。查看和导出不访问网络、不执行脚本，也不需要源码目录。执行导出的示例需要 Deno；具体依赖与失败处理由每份示例说明。源码中的[示例目录](recipes/README.md)供维护者阅读。
@@ -88,13 +88,13 @@ NO_COLOR=1 linear issue view ENG-123 --json >issue.json 2>error.log
 jq -e ' .organization.id and .issue.id ' issue.json >/dev/null
 ```
 
-`--json`（`-j`）是全局选项，可放在命令路径前后；不支持机器输出的命令会明确报错，不回退成人类文本。支持情况由 `usage --json` 的 `outputModes` 描述；`--no-pager` 仍以目标命令的 `--help` 为准。多行 Markdown 使用 `--description-file` 或 `--body-file`，避免 shell 引号改变正文。写命令、确认选项、`LINEAR_PROMPT_DISABLED=1` 和 JSON 输出都只描述执行机制，不构成用户授权。输出、网络等待和并发边界见 `linear guide automation`。
+`--json`（`-j`）是全局选项，可放在命令路径前后；不支持机器输出的命令会明确报错，不回退成人类文本。支持情况由 `usage --json` 的 `outputModes` 描述；`--no-pager` 仍以目标命令的 `--help` 为准。多行 Markdown 按目标字段使用 `--description-file`、`--body-file` 或 `--content-file`，避免 shell 引号改变正文。写命令、跳过确认的 `--yes`（`-y`）、`LINEAR_PROMPT_DISABLED=1` 和 JSON 输出都只描述执行机制，不构成用户授权。输出、网络等待和并发边界见 `linear guide automation`。
 
 普通更新直接用专用命令；组合多个执行项并需要记录恢复进度时，使用同一份交付清单：
 
 ```bash
 linear issue plan --file delivery.json
-linear issue apply --file delivery.json --confirm-workspace jihuanshe
+linear issue apply --file delivery.json --confirm-workspace acme
 ```
 
 `plan` 零写入；`apply` 共用单命令操作，在 mutation 前最后校验身份、文件和原始依据，并通过交付清单旁的执行账本保存逐项效果及回执。完整协议见 `linear guide issue-delivery`。

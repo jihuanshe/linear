@@ -9,7 +9,7 @@ export const downloadCommand = withUsageMetadata(
       "Download a Linear asset and verify its SHA-256\n\n" +
         "Accepts HTTPS uploads.linear.app and public.linear.app URLs. Public assets need no credentials; redirects never receive Linear credentials.",
     )
-    .arguments("<asset-url:string>")
+    .arguments("<assetUrl:string>")
     .option(
       "--output <path:string>",
       "New output file (parent directory must exist)",

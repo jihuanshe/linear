@@ -1,17 +1,17 @@
 import { Command } from "@cliffy/command"
-import { getIssueIdentifier } from "../../utils/linear.ts"
+import { getIssueReference } from "../../utils/linear.ts"
 import { handleError, ValidationError } from "../../utils/errors.ts"
 
-export const idCommand = new Command()
-  .name("id")
+export const identifierCommand = new Command()
+  .name("identifier")
   .description(
     "Print the issue identifier from the current Git or Jujutsu context",
   )
   .action(async (_) => {
     try {
-      const resolvedId = await getIssueIdentifier()
-      if (resolvedId) {
-        console.log(resolvedId)
+      const identifier = await getIssueReference()
+      if (identifier) {
+        console.log(identifier)
       } else {
         throw new ValidationError(
           "Could not determine issue identifier",

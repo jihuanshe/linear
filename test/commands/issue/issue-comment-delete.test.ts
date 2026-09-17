@@ -13,7 +13,7 @@ await snapshotTest({
   name: "Issue Comment Delete Command - Success",
   meta: import.meta,
   colors: false,
-  args: ["comment-uuid-123", "--confirm"],
+  args: ["comment-uuid-123", "--yes"],
   denoArgs: commonDenoArgs,
   async fn() {
     const { cleanup } = await setupMockLinearServer([
@@ -55,7 +55,7 @@ for (const success of [true, false]) {
           "comment",
           "delete",
           "comment-id",
-          "--confirm",
+          "--yes",
           "--json",
         ],
         stdout: "piped",
@@ -135,7 +135,7 @@ Deno.test("Issue Comment Delete Command - prompt disabled blocks deletion", asyn
     true,
   )
   assertEquals(
-    errorLogs.some((line) => line.includes("Use --confirm")),
+    errorLogs.some((line) => line.includes("Use --yes")),
     true,
   )
 })

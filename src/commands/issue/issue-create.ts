@@ -22,20 +22,21 @@ import { getGraphQLClient } from "../../utils/graphql.ts"
 import { getEditor, openEditor } from "../../utils/editor.ts"
 import { readTextSource } from "../../utils/text-source.ts"
 import { getPriorityDisplay } from "../../utils/display.ts"
+import { priorityType } from "../../utils/priority.ts"
 import {
   fetchParentIssueData,
   getAllTeams,
   getCycleIdByNameOrNumber,
-  getIssueIdentifier,
-  getIssueLabelIdByNameForTeam,
   getIssueLabelOptionsByNameForTeam,
+  getIssueReference,
   getLabelsForTeam,
-  getProjectIdByName,
   getProjectOptionsByName,
   getProjectsForTeam,
   getTeamKey,
   getWorkflowStates,
   isLinearUuid,
+  lookupIssueLabelIdForTeam,
+  lookupProjectId,
   lookupUserId,
   resolveIssueLabelIdsForTeam,
   resolveMilestoneId,
@@ -150,7 +151,7 @@ async function resolveProjectIdForCreate(
   project: string,
   interactive: boolean,
 ): Promise<string> {
-  let projectId = await getProjectIdByName(project)
+  let projectId = await lookupProjectId(project)
   if (projectId == null && interactive) {
     const projectIds = await getProjectOptionsByName(project)
     projectId = await selectOption("Project", project, projectIds)
@@ -181,10 +182,10 @@ async function resolveParentIssueForCreate(
   } | null = null
 
   if (parentReference) {
-    const resolvedParentReference = await getIssueIdentifier(parentReference)
+    const resolvedParentReference = await getIssueReference(parentReference)
     if (!resolvedParentReference) {
       throw new ValidationError(
-        `Could not resolve parent issue identifier: ${parentReference}`,
+        `Could not resolve parent issue reference: ${parentReference}`,
       )
     }
 
@@ -627,7 +628,7 @@ export async function prepareIssueCreate(options: CreateIssueOptions) {
   if (interactive) {
     // Keep candidate prompts sequential and separate from noninteractive lookup.
     for (const labelReference of new Set(labelReferences ?? [])) {
-      let labelId = await getIssueLabelIdByNameForTeam(labelReference, teamId)
+      let labelId = await lookupIssueLabelIdForTeam(labelReference, teamId)
       if (!labelId) {
         const labelOptions = await getIssueLabelOptionsByNameForTeam(
           labelReference,
@@ -750,6 +751,7 @@ export const createCommand = withUsageMetadata(new Command(), {
   interactive: true,
 })
   .name("create")
+  .type("priority", priorityType)
   .description(withMarkdownHint("Create a linear issue"))
   .option(
     "-a, --assignee <assignee:string>",
@@ -757,18 +759,18 @@ export const createCommand = withUsageMetadata(new Command(), {
     { preserveEmpty: true },
   )
   .option(
-    "--due-date <dueDate:string>",
+    "--due-date <date:string>",
     "Due date of the issue",
     { preserveEmpty: true },
   )
   .option(
-    "--parent <parent:string>",
-    "Parent issue (UUID, identifier, or Linear Issue URL)",
+    "--parent <issue:string>",
+    "Parent issue (UUID, identifier, number in the configured team, or Linear URL)",
     { preserveEmpty: true },
   )
   .option(
-    "-p, --priority <priority:number>",
-    "Priority (0 = no priority, 1 = urgent, 2 = high, 3 = medium, 4 = low)",
+    "-p, --priority <priority:priority>",
+    "Priority (0/none, 1/urgent, 2/high, 3/medium, 4/low; names are case-insensitive)",
     { preserveEmpty: true },
   )
   .option(
@@ -783,17 +785,17 @@ export const createCommand = withUsageMetadata(new Command(), {
   )
   .option(
     "--description-file <path:string>",
-    "Read description from a file (preferred for markdown content)",
+    "Read UTF-8 description from a file (- for stdin; preferred for markdown content)",
     { preserveEmpty: true },
   )
   .option(
     "-l, --label <label:string>",
-    "Issue label associated with the issue. May be repeated.",
+    "Issue label (UUID or name). May be repeated.",
     { collect: true, preserveEmpty: true },
   )
   .option(
     "--team <team:string>",
-    "Team associated with the issue (if not your default team)",
+    "Team UUID or key (uses the configured default team when omitted)",
     { preserveEmpty: true },
   )
   .option(

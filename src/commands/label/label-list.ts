@@ -39,8 +39,8 @@ export const listCommand = new Command()
   .name("list")
   .description("List issue labels")
   .option(
-    "--team <teamKey:string>",
-    "Show labels available to a team, including workspace-level labels",
+    "--team <key:string>",
+    "Show labels available to a team key, including workspace-level labels",
   )
   .option(
     "--workspace-labels",

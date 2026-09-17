@@ -1,9 +1,10 @@
 import { assertEquals, assertRejects, assertStringIncludes } from "@std/assert"
 import {
   extractIssueRelationSnapshot,
+  fetchIssuesForQuery,
   getAllTeams,
   getCycleIdByNameOrNumber,
-  getIssueIdentifier,
+  getIssueReference,
   getOrganizationMembers,
   getProjectOptionsByName,
   getProjectsForTeam,
@@ -390,50 +391,50 @@ Deno.test("relation planning fails closed and overlays manifest requests", () =>
   assertEquals(duplicate.map(({ verdict }) => verdict), ["add", "idempotent"])
 })
 
-Deno.test("getIssueId - handles full issue identifiers", async () => {
-  const result = await getIssueIdentifier("ABC-123")
+Deno.test("getIssueReference - handles full issue identifiers", async () => {
+  const result = await getIssueReference("ABC-123")
   assertEquals(result, "ABC-123")
 })
 
-Deno.test("getIssueId - handles integer-only IDs with team prefix", async () => {
-  Deno.env.set("LINEAR_TEAM_ID", "CLI")
+Deno.test("getIssueReference - handles integer-only IDs with team prefix", async () => {
+  Deno.env.set("LINEAR_TEAM_KEY", "CLI")
 
-  const result = await getIssueIdentifier("123")
+  const result = await getIssueReference("123")
   assertEquals(result, "CLI-123")
 
-  Deno.env.delete("LINEAR_TEAM_ID")
+  Deno.env.delete("LINEAR_TEAM_KEY")
 })
 
-Deno.test("getIssueId - integer-only id rejects an explicitly empty team", async () => {
-  Deno.env.set("LINEAR_TEAM_ID", "")
+Deno.test("getIssueReference - integer-only id rejects an explicitly empty team", async () => {
+  Deno.env.set("LINEAR_TEAM_KEY", "")
 
   try {
     await assertRejects(
-      () => getIssueIdentifier("123"),
+      () => getIssueReference("123"),
       ValidationError,
-      "Invalid value for team_id",
+      "Invalid value for team_key",
     )
   } finally {
-    Deno.env.delete("LINEAR_TEAM_ID")
+    Deno.env.delete("LINEAR_TEAM_KEY")
   }
 })
 
-Deno.test("getIssueId - rejects invalid integer patterns", async () => {
-  Deno.env.set("LINEAR_TEAM_ID", "TEST")
+Deno.test("getIssueReference - rejects invalid integer patterns", async () => {
+  Deno.env.set("LINEAR_TEAM_KEY", "TEST")
 
-  const result = await getIssueIdentifier("0123") // Leading zero should be rejected
+  const result = await getIssueReference("0123") // Leading zero should be rejected
   assertEquals(result, undefined)
 
-  Deno.env.delete("LINEAR_TEAM_ID")
+  Deno.env.delete("LINEAR_TEAM_KEY")
 })
 
-Deno.test("getIssueId - rejects zero", async () => {
-  Deno.env.set("LINEAR_TEAM_ID", "TEST")
+Deno.test("getIssueReference - rejects zero", async () => {
+  Deno.env.set("LINEAR_TEAM_KEY", "TEST")
 
-  const result = await getIssueIdentifier("0")
+  const result = await getIssueReference("0")
   assertEquals(result, undefined)
 
-  Deno.env.delete("LINEAR_TEAM_ID")
+  Deno.env.delete("LINEAR_TEAM_KEY")
 })
 
 Deno.test("searchIssuesByTerm - without limit fetches a single page", async () => {
@@ -542,6 +543,35 @@ Deno.test("searchIssuesByTerm - without limit fetches a single page", async () =
     await cleanup()
   }
 })
+
+for (const queryName of ["GetIssuesForQuery", "SearchIssues"] as const) {
+  Deno.test(`${queryName} maps stateTypes and unprojected to GraphQL fields`, async () => {
+    const { server, cleanup } = await setupMockLinearServer([{
+      queryName,
+      response: {
+        data: {
+          [queryName === "GetIssuesForQuery" ? "issues" : "searchIssues"]: {
+            nodes: [],
+            pageInfo: { hasNextPage: false, endCursor: null },
+            totalCount: 0,
+          },
+        },
+      },
+    }])
+    try {
+      const options = { stateTypes: ["started"], unprojected: true }
+      if (queryName === "GetIssuesForQuery") await fetchIssuesForQuery(options)
+      else await searchIssuesByTerm("issue", options)
+      assertEquals(server.graphqlRequests.length, 1)
+      assertEquals(server.graphqlRequests[0].variables.filter, {
+        state: { type: { in: ["started"] } },
+        project: { null: true },
+      })
+    } finally {
+      await cleanup()
+    }
+  })
+}
 
 for (
   const [name, queryName, invoke] of [
@@ -957,7 +987,7 @@ for (
     }])
     try {
       assertEquals(
-        await getIssueIdentifier(
+        await getIssueReference(
           `https://linear.app/test-team/issue/eng-123${suffix}`,
         ),
         "ENG-123",
@@ -978,7 +1008,7 @@ Deno.test("Issue URL reference rejects another workspace before resolving its lo
   }])
   try {
     await assertRejects(
-      () => getIssueIdentifier("https://linear.app/test-team/issue/ENG-123"),
+      () => getIssueReference("https://linear.app/test-team/issue/ENG-123"),
       ValidationError,
       "different workspace",
     )
@@ -999,7 +1029,7 @@ Deno.test("Issue URL reference does not accept spoofed hosts or credentials in U
         "http://linear.app/test-team/issue/ENG-123",
         "https://linear.app:444/test-team/issue/ENG-123",
       ]
-    ) assertEquals(await getIssueIdentifier(url), undefined)
+    ) assertEquals(await getIssueReference(url), undefined)
     assertEquals(server.graphqlRequests.length, 0)
   } finally {
     await cleanup()

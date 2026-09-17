@@ -214,7 +214,7 @@ for (
           response: { data: { team: { labels: { nodes: [] } } } },
         },
       ], {
-        LINEAR_TEAM_ID: "ENG",
+        LINEAR_TEAM_KEY: "ENG",
         LINEAR_ISSUE_CREATE_ASSIGN_SELF: "never",
         LINEAR_ISSUE_CREATE_ASK_PROJECT: "false",
         GIT_CONFIG_GLOBAL: gitConfig,

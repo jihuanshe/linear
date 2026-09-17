@@ -1,5 +1,5 @@
-import { resolveInitiativeId as resolveStableInitiativeId } from "./initiative-resolve.ts"
-import { resolveProjectId as resolveStableProjectId } from "../../utils/linear.ts"
+import { resolveInitiativeId } from "./initiative-resolve.ts"
+import { resolveProjectId } from "../../utils/linear.ts"
 import { Command } from "@cliffy/command"
 import { withUsageMetadata } from "../usage.ts"
 import { Confirm } from "../../utils/prompt.ts"
@@ -40,11 +40,11 @@ const RemoveProjectFromInitiative = gql(`
   }
 `)
 
-async function resolveInitiativeId(
+async function resolveInitiative(
   client: ReturnType<typeof getGraphQLClient>,
   reference: string,
 ): Promise<{ id: string; name: string }> {
-  const id = await resolveStableInitiativeId(client, reference)
+  const id = await resolveInitiativeId(client, reference)
   const query = gql(`
     query GetInitiativeNameByIdForRemove($id: String!) {
       initiative(id: $id) { id name }
@@ -55,11 +55,11 @@ async function resolveInitiativeId(
   return result.initiative
 }
 
-async function resolveProjectId(
+async function resolveProject(
   client: ReturnType<typeof getGraphQLClient>,
   reference: string,
 ): Promise<{ id: string; name: string }> {
-  const id = await resolveStableProjectId(reference)
+  const id = await resolveProjectId(reference)
   const query = gql(`
     query GetProjectNameByIdForRemove($id: String!) {
       project(id: $id) { id name }
@@ -78,23 +78,23 @@ export const removeProjectCommand = withUsageMetadata(new Command(), {
   .option("--json", "Output a JSON write result")
   .description("Unlink a project from an initiative")
   .arguments("<initiative:string> <project:string>")
-  .option("-y, --force", "Skip confirmation prompt")
+  .option("-y, --yes", "Skip confirmation prompt")
   .action(
     async (
-      { force, json },
+      { yes, json },
       initiativeArg,
       projectArg,
     ) => {
       const client = getGraphQLClient()
 
       // Resolve initiative
-      const initiative = await resolveInitiativeId(client, initiativeArg)
+      const initiative = await resolveInitiative(client, initiativeArg)
       if (!initiative) {
         throw new NotFoundError("Initiative", initiativeArg)
       }
 
       // Resolve project
-      const project = await resolveProjectId(client, projectArg)
+      const project = await resolveProject(client, projectArg)
       if (!project) {
         throw new NotFoundError("Project", projectArg)
       }
@@ -146,10 +146,10 @@ export const removeProjectCommand = withUsageMetadata(new Command(), {
       }
 
       // Confirm removal
-      if (!force) {
+      if (!yes) {
         if (json || !Deno.stdin.isTerminal()) {
           throw new ValidationError(
-            "Interactive confirmation required. Use --force to skip.",
+            "Interactive confirmation required. Use --yes to skip.",
           )
         }
         const confirmed = await Confirm.prompt({

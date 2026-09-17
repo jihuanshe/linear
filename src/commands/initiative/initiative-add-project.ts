@@ -1,5 +1,5 @@
-import { resolveInitiativeId as resolveStableInitiativeId } from "./initiative-resolve.ts"
-import { resolveProjectId as resolveStableProjectId } from "../../utils/linear.ts"
+import { resolveInitiativeId } from "./initiative-resolve.ts"
+import { resolveProjectId } from "../../utils/linear.ts"
 import { Command } from "@cliffy/command"
 import { withUsageMetadata } from "../usage.ts"
 import { gql } from "../../__codegen__/gql.ts"
@@ -38,11 +38,11 @@ const AddProjectToInitiative = gql(`
   }
 `)
 
-async function resolveInitiativeId(
+async function resolveInitiative(
   client: ReturnType<typeof getGraphQLClient>,
   reference: string,
 ): Promise<{ id: string; name: string }> {
-  const id = await resolveStableInitiativeId(client, reference)
+  const id = await resolveInitiativeId(client, reference)
   const query = gql(`
     query GetInitiativeNameById($id: String!) {
       initiative(id: $id) { id name }
@@ -53,11 +53,11 @@ async function resolveInitiativeId(
   return result.initiative
 }
 
-async function resolveProjectId(
+async function resolveProject(
   client: ReturnType<typeof getGraphQLClient>,
   reference: string,
 ): Promise<{ id: string; name: string }> {
-  const id = await resolveStableProjectId(reference)
+  const id = await resolveProjectId(reference)
   const query = gql(`
     query GetProjectNameById($id: String!) {
       project(id: $id) { id name }
@@ -74,10 +74,10 @@ export const addProjectCommand = withUsageMetadata(new Command(), {
   .name("add-project")
   .option("--json", "Output a JSON write result")
   .description(
-    "Link a project to an initiative. An existing direct link is unchanged, including its sort order.",
+    "Link a project to an initiative; each accepts a UUID, slug ID, or name. An existing direct link is unchanged, including its sort order.",
   )
   .arguments("<initiative:string> <project:string>")
-  .option("--sort-order <sortOrder:number>", "Sort order for a new link only", {
+  .option("--sort-order <order:number>", "Sort order for a new link only", {
     preserveEmpty: true,
   })
   .action(
@@ -89,13 +89,13 @@ export const addProjectCommand = withUsageMetadata(new Command(), {
       const client = getGraphQLClient()
 
       // Resolve initiative
-      const initiative = await resolveInitiativeId(client, initiativeArg)
+      const initiative = await resolveInitiative(client, initiativeArg)
       if (!initiative) {
         throw new NotFoundError("Initiative", initiativeArg)
       }
 
       // Resolve project
-      const project = await resolveProjectId(client, projectArg)
+      const project = await resolveProject(client, projectArg)
       if (!project) {
         throw new NotFoundError("Project", projectArg)
       }

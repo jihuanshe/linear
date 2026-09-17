@@ -364,6 +364,14 @@ Deno.test("Exported Doctor paginates evidence, limits only human output and fail
   server.start()
   try {
     const runner = await exported(directory, "doctor", server.getEndpoint())
+    const help = await runner.script(["--help"])
+    assertEquals(help.code, 0, help.stderr)
+    assertStringIncludes(
+      help.stdout,
+      "deno run --allow-run --allow-env doctor.js",
+    )
+    assertEquals(help.stdout.includes("recipes/"), false)
+    assertEquals(server.graphqlRequests, [])
     const args = [
       "self",
       "--history",

@@ -11,11 +11,11 @@ Description:
 
 Options:
 
-  -h, --help           - Show this help.      
-  -w, --web            - Open in web browser  
-  -a, --app            - Open in Linear.app   
-  -j, --json           - Output as JSON       
-  --limit     <limit>  - Limit results        
+  -h, --help           - Show this help.                                                       
+  -w, --web            - Open in web browser                                                   
+  -a, --app            - Open in Linear.app                                                    
+  -j, --json           - Output as JSON                                                        
+  --limit     <limit>  - Maximum results (non-negative integer; 0 or omitted means unlimited)  
 
 "
 stderr:

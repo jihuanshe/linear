@@ -21,6 +21,7 @@ for (const operation of ["create", "update"]) {
       "read-failure",
       "UUID",
       "omitted",
+      "legacy-alias",
     ]
   ) {
     Deno.test(`project ${operation} status: ${scenario}`, async () => {
@@ -101,7 +102,11 @@ for (const operation of ["create", "update"]) {
         if (scenario !== "omitted") {
           args.push(
             "--status",
-            scenario === "UUID" ? secondId.toUpperCase() : "started",
+            scenario === "UUID"
+              ? secondId.toUpperCase()
+              : scenario === "legacy-alias"
+              ? "in progress"
+              : "started",
           )
         }
         const result = await new Deno.Command(Deno.execPath(), {
@@ -139,6 +144,8 @@ for (const operation of ["create", "update"]) {
               ? "ambiguous"
               : scenario === "missing"
               ? "not found"
+              : scenario === "legacy-alias"
+              ? "Invalid status: in progress"
               : "Status page unavailable",
           )
         }
@@ -146,7 +153,9 @@ for (const operation of ["create", "update"]) {
           server.graphqlRequests.filter((request) =>
             request.query.includes("query GetProjectStatuses")
           ).map((request) => request.variables),
-          ["UUID", "omitted"].includes(scenario) ? [] : [{}, { after: "next" }],
+          ["UUID", "omitted", "legacy-alias"].includes(scenario)
+            ? []
+            : [{}, { after: "next" }],
         )
       } finally {
         await cleanup()

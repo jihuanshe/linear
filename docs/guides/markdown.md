@@ -32,7 +32,7 @@ commands:
 
 成员资料链接在 Issue、评论（Comment）和文档（Document）中可以生成成员提及；裸成员名的解析依资源类型和创建／更新路径而异，不能当作跨入口的稳定语法。不要把一次测试环境观察推广为 Linear API 的通用保证。
 
-已知团队时先用 `linear team members <TEAM> --json` 缩小查找范围；需要跨团队查找时用 `linear user list --json`。结合用户已指定的身份、返回的 `id`、名字和邮箱确认目标，原样复制其 `url` 字段，不根据名字、邮箱或 UUID 拼接成员资料 URL。同名或目标仍不明确时先确认，不能任选一个成员。
+已知团队时先用 `linear team members <team> --json` 缩小查找范围；需要跨团队查找时用 `linear user list --json`。结合用户已指定的身份、返回的 `id`、名字和邮箱确认目标，原样复制其 `url` 字段，不根据名字、邮箱或 UUID 拼接成员资料 URL。同名或目标仍不明确时先确认，不能任选一个成员。
 
 以下 URL 仅为示例，提交前替换为查询返回的值：
 
@@ -40,7 +40,7 @@ commands:
 https://linear.app/acme/profiles/someuser 请确认这个接口的验收标准。
 ```
 
-提及 Issue 时用 `linear issue url <ID>` 获取 URL，同样直接写入正文。代码块中的示例不是请求通知他人的指令；不要自动替换日志、代码或引文里的 `@name`。
+提及 Issue 时用 `linear issue url <issue>` 获取 URL，同样直接写入正文。代码块中的示例不是请求通知他人的指令；不要自动替换日志、代码或引文里的 `@name`。
 
 提及可能产生通知，只提及用户指定或任务明确需要的目标。API 写入成功不证明收件人的 Inbox、邮件或推送已经送达。
 

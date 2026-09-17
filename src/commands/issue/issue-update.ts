@@ -6,13 +6,14 @@ import { gql } from "../../__codegen__/gql.ts"
 import type { IssueUpdateInput } from "../../__codegen__/graphql.ts"
 import { getGraphQLClient } from "../../utils/graphql.ts"
 import { readTextSource } from "../../utils/text-source.ts"
+import { priorityType } from "../../utils/priority.ts"
 import {
   getCycleIdByNameOrNumber,
   getIssueId,
-  getIssueIdentifier,
-  getProjectIdByName,
+  getIssueReference,
   getWorkflowStates,
   isLinearUuid,
+  lookupProjectId,
   lookupUserId,
   resolveIssueLabelIdsForTeam,
   resolveMilestoneId,
@@ -128,9 +129,9 @@ export const issueReplacementFields = {
 /** Shared by the direct command and delivery; returns values, never exits or prints. */
 export async function prepareIssueUpdate(
   options: UpdateIssueOptions,
-  issueIdArg?: string,
+  issueArg?: string,
 ) {
-  if (issueIdArg == null || !issueIdArg.trim()) {
+  if (issueArg == null || !issueArg.trim()) {
     throw new ValidationError(
       "An explicit issue reference is required (UUID, identifier, or Linear Issue URL)",
     )
@@ -245,10 +246,10 @@ export async function prepareIssueUpdate(
     descriptionFile,
   )
 
-  const issueReference = await getIssueIdentifier(issueIdArg)
+  const issueReference = await getIssueReference(issueArg)
   if (!issueReference) {
     throw new ValidationError(
-      `Invalid issue reference: ${issueIdArg}`,
+      `Invalid issue reference: ${issueArg}`,
       {
         suggestion:
           "Provide an issue identifier such as ENG-123, a UUID, or a Linear Issue URL.",
@@ -300,7 +301,7 @@ export async function prepareIssueUpdate(
 
   let projectId: string | undefined = undefined
   if (project !== undefined) {
-    projectId = await getProjectIdByName(project)
+    projectId = await lookupProjectId(project)
     if (projectId === undefined) {
       throw new NotFoundError("Project", project, {
         suggestion:
@@ -364,10 +365,10 @@ export async function prepareIssueUpdate(
   }
   if (dueDate !== undefined) input.dueDate = dueDate
   if (parent !== undefined) {
-    const parentReference = await getIssueIdentifier(parent)
+    const parentReference = await getIssueReference(parent)
     if (!parentReference) {
       throw new ValidationError(
-        `Could not resolve parent issue identifier: ${parent}`,
+        `Could not resolve parent issue reference: ${parent}`,
       )
     }
     const parentId = await getIssueId(parentReference)
@@ -492,9 +493,9 @@ const updateIssueMutation = gql(`
 
 export async function updateIssue(
   options: UpdateIssueOptions,
-  issueIdArg?: string,
+  issueArg?: string,
 ) {
-  const prepared = await prepareIssueUpdate(options, issueIdArg)
+  const prepared = await prepareIssueUpdate(options, issueArg)
   return await executeIssueUpdate(prepared, options.beforeWrite)
 }
 
@@ -522,10 +523,10 @@ async function executeIssueUpdate(
 
 export async function updateIssueAndVerify(
   options: UpdateIssueOptions,
-  issueIdArg?: string,
+  issueArg?: string,
   verificationOptions: ReadBackOptions = {},
 ) {
-  const prepared = await prepareIssueUpdate(options, issueIdArg)
+  const prepared = await prepareIssueUpdate(options, issueArg)
   const result = await executeIssueUpdate(prepared, options.beforeWrite)
   if (result.effect === "none") return result
   const expected = Object.fromEntries(
@@ -581,10 +582,11 @@ export async function updateIssueAndVerify(
 
 export const updateCommand = withUsageMetadata(new Command(), { writes: true })
   .name("update")
+  .type("priority", priorityType)
   .description(withMarkdownHint(
-    "Update an issue; verify fields with up to 3 reads without repeating the write",
+    "Update an issue by UUID, identifier (e.g. ENG-123), number in the configured team, or Linear URL; verify fields with up to 3 reads without repeating the write",
   ))
-  .arguments("<issueId:string>")
+  .arguments("<issue:string>")
   .option(
     "-a, --assignee <assignee:string>",
     "Assignee (user UUID, username, name, email, 'self', or '@me')",
@@ -595,18 +597,18 @@ export const updateCommand = withUsageMetadata(new Command(), { writes: true })
     "Clear the issue's assignee (cannot be combined with --assignee)",
   )
   .option(
-    "--due-date <dueDate:string>",
+    "--due-date <date:string>",
     "Due date of the issue",
     { preserveEmpty: true },
   )
   .option(
-    "--parent <parent:string>",
-    "Parent issue (UUID, identifier, or Linear Issue URL)",
+    "--parent <issue:string>",
+    "Parent issue (UUID, identifier, number in the configured team, or Linear URL)",
     { preserveEmpty: true },
   )
   .option(
-    "-p, --priority <priority:number>",
-    "Priority (0 = no priority, 1 = urgent, 2 = high, 3 = medium, 4 = low)",
+    "-p, --priority <priority:priority>",
+    "Priority (0/none, 1/urgent, 2/high, 3/medium, 4/low; names are case-insensitive)",
     { preserveEmpty: true },
   )
   .option(
@@ -621,22 +623,22 @@ export const updateCommand = withUsageMetadata(new Command(), { writes: true })
   )
   .option(
     "--description-file <path:string>",
-    "Read description from a file (preferred for markdown content)",
+    "Read UTF-8 description from a file (- for stdin; preferred for markdown content)",
     { preserveEmpty: true },
   )
   .option(
     "-l, --label <label:string>",
-    "Replace all issue labels. May be repeated.",
+    "Replace all issue labels (UUID or name). May be repeated.",
     { collect: true, preserveEmpty: true },
   )
   .option(
     "--add-label <label:string>",
-    "Add an issue label without replacing existing labels. May be repeated.",
+    "Add an issue label (UUID or name) without replacing existing labels. May be repeated.",
     { collect: true, preserveEmpty: true },
   )
   .option(
     "--remove-label <label:string>",
-    "Remove an issue label without replacing other labels. May be repeated.",
+    "Remove an issue label (UUID or name) without replacing other labels. May be repeated.",
     { collect: true, preserveEmpty: true },
   )
   .option(
@@ -689,9 +691,9 @@ export const updateCommand = withUsageMetadata(new Command(), { writes: true })
     "-j, --json",
     "Output data.issue plus top-level verification and readBack after a write",
   )
-  .action(async (options, issueIdArg) => {
+  .action(async (options, issueArg) => {
     try {
-      const result = await updateIssueAndVerify(options, issueIdArg)
+      const result = await updateIssueAndVerify(options, issueArg)
       if (options.json) console.log(JSON.stringify(result, null, 2))
       else {
         const issue = result.data.issue

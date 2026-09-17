@@ -44,7 +44,7 @@ export function formatPlan(plan: PlanOutcome): string {
   }
   lines.push(
     "",
-    "apply: linear issue apply --file <manifest> --confirm-workspace <slug>",
+    "apply: linear issue apply --file <path> --confirm-workspace <slug>",
   )
   return lines.join("\n")
 }

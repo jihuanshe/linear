@@ -108,11 +108,26 @@ function readConfig(path: string): Record<string, unknown> {
         "Remove api_key from this file and use LINEAR_API_KEY or `linear auth login`. No fallback credential was selected.",
     })
   }
+  if (Object.hasOwn(parsed, "team_id")) {
+    throw new ValidationError(`Unsupported team_id in config file at ${path}`, {
+      suggestion:
+        "Replace team_id with team_key containing the Team.key (for example, ENG), not a team UUID. team_id is no longer supported.",
+    })
+  }
   return parsed
 }
 
 export function loadConfig(): void {
   loadEnvironment()
+  if (Deno.env.get("LINEAR_TEAM_ID") != null) {
+    throw new ValidationError(
+      "Unsupported environment variable LINEAR_TEAM_ID",
+      {
+        suggestion:
+          "Unset LINEAR_TEAM_ID and use LINEAR_TEAM_KEY containing the Team.key (for example, ENG), not a team UUID.",
+      },
+    )
+  }
   if (config != null) return
   const project = getProjectConfigPath()
   const global = globalConfigPath()
@@ -139,7 +154,7 @@ export type IssueSort = (typeof ISSUE_SORT_VALUES)[number]
 export const DEFAULT_ISSUE_SORT: IssueSort = "priority"
 
 const OptionsSchema = v.object({
-  team_id: v.optional(NonEmptyString),
+  team_key: v.optional(NonEmptyString),
   workspace: v.optional(NonEmptyString),
   issue_sort: v.optional(v.picklist(ISSUE_SORT_VALUES)),
   issue_create_ask_project: v.optional(BooleanLike),

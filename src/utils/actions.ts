@@ -1,5 +1,5 @@
 import { open } from "@opensrc/deno-open"
-import { getIssueIdentifier, getTeamKey } from "./linear.ts"
+import { getIssueReference, getTeamKey } from "./linear.ts"
 import { encodeBase64 } from "@std/encoding/base64"
 import { getNoIssueFoundMessage } from "./vcs.ts"
 import { LINEAR_WEB_BASE_URL } from "../const.ts"
@@ -17,11 +17,11 @@ export async function getWorkspaceUrl(): Promise<string> {
 }
 
 export async function openIssuePage(
-  providedId?: string,
+  providedReference?: string,
   options: { app?: boolean; web?: boolean } = {},
 ) {
-  const issueId = await getIssueIdentifier(providedId)
-  if (!issueId) {
+  const issueReference = await getIssueReference(providedReference)
+  if (!issueReference) {
     console.error(getNoIssueFoundMessage())
     Deno.exit(1)
   }
@@ -32,7 +32,7 @@ export async function openIssuePage(
       issue(id: $id) { url }
     }
   `),
-    { id: issueId },
+    { id: issueReference },
   )
   const url = issue.url
   const destination = options.app ? "Linear.app" : "web browser"

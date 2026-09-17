@@ -2,7 +2,7 @@ import { linkIssueUrl } from "../../operations/issue-content.ts"
 import { printWriteResult } from "../../utils/write-result.ts"
 import { Command } from "@cliffy/command"
 import { withUsageMetadata } from "../usage.ts"
-import { getIssueIdentifier, requireIssueId } from "../../utils/linear.ts"
+import { getIssueReference, requireIssueId } from "../../utils/linear.ts"
 import { handleError, ValidationError } from "../../utils/errors.ts"
 
 function looksLikeUrl(value: string): boolean {
@@ -11,8 +11,10 @@ function looksLikeUrl(value: string): boolean {
 
 export const linkCommand = withUsageMetadata(new Command(), { writes: true })
   .name("link")
-  .description("Link a URL to an issue")
-  .arguments("<issueId:string> <url:string>")
+  .description(
+    "Link a URL to an issue by UUID, identifier (e.g. ENG-123), number in the configured team, or Linear URL",
+  )
+  .arguments("<issue:string> <url:string>")
   .option("--json", "Output a JSON write result with the attachment")
   .option("-t, --title <title:string>", "Custom title for the link")
   .example(
@@ -23,7 +25,7 @@ export const linkCommand = withUsageMetadata(new Command(), { writes: true })
     "Link with a custom title",
     'linear issue link ENG-123 https://example.com --title "Design doc"',
   )
-  .action(async (options, issueId, url) => {
+  .action(async (options, issueArg, url) => {
     const { title, json } = options
 
     try {
@@ -34,18 +36,19 @@ export const linkCommand = withUsageMetadata(new Command(), { writes: true })
         )
       }
 
-      const resolvedIdentifier = await getIssueIdentifier(issueId)
-      if (!resolvedIdentifier) {
+      const issueReference = await getIssueReference(issueArg)
+      if (!issueReference) {
         throw new ValidationError(
-          "Could not determine issue identifier",
+          "Could not determine issue reference",
           {
-            suggestion: "Please provide an issue identifier like 'ENG-123'.",
+            suggestion:
+              "Provide an Issue UUID, identifier such as ENG-123, or Linear Issue URL.",
           },
         )
       }
 
       // attachmentLinkURL needs a UUID
-      const issueUuid = await requireIssueId(resolvedIdentifier)
+      const issueUuid = await requireIssueId(issueReference)
 
       const { attachment } = await linkIssueUrl(issueUuid, {
         url,
@@ -55,7 +58,7 @@ export const linkCommand = withUsageMetadata(new Command(), { writes: true })
         printWriteResult({ attachment })
         return
       }
-      console.log(`✓ Linked to ${resolvedIdentifier}: ${attachment.title}`)
+      console.log(`✓ Linked to ${issueReference}: ${attachment.title}`)
     } catch (error) {
       handleError(error, "Failed to link URL")
     }

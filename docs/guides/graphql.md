@@ -4,10 +4,10 @@ description: 查询 GraphQL schema、传递变量、完整分页与拆分复杂�
 commands:
   - api
   - schema
-  - auth token
+  - auth key
 ---
 
-# GraphQL schema 与查询
+# GraphQL schema 与操作
 
 `linear api` 用于精确字段、少见筛选、跨实体查询及专用命令未覆盖的写入；入口与授权边界见 `linear guide core`。
 
@@ -20,7 +20,7 @@ linear schema -o "${TMPDIR:-/tmp}/linear-schema.graphql"
 rg -A 30 '^type Issue ' "${TMPDIR:-/tmp}/linear-schema.graphql"
 ```
 
-含 `$` 或多行查询使用单引号 heredoc，避免 shell 展开。用 `-` 显式读取 stdin 到 EOF，变量以 JSON 对象传入：
+API 输入是 GraphQL document，可以包含 query 或 mutation 操作。含 `$` 或多行 GraphQL document 使用单引号 heredoc，避免 shell 展开。用 `-` 显式读取 stdin 到 EOF，变量以 JSON 对象传入：
 
 ```bash
 linear api - --variables-json '{"teamId":"abc123"}' <<'GRAPHQL'
@@ -28,7 +28,7 @@ query($teamId: String!) { team(id: $teamId) { name } }
 GRAPHQL
 ```
 
-查询也可以直接作为参数。变量较多时保存到文件，二选一使用 `--variables-json` 或 `--variables-file`；文件内容必须是 JSON 对象，文件参数不读取 stdin。JSON 字符串按原值发送，对象内可以包含数组：
+GraphQL document 也可以直接作为参数。变量较多时保存到文件，二选一使用 `--variables-json` 或 `--variables-file`；文件内容必须是 JSON 对象，文件参数不读取 stdin。JSON 字符串按原值发送，对象内可以包含数组：
 
 ```bash
 cat >variables.json <<'JSON'
@@ -42,7 +42,7 @@ linear api 'query($filter: IssueFilter!) { issues(filter: $filter, first: 10) { 
 
 请求前的本地拒绝或没有可读 GraphQL 结果时，stdout 使用 CLI 的 `{ok:false,effect,error}` 错误结果。原生 mutation 的不可读结果标记为 `unknown`；上游正常返回的 GraphQL 响应保持原样。
 
-一个 GraphQL 文档包含多个操作时必须用 `--operation-name` 选择；命令按语法树辨认实际选中的 query 或 mutation，不根据字符串猜测。名称缺失、重复或含糊都在请求前失败。
+一个 GraphQL document 包含多个操作时必须用 `--operation-name` 选择；命令按语法树辨认实际选中的 query 或 mutation，不根据字符串猜测。名称缺失、重复或含糊都在请求前失败。
 
 ## 完整分页
 
@@ -81,7 +81,7 @@ jq -e '((.errors // []) | length == 0) and (.data.issues.nodes | type == "array"
 
 ## 拆分查询
 
-`description` 等标量可以随 Issue 列表批量读取。评论、附件和历史优先用专用入口，见 `linear guide automation`。`issue view --json` 的 `.issue.children`、`.issue.documents` 和详情中的 `relations` 等集合仍是有限预览；完整关系使用 `issue relation list <ID> --json`，其他集合按 Issue 拆成独立分页连接查询。
+`description` 等标量可以随 Issue 列表批量读取。评论、附件和历史优先用专用入口，见 `linear guide automation`。`issue view --json` 的 `.issue.children`、`.issue.documents` 和详情中的 `relations` 等集合仍是有限预览；完整关系使用 `issue relation list <issue> --json`，其他集合按 Issue 拆成独立分页连接查询。
 
 不要把多个需要完整读取的集合交给同一 `--paginate` 查询；多个独立分页连接会被拒绝，嵌套连接则保留服务端返回的有限内容。收到 `Query too complex` 时减少字段或拆批，不原样重试。
 
@@ -91,4 +91,4 @@ jq -e '((.errors // []) | length == 0) and (.data.issues.nodes | type == "array"
 
 原生 mutation 不自动重试；query 与专用命令共用有界的网络等待和查询重试规则，见 `linear guide automation`。最终的 GraphQL 响应保留在 stdout，错误以非零退出码表示。写后核对 mutation 的业务结果（如 `success`、返回对象）和目标字段；GraphQL 部分错误或结果无法读取并不证明零写入，结果未知时先对账，不盲目重发。
 
-仅在 `linear api` 无法提供所需 HTTP 控制时直接请求。凭据由进程环境或密钥存储注入，不进入命令参数、文件或日志；`auth token` 会输出密钥，只能在受控进程内消费。
+仅在 `linear api` 无法提供所需 HTTP 控制时直接请求。凭据由进程环境或密钥存储注入，不进入命令参数、文件或日志；`auth key` 会输出密钥，只能在受控进程内消费。

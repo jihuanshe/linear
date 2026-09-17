@@ -708,7 +708,10 @@ for (const query of [undefined, "-"]) {
     const result = await runApi(query, [], [], [query == null ? read : " \n"])
     assertEquals(result.code, 1)
     assertEquals(result.requests, [])
-    assertStringIncludes(assertLocalFailure(result), "No query provided")
+    assertStringIncludes(
+      assertLocalFailure(result),
+      "No GraphQL document provided",
+    )
   })
 }
 

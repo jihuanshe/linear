@@ -8,10 +8,11 @@ import { gql } from "../../__codegen__/gql.ts"
 import type { ProjectCreateInput } from "../../__codegen__/graphql.ts"
 import { getGraphQLClient } from "../../utils/graphql.ts"
 import { resolveWriteTeam } from "../../utils/issue-read.ts"
+import { priorityType } from "../../utils/priority.ts"
 import {
   getAllTeams,
-  getProjectLabelIdByName,
   getTeamKey,
+  lookupProjectLabelId,
   lookupUserId,
 } from "../../utils/linear.ts"
 import { shouldShowSpinner } from "../../utils/hyperlink.ts"
@@ -41,29 +42,12 @@ const CreateProject = gql(`
   }
 `)
 
-const PRIORITY_MAPPING: Record<string, number> = {
-  "none": 0,
-  "urgent": 1,
-  "high": 2,
-  "medium": 3,
-  "low": 4,
-}
-
-function parsePriority(priority: string): number {
-  const mapped = PRIORITY_MAPPING[priority.toLowerCase()]
-  if (mapped == null) {
-    throw new ValidationError(`Invalid priority: ${priority}`, {
-      suggestion: "Valid values: none, urgent, high, medium, low",
-    })
-  }
-  return mapped
-}
-
 export const createCommand = withUsageMetadata(new Command(), {
   writes: true,
   interactive: true,
 })
   .name("create")
+  .type("priority", priorityType)
   .description(
     "Create a new Linear project; link it separately with initiative add-project",
   )
@@ -77,20 +61,20 @@ export const createCommand = withUsageMetadata(new Command(), {
   )
   .option(
     "-f, --description-file <path:string>",
-    `Read project description from file (still subject to the ${PROJECT_DESCRIPTION_MAX_LENGTH}-character API limit)`,
+    `Read UTF-8 project description from a file (- for stdin; still subject to the ${PROJECT_DESCRIPTION_MAX_LENGTH}-character API limit)`,
     { preserveEmpty: true },
   )
-  .option("--content <markdown:string>", "Project overview markdown", {
+  .option("--content <content:string>", "Project overview markdown", {
     preserveEmpty: true,
   })
   .option(
     "--content-file <path:string>",
-    "Read project overview markdown from a file",
+    "Read UTF-8 project overview markdown from a file (- for stdin)",
     { preserveEmpty: true },
   )
   .option(
     "-t, --team <team:string>",
-    "Team key (required, can be repeated for multiple teams)",
+    "Team UUID or key (repeatable; uses the configured default team when omitted)",
     { collect: true, preserveEmpty: true },
   )
   .option(
@@ -103,22 +87,22 @@ export const createCommand = withUsageMetadata(new Command(), {
     "Status UUID or type (planned, started, paused, completed, canceled, backlog)",
     { preserveEmpty: true },
   )
-  .option("--start-date <startDate:string>", "Start date (YYYY-MM-DD)", {
+  .option("--start-date <date:string>", "Start date (YYYY-MM-DD)", {
     preserveEmpty: true,
   })
   .option(
-    "--target-date <targetDate:string>",
+    "--target-date <date:string>",
     "Target completion date (YYYY-MM-DD)",
     { preserveEmpty: true },
   )
   .option(
-    "--priority <priority:string>",
-    "Project priority (none, urgent, high, medium, low)",
+    "--priority <priority:priority>",
+    "Priority (0/none, 1/urgent, 2/high, 3/medium, 4/low; names are case-insensitive)",
     { preserveEmpty: true },
   )
   .option(
     "--label <label:string>",
-    "Project label associated with the project. May be repeated.",
+    "Project label UUID or exact name. May be repeated.",
     { collect: true, preserveEmpty: true },
   )
   .option(
@@ -159,7 +143,6 @@ export const createCommand = withUsageMetadata(new Command(), {
             status: options.status,
             "start-date": options.startDate,
             "target-date": options.targetDate,
-            priority: options.priority,
           })
         ) {
           if (value != null && value.trim() === "") {
@@ -188,7 +171,7 @@ export const createCommand = withUsageMetadata(new Command(), {
           status: providedStatus,
           startDate: providedStartDate,
           targetDate: providedTargetDate,
-          priority: providedPriority,
+          priority,
           label: providedLabels,
           member: providedMembers,
           icon: providedIcon,
@@ -202,9 +185,6 @@ export const createCommand = withUsageMetadata(new Command(), {
           providedContent,
           providedContentFile,
         )
-        const priority = providedPriority != null
-          ? parsePriority(providedPriority)
-          : undefined
         const client = getGraphQLClient()
 
         let name = providedName
@@ -362,7 +342,7 @@ export const createCommand = withUsageMetadata(new Command(), {
 
         const labelIds: string[] = []
         for (const label of labels) {
-          const labelId = await getProjectLabelIdByName(label)
+          const labelId = await lookupProjectLabelId(label)
           if (!labelId) {
             throw new NotFoundError("Project label", label)
           }

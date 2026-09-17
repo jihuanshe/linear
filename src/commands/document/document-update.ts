@@ -99,12 +99,12 @@ export const updateCommand = withUsageMetadata(new Command(), {
 })
   .name("update")
   .description(withMarkdownHint(
-    "Update an existing document\n\n" +
+    "Update an existing document by UUID or slug ID\n\n" +
       "Without --content, --content-file, or --edit, read piped Markdown through EOF.\n" +
       "Nonempty stdin can be combined with metadata updates; empty stdin leaves content unchanged.",
   ))
   .alias("u")
-  .arguments("<documentId:string>")
+  .arguments("<document:string>")
   .option(
     "-t, --title <title:string>",
     "New title for the document; empty string clears it",
@@ -163,7 +163,7 @@ export const updateCommand = withUsageMetadata(new Command(), {
         unprotected,
         expectField,
       },
-      documentId,
+      documentReference,
     ) => {
       try {
         for (
@@ -225,10 +225,10 @@ export const updateCommand = withUsageMetadata(new Command(), {
 
         if (edit) {
           // Edit mode: fetch current content and open in editor
-          const documentData = await readDocument(client, documentId)
+          const documentData = await readDocument(client, documentReference)
 
           if (!documentData?.document) {
-            throw new NotFoundError("Document", documentId)
+            throw new NotFoundError("Document", documentReference)
           }
 
           const currentContent = documentData.document.content || ""
@@ -260,7 +260,7 @@ export const updateCommand = withUsageMetadata(new Command(), {
           icon: scalarField("icon"),
           projectId: referenceField("project"),
         }
-        let current = await readDocument(client, documentId)
+        let current = await readDocument(client, documentReference)
         const resolvedId = current.document!.id
         const prepare = (read: typeof current) =>
           prepareReplacement({

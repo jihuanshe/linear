@@ -3,16 +3,16 @@ export const snapshot = {};
 snapshot[`Cycle View Command - Help Text 1`] = `
 stdout:
 "
-Usage: view <cycleRef>
+Usage: view <cycle>
 
 Description:
 
-  View cycle details
+  View a cycle by name, number, active/now, next, previous, or relative offset (e.g. +1 or -1)
 
 Options:
 
-  -h, --help          - Show this help.                      
-  --team      <team>  - Team key (defaults to current team)  
+  -h, --help          - Show this help.                                     
+  --team      <team>  - Team UUID or key (defaults to the configured team)  
 
 "
 stderr:

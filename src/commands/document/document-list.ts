@@ -6,7 +6,7 @@ import { getGraphQLClient } from "../../utils/graphql.ts"
 import { getTimeAgo, padDisplay } from "../../utils/display.ts"
 import {
   getIssueId,
-  getIssueIdentifier,
+  getIssueReference,
   resolveProjectId,
 } from "../../utils/linear.ts"
 import { shouldShowSpinner } from "../../utils/hyperlink.ts"
@@ -55,7 +55,7 @@ export const listCommand = new Command()
   )
   .option(
     "--issue <issue:string>",
-    "Filter by issue (UUID, identifier, or Linear Issue URL)",
+    "Filter by issue (UUID, identifier, number in the configured team, or Linear URL)",
     { preserveEmpty: true },
   )
   .option("--json", "Output as JSON")
@@ -86,7 +86,7 @@ export const listCommand = new Command()
       }
 
       if (issue != null) {
-        const reference = await getIssueIdentifier(issue)
+        const reference = await getIssueReference(issue)
         if (!reference) {
           throw new ValidationError(`Invalid issue reference: ${issue}`)
         }

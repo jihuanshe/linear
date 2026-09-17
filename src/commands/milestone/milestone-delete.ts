@@ -25,15 +25,15 @@ export const deleteCommand = withUsageMetadata(new Command(), {
 })
   .name("delete")
   .option("--json", "Output a JSON write result")
-  .description("Delete a project milestone")
-  .arguments("<id:string>")
-  .option("-f, --force", "Skip confirmation prompt")
-  .action(async ({ force, json }, id) => {
-    // Confirmation prompt unless --force is used
-    if (!force) {
+  .description("Delete a project milestone by UUID")
+  .arguments("<milestoneId:string>")
+  .option("-y, --yes", "Skip confirmation prompt")
+  .action(async ({ yes, json }, id) => {
+    // Confirmation prompt unless --yes is used
+    if (!yes) {
       if (json || !Deno.stdin.isTerminal()) {
         throw new ValidationError("Interactive confirmation required", {
-          suggestion: "Use --force to skip confirmation.",
+          suggestion: "Use --yes to skip confirmation.",
         })
       }
       const confirmed = await Confirm.prompt({

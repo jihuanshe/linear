@@ -43,7 +43,10 @@ export const listCommand = new Command()
   .option("-w, --web", "Open in web browser")
   .option("-a, --app", "Open in Linear.app")
   .option("-j, --json", "Output as JSON")
-  .option("--limit <limit:number>", "Limit results")
+  .option(
+    "--limit <limit:number>",
+    "Maximum results (non-negative integer; 0 or omitted means unlimited)",
+  )
   .action(async ({ web, app, json, limit }) => {
     const { Spinner } = await import("@std/cli/unstable-spinner")
     const showSpinner = shouldShowSpinner() && !json

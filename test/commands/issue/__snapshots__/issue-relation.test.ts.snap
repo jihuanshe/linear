@@ -3,13 +3,13 @@ export const snapshot = {};
 snapshot[`Issue Relation Add Command - Help Text 1`] = `
 stdout:
 "
-Usage: relation add <issueId> <relationType> <relatedIssueId>
+Usage: relation add <issue> <type> <relatedIssue>
 
 Writes: true
 
 Description:
 
-  Add a relation without replacing an existing type or direction
+  Add a relation without replacing an existing type or direction. Issues accept UUIDs, identifiers, or Linear Issue URLs.
 
 Options:
 

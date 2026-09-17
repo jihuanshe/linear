@@ -4,7 +4,7 @@ description: 保存原始依据、比较原始值并解释 JSON 写入效果与�
 commands:
   - api
   - auth whoami
-  - auth token
+  - auth key
   - issue view
   - issue export
   - issue history
@@ -52,14 +52,14 @@ test "$code" -eq 0
 
 其他字段可直接保存读取输出，不手抄旧字段。各入口的 JSON 根对象如下；`organization` 均包含稳定 `id` 和 `urlKey`。
 
-| 读取入口                         | 对象路径            | 对应更新入口           |
-| -------------------------------- | ------------------- | ---------------------- |
-| `issue view <ID> --json`         | `.issue`            | `issue update`         |
-| `issue comment view <ID> --json` | `.comment`          | `issue comment update` |
-| `project view <ID> --json`       | `.project`          | `project update`       |
-| `initiative view <ID> --json`    | `.initiative`       | `initiative update`    |
-| `document view <ID> --json`      | `.document`         | `document update`      |
-| `milestone view <ID> --json`     | `.projectMilestone` | `milestone update`     |
+| 读取入口                                | 对象路径            | 对应更新入口           |
+| --------------------------------------- | ------------------- | ---------------------- |
+| `issue view <issue> --json`             | `.issue`            | `issue update`         |
+| `issue comment view <commentId> --json` | `.comment`          | `issue comment update` |
+| `project view <project> --json`         | `.project`          | `project update`       |
+| `initiative view <initiative> --json`   | `.initiative`       | `initiative update`    |
+| `document view <document> --json`       | `.document`         | `document update`      |
+| `milestone view <milestone> --json`     | `.projectMilestone` | `milestone update`     |
 
 ID、字段名以及字段是否存在均保留 API 语义：缺字段不同于 `null`、`""`、`0` 或空集合。不同对象或工作区的依据会被拒绝。需要额外条件时，可重复传 `--expect-field`，名称使用该对象支持的 API 响应字段，例如 Issue 的 `state`；不会监控任意查询或整个评论集合。
 
@@ -85,17 +85,17 @@ CLI 完成名称解析后，会按同一 UUID 最后读取并比较原始依据�
 
 冲突后保留原始文件，读取当前对象并重新决定如何保留并发修改。重新讨论得到新意图时，保存新的依据与草稿；不要只更新依据文件来消除错误。最后读取之后仍可能发生竞争；该检查不提供服务器 CAS、事务、锁或 ABA 检测。
 
-确实要无保护覆盖时显式使用 `--unprotected`，并移除 `--base-file`；它只跳过旧值比较，身份、文件及领域校验继续执行。Document 的开放行内评论锚点另受 `--force` 保护，两个参数互不代替。交互式编辑会在展示旧值前冻结依据；`--json` 不打开编辑器。
+确实要无保护覆盖时显式使用 `--unprotected`，并移除 `--base-file`；它只跳过旧值比较，身份、文件及领域校验继续执行。Document 的开放行内评论锚点保护需用 `document update --force` 显式绕过，不能用 `--unprotected` 代替。交互式编辑会在展示旧值前冻结依据；`--json` 不打开编辑器。
 
 创建、评论追加、侧栏关联和原生标签增删不要求不存在的旧值；Issue 的 `--add-label` / `--remove-label` 使用上游增量操作，不转换为完整集合覆盖。关系新增仍检查是否会替换已有关系。
 
-给 Issue 加侧栏文件用 `issue attach`；新建带文件评论用 `issue comment add --attach`；给已有评论补文件时，先保存 `issue comment view --json`，再用 `issue comment update --base-file <原始读取> --attach <文件>`。三种路径的完整示例与上传后冲突恢复见 `linear guide issue-authoring`。多项写入的执行进度与恢复见 `linear guide issue-delivery`。
+给 Issue 加侧栏文件用 `issue attach`；新建带文件评论用 `issue comment add --attach`；给已有评论补文件时，先保存 `issue comment view --json`，再用 `issue comment update <commentId> --base-file comment-original.json --attach <path>`，其中 `comment-original.json` 是保存的原始读取。三种路径的完整示例与上传后冲突恢复见 `linear guide issue-authoring`。多项写入的执行进度与恢复见 `linear guide issue-delivery`。
 
 ## 机器输出与写入效果
 
 `--json`（`-j`）可放在命令路径前、中、后，含义相同，例如 `linear --json issue view ENG-123` 与 `linear issue view ENG-123 --json`。根和领域导航也支持 JSON；`usage --json` 的 `outputModes` 描述各命令是否提供机器结果。未支持的命令在执行前返回 `UnsupportedOutputError`，不输出人类文本或代为执行其他命令。
 
-JSON 不与浏览器／应用跳转、显式交互／编辑或原文／脚本输出组合。`--json --help`、`--json --version` 同样被拒绝；命令元数据用 `usage --json`，构建身份用 `version --json`。`schema --json --output <file>` 保存 JSON 文件，成功时 stdout 留空。
+JSON 不与浏览器／应用跳转、显式交互／编辑或原文／脚本输出组合。`--json --help`、`--json --version` 同样被拒绝；命令元数据用 `usage --json`，构建身份用 `version --json`。`schema --json --output <path>` 保存 JSON 文件，成功时 stdout 留空。
 
 `--no-pager` 仍是命令级选项。自动化显式传入目标编号或 UUID，并使用 `LINEAR_PROMPT_DISABLED=1` 禁用提示；JSON 不代替删除确认或写入授权。人类输出和 `NO_COLOR=1` 都不能代替机器协议。
 
@@ -135,9 +135,9 @@ jq -e '.pageInfo.hasNextPage == false and (.nodes | type == "array")' issues.jso
 jq '.nodes[] | {id, identifier, title, priority}' issues.json
 ```
 
-`issue view --json` 与 `issue export` 完整读取 `.issue.comments`、`.issue.attachments` 和 `.issue.labels`；`view --no-comments` 跳过评论。评论保留 `quotedText` 和 `documentContentId`，供识别行内引用；PR 等链接位于 `.issue.attachments.nodes`。`children`、`documents` 和详情中的 `relations` 等集合仍是有限预览；完整关系用 `issue relation list <ID> --json`，其他完整集合按 `linear guide graphql` 单独分页。完整分页不代表跨页数据库快照。
+`issue view --json` 与 `issue export` 完整读取 `.issue.comments`、`.issue.attachments` 和 `.issue.labels`；`view --no-comments` 跳过评论。评论保留 `quotedText` 和 `documentContentId`，供识别行内引用；PR 等链接位于 `.issue.attachments.nodes`。`children`、`documents` 和详情中的 `relations` 等集合仍是有限预览；完整关系用 `issue relation list <issue> --json`，其他完整集合按 `linear guide graphql` 单独分页。完整分页不代表跨页数据库快照。
 
-单个 Initiative 或 Project 的短描述与长正文用 `initiative view <ID> --json` 或 `project view <ID> --json` 读取。Initiative 还返回关联 Project 的 `description` 和完整 `documents` 连接；关联文档的正文继续用 `document view` 读取。
+单个 Initiative 或 Project 的短描述与长正文用 `initiative view <initiative> --json` 或 `project view <project> --json` 读取。Initiative 还返回关联 Project 的 `description` 和完整 `documents` 连接；关联文档的正文继续用 `document view` 读取。
 
 需要批量导出当前凭据可见的 Initiative／Project 说明时，可以组合以下查询。它们分别读到终页，保留 `{data: {organization, initiatives|projects: {nodes, pageInfo}}}`，默认不含归档对象：
 
@@ -158,20 +158,20 @@ linear api 'query ContextProjects($after: String) {
 }' --paginate > projects.json
 ```
 
-两份查询不限定状态；需要选定范围时用当前 schema 的 `filter`，需要归档对象时显式增加 `includeArchived: true`。短描述和 Markdown 正文均不截断；关联文档是独立对象，按需要继续读取。不要把列表命令的默认范围或嵌套关系预览当成完整上下文导出。更新前用对应的 `view --json` 保存原始依据。Project 和 Initiative 长正文均支持 `update --content-file <path> --base-file <original.json>`；Project 的 `--description-file` 只更新短描述。
+两份查询不限定状态；需要选定范围时用当前 schema 的 `filter`，需要归档对象时显式增加 `includeArchived: true`。短描述和 Markdown 正文均不截断；关联文档是独立对象，按需要继续读取。不要把列表命令的默认范围或嵌套关系预览当成完整上下文导出。更新前用对应的 `view --json` 保存原始依据。Project 和 Initiative 长正文均支持 `update --content-file <path> --base-file original.json`，其中 `original.json` 是对应对象的原始读取；Project 的 `--description-file` 只更新短描述。
 
 例如修改 Project 长正文，先读取并从同一份结果提取草稿，再编辑文件：
 
 ```bash
-linear project view <ID> --json > project-original.json
+linear project view <project> --json > project-original.json
 jq -j '.project.content // ""' project-original.json > project-content.md
 # 编辑 project-content.md 后提交
-linear project update <ID> --content-file project-content.md --base-file project-original.json --json
+linear project update <project> --content-file project-content.md --base-file project-original.json --json
 ```
 
 读取成功后才提取草稿；保留 `project-original.json` 原样，不把编辑后的内容写回依据。Markdown 往返的富文本限制同样适用，见 `linear guide markdown`。
 
-单独导出评论用 `issue comment list <ID> --limit 0 --json`；省略 `--limit 0` 时最多读取 50 条，并返回 `{nodes,pageInfo}`。属性变更经过用 `issue history <ID> --json`，默认读取全部历史页，也返回 `{nodes,pageInfo}`；使用有限 `--limit` 时检查后续游标。
+单独导出评论用 `issue comment list <issue> --limit 0 --json`；省略 `--limit 0` 时最多读取 50 条，并返回 `{nodes,pageInfo}`。属性变更经过用 `issue history <issue> --json`，默认读取全部历史页，也返回 `{nodes,pageInfo}`；使用有限 `--limit` 时检查后续游标。
 
 `history` 展示上游返回的活动记录，不保证每次写入都有独立条目。Kadoraba 实测中，紧接创建的部分标题／正文修改未出现，后续优先级和附件变更有记录；原生 GraphQL 返回相同结果，具体原因未确定。用 `view` 读取当前状态；判断写入是否发生要结合本次回执与读回，不能因历史缺项重发写入。
 

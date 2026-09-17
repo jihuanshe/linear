@@ -286,8 +286,8 @@ Deno.test("domain usage --json preserves arguments, aliases, and option types", 
     command.name === "attach"
   )
   assertEquals(attach?.arguments.map((argument) => argument.name), [
-    "issueId",
-    "filepath",
+    "issue",
+    "path",
   ])
   assertEquals(
     attach?.arguments.every((argument) => argument.required),
@@ -304,6 +304,9 @@ Deno.test("domain usage --json preserves arguments, aliases, and option types", 
   assertEquals(team?.flags, ["--team"])
   assertEquals(team?.arguments[0]?.type, "string")
 
+  const priority = create?.options.find((option) => option.name === "priority")
+  assertEquals(priority?.arguments[0]?.type, "priority")
+
   const deleteCommand = document.subcommands.find((command) =>
     command.name === "delete"
   )
@@ -317,6 +320,78 @@ Deno.test("domain usage --json preserves arguments, aliases, and option types", 
 
   const view = document.subcommands.find((command) => command.name === "view")
   assertEquals(view?.writes, false)
+})
+
+Deno.test("usage names flexible references by resource and reserves Id suffixes for UUIDs", () => {
+  for (
+    const [path, argumentNames] of [
+      ["issue view", ["issue"]],
+      ["issue update", ["issue"]],
+      ["issue delete", ["issue"]],
+      ["issue comment add", ["issue"]],
+      ["issue comment list", ["issue"]],
+      ["project view", ["project"]],
+      ["project update", ["project"]],
+      ["project delete", ["project"]],
+      ["project teams", ["project"]],
+      ["project-update create", ["project"]],
+      ["project-update list", ["project"]],
+      ["initiative view", ["initiative"]],
+      ["initiative update", ["initiative"]],
+      ["initiative delete", ["initiative"]],
+      ["initiative archive", ["initiative"]],
+      ["initiative unarchive", ["initiative"]],
+      ["initiative add-project", ["initiative", "project"]],
+      ["initiative remove-project", ["initiative", "project"]],
+      ["initiative-update create", ["initiative"]],
+      ["initiative-update list", ["initiative"]],
+      ["document view", ["document"]],
+      ["document update", ["document"]],
+      ["document delete", ["document"]],
+      ["label delete", ["label"]],
+      ["cycle view", ["cycle"]],
+      ["team members", ["team"]],
+      ["team states", ["team"]],
+      ["team delete", ["team"]],
+      ["issue comment view", ["commentId"]],
+      ["issue comment update", ["commentId"]],
+      ["issue comment delete", ["commentId"]],
+      ["issue comment resolve", ["commentId"]],
+      ["issue comment unresolve", ["commentId"]],
+      ["milestone update", ["milestoneId"]],
+      ["milestone delete", ["milestoneId"]],
+      ["auth default", ["slug"]],
+      ["auth logout", ["slug"]],
+    ] as const
+  ) {
+    let command = cli
+    for (const segment of path.split(" ")) {
+      const child = command.getCommand(segment)
+      assertExists(child, path)
+      command = child as typeof cli
+    }
+    assertEquals(
+      buildUsageDocument(command).command.arguments.map(({ name }) => name),
+      [...argumentNames],
+      path,
+    )
+  }
+
+  const uuidArguments = ["commentId", "relationId", "updateId", "milestoneId"]
+  const queue = [...cli.getCommands(true)]
+  for (const command of queue) {
+    queue.push(...command.getCommands(true))
+    const metadata = buildUsageDocument(command).command
+    for (const argument of metadata.arguments) {
+      if (argument.name.endsWith("Id")) {
+        assertEquals(
+          uuidArguments.includes(argument.name),
+          true,
+          `${metadata.path}: ${argument.name} is not a UUID-only argument`,
+        )
+      }
+    }
+  }
 })
 
 Deno.test("usage --json exposes required options and canonical alias paths", async () => {

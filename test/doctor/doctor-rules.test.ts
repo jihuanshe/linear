@@ -297,6 +297,25 @@ Deno.test("Doctor reports missing and stale Project Updates", () => {
     report.findings.every((finding) => finding.target === "project"),
     true,
   )
+  assertEquals(
+    report.findings.map(({ field, evidence, recommendation }) => ({
+      field,
+      evidence,
+      text: recommendation.text,
+    })),
+    [
+      {
+        field: "project-update",
+        evidence: "项目已超过 14 天没有项目进展",
+        text: "请发布项目进展，或更新项目状态。",
+      },
+      {
+        field: "project-update",
+        evidence: "最近一次项目进展已是 29 天前",
+        text: "请发布新的项目进展，或更新项目状态。",
+      },
+    ],
+  )
   assertEquals(report.summary.bySeverity.P1, 2)
 })
 
@@ -321,6 +340,10 @@ Deno.test("Doctor reports risky Project health", () => {
   assertEquals(report.findings.length, 1)
   assertEquals(report.findings[0].ruleId, "project-health-risk")
   assertEquals(report.findings[0].severity, "P1")
+  assertEquals(
+    report.findings[0].recommendation.text,
+    "请确认风险原因和下一步，并发布项目进展。",
+  )
 })
 
 Deno.test("Doctor exempts young and inactive Projects from Pulse findings", () => {

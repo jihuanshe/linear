@@ -133,13 +133,13 @@ async function getDocumentWithAllComments(
 
 export const viewCommand = new Command()
   .name("view")
-  .description("View a document's content")
+  .description("View a document's content by UUID or slug ID")
   .alias("v")
-  .arguments("<id:string>")
+  .arguments("<document:string>")
   .option("--raw", "Output raw markdown without rendering")
   .option("-w, --web", "Open document in browser")
   .option("--json", "Output document JSON, including archivedAt and trashed")
-  .action(async ({ raw, web, json }, id) => {
+  .action(async ({ raw, web, json }, documentReference) => {
     const { Spinner } = await import("@std/cli/unstable-spinner")
     const showSpinner = shouldShowSpinner() && !raw && !json
     const spinner = showSpinner ? new Spinner() : null
@@ -148,13 +148,13 @@ export const viewCommand = new Command()
     try {
       const client = getGraphQLClient()
       const result = json
-        ? await getDocumentWithAllComments(client, id)
-        : await client.request(GetDocument, { id })
+        ? await getDocumentWithAllComments(client, documentReference)
+        : await client.request(GetDocument, { id: documentReference })
       spinner?.stop()
 
       const document = result.document
       if (!document) {
-        throw new NotFoundError("Document", id)
+        throw new NotFoundError("Document", documentReference)
       }
 
       // Open in browser if requested
@@ -223,7 +223,7 @@ export const viewCommand = new Command()
     } catch (error) {
       spinner?.stop()
       if (isClientError(error) && isNotFoundError(error)) {
-        throw new NotFoundError("Document", id)
+        throw new NotFoundError("Document", documentReference)
       }
       handleError(error, "Failed to view document")
     }

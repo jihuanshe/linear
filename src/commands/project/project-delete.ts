@@ -31,18 +31,20 @@ export const deleteCommand = withUsageMetadata(new Command(), {
 })
   .name("delete")
   .option("--json", "Output a JSON write result")
-  .description("Delete (trash) a Linear project")
-  .arguments("<projectId:string>")
-  .option("-f, --force", "Skip confirmation prompt")
-  .action(async ({ force, json }, projectId) => {
-    if (!force) {
+  .description(
+    "Delete (trash) a Linear project by UUID, slug ID, or exact name",
+  )
+  .arguments("<project:string>")
+  .option("-y, --yes", "Skip confirmation prompt")
+  .action(async ({ yes, json }, projectReference) => {
+    if (!yes) {
       if (json || !Deno.stdin.isTerminal()) {
         throw new ValidationError("Interactive confirmation required", {
-          suggestion: "Use --force to skip confirmation.",
+          suggestion: "Use --yes to skip confirmation.",
         })
       }
       const confirmed = await Confirm.prompt({
-        message: `Are you sure you want to delete project ${projectId}?`,
+        message: `Are you sure you want to delete project ${projectReference}?`,
         default: false,
       })
 
@@ -59,7 +61,7 @@ export const deleteCommand = withUsageMetadata(new Command(), {
 
     try {
       const client = getGraphQLClient()
-      const resolvedId = await resolveProjectId(projectId)
+      const resolvedId = await resolveProjectId(projectReference)
 
       const result = await client.request(DeleteProject, {
         id: resolvedId,
@@ -80,7 +82,7 @@ export const deleteCommand = withUsageMetadata(new Command(), {
         return
       }
 
-      const displayName = entity?.name ?? projectId
+      const displayName = entity?.name ?? projectReference
       console.log(`✓ Deleted project: ${displayName}`)
     } catch (error) {
       spinner?.stop()

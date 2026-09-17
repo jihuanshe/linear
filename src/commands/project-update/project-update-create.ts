@@ -45,9 +45,11 @@ export const createCommand = withUsageMetadata(new Command(), {
     "--json",
     "Output a JSON write result; the created update is in data.projectUpdate",
   )
-  .description("Create a new status update for a project")
+  .description(
+    "Create a new status update for a project by UUID, slug ID, or exact name",
+  )
   .alias("c")
-  .arguments("<projectId:string>")
+  .arguments("<project:string>")
   .option("--body <body:string>", "Update content (inline)", {
     preserveEmpty: true,
   })
@@ -68,7 +70,7 @@ export const createCommand = withUsageMetadata(new Command(), {
   .action(
     async (
       { body, bodyFile, health, interactive, json, edit },
-      projectId,
+      projectReference,
     ) => {
       const { Spinner } = await import("@std/cli/unstable-spinner")
 
@@ -94,7 +96,7 @@ export const createCommand = withUsageMetadata(new Command(), {
         let finalBody = await readTextSource("body", body, bodyFile)
         const client = getGraphQLClient()
         // Resolve project ID
-        const resolvedProjectId = await resolveProjectId(projectId)
+        const resolvedProjectId = await resolveProjectId(projectReference)
 
         // Interactive mode
         if (interactive) {

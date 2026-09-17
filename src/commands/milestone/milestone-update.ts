@@ -46,8 +46,8 @@ const UpdateProjectMilestone = gql(`
 
 export const updateCommand = withUsageMetadata(new Command(), { writes: true })
   .name("update")
-  .description("Update an existing project milestone")
-  .arguments("<id:string>")
+  .description("Update an existing project milestone by UUID")
+  .arguments("<milestoneId:string>")
   .option("--name <name:string>", "Milestone name", { preserveEmpty: true })
   .option(
     "--description <description:string>",
@@ -58,7 +58,7 @@ export const updateCommand = withUsageMetadata(new Command(), { writes: true })
     preserveEmpty: true,
   })
   .option(
-    "--sort-order <value:number>",
+    "--sort-order <order:number>",
     "Sort order relative to other milestones",
     { preserveEmpty: true },
   )
@@ -89,7 +89,7 @@ export const updateCommand = withUsageMetadata(new Command(), { writes: true })
         description,
         targetDate,
         sortOrder,
-        project: projectIdOrSlug,
+        project: projectReference,
         json,
         baseFile,
         unprotected,
@@ -106,14 +106,14 @@ export const updateCommand = withUsageMetadata(new Command(), { writes: true })
         if (name != null && !name.trim()) {
           throw new ValidationError("Milestone name cannot be empty")
         }
-        if (projectIdOrSlug != null && !projectIdOrSlug.trim()) {
+        if (projectReference != null && !projectReference.trim()) {
           throw new ValidationError("Project cannot be empty")
         }
         if (targetDate != null) validateMilestoneTargetDate(targetDate)
         if (
           name == null && description == null && targetDate == null &&
           sortOrder == null &&
-          !projectIdOrSlug
+          !projectReference
         ) {
           throw new ValidationError(
             "At least one update option must be provided",
@@ -138,9 +138,9 @@ export const updateCommand = withUsageMetadata(new Command(), { writes: true })
         if (description != null) input.description = description
         if (targetDate != null) input.targetDate = targetDate
         if (sortOrder != null) input.sortOrder = sortOrder
-        if (projectIdOrSlug) {
+        if (projectReference) {
           // Resolve project slug to full UUID
-          input.projectId = await resolveProjectId(projectIdOrSlug)
+          input.projectId = await resolveProjectId(projectReference)
         }
 
         const current = await readMilestone(client, id)

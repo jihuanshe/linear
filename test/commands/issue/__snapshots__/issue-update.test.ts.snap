@@ -3,34 +3,35 @@ export const snapshot = {};
 snapshot[`Issue Update Command - Help Text 1`] = `
 stdout:
 "
-Usage: update <issueId>
+Usage: update <issue>
 
 Writes: true
 
 Description:
 
-  Update an issue; verify fields with up to 3 reads without repeating the write    
-                                                                                   
-  For API Markdown bodies, prefer a bare Linear URL for mentions.                  
-  Named profile links can also mention people; \`@name\` handling varies by body.    
-  Get a person's canonical \`url\` from                                              
-  \`linear team members <TEAM> --json\` or \`linear user list --json\`.                
-  Run \`linear guide markdown\` for mentions, collapsible sections and rewrite risks.
+  Update an issue by UUID, identifier (e.g. ENG-123), number in the configured team, or Linear URL; verify fields with up to 3 reads without repeating
+  the write                                                                                                                                           
+                                                                                                                                                      
+  For API Markdown bodies, prefer a bare Linear URL for mentions.                                                                                     
+  Named profile links can also mention people; \`@name\` handling varies by body.                                                                       
+  Get a person's canonical \`url\` from                                                                                                                 
+  \`linear team members <TEAM> --json\` or \`linear user list --json\`.                                                                                   
+  Run \`linear guide markdown\` for mentions, collapsible sections and rewrite risks.                                                                   
 
 Options:
 
   -h, --help                         - Show this help.                                                                                                
   -a, --assignee      <assignee>     - Assignee (user UUID, username, name, email, 'self', or '@me')                                                  
   --unassign                         - Clear the issue's assignee (cannot be combined with --assignee)                                                
-  --due-date          <dueDate>      - Due date of the issue                                                                                          
-  --parent            <parent>       - Parent issue (UUID, identifier, or Linear Issue URL)                                                           
-  -p, --priority      <priority>     - Priority (0 = no priority, 1 = urgent, 2 = high, 3 = medium, 4 = low)                                          
+  --due-date          <date>         - Due date of the issue                                                                                          
+  --parent            <issue>        - Parent issue (UUID, identifier, number in the configured team, or Linear URL)                                  
+  -p, --priority      <priority>     - Priority (0/none, 1/urgent, 2/high, 3/medium, 4/low; names are case-insensitive)                               
   --estimate          <estimate>     - Points estimate of the issue                                                                                   
   -d, --description   <description>  - Description of the issue (empty string clears it)                                                              
-  --description-file  <path>         - Read description from a file (preferred for markdown content)                                                  
-  -l, --label         <label>        - Replace all issue labels. May be repeated.                                                                     
-  --add-label         <label>        - Add an issue label without replacing existing labels. May be repeated.                                         
-  --remove-label      <label>        - Remove an issue label without replacing other labels. May be repeated.                                         
+  --description-file  <path>         - Read UTF-8 description from a file (- for stdin; preferred for markdown content)                               
+  -l, --label         <label>        - Replace all issue labels (UUID or name). May be repeated.                                                      
+  --add-label         <label>        - Add an issue label (UUID or name) without replacing existing labels. May be repeated.                          
+  --remove-label      <label>        - Remove an issue label (UUID or name) without replacing other labels. May be repeated.                          
   --team              <team>         - Move the issue to this team (UUID or key); Linear may also move child issues                                   
   --project           <project>      - Project to assign the issue to (UUID, slug ID, or name)                                                        
   -s, --state         <state>        - Workflow state for the issue (UUID, name, or type)                                                             

@@ -34,9 +34,9 @@ export const commentUpdateCommand = withUsageMetadata(new Command(), {
   interactive: true,
 })
   .name("update")
-  .description(withMarkdownHint("Update an existing comment"))
+  .description(withMarkdownHint("Update an existing comment by UUID"))
   .arguments("<commentId:string>")
-  .option("-b, --body <text:string>", "New comment body text", {
+  .option("-b, --body <body:string>", "New comment body text", {
     preserveEmpty: true,
   })
   .option(
@@ -45,7 +45,7 @@ export const commentUpdateCommand = withUsageMetadata(new Command(), {
     { preserveEmpty: true },
   )
   .option(
-    "-a, --attach <filepath:string>",
+    "-a, --attach <path:string>",
     "Upload and append a file (repeatable); without explicit body/edit, preserve the saved original body (current body with --unprotected)",
     { collect: true, preserveEmpty: true },
   )

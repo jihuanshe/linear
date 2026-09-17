@@ -39,14 +39,16 @@ const ListProjectUpdatesQuery = gql(`
 
 export const listCommand = new Command()
   .name("list")
-  .description("List status updates for a project")
+  .description(
+    "List status updates for a project by UUID, slug ID, or exact name",
+  )
   .alias("l")
-  .arguments("<projectId:string>")
+  .arguments("<project:string>")
   .option("--json", "Output as JSON")
   .option("--limit <limit:number>", "Maximum results (positive integer)", {
     default: 10,
   })
-  .action(async ({ json, limit }, projectId) => {
+  .action(async ({ json, limit }, projectReference) => {
     const { Spinner } = await import("@std/cli/unstable-spinner")
     const showSpinner = shouldShowSpinner() && !json
     const spinner = showSpinner ? new Spinner() : null
@@ -58,7 +60,7 @@ export const listCommand = new Command()
       }
 
       // Resolve project ID
-      const resolvedProjectId = await resolveProjectId(projectId)
+      const resolvedProjectId = await resolveProjectId(projectReference)
 
       const client = getGraphQLClient()
       const result = await client.request(ListProjectUpdatesQuery, {
@@ -69,7 +71,7 @@ export const listCommand = new Command()
 
       const project = result.project
       if (!project) {
-        throw new NotFoundError("Project", projectId)
+        throw new NotFoundError("Project", projectReference)
       }
 
       const updates = project.projectUpdates?.nodes || []

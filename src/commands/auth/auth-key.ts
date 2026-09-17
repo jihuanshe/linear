@@ -2,9 +2,9 @@ import { Command } from "@cliffy/command"
 import { AuthError, handleError } from "../../utils/errors.ts"
 import { getResolvedApiKey } from "../../utils/graphql.ts"
 
-export const tokenCommand = new Command()
-  .name("token")
-  .description("Print the configured API token")
+export const keyCommand = new Command()
+  .name("key")
+  .description("Print the resolved API key")
   .action(async () => {
     try {
       const apiKey = await getResolvedApiKey()
@@ -16,6 +16,6 @@ export const tokenCommand = new Command()
         })
       }
     } catch (error) {
-      handleError(error, "Failed to get API token")
+      handleError(error, "Failed to get API key")
     }
   })

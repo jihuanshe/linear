@@ -59,7 +59,7 @@ async function runDelete(issueCount: number, args: string[]) {
   }
 }
 Deno.test("Team delete refuses a nonempty team with no migration or deletion", async () => {
-  const result = await runDelete(2, ["--force"])
+  const result = await runDelete(2, ["--yes"])
   assertEquals(
     result.errors.some((e) => e.includes("requires an empty team")),
     true,
@@ -87,7 +87,7 @@ Deno.test("Team delete dry run is read only", async () => {
   assertEquals(result.requests.length, 2)
 })
 Deno.test("Team delete rereads the same team immediately before deletion", async () => {
-  const result = await runDelete(0, ["--force", "--json"])
+  const result = await runDelete(0, ["--yes", "--json"])
   assertEquals(
     result.requests.filter((q) => q.includes("query GetTeamDetails")).length,
     2,

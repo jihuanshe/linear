@@ -3,14 +3,14 @@ export const snapshot = {};
 snapshot[`Document Update Command - Help Text 1`] = `
 stdout:
 "
-Usage: update <documentId>
+Usage: update <document>
 
 Writes: true     
 Interactive: true
 
 Description:
 
-  Update an existing document                                                                
+  Update an existing document by UUID or slug ID                                             
                                                                                              
   Without --content, --content-file, or --edit, read piped Markdown through EOF.             
   Nonempty stdin can be combined with metadata updates; empty stdin leaves content unchanged.

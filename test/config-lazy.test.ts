@@ -37,6 +37,201 @@ function evaluate(root: string, code: string, env?: Record<string, string>) {
   return run(root, ["eval", `--config=${denoConfig}`, code], env)
 }
 
+Deno.test("team_key resolves global/project/env precedence and numeric Issue references", async () => {
+  const root = await Deno.makeTempDir()
+  try {
+    await Deno.mkdir(join(root, "global", "linear"), { recursive: true })
+    await Deno.writeTextFile(
+      join(root, "global", "linear", "linear.toml"),
+      'team_key = "global"\n',
+    )
+    await Deno.writeTextFile(
+      join(root, ".linear.toml"),
+      'team_key = "project"\n',
+    )
+    const code = `
+      import { getOption } from ${JSON.stringify(configUrl.href)};
+      import { getTeamKey, getIssueReference } from ${
+      JSON.stringify(new URL("../src/utils/linear.ts", import.meta.url).href)
+    };
+      import { assertEquals, assertThrows } from "@std/assert";
+      import { ValidationError } from ${
+      JSON.stringify(new URL("../src/utils/errors.ts", import.meta.url).href)
+    };
+      const configured = getOption("team_key");
+      console.log(configured);
+      assertEquals(getTeamKey(), configured.toUpperCase());
+      assertEquals(await getIssueReference("123"), configured.toUpperCase() + "-123");
+      Deno.env.set("LINEAR_TEAM_KEY", "env");
+      assertEquals(getOption("team_key"), "env");
+      assertEquals(await getIssueReference("123"), "ENV-123");
+      assertEquals(getOption("team_key", "cli"), "cli");
+      Deno.env.set("LINEAR_TEAM_KEY", "");
+      assertThrows(() => getTeamKey(), ValidationError, "Invalid value for team_key");
+    `
+    for (const expected of ["project", "global"]) {
+      const result = await evaluate(root, code)
+      assertEquals(
+        result.success,
+        true,
+        new TextDecoder().decode(result.stderr),
+      )
+      assertEquals(new TextDecoder().decode(result.stdout).trim(), expected)
+      if (expected === "project") await Deno.remove(join(root, ".linear.toml"))
+    }
+  } finally {
+    await Deno.remove(root, { recursive: true })
+  }
+})
+
+Deno.test("team selection rejects obsolete names and invalid team_key instead of falling back", async () => {
+  const root = await Deno.makeTempDir()
+  try {
+    await Deno.mkdir(join(root, "global", "linear"), { recursive: true })
+    await Deno.writeTextFile(
+      join(root, "global", "linear", "credentials.toml"),
+      'invalid = "DO_NOT_READ\n',
+    )
+    for (
+      const fixture of [
+        {
+          path: ".linear.toml",
+          source: 'team_id = "OLD"\nteam_key = "ENG"\n',
+          error: "Unsupported team_id",
+          suggestion: "team_key",
+        },
+        {
+          path: "global/linear/linear.toml",
+          source: 'team_id = ""\n',
+          error: "Unsupported team_id",
+          suggestion: "team_key",
+        },
+        {
+          path: ".env",
+          source: "LINEAR_TEAM_ID=OLD\n",
+          error: "Unsupported environment variable LINEAR_TEAM_ID",
+          suggestion: "LINEAR_TEAM_KEY",
+        },
+        ...["OLD", ""].map((value) => ({
+          env: { LINEAR_TEAM_ID: value },
+          error: "Unsupported environment variable LINEAR_TEAM_ID",
+          suggestion: "LINEAR_TEAM_KEY",
+        })),
+        ...['""', "123"].map((value) => ({
+          path: ".linear.toml",
+          source: `team_key = ${value}\n`,
+          env: { LINEAR_TEAM_KEY: undefined },
+          error: "Invalid value for team_key",
+          suggestion: "LINEAR_TEAM_KEY",
+        })),
+      ]
+    ) {
+      const path = "path" in fixture ? join(root, fixture.path) : undefined
+      if (path != null && "source" in fixture) {
+        await Deno.writeTextFile(path, fixture.source)
+      }
+      const env: Record<string, string> = { LINEAR_TEAM_KEY: "ENG" }
+      if ("env" in fixture) {
+        for (const [key, value] of Object.entries(fixture.env)) {
+          if (value == null) delete env[key]
+          else env[key] = value
+        }
+      }
+      const result = await run(root, [
+        "run",
+        "--allow-all",
+        "--deny-net",
+        "--quiet",
+        `--config=${denoConfig}`,
+        mainUrl.href,
+        "issue",
+        "view",
+        "123",
+        "--json",
+      ], env)
+      assertEquals(result.success, false, fixture.error)
+      assertEquals(new TextDecoder().decode(result.stderr), "")
+      const output = JSON.parse(new TextDecoder().decode(result.stdout))
+      assertEquals(output.ok, false)
+      assertEquals(output.effect, "none")
+      assertEquals(output.error.code, "ValidationError")
+      assertStringIncludes(output.error.message, fixture.error)
+      assertStringIncludes(output.error.suggestion, fixture.suggestion)
+      if (path != null) await Deno.remove(path)
+    }
+  } finally {
+    await Deno.remove(root, { recursive: true })
+  }
+})
+
+Deno.test("cached configuration still rejects an explicitly set LINEAR_TEAM_ID", async () => {
+  const root = await Deno.makeTempDir()
+  try {
+    const result = await evaluate(
+      root,
+      `
+      import { getOption, loadConfig } from ${JSON.stringify(configUrl.href)};
+      import { assertThrows } from "@std/assert";
+      import { ValidationError } from ${
+        JSON.stringify(new URL("../src/utils/errors.ts", import.meta.url).href)
+      };
+      loadConfig();
+      Deno.env.set("LINEAR_TEAM_ID", "");
+      assertThrows(() => loadConfig(), ValidationError, "Unsupported environment variable LINEAR_TEAM_ID");
+      assertThrows(() => getOption("team_key", "ENG"), ValidationError, "Unsupported environment variable LINEAR_TEAM_ID");
+    `,
+    )
+    assertEquals(result.success, true, new TextDecoder().decode(result.stderr))
+  } finally {
+    await Deno.remove(root, { recursive: true })
+  }
+})
+
+Deno.test("offline help/usage/guide do not load obsolete team configuration or credentials", async () => {
+  const root = await Deno.makeTempDir()
+  try {
+    await Deno.mkdir(join(root, "global", "linear"), { recursive: true })
+    await Deno.writeTextFile(join(root, ".linear.toml"), 'team_id = "OLD"\n')
+    await Deno.writeTextFile(join(root, ".env"), "LINEAR_TEAM_ID=OLD\n")
+    await Deno.writeTextFile(
+      join(root, "global", "linear", "credentials.toml"),
+      'invalid = "DO_NOT_READ\n',
+    )
+    for (
+      const args of [
+        ["config", "--help"],
+        ["usage", "--json"],
+        ["guide", "core"],
+      ]
+    ) {
+      const result = await evaluate(
+        root,
+        `
+        import { cli } from ${JSON.stringify(cliUrl.href)};
+        const fail = () => { throw new Error("unexpected configuration or credential I/O") };
+        Deno.readTextFile = Deno.readTextFileSync = Deno.statSync = fail;
+        const { _setBackend } = await import(${
+          JSON.stringify(
+            new URL("../src/keyring/index.ts", import.meta.url).href,
+          )
+        });
+        _setBackend({ get: fail, set: fail, delete: fail, isAvailable: fail });
+        await cli.parse(${JSON.stringify(args)});
+      `,
+        { LINEAR_TEAM_ID: "" },
+      )
+      assertEquals(
+        result.success,
+        true,
+        new TextDecoder().decode(result.stderr),
+      )
+      assertEquals(new TextDecoder().decode(result.stderr), "")
+    }
+  } finally {
+    await Deno.remove(root, { recursive: true })
+  }
+})
+
 Deno.test("config/auth/CLI imports perform no configuration, dotenv or keyring I/O", async () => {
   const root = await Deno.makeTempDir()
   try {
@@ -214,10 +409,10 @@ Deno.test("integer Issue references without a configured team identify the confi
     const result = await evaluate(
       root,
       `
-      import { getIssueIdentifier } from ${
+      import { getIssueReference } from ${
         JSON.stringify(new URL("../src/utils/linear.ts", import.meta.url).href)
       };
-      try { await getIssueIdentifier("123") } catch (error) {
+      try { await getIssueReference("123") } catch (error) {
         console.log(JSON.stringify({ message: error.message, suggestion: error.suggestion }));
       }
     `,

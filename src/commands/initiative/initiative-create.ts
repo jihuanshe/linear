@@ -64,7 +64,7 @@ export const createCommand = withUsageMetadata(new Command(), {
   .option("-d, --description <description:string>", "Initiative description", {
     preserveEmpty: true,
   })
-  .option("--content <text:string>", "Initiative Markdown content", {
+  .option("--content <content:string>", "Initiative Markdown content", {
     preserveEmpty: true,
   })
   .option(
@@ -87,7 +87,7 @@ export const createCommand = withUsageMetadata(new Command(), {
     { preserveEmpty: true },
   )
   .option(
-    "--target-date <targetDate:string>",
+    "--target-date <date:string>",
     "Target completion date (YYYY-MM-DD)",
     { preserveEmpty: true },
   )

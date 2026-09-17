@@ -30,14 +30,16 @@ const HEALTH_DISPLAY: Record<string, string> = {
 
 export const listCommand = new Command()
   .name("list")
-  .description("List status updates for an initiative")
+  .description(
+    "List status updates for an initiative by UUID, slug ID, or name",
+  )
   .alias("l")
-  .arguments("<initiativeId:string>")
+  .arguments("<initiative:string>")
   .option("-j, --json", "Output as JSON")
   .option("--limit <limit:number>", "Maximum results (positive integer)", {
     default: 10,
   })
-  .action(async ({ json, limit }, initiativeId) => {
+  .action(async ({ json, limit }, initiativeReference) => {
     const { Spinner } = await import("@std/cli/unstable-spinner")
     const showSpinner = shouldShowSpinner() && !json
     const spinner = showSpinner ? new Spinner() : null
@@ -51,7 +53,7 @@ export const listCommand = new Command()
       const client = getGraphQLClient()
 
       // Resolve initiative ID
-      const resolvedId = await resolveInitiativeId(client, initiativeId)
+      const resolvedId = await resolveInitiativeId(client, initiativeReference)
 
       const listQuery = gql(`
         query ListInitiativeUpdates($id: String!, $first: Int) {
@@ -87,7 +89,7 @@ export const listCommand = new Command()
 
       const initiative = result.initiative
       if (!initiative) {
-        throw new NotFoundError("Initiative", initiativeId)
+        throw new NotFoundError("Initiative", initiativeReference)
       }
 
       const updates = initiative.initiativeUpdates?.nodes || []

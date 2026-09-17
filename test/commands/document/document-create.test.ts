@@ -1,10 +1,263 @@
 import { snapshotTest } from "@cliffy/testing"
-import { assertEquals, assertStringIncludes } from "@std/assert"
+import { assertEquals, assertRejects, assertStringIncludes } from "@std/assert"
+import { stub } from "@std/testing/mock"
 import { createCommand } from "../../../src/commands/document/document-create.ts"
+import { Input, Select } from "../../../src/utils/prompt.ts"
 import { MockLinearServer } from "../../utils/mock_linear_server.ts"
-import { commonDenoArgs } from "../../utils/test-helpers.ts"
+import {
+  commonDenoArgs,
+  setupMockLinearServer,
+} from "../../utils/test-helpers.ts"
 
 const parentProjectId = "11111111-1111-4111-8111-111111111111"
+const parentIssueId = "abcdef01-2345-4678-9abc-def012345678"
+
+async function interactiveIssue(reference: string, expectedError?: string) {
+  const stdin = stub(
+    Object.getPrototypeOf(Deno.stdin),
+    "isTerminal",
+    () => true,
+  )
+  const stdout = stub(
+    Object.getPrototypeOf(Deno.stdout),
+    "isTerminal",
+    () => true,
+  )
+  const input = stub(Input, "prompt", (options) => {
+    if (typeof options === "string") throw new Error("Unexpected prompt")
+    if (options.message === "Document title") return Promise.resolve("Spec")
+    if (options.message.startsWith("Icon")) return Promise.resolve("")
+    assertEquals(
+      options.message,
+      "Issue (UUID, identifier, or Linear Issue URL)",
+    )
+    return Promise.resolve(reference)
+  })
+  const select = stub(Select, "prompt", (options: { message: string }) => {
+    if (options.message === "How would you like to enter content?") {
+      return Promise.resolve("skip")
+    }
+    assertEquals(options.message, "Attach document to")
+    return Promise.resolve("issue")
+  })
+  const log = stub(console, "log", () => {})
+  const errors: string[] = []
+  const stderr = stub(console, "error", (...args: unknown[]) => {
+    errors.push(args.join(" "))
+  })
+  const exit = stub(Deno, "exit", () => {
+    throw new Error("EXIT")
+  })
+  try {
+    if (expectedError == null) {
+      await createCommand.parse(["--interactive"])
+    } else {
+      await assertRejects(
+        () => createCommand.parse(["--interactive"]),
+        Error,
+        "EXIT",
+      )
+      assertStringIncludes(errors.join("\n"), expectedError)
+      if (!expectedError.includes("not found")) {
+        assertEquals(errors.join("\n").includes("Issue not found"), false)
+      }
+    }
+  } finally {
+    exit.restore()
+    stderr.restore()
+    log.restore()
+    select.restore()
+    input.restore()
+    stdout.restore()
+    stdin.restore()
+  }
+}
+
+for (const interactive of [false, true]) {
+  for (
+    const scenario of [
+      {
+        name: "UUID",
+        reference: parentIssueId.toUpperCase(),
+        resolved: parentIssueId,
+      },
+      { name: "identifier", reference: "eng-123", resolved: "ENG-123" },
+      {
+        name: "URL",
+        reference: "https://linear.app/test/issue/ENG-123/title",
+        resolved: "ENG-123",
+      },
+      { name: "empty", reference: "", error: "Invalid issue reference" },
+      { name: "blank", reference: " ", error: "Invalid issue reference" },
+      {
+        name: "branch",
+        reference: "feature/ENG-123",
+        error: "Invalid issue reference",
+      },
+      {
+        name: "invalid URL",
+        reference: "https://example.com/test/issue/ENG-123",
+        error: "Invalid issue reference",
+      },
+      {
+        name: "cross-workspace",
+        reference: "https://linear.app/other/issue/ENG-123/title",
+        error: "different workspace",
+      },
+      {
+        name: "missing",
+        reference: "ENG-123",
+        resolved: "ENG-123",
+        error: "Issue not found",
+      },
+      {
+        name: "unauthorized",
+        reference: "ENG-123",
+        resolved: "ENG-123",
+        error: "Issue lookup unauthorized",
+        status: 401,
+      },
+      {
+        name: "unavailable",
+        reference: "ENG-123",
+        resolved: "ENG-123",
+        error: "Issue lookup unavailable",
+        status: 503,
+      },
+      {
+        name: "workspace unauthorized",
+        reference: "https://linear.app/test/issue/ENG-123/title",
+        error: "Workspace lookup unauthorized",
+        status: 401,
+      },
+    ]
+  ) {
+    Deno.test(`document create Issue reference ${scenario.name}: interactive=${interactive}`, async () => {
+      const { server, cleanup } = await setupMockLinearServer([
+        {
+          queryName: "GetIssueReferenceWorkspace",
+          status: scenario.name === "workspace unauthorized" ? 401 : 200,
+          response: scenario.name === "workspace unauthorized"
+            ? { errors: [{ message: scenario.error }] }
+            : { data: { organization: { id: "workspace", urlKey: "test" } } },
+        },
+        {
+          queryName: "GetIssueId",
+          variables: { id: scenario.resolved },
+          status: scenario.status ?? 200,
+          response: scenario.status != null
+            ? { errors: [{ message: scenario.error }] }
+            : {
+              data: {
+                issue: scenario.name === "missing"
+                  ? null
+                  : { id: parentIssueId },
+              },
+            },
+        },
+        {
+          queryName: "CreateDocument",
+          response: {
+            data: {
+              documentCreate: {
+                success: true,
+                document: {
+                  id: "document",
+                  title: "Spec",
+                  url: "https://linear.app/test/document/spec",
+                },
+              },
+            },
+          },
+        },
+      ])
+      try {
+        if (interactive) {
+          await interactiveIssue(scenario.reference, scenario.error)
+        } else {
+          const result = await new Deno.Command(Deno.execPath(), {
+            args: [
+              "run",
+              ...commonDenoArgs,
+              "src/main.ts",
+              "document",
+              "create",
+              "--title",
+              "Spec",
+              "--content",
+              "",
+              "--issue",
+              scenario.reference,
+              "--json",
+            ],
+            stdin: "null",
+            stdout: "piped",
+            stderr: "piped",
+          }).output()
+          const body = JSON.parse(new TextDecoder().decode(result.stdout))
+          assertEquals(
+            result.code,
+            scenario.error == null ? 0 : 1,
+            JSON.stringify(body),
+          )
+          assertEquals(body.effect, scenario.error == null ? "applied" : "none")
+          if (scenario.error != null) {
+            assertStringIncludes(body.error.message, scenario.error)
+            if (!scenario.error.includes("not found")) {
+              assertEquals(body.error.code === "NotFoundError", false)
+            }
+          }
+          assertEquals(result.stderr.length, 0)
+        }
+        const lookups = server.graphqlRequests.filter((request) =>
+          request.query.includes("query GetIssueId")
+        )
+        assertEquals(
+          lookups.map((request) => request.variables),
+          scenario.resolved == null ? [] : [{ id: scenario.resolved }],
+        )
+        const writes = server.graphqlRequests.filter((request) =>
+          request.query.includes("mutation ")
+        )
+        assertEquals(writes.length, scenario.error == null ? 1 : 0)
+        if (scenario.error == null) {
+          assertEquals(writes[0].variables.input, {
+            title: "Spec",
+            issueId: parentIssueId,
+            ...(interactive ? {} : { content: "" }),
+          })
+        }
+        if (
+          ["empty", "blank", "branch", "invalid URL"].includes(scenario.name)
+        ) {
+          assertEquals(server.graphqlRequests, [])
+        }
+      } finally {
+        await cleanup()
+      }
+    })
+  }
+}
+
+Deno.test("document create preserves transport failure instead of Issue not found", async () => {
+  const code = `
+    import { cli } from "./src/cli.ts";
+    globalThis.fetch = () => { throw new TypeError("transport offline"); };
+    await cli.parse(["document", "create", "--title", "Spec", "--content", "", "--issue", "ENG-123", "--json"]);
+  `
+  const result = await new Deno.Command(Deno.execPath(), {
+    args: ["eval", "--quiet", code],
+    env: { LINEAR_API_KEY: "test-token" },
+    stdin: "null",
+    stdout: "piped",
+    stderr: "piped",
+  }).output()
+  const body = JSON.parse(new TextDecoder().decode(result.stdout))
+  assertEquals(result.code, 1)
+  assertEquals(body.effect, "none")
+  assertStringIncludes(body.error.message, "transport offline")
+  assertEquals(body.error.code === "NotFoundError", false)
+})
 
 for (
   const parents of [
@@ -285,7 +538,7 @@ await snapshotTest({
     const server = new MockLinearServer([
       // Mock issue resolution query
       {
-        queryName: "GetIssueForDocument",
+        queryName: "GetIssueId",
         variables: { id: "TC-123" },
         response: {
           data: {

@@ -45,7 +45,7 @@ linear auth logout <workspace>
 
 `auth list` 只展示本地凭据库存，实际联网检查用 `auth whoami`。普通命令只读取选中工作区的凭据，登录不迁移其他工作区；迁移已有明文凭据须显式运行 `auth migrate`。
 
-脚本和 CI 优先从密钥管理器向单个进程注入 `LINEAR_API_KEY`。CLI 保留 `.env` 加载；从环境密钥切换到已保存账号前，也要检查 `.env`。明文凭据和 `.env` 容易进入源码、备份或日志，不要用于长期共享密钥。`linear auth token` 只在底层 HTTP 客户端确实需要时使用。
+脚本和 CI 优先从密钥管理器向单个进程注入 `LINEAR_API_KEY`。CLI 保留 `.env` 加载；从环境密钥切换到已保存账号前，也要检查 `.env`。明文凭据和 `.env` 容易进入源码、备份或日志，不要用于长期共享密钥。`linear auth key` 只在底层 HTTP 客户端确实需要时使用。
 
 配置文件不能保存 `api_key`。已有该字段时，实际读取配置的操作会拒绝执行；先通过 `auth login` 保存并核对密钥，再移除 TOML 中的密钥字段。CLI 不自动搬移或删除凭据。
 
@@ -55,7 +55,7 @@ linear auth logout <workspace>
 
 ```toml
 workspace = "acme"
-team_id = "ENG"
+team_key = "ENG"
 issue_sort = "priority"
 issue_create_assign_self = "auto"
 issue_create_ask_project = true
@@ -63,6 +63,8 @@ vcs = "git"
 ```
 
 普通设置按「命令选项 → `LINEAR_<KEY>` → 项目 TOML → 用户 TOML → 默认值」选择。项目设置只覆盖写出的 key；认证凭据和工作区选择遵循本页前面的独立顺序。
+
+`team_key` 保存团队可读 key（如 `ENG`），不是团队 UUID；对应环境变量为 `LINEAR_TEAM_KEY`。
 
 显式非法值报错，不按未设置处理。查看正文保留远端链接；保存资产用 `linear download`。
 

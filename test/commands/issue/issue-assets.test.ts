@@ -497,7 +497,7 @@ for (const operation of ["comment", "attach"]) {
           ],
           env: {
             LINEAR_API_KEY: "test-key",
-            LINEAR_TEAM_ID: "ENG",
+            LINEAR_TEAM_KEY: "ENG",
             LINEAR_GRAPHQL_ENDPOINT: server.getEndpoint(),
           },
           stdin: "null",

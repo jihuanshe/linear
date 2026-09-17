@@ -47,13 +47,14 @@ stderr:
 snapshot[`Issue Attach Command - Help 1`] = `
 stdout:
 "
-Usage: attach <issueId> <filepath>
+Usage: attach <issue> <path>
 
 Writes: true
 
 Description:
 
-  Create a sidebar attachment on an issue (images do not render inline)
+  Create a sidebar attachment on an issue (images do not render inline). Accepts an issue UUID, identifier (e.g. ENG-123), number in the configured
+  team, or Linear URL.                                                                                                                             
 
 Options:
 

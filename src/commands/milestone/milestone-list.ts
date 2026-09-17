@@ -40,7 +40,7 @@ export const listCommand = new Command()
     { required: true },
   )
   .option("--json", "Output the complete {nodes, pageInfo} connection as JSON")
-  .action(async ({ project: projectIdOrSlug, json }) => {
+  .action(async ({ project: projectReference, json }) => {
     const { Spinner } = await import("@std/cli/unstable-spinner")
     const showSpinner = shouldShowSpinner() && !json
     const spinner = showSpinner ? new Spinner() : null
@@ -48,7 +48,7 @@ export const listCommand = new Command()
 
     try {
       // Resolve project slug to full UUID
-      const projectId = await resolveProjectId(projectIdOrSlug)
+      const projectId = await resolveProjectId(projectReference)
 
       const client = getGraphQLClient()
       const result = await client.request(GetProjectMilestones, {

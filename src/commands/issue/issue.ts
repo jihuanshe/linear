@@ -4,7 +4,7 @@ import { attachCommand } from "./issue-attach.ts"
 import { commentCommand } from "./issue-comment.ts"
 import { createCommand } from "./issue-create.ts"
 import { deleteCommand } from "./issue-delete.ts"
-import { idCommand } from "./issue-id.ts"
+import { identifierCommand } from "./issue-identifier.ts"
 import { linkCommand } from "./issue-link.ts"
 import { queryCommand } from "./issue-query.ts"
 import { relationCommand } from "./issue-relation.ts"
@@ -21,7 +21,7 @@ import { exportCommand } from "./issue-export.ts"
 export const issueCommand = new Command()
   .description("Manage Linear issues")
   .action(createUsageAction(true))
-  .command("id", idCommand)
+  .command("identifier", identifierCommand)
   .command("query", queryCommand)
   .alias("q")
   .command("title", titleCommand)

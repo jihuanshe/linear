@@ -10,10 +10,10 @@ import {
 import { withGraphQLContext } from "../../src/utils/graphql.ts"
 
 Deno.test("browser actions use authenticated organization and canonical resource URLs", async () => {
-  const names = ["LINEAR_API_KEY", "LINEAR_WORKSPACE", "LINEAR_TEAM_ID"]
+  const names = ["LINEAR_API_KEY", "LINEAR_WORKSPACE", "LINEAR_TEAM_KEY"]
   Deno.env.set("LINEAR_API_KEY", "synthetic-selected-key")
   Deno.env.set("LINEAR_WORKSPACE", "wrong-config-workspace")
-  Deno.env.set("LINEAR_TEAM_ID", "ABC")
+  Deno.env.set("LINEAR_TEAM_KEY", "ABC")
   const opened: string[][] = []
   const Command = Deno.Command
   using _commands = stub(

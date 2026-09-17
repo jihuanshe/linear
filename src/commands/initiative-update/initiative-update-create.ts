@@ -29,9 +29,11 @@ export const createCommand = withUsageMetadata(new Command(), {
     "--json",
     "Output a JSON write result; the created update is in data.initiativeUpdate",
   )
-  .description("Create a new status update for an initiative")
+  .description(
+    "Create a new status update for an initiative by UUID, slug ID, or name",
+  )
   .alias("c")
-  .arguments("<initiativeId:string>")
+  .arguments("<initiative:string>")
   .option("--body <body:string>", "Update content (markdown)", {
     preserveEmpty: true,
   })
@@ -52,7 +54,7 @@ export const createCommand = withUsageMetadata(new Command(), {
   .action(
     async (
       { body, bodyFile, health, interactive, json, edit },
-      initiativeId,
+      initiativeReference,
     ) => {
       try {
         if (json && (interactive || edit)) {
@@ -77,9 +79,12 @@ export const createCommand = withUsageMetadata(new Command(), {
         const client = getGraphQLClient()
 
         // Resolve initiative ID
-        const resolvedId = await resolveInitiativeId(client, initiativeId)
+        const resolvedId = await resolveInitiativeId(
+          client,
+          initiativeReference,
+        )
         if (!resolvedId) {
-          throw new NotFoundError("Initiative", initiativeId)
+          throw new NotFoundError("Initiative", initiativeReference)
         }
 
         // Get initiative name for display
@@ -91,7 +96,7 @@ export const createCommand = withUsageMetadata(new Command(), {
           }
         }
       `)
-        let initiativeName = initiativeId
+        let initiativeName = initiativeReference
         try {
           const result = await client.request(initiativeQuery, {
             id: resolvedId,

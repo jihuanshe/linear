@@ -3,7 +3,7 @@ export const snapshot = {};
 snapshot[`API Command - Help Text 1`] = `
 stdout:
 "
-Usage: api [query]
+Usage: api [document]
 
 Writes: true      
 Output modes: json
@@ -12,7 +12,7 @@ Description:
 
   Run raw GraphQL queries or explicitly unprotected mutations.                                                                                       
                                                                                                                                                      
-  Pass a query argument or '-' to read stdin to EOF.                                                                                                 
+  Pass a GraphQL document or '-' to read stdin to EOF.                                                                                               
                                                                                                                                                      
   Raw mutations require --unprotected and do not provide domain guards, receipts or checkpoints. Queries may retry explicit server overload responses
   within a bounded deadline; mutations are never retried. Inspect data/errors and reconcile uncertain writes.                                        
@@ -59,8 +59,8 @@ stdout:
   "effect": "none",
   "error": {
     "code": "ValidationError",
-    "message": "API request failed: No query provided",
-    "suggestion": "Provide a query as an argument: linear api '{ viewer { id } }'\\\\n  Or read stdin explicitly: linear api - < query.graphql"
+    "message": "API request failed: No GraphQL document provided",
+    "suggestion": "Provide a GraphQL document as an argument: linear api '{ viewer { id } }'\\\\n  Or read stdin explicitly: linear api - < document.graphql"
   }
 }
 \`

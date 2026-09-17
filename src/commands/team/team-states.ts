@@ -8,19 +8,24 @@ import { handleError, ValidationError } from "../../utils/errors.ts"
 
 export const statesCommand = new Command()
   .name("states")
-  .description("List workflow states for a team")
-  .arguments("[teamKey:string]")
+  .description(
+    "List workflow states for a team by UUID or key; uses the configured default team when omitted",
+  )
+  .arguments("[team:string]")
   .option("-j, --json", "Output as JSON")
-  .action(async ({ json }, teamKey?: string) => {
+  .action(async ({ json }, teamReference?: string) => {
     const showSpinner = !json && shouldShowSpinner()
     let spinner: { start: () => void; stop: () => void } | null = null
 
     try {
-      const resolvedTeamKey = teamKey || getTeamKey()
-      if (!resolvedTeamKey) {
+      const selectedTeam = teamReference || getTeamKey()
+      if (!selectedTeam) {
         throw new ValidationError(
-          "Could not determine team key from directory name",
-          { suggestion: "Please specify a team key as an argument." },
+          "No default team configured",
+          {
+            suggestion:
+              "Specify a team UUID or key as an argument, or run `linear config` to set a default team.",
+          },
         )
       }
 
@@ -30,7 +35,7 @@ export const statesCommand = new Command()
         spinner.start()
       }
 
-      const states = await getWorkflowStates(resolvedTeamKey)
+      const states = await getWorkflowStates(selectedTeam)
 
       spinner?.stop()
 

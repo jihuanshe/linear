@@ -3,13 +3,13 @@ export const snapshot = {};
 snapshot[`Issue Link Command - Help Text 1`] = `
 stdout:
 '
-Usage: link <issueId> <url>
+Usage: link <issue> <url>
 
 Writes: true
 
 Description:
 
-  Link a URL to an issue
+  Link a URL to an issue by UUID, identifier (e.g. ENG-123), number in the configured team, or Linear URL
 
 Options:
 

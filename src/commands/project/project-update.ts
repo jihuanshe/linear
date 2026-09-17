@@ -7,7 +7,7 @@ import type { ProjectUpdateInput } from "../../__codegen__/graphql.ts"
 import { getGraphQLClient } from "../../utils/graphql.ts"
 import { resolveWriteTeam } from "../../utils/issue-read.ts"
 import {
-  getProjectLabelIdByName,
+  lookupProjectLabelId,
   lookupUserId,
   resolveProjectId,
 } from "../../utils/linear.ts"
@@ -59,8 +59,8 @@ const UpdateProject = gql(`
 
 export const updateCommand = withUsageMetadata(new Command(), { writes: true })
   .name("update")
-  .description("Update a Linear project")
-  .arguments("<projectId:string>")
+  .description("Update a Linear project by UUID, slug ID, or exact name")
+  .arguments("<project:string>")
   .option("-n, --name <name:string>", "Project name", { preserveEmpty: true })
   .option(
     "-d, --description <description:string>",
@@ -69,17 +69,17 @@ export const updateCommand = withUsageMetadata(new Command(), { writes: true })
   )
   .option(
     "-f, --description-file <path:string>",
-    `Read project description from file (still subject to the ${PROJECT_DESCRIPTION_MAX_LENGTH}-character API limit)`,
+    `Read UTF-8 project description from a file (- for stdin; still subject to the ${PROJECT_DESCRIPTION_MAX_LENGTH}-character API limit)`,
     { preserveEmpty: true },
   )
   .option(
-    "--content <markdown:string>",
+    "--content <content:string>",
     "Replace project overview Markdown; empty string clears it",
     { preserveEmpty: true },
   )
   .option(
     "--content-file <path:string>",
-    "Read project overview Markdown from a file; replaces the full content",
+    "Read UTF-8 project overview Markdown from a file (- for stdin); replaces the full content",
     { preserveEmpty: true },
   )
   .option(
@@ -92,15 +92,15 @@ export const updateCommand = withUsageMetadata(new Command(), { writes: true })
     "Project lead (user UUID, username, name, email, 'self', or '@me')",
     { preserveEmpty: true },
   )
-  .option("--start-date <startDate:string>", "Start date (YYYY-MM-DD)", {
+  .option("--start-date <date:string>", "Start date (YYYY-MM-DD)", {
     preserveEmpty: true,
   })
-  .option("--target-date <targetDate:string>", "Target date (YYYY-MM-DD)", {
+  .option("--target-date <date:string>", "Target date (YYYY-MM-DD)", {
     preserveEmpty: true,
   })
   .option(
     "-t, --team <team:string>",
-    "Replace project teams with these keys (can be repeated)",
+    "Replace project teams with these UUIDs or keys (can be repeated)",
     { collect: true, preserveEmpty: true },
   )
   .option("-j, --json", "Output the write result as JSON")
@@ -120,7 +120,7 @@ export const updateCommand = withUsageMetadata(new Command(), { writes: true })
   )
   .option(
     "--label <label:string>",
-    "Replace the project's labels. May be repeated to set multiple labels.",
+    "Replace the project's labels by UUID or exact name. May be repeated to set multiple labels.",
     { collect: true, preserveEmpty: true },
   )
   .action(
@@ -142,7 +142,7 @@ export const updateCommand = withUsageMetadata(new Command(), { writes: true })
         unprotected,
         expectField,
       },
-      projectId,
+      projectReference,
     ) => {
       const { Spinner } = await import("@std/cli/unstable-spinner")
       const showSpinner = shouldShowSpinner() && !json
@@ -220,7 +220,7 @@ export const updateCommand = withUsageMetadata(new Command(), { writes: true })
 
         spinner?.start()
         const client = getGraphQLClient()
-        const resolvedId = await resolveProjectId(projectId)
+        const resolvedId = await resolveProjectId(projectReference)
 
         const input: ProjectUpdateInput = {}
 
@@ -255,7 +255,7 @@ export const updateCommand = withUsageMetadata(new Command(), { writes: true })
           const labelIds: string[] = []
           const seen = new Set<string>()
           for (const label of labels) {
-            const labelId = await getProjectLabelIdByName(label)
+            const labelId = await lookupProjectLabelId(label)
             if (!labelId) {
               spinner?.stop()
               throw new NotFoundError("Project label", label)

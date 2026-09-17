@@ -1,7 +1,7 @@
 import { Command } from "@cliffy/command"
 import { renderMarkdown } from "../../utils/markdown.ts"
 import type { Extension } from "@littletof/charmd"
-import { fetchIssueDetailsRaw, getIssueIdentifier } from "../../utils/linear.ts"
+import { fetchIssueDetailsRaw, getIssueReference } from "../../utils/linear.ts"
 import type { FetchedIssueComment } from "../../utils/linear.ts"
 import { Spinner } from "@std/cli/unstable-spinner"
 import { openIssuePage } from "../../utils/actions.ts"
@@ -24,10 +24,10 @@ import { handleError, ValidationError } from "../../utils/errors.ts"
 export const viewCommand = new Command()
   .name("view")
   .description(
-    "View issue details with all comments and attachments, or open in browser/app. For project, assignee and state changes, use issue history.",
+    "View issue details with all comments and attachments, or open in browser/app. Accepts an issue UUID, identifier (e.g. ENG-123), number in the configured team, or Linear URL; omit to use the current Git or Jujutsu context. For project, assignee and state changes, use issue history.",
   )
   .alias("v")
-  .arguments("[issueId:string]")
+  .arguments("[issue:string]")
   .option("-w, --web", "Open in web browser")
   .option("-a, --app", "Open in Linear.app")
   .option("--no-comments", "Exclude comments from the output")
@@ -40,22 +40,25 @@ export const viewCommand = new Command()
     "-j, --json",
     "Output all fetched threads including resolved history; comments and attachments retain {nodes, pageInfo}",
   )
-  .action(async (options, issueId) => {
+  .action(async (options, issueArg) => {
     const { web, app, comments, showResolvedThreads, pager, json } = options
     const showComments = comments !== false
     const usePager = pager !== false
 
     if (web || app) {
-      await openIssuePage(issueId, { app, web: !app })
+      await openIssuePage(issueArg, { app, web: !app })
       return
     }
 
     try {
-      const resolvedId = await getIssueIdentifier(issueId)
-      if (!resolvedId) {
+      const issueReference = await getIssueReference(issueArg)
+      if (!issueReference) {
         throw new ValidationError(
-          "Could not determine issue identifier",
-          { suggestion: "Please provide an issue identifier like 'ENG-123'." },
+          "Could not determine issue reference",
+          {
+            suggestion:
+              "Provide an Issue UUID, identifier such as ENG-123, or Linear Issue URL.",
+          },
         )
       }
 
@@ -63,7 +66,11 @@ export const viewCommand = new Command()
       spinner?.start()
       let readData: Awaited<ReturnType<typeof fetchIssueDetailsRaw>>
       try {
-        readData = await fetchIssueDetailsRaw(resolvedId, showComments, true)
+        readData = await fetchIssueDetailsRaw(
+          issueReference,
+          showComments,
+          true,
+        )
       } finally {
         spinner?.stop()
       }

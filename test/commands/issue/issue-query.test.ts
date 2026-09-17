@@ -31,7 +31,7 @@ for (const search of [false, true]) {
       await queryCommand.parse([
         "--team",
         "ENG",
-        "--state",
+        "--state-type",
         "unstarted",
         "--unassigned",
         "--milestone",
@@ -168,7 +168,7 @@ await snapshotTest({
   args: [
     "--team",
     "ENG",
-    "--state",
+    "--state-type",
     "started",
     "--json",
   ],
@@ -1394,7 +1394,7 @@ Deno.test("Issue Query Command - Uses configured default team without project", 
         },
       },
     },
-  ], { LINEAR_TEAM_ID: "ENG", NO_COLOR: "true" })
+  ], { LINEAR_TEAM_KEY: "ENG", NO_COLOR: "true" })
   const errorStub = stub(console, "error", () => {})
 
   try {
@@ -1649,9 +1649,16 @@ Deno.test("Issue Query Command - rejects --team with --all-teams", async () => {
 for (
   const { name, args, expected } of [
     {
-      name: "--state with --state-name",
-      args: ["--team", "ENG", "--state", "started", "--state-name", "Merged"],
-      expected: "Cannot use both --state and --state-name flags",
+      name: "--state-type with --state-name",
+      args: [
+        "--team",
+        "ENG",
+        "--state-type",
+        "started",
+        "--state-name",
+        "Merged",
+      ],
+      expected: "Cannot use both --state-type and --state-name flags",
     },
     {
       name: "a blank --state-name",
@@ -1685,7 +1692,7 @@ for (
 // Test validation: --sort with --search conflict
 Deno.test("Issue Query Command - rejects --sort with --search", async () => {
   const { cleanup } = await setupMockLinearServer([], {
-    LINEAR_TEAM_ID: "ENG",
+    LINEAR_TEAM_KEY: "ENG",
     NO_COLOR: "true",
   })
 
@@ -1723,7 +1730,7 @@ Deno.test("Issue Query Command - rejects --sort with --search", async () => {
 // Test validation: --search-comments without --search
 Deno.test("Issue Query Command - rejects --search-comments without --search", async () => {
   const { cleanup } = await setupMockLinearServer([], {
-    LINEAR_TEAM_ID: "ENG",
+    LINEAR_TEAM_KEY: "ENG",
     NO_COLOR: "true",
   })
 
@@ -1754,7 +1761,7 @@ Deno.test("Issue Query Command - rejects --search-comments without --search", as
 // Test validation: --milestone without --project
 Deno.test("Issue Query Command - rejects --milestone without --project", async () => {
   const { cleanup } = await setupMockLinearServer([], {
-    LINEAR_TEAM_ID: "ENG",
+    LINEAR_TEAM_KEY: "ENG",
     NO_COLOR: "true",
   })
 

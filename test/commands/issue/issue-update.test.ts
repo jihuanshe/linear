@@ -72,7 +72,7 @@ Deno.test("issue update CLI rejects an omitted target before transport", async (
     assertEquals(result.code, 1)
     const body = JSON.parse(new TextDecoder().decode(result.stdout))
     assertEquals(body.effect, "none")
-    assertStringIncludes(body.error.message, "issueId")
+    assertEquals(body.error.message, "Missing argument(s): issue")
     assertEquals(server.graphqlRequests, [])
   } finally {
     await cleanup()
@@ -225,7 +225,7 @@ for (const outcome of ["found", "missing", "error"] as const) {
           },
         },
       },
-    ], { LINEAR_TEAM_ID: "ENG" })
+    ], { LINEAR_TEAM_KEY: "ENG" })
     const logs: string[] = []
     const logStub = stub(console, "log", () => {})
     const errorStub = stub(
@@ -329,7 +329,7 @@ for (
           },
         },
       },
-    ], { LINEAR_TEAM_ID: "ENG" })
+    ], { LINEAR_TEAM_KEY: "ENG" })
     const logStub = stub(console, "log", () => {})
     try {
       await updateCommand.parse([
@@ -435,7 +435,7 @@ await snapshotTest({
           },
         },
       },
-    ], { LINEAR_TEAM_ID: "ENG" })
+    ], { LINEAR_TEAM_KEY: "ENG" })
 
     try {
       await updateCommand.parse()
@@ -549,7 +549,7 @@ await snapshotTest({
           },
         },
       },
-      // Mock response for getProjectIdByName()
+      // Mock response for lookupProjectId()
       {
         queryName: "GetProjectIdByName",
         variables: { name: "My Project" },
@@ -596,7 +596,7 @@ await snapshotTest({
           },
         },
       },
-    ], { LINEAR_TEAM_ID: "ENG" })
+    ], { LINEAR_TEAM_KEY: "ENG" })
 
     try {
       await updateCommand.parse()
@@ -631,7 +631,7 @@ await snapshotTest({
           },
         },
       },
-      // Mock response for getIssueLabelIdByNameForTeam("FRONTEND", "ENG") - case insensitive
+      // Mock response for lookupIssueLabelIdForTeam("FRONTEND", "ENG") - case insensitive
       {
         queryName: "GetIssueLabelIdByNameForTeam",
         variables: { name: "FRONTEND", team: { id: { eq: teamWriteIds.ENG } } },
@@ -663,7 +663,7 @@ await snapshotTest({
           },
         },
       },
-    ], { LINEAR_TEAM_ID: "ENG" })
+    ], { LINEAR_TEAM_KEY: "ENG" })
 
     try {
       await updateCommand.parse()
@@ -729,7 +729,7 @@ await snapshotTest({
           },
         },
       },
-    ], { LINEAR_TEAM_ID: "ENG" })
+    ], { LINEAR_TEAM_KEY: "ENG" })
 
     try {
       await updateCommand.parse()
@@ -817,7 +817,7 @@ await snapshotTest({
           },
         },
       },
-    ], { LINEAR_TEAM_ID: "ENG" })
+    ], { LINEAR_TEAM_KEY: "ENG" })
 
     try {
       await updateCommand.parse()
@@ -886,7 +886,7 @@ await snapshotTest({
           },
         },
       },
-    ], { LINEAR_TEAM_ID: "ENG" })
+    ], { LINEAR_TEAM_KEY: "ENG" })
 
     try {
       await updateCommand.parse()
@@ -925,7 +925,7 @@ await snapshotTest({
           },
         },
       },
-    ], { LINEAR_TEAM_ID: "ENG" })
+    ], { LINEAR_TEAM_KEY: "ENG" })
 
     try {
       await updateCommand.parse()
@@ -983,7 +983,7 @@ await snapshotTest({
           },
         },
       },
-    ], { LINEAR_TEAM_ID: "ENG" })
+    ], { LINEAR_TEAM_KEY: "ENG" })
 
     try {
       await updateCommand.parse()
@@ -1033,7 +1033,7 @@ await snapshotTest({
           },
         },
       },
-    ], { LINEAR_TEAM_ID: "ENG" })
+    ], { LINEAR_TEAM_KEY: "ENG" })
 
     try {
       await updateCommand.parse()
@@ -1081,7 +1081,7 @@ await snapshotTest({
           },
         },
       },
-    ], { LINEAR_TEAM_ID: "ENG" })
+    ], { LINEAR_TEAM_KEY: "ENG" })
 
     try {
       await updateCommand.parse()
@@ -1132,7 +1132,7 @@ await snapshotTest({
           },
         },
       },
-    ], { LINEAR_TEAM_ID: "ENG" })
+    ], { LINEAR_TEAM_KEY: "ENG" })
 
     try {
       await updateCommand.parse()
@@ -1197,7 +1197,7 @@ await snapshotTest({
           },
         },
       },
-    ], { LINEAR_TEAM_ID: "ENG" })
+    ], { LINEAR_TEAM_KEY: "ENG" })
 
     try {
       await updateCommand.parse()
@@ -1287,7 +1287,7 @@ await snapshotTest({
           },
         },
       },
-    ], { LINEAR_TEAM_ID: "ENG" })
+    ], { LINEAR_TEAM_KEY: "ENG" })
 
     try {
       await updateCommand.parse()
@@ -1369,7 +1369,7 @@ await snapshotTest({
           },
         },
       },
-    ], { LINEAR_TEAM_ID: "ENG" })
+    ], { LINEAR_TEAM_KEY: "ENG" })
 
     try {
       await updateCommand.parse()
@@ -1447,7 +1447,7 @@ Deno.test("Issue Update Command - relative cycle offset requires an active cycle
         },
       },
     },
-  ], { LINEAR_TEAM_ID: "ENG" })
+  ], { LINEAR_TEAM_KEY: "ENG" })
 
   const errorLogs: string[] = []
   const errorStub = stub(console, "error", (...args: unknown[]) => {
@@ -1560,7 +1560,7 @@ await snapshotTest({
           },
         },
       },
-    ], { LINEAR_TEAM_ID: "ENG" })
+    ], { LINEAR_TEAM_KEY: "ENG" })
 
     try {
       await updateCommand.parse()
@@ -1595,7 +1595,7 @@ Deno.test("Issue Update Command - --cycle errors when team has cycles disabled",
         },
       },
     },
-  ], { LINEAR_TEAM_ID: "ENG" })
+  ], { LINEAR_TEAM_KEY: "ENG" })
 
   const errorLogs: string[] = []
   const errorStub = stub(console, "error", (...args: unknown[]) => {
@@ -1655,7 +1655,7 @@ Deno.test("Issue Update Command - --cycle now errors helpfully when no cycle is 
         },
       },
     },
-  ], { LINEAR_TEAM_ID: "ENG" })
+  ], { LINEAR_TEAM_KEY: "ENG" })
 
   const errorLogs: string[] = []
   const errorStub = stub(console, "error", (...args: unknown[]) => {

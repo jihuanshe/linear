@@ -26,9 +26,7 @@ export async function getProjectStatuses() {
 
 export async function resolveProjectStatusId(value: string): Promise<string> {
   if (isLinearUuid(value)) return value.toLowerCase()
-  const type = value.toLowerCase() === "in progress"
-    ? "started"
-    : value.toLowerCase()
+  const type = value.toLowerCase()
   if (
     !["planned", "started", "paused", "completed", "canceled", "backlog"]
       .includes(type)

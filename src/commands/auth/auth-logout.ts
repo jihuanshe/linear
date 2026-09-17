@@ -14,10 +14,10 @@ export const logoutCommand = withUsageMetadata(new Command(), {
   interactive: true,
 })
   .name("logout")
-  .description("Remove a workspace credential")
-  .arguments("[workspace:string]")
-  .option("-f, --force", "Skip confirmation prompt")
-  .action(async (options, workspace?: string) => {
+  .description("Remove a workspace credential by locally saved workspace slug")
+  .arguments("[slug:string]")
+  .option("-y, --yes", "Skip confirmation prompt")
+  .action(async (options, slug?: string) => {
     try {
       const workspaces = getWorkspaces()
 
@@ -26,12 +26,12 @@ export const logoutCommand = withUsageMetadata(new Command(), {
       }
 
       // If no workspace specified, prompt to select one
-      if (!workspace) {
+      if (!slug) {
         if (workspaces.length === 1) {
-          workspace = workspaces[0]
+          slug = workspaces[0]
         } else {
           const defaultWorkspace = getDefaultWorkspace()
-          workspace = await Select.prompt({
+          slug = await Select.prompt({
             message: "Select workspace to remove",
             options: workspaces.map((ws) => ({
               name: ws === defaultWorkspace ? `${ws} (default)` : ws,
@@ -41,14 +41,14 @@ export const logoutCommand = withUsageMetadata(new Command(), {
         }
       }
 
-      if (!hasWorkspace(workspace)) {
-        throw new NotFoundError("Workspace", workspace)
+      if (!hasWorkspace(slug)) {
+        throw new NotFoundError("Workspace", slug)
       }
 
-      // Confirm removal unless --force is specified
-      if (!options.force) {
+      // Confirm removal unless --yes is specified
+      if (!options.yes) {
         const confirmed = await Confirm.prompt({
-          message: `Remove credentials for workspace "${workspace}"?`,
+          message: `Remove credentials for workspace "${slug}"?`,
           default: false,
         })
 
@@ -58,8 +58,8 @@ export const logoutCommand = withUsageMetadata(new Command(), {
         }
       }
 
-      await removeCredential(workspace)
-      console.log(`Removed credentials for workspace: ${workspace}`)
+      await removeCredential(slug)
+      console.log(`Removed credentials for workspace: ${slug}`)
 
       const remaining = getWorkspaces()
       if (remaining.length > 0) {

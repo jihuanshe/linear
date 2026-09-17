@@ -6,7 +6,7 @@ import { readComment } from "./issue-comment-read.ts"
 export const commentViewCommand = new Command()
   .name("view")
   .description(
-    "Read one comment, including the original body and stable identity",
+    "Read one comment by UUID, including the original body and stable identity",
   )
   .arguments("<commentId:string>")
   .option("-j, --json", "Output {organization, comment} for --base-file")

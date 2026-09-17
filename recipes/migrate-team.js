@@ -1,5 +1,6 @@
 #!/usr/bin/env -S deno run --allow-run --allow-env --allow-read --allow-write
-// Freeze original reads and a v2 manifest; plan/apply own execution and recovery.
+// Freeze original reads and a schemaVersion: 2 delivery manifest.
+// plan/apply own execution and recovery.
 async function read(args) {
   const result = await new Deno.Command(
     Deno.env.get("LINEAR_BIN") ?? "linear",
@@ -118,7 +119,7 @@ if (import.meta.main) {
     const [action, ...args] = Deno.args
     if (action === "freeze" && args.length === 3) await freeze(...args)
     else {throw new Error(
-        "Usage: migrate-team.js freeze SOURCE_KEY TARGET_KEY NEW_DIRECTORY",
+        "Usage: migrate-team.js freeze <sourceKey> <targetKey> <directory>",
       )}
   } catch (error) {
     console.error(error.message)

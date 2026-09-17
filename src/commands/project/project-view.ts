@@ -87,16 +87,18 @@ const GetProjectDetails = gql(`
 
 export const viewCommand = new Command()
   .name("view")
-  .description("View project details and full overview")
+  .description(
+    "View project details and full overview by UUID, slug ID, or exact name",
+  )
   .alias("v")
-  .arguments("<projectId:string>")
+  .arguments("<project:string>")
   .option("-w, --web", "Open in web browser")
   .option("-a, --app", "Open in Linear.app")
   .option("-j, --json", "Output JSON, including archivedAt and trashed")
   .option("--include-content", "Include the project's content", {
     default: true,
   })
-  .action(async (options, projectId) => {
+  .action(async (options, projectReference) => {
     const { web, app, json, includeContent } = options
 
     const { Spinner } = await import("@std/cli/unstable-spinner")
@@ -106,7 +108,7 @@ export const viewCommand = new Command()
 
     try {
       const client = getGraphQLClient()
-      const resolvedId = await resolveProjectId(projectId)
+      const resolvedId = await resolveProjectId(projectReference)
       if (web || app) {
         spinner?.stop()
         await openProjectPage(resolvedId, { app, web: !app })
@@ -120,7 +122,7 @@ export const viewCommand = new Command()
 
       const project = result.project
       if (!project) {
-        throw new NotFoundError("Project", projectId)
+        throw new NotFoundError("Project", projectReference)
       }
 
       if (json) {

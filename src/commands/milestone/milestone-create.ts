@@ -51,7 +51,7 @@ export const createCommand = withUsageMetadata(new Command(), {
   })
   .action(
     async (
-      { project: projectIdOrSlug, name, description, targetDate, json },
+      { project: projectReference, name, description, targetDate, json },
     ) => {
       const { Spinner } = await import("@std/cli/unstable-spinner")
       const showSpinner = !json && shouldShowSpinner()
@@ -64,7 +64,7 @@ export const createCommand = withUsageMetadata(new Command(), {
         }
         if (targetDate != null) validateMilestoneTargetDate(targetDate)
         // Resolve project slug to full UUID
-        const projectId = await resolveProjectId(projectIdOrSlug)
+        const projectId = await resolveProjectId(projectReference)
 
         const client = getGraphQLClient()
         const result = await client.request(CreateProjectMilestone, {

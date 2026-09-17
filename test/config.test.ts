@@ -21,6 +21,15 @@ const { denoDir: testDenoDir } = JSON.parse(
 // Note: These tests use the cliValue parameter (highest precedence)
 // to avoid interference from config files that may exist in the repo
 
+Deno.test("getOption - team_key accepts a key and rejects an explicitly empty CLI value", () => {
+  assertEquals(getOption("team_key", "ENG"), "ENG")
+  assertThrows(
+    () => getOption("team_key", ""),
+    ValidationError,
+    "Invalid value for team_key",
+  )
+})
+
 Deno.test("getOption - issue_create_ask_project returns boolean for truthy strings", () => {
   const truthyValues = [
     "true",
@@ -218,7 +227,7 @@ Deno.test("CLI rejects obsolete project config when an action needs configuratio
         `--config=${denoJsonPath}`,
         mainUrl.toString(),
         "auth",
-        "token",
+        "key",
       ],
       cwd: tempDir,
       clearEnv: true,

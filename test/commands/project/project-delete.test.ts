@@ -16,14 +16,14 @@ await cliffySnapshotTest({
   },
 })
 
-// Test successful project deletion with --force flag
+// Test successful project deletion with --yes flag
 await cliffySnapshotTest({
-  name: "Project Delete Command - With Force Flag",
+  name: "Project Delete Command - With Yes Flag",
   meta: import.meta,
   colors: false,
   args: [
     "550e8400-e29b-41d4-a716-446655440000",
-    "--force",
+    "--yes",
   ],
   denoArgs: commonDenoArgs,
   async fn() {

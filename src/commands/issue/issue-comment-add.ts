@@ -8,7 +8,7 @@ import { withUsageMetadata } from "../usage.ts"
 import { withMarkdownHint } from "../../utils/markdown-help.ts"
 import { openEditor } from "../../utils/editor.ts"
 import { readTextSource } from "../../utils/text-source.ts"
-import { getIssueIdentifier, requireIssueId } from "../../utils/linear.ts"
+import { getIssueReference, requireIssueId } from "../../utils/linear.ts"
 import {
   prepareUploads,
   uploadFile,
@@ -28,11 +28,11 @@ export const commentAddCommand = withUsageMetadata(new Command(), {
   .name("add")
   .description(
     withMarkdownHint(
-      "Add a comment or reply; images uploaded with --attach render inline",
+      "Add a comment or reply; images uploaded with --attach render inline. Accepts an issue UUID, identifier (e.g. ENG-123), number in the configured team, or Linear URL.",
     ),
   )
-  .arguments("<issueId:string>")
-  .option("-b, --body <text:string>", "Comment body text", {
+  .arguments("<issue:string>")
+  .option("-b, --body <body:string>", "Comment body text", {
     preserveEmpty: true,
   })
   .option(
@@ -44,11 +44,15 @@ export const commentAddCommand = withUsageMetadata(new Command(), {
     "--edit",
     "Open an editor, optionally seeded by --body or --body-file",
   )
-  .option("-p, --parent <id:string>", "Parent comment ID for replies", {
-    preserveEmpty: true,
-  })
   .option(
-    "-a, --attach <filepath:string>",
+    "-p, --parent <commentId:string>",
+    "Parent comment UUID for replies",
+    {
+      preserveEmpty: true,
+    },
+  )
+  .option(
+    "-a, --attach <path:string>",
     "Upload a file and add its Markdown link to the comment (images render inline; repeatable)",
     { collect: true, preserveEmpty: true },
   )
@@ -57,7 +61,7 @@ export const commentAddCommand = withUsageMetadata(new Command(), {
     "Upload attached images to a public, unauthenticated URL (default: private, workspace-members only)",
   )
   .option("-j, --json", "Output a JSON write result with the comment")
-  .action(async (options, issueId) => {
+  .action(async (options, issueArg) => {
     const {
       body,
       bodyFile,
@@ -70,8 +74,8 @@ export const commentAddCommand = withUsageMetadata(new Command(), {
 
     const uploadedFiles: UploadResult[] = []
     try {
-      if (!issueId.trim()) {
-        throw new ValidationError("Issue identifier cannot be empty")
+      if (!issueArg.trim()) {
+        throw new ValidationError("Issue reference cannot be empty")
       }
       if (json && edit) {
         throw new ValidationError("--json cannot be combined with --edit")
@@ -89,7 +93,7 @@ export const commentAddCommand = withUsageMetadata(new Command(), {
       if (makePublic && attachments.length === 0) {
         throw new ValidationError(
           "--public requires at least one --attach",
-          { suggestion: "Add --attach <file> to upload, or remove --public." },
+          { suggestion: "Add --attach <path> to upload, or remove --public." },
         )
       }
       if (attachments.length === 0 && commentBody == null) {
@@ -103,13 +107,14 @@ export const commentAddCommand = withUsageMetadata(new Command(), {
       }
 
       const prepared = await prepareUploads(attachments, { makePublic })
-      const resolvedIdentifier = await getIssueIdentifier(issueId)
-      if (!resolvedIdentifier) {
-        throw new ValidationError("Could not determine issue identifier", {
-          suggestion: "Please provide an issue identifier like 'ENG-123'.",
+      const issueReference = await getIssueReference(issueArg)
+      if (!issueReference) {
+        throw new ValidationError("Could not determine issue reference", {
+          suggestion:
+            "Provide an Issue UUID, identifier such as ENG-123, or Linear Issue URL.",
         })
       }
-      const issueUuid = await requireIssueId(resolvedIdentifier)
+      const issueUuid = await requireIssueId(issueReference)
 
       if (prepared.length > 0) {
         // Upload files
@@ -142,7 +147,7 @@ export const commentAddCommand = withUsageMetadata(new Command(), {
         return
       }
 
-      console.log(`✓ Comment added to ${resolvedIdentifier}`)
+      console.log(`✓ Comment added to ${issueReference}`)
       console.log(comment.url)
     } catch (error) {
       handleError(

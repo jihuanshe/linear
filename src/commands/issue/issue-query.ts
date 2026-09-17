@@ -15,11 +15,11 @@ import {
 import {
   fetchIssuesForQuery,
   getCycleIdByNameOrNumber,
-  getProjectIdByName,
   getProjectOptionsByName,
   getTeamKey,
   isIssueBlocked,
   isLinearUuid,
+  lookupProjectId,
   lookupUserId,
   resolveMilestoneId,
   searchIssuesByTerm,
@@ -131,14 +131,14 @@ export const queryCommand = withUsageMetadata(new Command(), {
     "Also search inside issue comments (requires --search)",
   )
   .option(
-    "--team <team:string>",
+    "--team <key:string>",
     "Filter by team key (can be repeated for multiple teams)",
     { collect: true },
   )
   .option("--all-teams", "Query across all teams")
   .option(
-    "-s, --state <state:state>",
-    "Filter by issue state (can be repeated for multiple states)",
+    "-s, --state-type <type:state>",
+    "Filter by workflow state type: triage, backlog, unstarted, started, completed, canceled (repeatable)",
     { collect: true },
   )
   .option(
@@ -165,7 +165,7 @@ export const queryCommand = withUsageMetadata(new Command(), {
     "Show only issues that are not assigned to a project",
   )
   .option(
-    "--project-label <projectLabel:string>",
+    "--project-label <name:string>",
     "Filter by project label name (shows issues from all projects with this label)",
   )
   .option(
@@ -177,7 +177,7 @@ export const queryCommand = withUsageMetadata(new Command(), {
     "Filter by project milestone (UUID, or name when --project is set)",
   )
   .option(
-    "-l, --label <label:string>",
+    "-l, --label <name:string>",
     "Filter by label name (can be repeated for multiple labels)",
     { collect: true },
   )
@@ -205,7 +205,7 @@ export const queryCommand = withUsageMetadata(new Command(), {
       searchComments,
       team: teamFlags,
       allTeams,
-      state,
+      stateType,
       stateName,
       assignee,
       unassigned,
@@ -250,9 +250,7 @@ export const queryCommand = withUsageMetadata(new Command(), {
         )
       }
 
-      const stateArray = state
-        ? (Array.isArray(state) ? state.flat() : [state])
-        : undefined
+      const stateTypes = stateType?.flat()
 
       const stateNames = stateName
         ? (Array.isArray(stateName) ? stateName.flat() : [stateName]).map((
@@ -265,14 +263,14 @@ export const queryCommand = withUsageMetadata(new Command(), {
       }
 
       if (
-        stateArray && stateArray.length > 0 &&
+        stateTypes && stateTypes.length > 0 &&
         stateNames && stateNames.length > 0
       ) {
         throw new ValidationError(
-          "Cannot use both --state and --state-name flags",
+          "Cannot use both --state-type and --state-name flags",
           {
             suggestion:
-              "Use --state for a broad Linear state type, or --state-name for an exact workflow state name.",
+              "Use --state-type for a workflow state type, or --state-name for an exact workflow state name.",
           },
         )
       }
@@ -426,7 +424,7 @@ export const queryCommand = withUsageMetadata(new Command(), {
 
       let projectId: string | undefined
       if (project != null) {
-        projectId = await getProjectIdByName(project)
+        projectId = await lookupProjectId(project)
         if (projectId == null) {
           const projectOptions = await getProjectOptionsByName(project)
           if (Object.keys(projectOptions).length === 0) {
@@ -482,14 +480,14 @@ export const queryCommand = withUsageMetadata(new Command(), {
       const queryOptions = {
         teamKeys: resolvedTeamKeys,
         allTeams: allTeams === true,
-        state: stateArray,
+        stateTypes,
         stateNames,
         assignee,
         unassigned,
         sort,
         limit,
         projectId,
-        noProject: unprojected === true,
+        unprojected: unprojected === true,
         projectLabel,
         cycleId,
         milestoneId,

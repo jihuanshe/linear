@@ -25,9 +25,9 @@ export const apiCommand = withUsageMetadata(new Command(), {
 })
   .name("api")
   .description(
-    "Run raw GraphQL queries or explicitly unprotected mutations.\n\nPass a query argument or '-' to read stdin to EOF.\n\nRaw mutations require --unprotected and do not provide domain guards, receipts or checkpoints. Queries may retry explicit server overload responses within a bounded deadline; mutations are never retried. Inspect data/errors and reconcile uncertain writes.",
+    "Run raw GraphQL queries or explicitly unprotected mutations.\n\nPass a GraphQL document or '-' to read stdin to EOF.\n\nRaw mutations require --unprotected and do not provide domain guards, receipts or checkpoints. Queries may retry explicit server overload responses within a bounded deadline; mutations are never retried. Inspect data/errors and reconcile uncertain writes.",
   )
-  .arguments("[query:string]")
+  .arguments("[document:string]")
   .option(
     "--variables-json <json:string>",
     "JSON object of variables (mutually exclusive with --variables-file)",
@@ -51,15 +51,15 @@ export const apiCommand = withUsageMetadata(new Command(), {
     "--paginate",
     "Read one query connection to its final page using $after (mutations are rejected)",
   )
-  .action(async (options, query?: string) => {
+  .action(async (options, documentArg?: string) => {
     setMachineOutput(true)
     try {
       const variables = await buildVariables(
         options.variablesJson,
         options.variablesFile,
       )
-      const resolvedQuery = await resolveQuery(query)
-      const document = parseDocument(resolvedQuery)
+      const documentText = await readDocument(documentArg)
+      const document = parseDocument(documentText)
       const operation = selectOperation(document, options.operationName)
       if (options.paginate && operation.operation !== "query") {
         throw new AppValidationError(
@@ -112,7 +112,7 @@ export const apiCommand = withUsageMetadata(new Command(), {
       }
 
       const request = {
-        query: resolvedQuery,
+        query: documentText,
         ...(options.operationName
           ? { operationName: options.operationName }
           : {}),
@@ -137,9 +137,9 @@ export const apiCommand = withUsageMetadata(new Command(), {
     }
   })
 
-function parseDocument(query: string): DocumentNode {
+function parseDocument(documentText: string): DocumentNode {
   try {
-    return parse(query)
+    return parse(documentText)
   } catch (error) {
     throw new AppValidationError(
       `Invalid GraphQL document: ${
@@ -453,7 +453,7 @@ function outputJSON(parsed: unknown, rawText: string): void {
   }
 }
 
-async function resolveQuery(positionalArg?: string): Promise<string> {
+async function readDocument(positionalArg?: string): Promise<string> {
   if (positionalArg && positionalArg !== "-") {
     return positionalArg
   }
@@ -465,9 +465,9 @@ async function resolveQuery(positionalArg?: string): Promise<string> {
     }
   }
 
-  throw new AppValidationError("No query provided", {
+  throw new AppValidationError("No GraphQL document provided", {
     suggestion:
-      "Provide a query as an argument: linear api '{ viewer { id } }'\n  Or read stdin explicitly: linear api - < query.graphql",
+      "Provide a GraphQL document as an argument: linear api '{ viewer { id } }'\n  Or read stdin explicitly: linear api - < document.graphql",
   })
 }
 

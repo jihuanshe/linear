@@ -1,7 +1,7 @@
 import { Command } from "@cliffy/command"
 import { gql } from "../../__codegen__/gql.ts"
 import { getGraphQLClient } from "../../utils/graphql.ts"
-import { getIssueIdentifier } from "../../utils/linear.ts"
+import { getIssueReference } from "../../utils/linear.ts"
 import { completeConnection } from "../../utils/pagination.ts"
 import {
   handleError,
@@ -79,16 +79,18 @@ type HistoryEntry = Awaited<
   ReturnType<typeof readIssueHistory>
 >["nodes"][number]
 
-async function readIssueHistory(issueId: string, limit: number) {
+async function readIssueHistory(issueReference: string, limit: number) {
   const client = getGraphQLClient()
   const first = limit > 0 ? Math.min(100, limit) : 100
   const initial = await client.request(issueHistoryQuery, {
-    id: issueId,
+    id: issueReference,
     first,
   })
-  if (initial.issue == null) throw new NotFoundError("Issue", issueId)
+  if (initial.issue == null) throw new NotFoundError("Issue", issueReference)
   if (!initial.issue.id) {
-    throw new ValidationError(`Issue history returned no ID for ${issueId}`)
+    throw new ValidationError(
+      `Issue history returned no ID for ${issueReference}`,
+    )
   }
 
   // An identifier can change when the issue moves teams. Keep its UUID for
@@ -103,16 +105,18 @@ async function readIssueHistory(issueId: string, limit: number) {
         after,
       })
       if (result.issue == null) {
-        throw new ValidationError(`Could not read history for ${issueId}`)
+        throw new ValidationError(
+          `Could not read history for ${issueReference}`,
+        )
       }
       if (result.issue.id !== historyIssueId) {
         throw new ValidationError(
-          `Issue history changed target: ${issueId}`,
+          `Issue history changed target: ${issueReference}`,
         )
       }
       return result.issue.history
     },
-    `history for ${issueId}`,
+    `history for ${issueReference}`,
     limit,
   )
 }
@@ -120,29 +124,32 @@ async function readIssueHistory(issueId: string, limit: number) {
 export const historyCommand = new Command()
   .name("history")
   .description(
-    "Show upstream issue history (all pages by default). Not every write produces a separate entry; use view for current state and write receipts for reconciliation.",
+    "Show upstream issue history (all pages by default). Accepts an issue UUID, identifier (e.g. ENG-123), number in the configured team, or Linear URL; omit to use the current Git or Jujutsu context. Not every write produces a separate entry; use view for current state and write receipts for reconciliation.",
   )
-  .arguments("[issueId:string]")
+  .arguments("[issue:string]")
   .option(
     "--limit <limit:number>",
     "Maximum history entries (0 for all pages)",
     { default: 0 },
   )
   .option("-j, --json", "Output history as a JSON connection")
-  .action(async ({ json, limit }, issueId) => {
+  .action(async ({ json, limit }, issueArg) => {
     try {
       if (!Number.isSafeInteger(limit) || limit < 0) {
         throw new ValidationError("--limit must be a non-negative integer")
       }
-      const resolvedIdentifier = await getIssueIdentifier(issueId)
-      if (!resolvedIdentifier) {
+      const issueReference = await getIssueReference(issueArg)
+      if (!issueReference) {
         throw new ValidationError(
-          "Could not determine issue identifier",
-          { suggestion: "Please provide an issue identifier like 'ENG-123'." },
+          "Could not determine issue reference",
+          {
+            suggestion:
+              "Provide an Issue UUID, identifier such as ENG-123, or Linear Issue URL.",
+          },
         )
       }
 
-      const history = await readIssueHistory(resolvedIdentifier, limit)
+      const history = await readIssueHistory(issueReference, limit)
       if (json) {
         console.log(JSON.stringify(history, null, 2))
         return
@@ -153,7 +160,7 @@ export const historyCommand = new Command()
         )
       }
       if (history.nodes.length === 0) {
-        console.log(`No history found for ${resolvedIdentifier}`)
+        console.log(`No history found for ${issueReference}`)
         return
       }
       for (const entry of history.nodes) {

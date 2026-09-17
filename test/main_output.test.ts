@@ -48,6 +48,62 @@ Deno.test("main writes explicit help to stdout with rc 0", async () => {
   assertEquals(result.stderr, "")
 })
 
+Deno.test("semantic scalar commands expose identifier and API key without legacy aliases", async () => {
+  const key = await run(["auth", "key"], {
+    LINEAR_API_KEY: "synthetic-api-key",
+  })
+  assertEquals(key.code, 0, key.stderr)
+  assertEquals(key.stdout, "synthetic-api-key\n")
+  assertEquals(key.stderr, "")
+  for (const args of [["auth", "token"], ["issue", "id"]]) {
+    const result = await run(args)
+    assertEquals(result.code, 1)
+    assertEquals(result.stdout, "")
+    assertMatch(result.stderr, /Unknown command/)
+  }
+
+  const root = await Deno.makeTempDir()
+  try {
+    const git = await new Deno.Command("git", {
+      args: ["init", "--quiet", "--initial-branch=eng-731-handoff"],
+      cwd: root,
+      stdout: "piped",
+      stderr: "piped",
+    }).output()
+    assertEquals(git.code, 0, new TextDecoder().decode(git.stderr))
+    const result = await new Deno.Command(Deno.execPath(), {
+      args: [
+        "run",
+        "--allow-all",
+        "--quiet",
+        "--config",
+        fromFileUrl(new URL("../deno.json", import.meta.url)),
+        main,
+        "issue",
+        "identifier",
+      ],
+      cwd: root,
+      clearEnv: true,
+      env: {
+        HOME: root,
+        XDG_CONFIG_HOME: root,
+        APPDATA: root,
+        DENO_DIR: denoDir,
+        PATH: Deno.env.get("PATH") ?? "",
+        SystemRoot: Deno.env.get("SystemRoot") ?? "",
+        LINEAR_VCS: "git",
+      },
+      stdout: "piped",
+      stderr: "piped",
+    }).output()
+    assertEquals(result.code, 0, new TextDecoder().decode(result.stderr))
+    assertEquals(new TextDecoder().decode(result.stdout), "ENG-731\n")
+    assertEquals(result.stderr.length, 0)
+  } finally {
+    await Deno.remove(root, { recursive: true })
+  }
+})
+
 Deno.test("main leaf help includes JSON aliases injected by the root command", async () => {
   const result = await run(["document", "view", "--help"])
   assertEquals(result.code, 0)
@@ -88,6 +144,76 @@ for (
     assertEquals(result.code, 1)
     assertEquals(result.stdout, "")
     assertMatch(result.stderr, /Unknown (option|command)/)
+  })
+}
+
+for (
+  const { path, flag, legacyFlag, values, queryName, field, filter } of [
+    {
+      path: ["issue", "query"],
+      flag: "--state-type",
+      legacyFlag: "--state",
+      values: ["unstarted", "started"],
+      queryName: "GetIssuesForQuery",
+      field: "issues",
+      filter: { state: { type: { in: ["unstarted", "started"] } } },
+    },
+    {
+      path: ["project", "list"],
+      flag: "--status-name",
+      legacyFlag: "--status",
+      values: ["In Progress"],
+      queryName: "GetProjects",
+      field: "projects",
+      filter: { status: { name: { eq: "In Progress" } } },
+    },
+  ]
+) {
+  Deno.test(`main forwards ${path.join(" ")} ${flag} and rejects ${legacyFlag} before requests`, async () => {
+    const connection = {
+      nodes: [],
+      pageInfo: { hasNextPage: false, endCursor: null },
+    }
+    const { server, cleanup } = await setupMockLinearServer([{
+      queryName,
+      response: { data: { [field]: connection } },
+    }])
+    const env = {
+      LINEAR_API_KEY: "test-token",
+      LINEAR_GRAPHQL_ENDPOINT: server.getEndpoint(),
+      NO_COLOR: "1",
+    }
+    try {
+      const rejected = await run([
+        ...path,
+        "--all-teams",
+        legacyFlag,
+        values[0],
+        "--json",
+      ], env)
+      assertEquals(rejected.code, 1, rejected.stdout + rejected.stderr)
+      assertEquals(rejected.stderr, "")
+      const failure = JSON.parse(rejected.stdout)
+      assertEquals(failure.ok, false)
+      assertEquals(failure.effect, "none")
+      assertMatch(failure.error.message, /Unknown option/)
+      assertEquals(failure.error.message.includes(legacyFlag), true)
+      assertEquals(server.graphqlRequests, [])
+
+      const result = await run([
+        ...path,
+        "--all-teams",
+        ...values.flatMap((value) => [flag, value]),
+        "--json",
+      ], env)
+      assertEquals(result.code, 0, result.stdout + result.stderr)
+      assertEquals(result.stderr, "")
+      assertEquals(JSON.parse(result.stdout), connection)
+      assertEquals(server.graphqlRequests.length, 1)
+      assertEquals(server.graphqlRequests[0].variables.filter, filter)
+    } finally {
+      await cleanup()
+    }
   })
 }
 
@@ -178,7 +304,7 @@ Deno.test("main rejects disabled prompts without reading stdin", async () => {
       result.stderr,
       /Interactive prompting is disabled by LINEAR_PROMPT_DISABLED/,
     )
-    assertMatch(result.stderr, /Use --force/)
+    assertMatch(result.stderr, /Use --yes/)
   } finally {
     await cleanup()
   }
@@ -466,7 +592,7 @@ Deno.test("team delete rechecks current emptiness before its mutation", async ()
   ])
   try {
     const result = await run(
-      ["team", "delete", "SOURCE", "--force", "--json"],
+      ["team", "delete", "SOURCE", "--yes", "--json"],
       {
         LINEAR_API_KEY: "test-token",
         LINEAR_GRAPHQL_ENDPOINT: server.getEndpoint(),
@@ -529,7 +655,7 @@ for (const payload of [{ success: false }, null]) {
           "team",
           "delete",
           "SOURCE",
-          "--force",
+          "--yes",
           "--json",
         ], {
           LINEAR_API_KEY: "test-token",
@@ -677,15 +803,15 @@ Deno.test("global JSON rejects unsupported actions without requests or credentia
     for (
       const args of [
         ["auth", "login", "--key", "lin_api_test", "--plaintext"],
-        ["auth", "logout", "sandbox", "--force"],
+        ["auth", "logout", "sandbox", "--yes"],
         ["auth", "default", "sandbox"],
         ["auth", "migrate"],
         ["auth", "list"],
-        ["auth", "token"],
+        ["auth", "key"],
         ["config"],
         ["update"],
         ["issue", "pick"],
-        ["issue", "id"],
+        ["issue", "identifier"],
         ["issue", "title"],
         ["issue", "url"],
         ["cycle", "list"],

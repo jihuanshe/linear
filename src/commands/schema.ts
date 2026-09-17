@@ -21,7 +21,7 @@ export const schemaCommand = new Command()
     "Fetch the public schema without sending credentials",
   )
   .option(
-    "-o, --output <file:string>",
+    "-o, --output <path:string>",
     "Write schema to file (with --json, leave stdout empty on success)",
   )
   .action(async (options) => {

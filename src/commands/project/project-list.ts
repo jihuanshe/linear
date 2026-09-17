@@ -62,14 +62,17 @@ const GetProjects = gql(`
 export const listCommand = new Command()
   .name("list")
   .description("List projects")
-  .option("--team <team:string>", "Filter by team key")
+  .option("--team <key:string>", "Filter by team key")
   .option("--all-teams", "Show projects from all teams")
-  .option("--status <status:string>", "Filter by status name")
+  .option("--status-name <name:string>", "Filter by exact status name")
   .option("-w, --web", "Open in web browser")
   .option("-a, --app", "Open in Linear.app")
   .option("-j, --json", "Output as JSON")
-  .option("--limit <limit:number>", "Limit results")
-  .action(async ({ team, allTeams, status, web, app, json, limit }) => {
+  .option(
+    "--limit <limit:number>",
+    "Maximum results (non-negative integer; 0 or omitted means unlimited)",
+  )
+  .action(async ({ team, allTeams, statusName, web, app, json, limit }) => {
     if (web || app) {
       const workspaceUrl = await getWorkspaceUrl()
 
@@ -110,8 +113,8 @@ export const listCommand = new Command()
           accessibleTeams: { some: { key: { eq: teamKey } } },
         }
       }
-      if (status) {
-        filter = { ...filter, status: { name: { eq: status } } }
+      if (statusName) {
+        filter = { ...filter, status: { name: { eq: statusName } } }
       }
 
       const client = getGraphQLClient()

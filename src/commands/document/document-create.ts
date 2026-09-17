@@ -5,7 +5,11 @@ import { Input, Select } from "../../utils/prompt.ts"
 import { gql } from "../../__codegen__/gql.ts"
 import type { DocumentCreateInput } from "../../__codegen__/graphql.ts"
 import { getGraphQLClient } from "../../utils/graphql.ts"
-import { resolveProjectId } from "../../utils/linear.ts"
+import {
+  getIssueReference,
+  requireIssueId,
+  resolveProjectId,
+} from "../../utils/linear.ts"
 import { getEditor, openEditor } from "../../utils/editor.ts"
 import { readTextSource } from "../../utils/text-source.ts"
 import { printWriteResult } from "../../utils/write-result.ts"
@@ -13,7 +17,6 @@ import {
   assertMutationReceipt,
   assertMutationSuccess,
   handleError,
-  NotFoundError,
   ValidationError,
 } from "../../utils/errors.ts"
 
@@ -49,7 +52,8 @@ export const createCommand = withUsageMetadata(new Command(), {
   )
   .option(
     "--issue <issue:string>",
-    "Attach to issue (identifier like TC-123; exactly one parent is required)",
+    "Attach to issue (UUID, identifier, number in the configured team, or Linear URL; exactly one parent is required)",
+    { preserveEmpty: true },
   )
   .option("--icon <icon:string>", "Document icon (emoji)")
   .option("-i, --interactive", "Interactive mode with prompts")
@@ -134,13 +138,12 @@ export const createCommand = withUsageMetadata(new Command(), {
 
         // Resolve the Issue reference to its stable UUID if provided.
         let issueId: string | undefined
-        if (issue) {
-          issueId = await resolveIssueId(client, issue)
-          if (!issueId) {
-            throw new NotFoundError("Issue", issue, {
-              suggestion: "Provide a valid issue identifier (e.g., TC-123).",
-            })
+        if (issue != null) {
+          const reference = await getIssueReference(issue)
+          if (!reference) {
+            throw new ValidationError(`Invalid issue reference: ${issue}`)
           }
+          issueId = await requireIssueId(reference)
         }
 
         // Build input
@@ -237,15 +240,13 @@ async function promptInteractiveCreate(): Promise<{
     projectId = await resolveProjectId(projectInput)
   } else if (attachTo === "issue") {
     const issueInput = await Input.prompt({
-      message: "Issue identifier (e.g., TC-123)",
+      message: "Issue (UUID, identifier, or Linear Issue URL)",
     })
-    const client = getGraphQLClient()
-    issueId = await resolveIssueId(client, issueInput)
-    if (!issueId) {
-      throw new NotFoundError("Issue", issueInput, {
-        suggestion: "Provide a valid issue identifier (e.g., TC-123).",
-      })
+    const reference = await getIssueReference(issueInput)
+    if (!reference) {
+      throw new ValidationError(`Invalid issue reference: ${issueInput}`)
     }
+    issueId = await requireIssueId(reference)
   }
 
   return {
@@ -255,31 +256,6 @@ async function promptInteractiveCreate(): Promise<{
     projectId,
     issueId,
   }
-}
-
-async function resolveIssueId(
-  client: ReturnType<typeof getGraphQLClient>,
-  issueIdentifier: string,
-): Promise<string | undefined> {
-  const issueQuery = gql(`
-    query GetIssueForDocument($id: String!) {
-      issue(id: $id) {
-        id
-        identifier
-      }
-    }
-  `)
-
-  try {
-    const result = await client.request(issueQuery, { id: issueIdentifier })
-    if (result.issue) {
-      return result.issue.id
-    }
-  } catch {
-    // Issue not found
-  }
-
-  return undefined
 }
 
 async function createDocument(

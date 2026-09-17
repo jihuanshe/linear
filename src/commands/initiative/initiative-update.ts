@@ -69,8 +69,10 @@ export const updateCommand = withUsageMetadata(new Command(), {
   interactive: true,
 })
   .name("update")
-  .description("Update a Linear initiative using its original read basis")
-  .arguments("<initiativeId:string>")
+  .description(
+    "Update a Linear initiative by UUID, slug ID, or name using its original read basis",
+  )
+  .arguments("<initiative:string>")
   .option("-n, --name <name:string>", "New name for the initiative", {
     preserveEmpty: true,
   })
@@ -80,7 +82,7 @@ export const updateCommand = withUsageMetadata(new Command(), {
     { preserveEmpty: true },
   )
   .option(
-    "--content <text:string>",
+    "--content <content:string>",
     "Replace the initiative's Markdown content; empty string clears it",
     { preserveEmpty: true },
   )
@@ -101,7 +103,7 @@ export const updateCommand = withUsageMetadata(new Command(), {
     { preserveEmpty: true },
   )
   .option(
-    "--target-date <targetDate:string>",
+    "--target-date <date:string>",
     "Target completion date (YYYY-MM-DD)",
     { preserveEmpty: true },
   )
@@ -127,7 +129,7 @@ export const updateCommand = withUsageMetadata(new Command(), {
     "Require this API field to match the saved original value (repeatable)",
     { collect: true, preserveEmpty: true },
   )
-  .action(async (options, initiativeId) => {
+  .action(async (options, initiativeReference) => {
     try {
       let content = await readTextSource(
         "content",
@@ -221,7 +223,7 @@ export const updateCommand = withUsageMetadata(new Command(), {
         })
       }
       const client = getGraphQLClient()
-      const resolvedId = await resolveInitiativeId(client, initiativeId)
+      const resolvedId = await resolveInitiativeId(client, initiativeReference)
       if (options.edit) {
         const initial = await readInitiative(client, resolvedId, {
           includeContent: true,

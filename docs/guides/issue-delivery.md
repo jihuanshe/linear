@@ -92,7 +92,7 @@ jq -e '.ok == true and .data.status == "completed"' apply.json >/dev/null
 
 ## 执行账本与恢复
 
-`<manifest>.checkpoint.json` 使用 `schemaVersion: 2`，包含工作区身份和 `items`。执行项 key 绑定清单位置、目标、内容及文件指纹。每次真实派发写入前先保存 `unknown`，收到有效回执后保存 `completed`；上传有独立回执，后续关联失败不会重复上传已完成资产。
+执行账本在交付清单路径后追加 `.checkpoint.json`；例如 `delivery.json` 对应 `delivery.json.checkpoint.json`。账本使用 `schemaVersion: 2`，包含工作区身份和 `items`。执行项 key 绑定清单位置、目标、内容及文件指纹。每次真实派发写入前先保存 `unknown`，收到有效回执后保存 `completed`；上传有独立回执，后续关联失败不会重复上传已完成资产。
 
 执行账本中的状态与本次输出不同：
 
@@ -104,10 +104,10 @@ jq -e '.ok == true and .data.status == "completed"' apply.json >/dev/null
 
 遇到 `unknown` 时保留交付清单、引用文件、执行账本和原始结果。按稳定 ID、上传 URL、回执及实际远端对象对账，确认效果后再修订执行账本：已完成项补正确类型的 `receipt` 并置 `completed`，已确认未执行的项才置 `failed` 且 `effect` 为 `none`。无法确定的项继续保留 `unknown`，不用正文相似、标题或 URL 猜测对象。需要人工修改执行账本时，保留修改前副本和对账证据。
 
-`completed` 的 Issue 回执包含 `id` 与 `identifier`，Comment／Attachment／Relation 回执包含对象 `id`，上传回执包含 `assetUrl`、`filename`、`size`、`contentType`、`public`。字段预期仅属于 Issue 回执。回执不匹配、工作区改变或已有执行项 key 从计划中消失时，拒绝续跑；不要删除执行账本来重放原意图。
+`completed` 的 Issue 回执包含 `id` 与 `identifier`，Comment／Attachment／Relation 回执包含对象 `id`，上传回执包含 `assetUrl`、`filename`、`size`、`contentType`、`public`。字段预期保存在执行账本的 `items[key].expected`，与 `receipt` 同级，仅允许用于持有 Issue 回执的执行项，不是回执内的字段。回执不匹配、工作区改变或已有执行项 key 从计划中消失时，拒绝续跑；不要删除执行账本来重放原意图。
 
 恢复已完成项不重新执行原始比较，但继续做读回核验。未完成项仍使用原始依据；修改目标值或重新排序可能改变执行项 key。需要新意图时先对账旧效果，再建立只含明确剩余工作的独立交付清单。
 
-`apply` 在读取执行账本前取得 `<manifest>.checkpoint.json.lock` 的系统排他锁，持有到执行和读回结束。同机使用同一锁文件的另一个执行者会等待；取得锁后重新读取执行账本，跳过已完成项，遇到 `unknown` 仍拒绝续跑。锁随文件关闭或进程退出释放；空锁文件会保留，其存在不表示正在执行，不要删除或替换它。`plan` 不创建锁文件。
+`apply` 在读取执行账本前取得账本旁 `.lock` 文件的系统排他锁，例如 `delivery.json.checkpoint.json.lock`，持有到执行和读回结束。同机使用同一锁文件的另一个执行者会等待；取得锁后重新读取执行账本，跳过已完成项，遇到 `unknown` 仍拒绝续跑。锁随文件关闭或进程退出释放；空锁文件会保留，其存在不表示正在执行，不要删除或替换它。`plan` 不创建锁文件。
 
 这只约束使用同一本地锁文件的 CLI 执行者。复制清单、使用不同的账本路径或移到另一台机器不会共享执行权；交接前仍须停止原执行者并传递清单、引用材料和执行账本。其他客户端直接修改 Linear 不受此锁约束；执行账本不提供远端锁、事务或 exactly-once。

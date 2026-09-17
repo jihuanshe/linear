@@ -93,7 +93,7 @@ Deno.test({
           NO_COLOR: "1",
           LINEAR_API_KEY: "test-token",
           LINEAR_GRAPHQL_ENDPOINT: server.getEndpoint(),
-          LINEAR_TEAM_ID: "ENG",
+          LINEAR_TEAM_KEY: "ENG",
           LINEAR_ISSUE_CREATE_ASSIGN_SELF: "never",
           LINEAR_ISSUE_CREATE_ASK_PROJECT: "false",
           GIT_CONFIG_GLOBAL: "/dev/null",

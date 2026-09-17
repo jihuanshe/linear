@@ -28,7 +28,7 @@ await cliffySnapshotTest({
     const directory = await Deno.makeTempDir()
     const cwd = Deno.cwd()
     Deno.chdir(directory)
-    Deno.env.delete("LINEAR_TEAM_ID")
+    Deno.env.delete("LINEAR_TEAM_KEY")
     Deno.env.set("XDG_CONFIG_HOME", directory)
     Deno.env.set("APPDATA", directory)
     try {

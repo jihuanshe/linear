@@ -17,14 +17,14 @@ export const commentDeleteCommand = withUsageMetadata(new Command(), {
   interactive: true,
 })
   .name("delete")
-  .description("Delete a comment")
+  .description("Delete a comment by UUID")
   .arguments("<commentId:string>")
-  .option("-y, --confirm", "Skip confirmation prompt")
+  .option("-y, --yes", "Skip confirmation prompt")
   .option("--json", "Output the confirmed deletion as JSON")
-  .action(async ({ confirm, json }, commentId) => {
+  .action(async ({ yes, json }, commentId) => {
     try {
-      if (!confirm) {
-        assertPromptAllowed({ suggestion: "Use --confirm to skip." })
+      if (!yes) {
+        assertPromptAllowed({ suggestion: "Use --yes to skip." })
         if (
           !await Confirm.prompt({
             message: `Are you sure you want to delete comment ${commentId}?`,
