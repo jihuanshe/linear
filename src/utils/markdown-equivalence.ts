@@ -6,24 +6,29 @@ import { visit } from "unist-util-visit"
 const parser = unified().use(remarkParse).use(remarkGfm)
 
 function comparableMarkdown(markdown: string): string {
-  let tree = parser.parse(markdown)
-  // Different bullet markers split adjacent items into separate Markdown lists.
-  // Normalize only parsed item markers; code and inline text stay untouched.
-  const characters = markdown.split("")
-  let changed = false
-  visit(tree, "list", (list) => {
-    if (list.ordered) return
-    for (const item of list.children) {
-      const offset = item.position?.start.offset
-      if (offset != null && /[+*]/.test(characters[offset])) {
-        characters[offset] = "-"
-        changed = true
-      }
-    }
-  })
-  if (changed) tree = parser.parse(characters.join(""))
+  const tree = parser.parse(markdown)
   visit(tree, (node) => {
     delete node.position
+    // Linear joins adjacent unordered lists split by different bullet markers.
+    // Merge parsed siblings, not source text: rewriting '* ---' as '- ---'
+    // would turn a list item into a top-level thematic break.
+    // https://linear.app/jihuanshe/issue/ARCH-231
+    if ("children" in node) {
+      for (let index = 1; index < node.children.length;) {
+        const previous = node.children[index - 1]
+        const current = node.children[index]
+        if (
+          previous.type === "list" && !previous.ordered &&
+          current.type === "list" && !current.ordered
+        ) {
+          previous.children.push(...current.children)
+          previous.spread ||= current.spread
+          node.children.splice(index, 1)
+        } else {
+          index++
+        }
+      }
+    }
     if (
       node.type === "link" || node.type === "image" ||
       node.type === "definition"

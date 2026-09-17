@@ -1180,6 +1180,24 @@ for (
       matches: true,
     },
     {
+      name: "thematic break removed from a list item",
+      desired: "* ---\n  说明",
+      actual: "---\n说明",
+      matches: false,
+    },
+    {
+      name: "mixed list markers preserving a thematic break inside an item",
+      desired: "* ---\n  说明\n+ 后续",
+      actual: "+ ---\n  说明\n+ 后续",
+      matches: true,
+    },
+    {
+      name: "nested item promoted to a sibling",
+      desired: "- 父项\n  + 子项\n* 下一项",
+      actual: "* 父项\n* 子项\n* 下一项",
+      matches: false,
+    },
+    {
       name: "list marker text inside a code block",
       desired: "```markdown\n- 原文\n* 原文\n```",
       actual: "```markdown\n* 原文\n* 原文\n```",
@@ -1268,11 +1286,10 @@ for (
       }],
     })
     try {
-      const result = await apply(
-        await f.load(manifest([update(original, {
-          description: sample.desired,
-        })])),
-      )
+      const loaded = await f.load(manifest([update(original, {
+        description: sample.desired,
+      })]))
+      const result = await apply(loaded)
       assertEquals(
         result.status,
         sample.matches ? "completed" : "applied-unverified",
@@ -1285,6 +1302,11 @@ for (
       assertEquals(f.mutations()[0].variables.input, {
         description: sample.desired,
       })
+      const resumed = await apply(loaded)
+      assertEquals(resumed.status, result.status)
+      assertEquals(resumed.effect, "none")
+      assertEquals(resumed.summary.skipped, 1)
+      assertEquals(f.mutations().length, 1)
     } finally {
       await f.cleanup()
     }
