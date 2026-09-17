@@ -142,19 +142,30 @@ jobs:
             (
               # Read the compiled documentation away from the source checkout.
               cd "$smoke_dir"
-              actual_version="$("$release_binary" --version)"
+              smoke_cli() {
+                local output status
+                output="$("$release_binary" "$@")" || {
+                  status=$?
+                  printf 'Release smoke command failed: linear %s (exit %s)\n' "$*" "$status" >&2
+                  printf '%s\n' "$output" >&2
+                  return "$status"
+                }
+                printf '%s\n' "$output"
+              }
+
+              actual_version="$(smoke_cli --version)"
               if [[ "$actual_version" != "linear $VERSION" ]]; then
                 echo "Expected linear $VERSION, got $actual_version" >&2
                 exit 1
               fi
 
-              release_identity="$("$release_binary" version --json)"
-              release_usage="$("$release_binary" usage --json)"
-              release_guides="$("$release_binary" guide --json)"
-              release_guide="$("$release_binary" guide core --json)"
-              release_recipes="$("$release_binary" recipe --json)"
-              release_recipe="$("$release_binary" recipe guarded-edit --json)"
-              release_source="$("$release_binary" recipe guarded-edit --source)"
+              release_identity="$(smoke_cli version --json)"
+              release_usage="$(smoke_cli usage --json)"
+              release_guides="$(smoke_cli guide --json)"
+              release_guide="$(smoke_cli guide core --json)"
+              release_recipes="$(smoke_cli recipe --json)"
+              release_recipe="$(smoke_cli recipe doctor --json)"
+              release_source="$(smoke_cli recipe doctor --source)"
               RELEASE_IDENTITY="$release_identity" \
               RELEASE_USAGE="$release_usage" \
               RELEASE_GUIDES="$release_guides" \
@@ -196,8 +207,8 @@ jobs:
                 const source = Deno.env.get("RELEASE_SOURCE")
                 if (
                   !Array.isArray(recipes) ||
-                  !recipes.some((item) => item.name === "guarded-edit" && hasText(item.description)) ||
-                  recipe?.name !== "guarded-edit" || recipe.filename !== "guarded-edit.js" ||
+                  !recipes.some((item) => item.name === "doctor" && hasText(item.description)) ||
+                  recipe?.name !== "doctor" || recipe.filename !== "doctor.js" ||
                   !hasText(recipe.body) || !hasText(recipe.source) ||
                   !hasText(source) || source.trimEnd() !== recipe.source.trimEnd()
                 ) throw new Error("Compiled Recipe instructions or source are missing")
