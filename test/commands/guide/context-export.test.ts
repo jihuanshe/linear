@@ -98,8 +98,13 @@ Deno.test("guide context exports preserve full bodies, resource directories and 
           variableValues: variables,
           rootValue: {
             organization,
-            [key]: (args: { after?: string; filter?: unknown }) => {
+            [key]: (args: {
+              after?: string
+              filter?: unknown
+              includeArchived?: boolean
+            }) => {
               assertEquals(args.filter, undefined)
+              assertEquals(args.includeArchived, undefined)
               return {
                 nodes: [nodes[args.after == null ? 0 : 1]],
                 pageInfo: args.after == null

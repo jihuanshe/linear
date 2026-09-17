@@ -157,6 +157,8 @@ linear api 'query ContextInitiatives($after: String) {
 
 先按 `linear guide core` 核对工作区身份。下面的查询不按默认团队或状态筛选，读取当前凭据可见的全部未归档项目，保留 `{data: {organization, projects: {nodes, pageInfo}}}`。`description` 是短简介；Overview 页中 Description 区的长正文是 `content`，两者均不截断。主要属性和所属 Initiative 随项目读取，Resources 只取文档、外链和附件的目录，不展开其正文或访问链接。
 
+`linear project list` 默认按已配置的团队筛选，即使使用 `--all-teams` 也不返回项目正文或资源目录；`linear document list` 只读取一页。不要用这两个列表代替下面的完整上下文导出。
+
 ```bash
 linear api 'query ContextProjects($after: String) {
   organization { id urlKey }
@@ -224,7 +226,7 @@ linear api 'query ProjectDocuments($id: String!, $after: String) {
 }' --variables-json "{\"id\":\"$PROJECT_ID\"}" --paginate > project-documents.json
 ```
 
-核对返回的工作区、项目 ID、`errors` 和 `.data.project.documents.pageInfo.hasNextPage == false`，用这份完整目录取代该项目原来的文档预览，不把两份节点直接拼接。其他内层集合按相同方式每次单独分页一个连接；团队也可直接用 `linear project teams <project> --json` 读全。完整分页不保证跨页快照一致。
+核对返回的工作区、项目 ID、`errors` 和 `.data.project.documents.pageInfo.hasNextPage == false`，用这份完整目录取代该项目原来的文档预览，不把两份节点直接拼接。其他内层集合按相同方式每次单独分页一个连接；团队也可直接用 `linear project teams <project> --json` 读全，但结果含归档团队，范围比上面的预览更大。完整分页不保证跨页快照一致。
 
 只有成功读到终页且 `nodes` 为空，才能说「没有资源」；有条目但未载入正文是「有资料、内容未读」；分页未结束、请求失败或权限不足都不能解释成空目录。目录中的文档通过 `linear document view <document-id> --json` 继续读取；外部链接按任务需要访问，不能仅凭标题推断内容。上述项目与资源范围均限于当前凭据可见内容，不能证明无权访问的资料不存在。
 
