@@ -4,7 +4,7 @@ import { gql } from "../../__codegen__/gql.ts"
 import { getGraphQLClient } from "../../utils/graphql.ts"
 import { formatRelativeTime } from "../../utils/display.ts"
 import { getCycleIdByNameOrNumber, getTeamKey } from "../../utils/linear.ts"
-import { resolveWriteTeam } from "../../utils/issue-read.ts"
+import { resolveTeam } from "../../utils/issue-read.ts"
 import { shouldShowSpinner } from "../../utils/hyperlink.ts"
 import {
   handleError,
@@ -67,7 +67,7 @@ export const viewCommand = new Command()
         )
       }
 
-      const { id: teamId } = await resolveWriteTeam(teamReference)
+      const { id: teamId } = await resolveTeam(teamReference)
 
       const cycleId = await getCycleIdByNameOrNumber(cycleReference, teamId)
 

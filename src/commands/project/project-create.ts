@@ -7,7 +7,7 @@ import { Input, Select } from "../../utils/prompt.ts"
 import { gql } from "../../__codegen__/gql.ts"
 import type { ProjectCreateInput } from "../../__codegen__/graphql.ts"
 import { getGraphQLClient } from "../../utils/graphql.ts"
-import { resolveWriteTeam } from "../../utils/issue-read.ts"
+import { resolveTeam } from "../../utils/issue-read.ts"
 import { priorityType } from "../../utils/priority.ts"
 import {
   getAllTeams,
@@ -324,7 +324,7 @@ export const createCommand = withUsageMetadata(new Command(), {
 
         // Resolve team IDs
         teamIds ??= await Promise.all(
-          teams.map(async (team) => (await resolveWriteTeam(team)).id),
+          teams.map(async (team) => (await resolveTeam(team)).id),
         )
 
         // Build input - resolve all optional fields first

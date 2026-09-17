@@ -5,7 +5,7 @@ import { withUsageMetadata } from "../usage.ts"
 import { gql } from "../../__codegen__/gql.ts"
 import type { ProjectUpdateInput } from "../../__codegen__/graphql.ts"
 import { getGraphQLClient } from "../../utils/graphql.ts"
-import { resolveWriteTeam } from "../../utils/issue-read.ts"
+import { resolveTeam } from "../../utils/issue-read.ts"
 import {
   lookupProjectLabelId,
   lookupUserId,
@@ -245,7 +245,7 @@ export const updateCommand = withUsageMetadata(new Command(), { writes: true })
 
         if (teams && teams.length > 0) {
           input.teamIds = await Promise.all(
-            teams.map(async (team) => (await resolveWriteTeam(team)).id),
+            teams.map(async (team) => (await resolveTeam(team)).id),
           )
         }
 

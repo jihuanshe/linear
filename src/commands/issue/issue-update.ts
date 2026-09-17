@@ -28,7 +28,7 @@ import {
   WriteError,
 } from "../../utils/errors.ts"
 
-import { readIssueBasis, resolveWriteTeam } from "../../utils/issue-read.ts"
+import { readIssueBasis, resolveTeam } from "../../utils/issue-read.ts"
 import {
   connectionField,
   loadBasisFile,
@@ -258,9 +258,7 @@ export async function prepareIssueUpdate(
   }
 
   const target = await readIssueBasis(issueReference)
-  const writeTeam = team == null
-    ? target.issue.team
-    : await resolveWriteTeam(team)
+  const writeTeam = team == null ? target.issue.team : await resolveTeam(team)
   const teamKey = writeTeam.key
   const teamId = writeTeam.id
   let stateId: string | undefined
