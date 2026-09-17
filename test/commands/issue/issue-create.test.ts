@@ -1194,7 +1194,6 @@ Deno.test("Issue Create Command - Explicit Project Still Uses Interactive Mode",
       variables: {
         input: {
           title: "Create dashboard issue",
-          description: "",
           labelIds: [],
           teamId: teamWriteIds.ENG,
           projectId: "project-123",
@@ -1348,7 +1347,6 @@ Deno.test("Issue Create Command - Interactive Project Prompt Uses Team Projects"
       variables: {
         input: {
           title: "Issue with prompted project",
-          description: "",
           labelIds: [],
           teamId: teamWriteIds.ENG,
           projectId: "project-456",
@@ -1511,7 +1509,6 @@ Deno.test("Issue Create Command - Additional Fields Can Set Project", async () =
       variables: {
         input: {
           title: "Issue from more fields",
-          description: "",
           labelIds: [],
           teamId: teamWriteIds.ENG,
           projectId: "project-789",

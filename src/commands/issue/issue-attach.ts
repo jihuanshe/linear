@@ -2,7 +2,7 @@ import { createIssueAttachment } from "../../operations/issue-content.ts"
 import { printWriteResult } from "../../utils/write-result.ts"
 import { Command } from "@cliffy/command"
 import { withUsageMetadata } from "../usage.ts"
-import { requireIssueId } from "../../utils/linear.ts"
+import { getIssueIdentifier, requireIssueId } from "../../utils/linear.ts"
 import {
   uploadFile,
   type UploadResult,
@@ -47,7 +47,13 @@ export const attachCommand = withUsageMetadata(new Command(), { writes: true })
       await validateFilePath(filepath)
 
       // Get the issue UUID (attachmentCreate needs UUID, not identifier)
-      const issueUuid = await requireIssueId(issueId)
+      const resolvedIdentifier = await getIssueIdentifier(issueId)
+      if (!resolvedIdentifier) {
+        throw new ValidationError("Could not determine issue identifier", {
+          suggestion: "Please provide an issue identifier like 'ENG-123'.",
+        })
+      }
+      const issueUuid = await requireIssueId(resolvedIdentifier)
 
       // Upload the file
       uploadResult = await uploadFile(filepath, {
@@ -77,7 +83,7 @@ export const attachCommand = withUsageMetadata(new Command(), { writes: true })
       if (uploadResult.contentType.startsWith("image/")) {
         const suggested = [
           "linear issue comment add",
-          issueId,
+          resolvedIdentifier,
           "--attach",
           quoteForShell(filepath),
           ...(makePublic ? ["--public"] : []),

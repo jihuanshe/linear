@@ -419,3 +419,172 @@ Deno.test("asset guide tasks: sidebar attachment, new comment with files, and pr
     await Deno.remove(dir, { recursive: true })
   }
 })
+
+for (const operation of ["comment", "attach"]) {
+  Deno.test(`issue ${operation} resolves explicit references before uploading or writing`, async () => {
+    const file = await Deno.makeTempFile({ suffix: ".png" })
+    const issueId = "aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee"
+    const server = new MockLinearServer([
+      {
+        queryName: "GetIssueReferenceWorkspace",
+        response: {
+          data: { organization: { id: "workspace-1", urlKey: "test" } },
+        },
+      },
+      {
+        queryName: "GetIssueId",
+        response: { data: { issue: { id: issueId } } },
+      },
+      {
+        queryName: "AttachmentCreate",
+        response: {
+          data: {
+            attachmentCreate: {
+              success: true,
+              attachment: {
+                id: "attachment-1",
+                issue: { id: issueId },
+                url,
+                title: "Evidence",
+              },
+            },
+          },
+        },
+      },
+      {
+        queryName: "AddComment",
+        response: {
+          data: {
+            commentCreate: {
+              success: true,
+              comment: { id: "comment-1", issue: { id: issueId }, url },
+            },
+          },
+        },
+      },
+    ])
+    try {
+      await Deno.writeFile(file, new Uint8Array([0x89, 0x50, 0x4e, 0x47]))
+      server.start()
+      server.addResponse({
+        queryName: "FileUpload",
+        response: {
+          data: {
+            fileUpload: {
+              success: true,
+              uploadFile: {
+                assetUrl: url,
+                uploadUrl: server.getUploadUrl(),
+                headers: [],
+              },
+            },
+          },
+        },
+      })
+      const run = async (reference: string | undefined, json = true) => {
+        server.graphqlRequests.length = 0
+        server.uploadRequests.length = 0
+        const result = await new Deno.Command(Deno.execPath(), {
+          args: [
+            "run",
+            ...commonDenoArgs,
+            "src/main.ts",
+            "issue",
+            ...(operation === "comment" ? ["comment", "add"] : ["attach"]),
+            ...(reference === undefined ? [] : [reference]),
+            ...(operation === "comment" ? ["--attach", file] : [file]),
+            ...(json ? ["--json"] : []),
+          ],
+          env: {
+            LINEAR_API_KEY: "test-key",
+            LINEAR_TEAM_ID: "ENG",
+            LINEAR_GRAPHQL_ENDPOINT: server.getEndpoint(),
+          },
+          stdin: "null",
+          stdout: "piped",
+          stderr: "piped",
+        }).output()
+        return {
+          code: result.code,
+          output: new TextDecoder().decode(result.stdout),
+        }
+      }
+
+      const issueUrl = "https://linear.app/test/issue/eng-17/title?source=copy"
+      for (
+        const [reference, expected] of [
+          ["eng-17", "ENG-17"],
+          [issueUrl, "ENG-17"],
+          ["17", "ENG-17"],
+          [issueId.toUpperCase(), issueId],
+        ]
+      ) {
+        const result = await run(reference)
+        assertEquals(result.code, 0, result.output)
+        assertEquals(JSON.parse(result.output).effect, "applied")
+        assertEquals(
+          server.graphqlRequests.map((request) => ({
+            name: /(?:query|mutation)\s+(\w+)/.exec(request.query)?.[1],
+            ...(request.query.includes("query GetIssueId")
+              ? { variables: request.variables }
+              : {}),
+          })),
+          [
+            ...(reference === issueUrl
+              ? [{ name: "GetIssueReferenceWorkspace" }]
+              : []),
+            { name: "GetIssueId", variables: { id: expected } },
+            { name: "FileUpload" },
+            {
+              name: operation === "comment" ? "AddComment" : "AttachmentCreate",
+            },
+          ],
+        )
+        assertEquals(
+          (server.graphqlRequests.at(-1)?.variables.input as {
+            issueId: string
+          }).issueId,
+          issueId,
+        )
+        assertEquals(server.uploadRequests.length, 1)
+      }
+
+      for (
+        const reference of [
+          undefined,
+          " ",
+          "not-an-issue",
+          "https://linear.app/other/issue/ENG-17/title",
+        ]
+      ) {
+        const result = await run(reference)
+        assertEquals(result.code, 1, result.output)
+        const body = JSON.parse(result.output)
+        assertEquals(body.effect, "none")
+        assertEquals(server.uploadRequests, [])
+        if (reference?.includes("/other/")) {
+          assertStringIncludes(body.error.message, "different workspace")
+          assertEquals(server.graphqlRequests.length, 1)
+          assertStringIncludes(
+            server.graphqlRequests[0].query,
+            "query GetIssueReferenceWorkspace",
+          )
+        } else {
+          assertEquals(server.graphqlRequests, [])
+        }
+      }
+
+      if (operation === "attach") {
+        const result = await run(issueUrl, false)
+        assertEquals(result.code, 0, result.output)
+        assertStringIncludes(
+          result.output,
+          "linear issue comment add ENG-17 --attach",
+        )
+      }
+    } finally {
+      await server.stop()
+      await Deno.remove(file)
+    }
+  })
+}

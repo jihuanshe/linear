@@ -474,7 +474,8 @@ async function promptInteractiveIssueCreation(
     default: "",
   })
 
-  let finalDescription = description
+  // Enter skips this optional field; choosing an editor supplies its exact output.
+  let finalDescription = description === "" ? undefined : description
   if (description === "e") {
     if (editorDisplayName) console.log(`Opening ${editorDisplayName}...`)
     finalDescription = await openEditor()

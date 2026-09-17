@@ -178,11 +178,13 @@ for (
   ]
 ) {
   for (
-    const expected of ["prompt", "editor"].includes(source)
+    const expected of source === "prompt"
+      ? [exactText, " \t", ""]
+      : source === "editor"
       ? [exactText, ""]
       : [exactText]
   ) {
-    Deno.test(`interactive issue description ${source} preserves ${JSON.stringify(expected)}`, async () => {
+    Deno.test(`interactive issue description ${source} handles ${JSON.stringify(expected)}`, async () => {
       const directory = await Deno.makeTempDir()
       const editor = `${directory}/editor`
       const contentFile = `${directory}/content`
@@ -272,9 +274,13 @@ for (
         )
         assertEquals(writes.length, success ? 1 : 0)
         if (success) {
+          const input = writes[0].variables.input as Record<string, unknown>
+          const skipped = source === "prompt" && expected === ""
+          assertEquals(input.useDefaultTemplate, true)
+          assertEquals(Object.hasOwn(input, "description"), !skipped)
           assertEquals(
-            (writes[0].variables.input as Record<string, unknown>).description,
-            expected,
+            input.description,
+            skipped ? undefined : expected,
           )
         }
       } finally {

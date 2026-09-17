@@ -8,7 +8,7 @@ import { withUsageMetadata } from "../usage.ts"
 import { withMarkdownHint } from "../../utils/markdown-help.ts"
 import { openEditor } from "../../utils/editor.ts"
 import { readTextSource } from "../../utils/text-source.ts"
-import { requireIssueId } from "../../utils/linear.ts"
+import { getIssueIdentifier, requireIssueId } from "../../utils/linear.ts"
 import {
   prepareUploads,
   uploadFile,
@@ -103,7 +103,13 @@ export const commentAddCommand = withUsageMetadata(new Command(), {
       }
 
       const prepared = await prepareUploads(attachments, { makePublic })
-      const issueUuid = await requireIssueId(issueId)
+      const resolvedIdentifier = await getIssueIdentifier(issueId)
+      if (!resolvedIdentifier) {
+        throw new ValidationError("Could not determine issue identifier", {
+          suggestion: "Please provide an issue identifier like 'ENG-123'.",
+        })
+      }
+      const issueUuid = await requireIssueId(resolvedIdentifier)
 
       if (prepared.length > 0) {
         // Upload files
@@ -136,7 +142,7 @@ export const commentAddCommand = withUsageMetadata(new Command(), {
         return
       }
 
-      console.log(`✓ Comment added to ${issueId}`)
+      console.log(`✓ Comment added to ${resolvedIdentifier}`)
       console.log(comment.url)
     } catch (error) {
       handleError(
