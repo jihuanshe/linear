@@ -1,8 +1,185 @@
 import { snapshotTest } from "@cliffy/testing"
 import { assertEquals, assertStringIncludes } from "@std/assert"
+import { stub } from "@std/testing/mock"
 import { listCommand } from "../../../src/commands/document/document-list.ts"
 import { MockLinearServer } from "../../utils/mock_linear_server.ts"
-import { commonDenoArgs } from "../../utils/test-helpers.ts"
+import {
+  commonDenoArgs,
+  setupMockLinearServer,
+} from "../../utils/test-helpers.ts"
+
+for (
+  const scenario of [
+    "identifier",
+    "UUID",
+    "URL",
+    "other-workspace",
+    "wrong-identity",
+    "invalid",
+    "empty",
+    "missing",
+  ] as const
+) {
+  Deno.test(`document list issue reference: ${scenario}`, async () => {
+    const id = "abcdef01-2345-4678-9abc-def012345678"
+    const reference = scenario === "UUID" || scenario === "wrong-identity"
+      ? id.toUpperCase()
+      : scenario === "URL" || scenario === "other-workspace"
+      ? "https://linear.app/test/issue/ENG-123/title"
+      : scenario === "invalid"
+      ? "feature/ENG-123"
+      : scenario === "empty"
+      ? ""
+      : "eng-123"
+    const { server, cleanup } = await setupMockLinearServer([
+      {
+        queryName: "GetIssueReferenceWorkspace",
+        response: {
+          data: {
+            organization: {
+              id: "workspace",
+              urlKey: scenario === "other-workspace" ? "elsewhere" : "test",
+            },
+          },
+        },
+      },
+      {
+        queryName: "GetIssueId",
+        response: {
+          data: {
+            issue: scenario === "missing" ? null : {
+              id: scenario === "wrong-identity"
+                ? "11111111-1111-4111-8111-111111111111"
+                : id,
+            },
+          },
+        },
+      },
+      {
+        queryName: "ListDocuments",
+        response: {
+          data: {
+            documents: {
+              nodes: [],
+              pageInfo: { hasNextPage: false, endCursor: null },
+            },
+          },
+        },
+      },
+    ])
+    try {
+      const result = await new Deno.Command(Deno.execPath(), {
+        args: [
+          "run",
+          ...commonDenoArgs,
+          "src/main.ts",
+          "document",
+          "list",
+          "--issue",
+          reference,
+          "--json",
+        ],
+        stdin: "null",
+        stdout: "piped",
+        stderr: "piped",
+      }).output()
+      const success = ["identifier", "UUID", "URL"].includes(scenario)
+      const body = JSON.parse(new TextDecoder().decode(result.stdout))
+      assertEquals(result.code, success ? 0 : 1, JSON.stringify(body))
+      assertEquals(
+        server.graphqlRequests.filter((request) =>
+          request.query.includes("query ListDocuments")
+        ).map((request) => request.variables),
+        success ? [{ filter: { issue: { id: { eq: id } } }, first: 50 }] : [],
+      )
+      const lookups = server.graphqlRequests.filter((request) =>
+        request.query.includes("query GetIssueId")
+      )
+      assertEquals(
+        lookups.map((request) => request.variables.id),
+        ["invalid", "empty", "other-workspace"].includes(scenario) ? [] : [
+          scenario === "UUID" || scenario === "wrong-identity" ? id : "ENG-123",
+        ],
+      )
+      if (!success) {
+        assertStringIncludes(
+          body.error.message,
+          scenario === "other-workspace"
+            ? "different workspace"
+            : scenario === "wrong-identity"
+            ? "different stable identity"
+            : scenario === "missing"
+            ? "not found"
+            : "Invalid issue reference",
+        )
+      }
+    } finally {
+      await cleanup()
+    }
+  })
+}
+
+Deno.test("document list without --issue does not infer an Issue from VCS", async () => {
+  const { server, cleanup } = await setupMockLinearServer([
+    {
+      queryName: "ListDocuments",
+      response: {
+        data: {
+          documents: {
+            nodes: [],
+            pageInfo: { hasNextPage: false, endCursor: null },
+          },
+        },
+      },
+    },
+  ])
+  const Command = Deno.Command
+  const commands: ConstructorParameters<typeof Command>[] = []
+  const command = stub(Deno, "Command", function (...args: unknown[]) {
+    const [executable, options] = args as ConstructorParameters<typeof Command>
+    commands.push([executable, options])
+    return new Command(executable, options)
+  })
+  const log = stub(console, "log", () => {})
+  try {
+    await listCommand.parse(["--json"])
+    for (const [executable, options] of commands) {
+      assertEquals(executable, "git")
+      assertEquals(options?.args, ["rev-parse", "--show-toplevel"])
+    }
+    assertEquals(server.graphqlRequests.map((request) => request.variables), [{
+      first: 50,
+    }])
+  } finally {
+    log.restore()
+    command.restore()
+    await cleanup()
+  }
+})
+
+Deno.test("bare document domain exposes command usage without requests", async () => {
+  const { server, cleanup } = await setupMockLinearServer([])
+  try {
+    const result = await new Deno.Command(Deno.execPath(), {
+      args: ["run", ...commonDenoArgs, "src/main.ts", "document"],
+      stdin: "null",
+      stdout: "piped",
+      stderr: "piped",
+    }).output()
+    assertEquals(result.code, 0)
+    const output = new TextDecoder().decode(result.stdout)
+    assertStringIncludes(output, "linear document — Manage Linear documents")
+    assertStringIncludes(output, "list options:")
+    assertStringIncludes(output, "update options:")
+    assertEquals(
+      output.includes("Use --help to see available subcommands"),
+      false,
+    )
+    assertEquals(server.graphqlRequests, [])
+  } finally {
+    await cleanup()
+  }
+})
 
 for (const kind of ["UUID", "name", "slug", "unknown"] as const) {
   Deno.test(`document list production entry resolves project ${kind}`, async () => {

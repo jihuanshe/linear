@@ -13,7 +13,7 @@ import {
   printBulkSummary,
 } from "../../utils/bulk.ts"
 import { shouldShowSpinner } from "../../utils/hyperlink.ts"
-import { printWriteResult, setMachineOutput } from "../../utils/write-result.ts"
+import { printWriteResult } from "../../utils/write-result.ts"
 import {
   assertMutationSuccess,
   handleError,
@@ -30,8 +30,6 @@ interface InitiativeArchiveResult extends BulkOperationResult {
 export const archiveCommand = withUsageMetadata(new Command(), {
   writes: true,
   interactive: true,
-  confirmationRequiredUnless: "--force",
-  outputModes: ["human", "json"],
 })
   .name("archive")
   .option("--json", "Output a JSON write result")
@@ -52,7 +50,6 @@ export const archiveCommand = withUsageMetadata(new Command(), {
       { force, bulk, bulkFile, bulkStdin, json },
       initiativeId,
     ) => {
-      setMachineOutput(json ?? false)
       const client = getGraphQLClient()
 
       // Check if bulk mode

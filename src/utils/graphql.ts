@@ -1,24 +1,31 @@
 import { ClientError, GraphQLClient } from "graphql-request"
-import { gray } from "@std/fmt/colors"
-import { getCliWorkspace, getOption } from "../config.ts"
+import {
+  getCliWorkspace,
+  getOption,
+  loadConfig,
+  loadEnvironment,
+} from "../config.ts"
 import { getCredentialApiKey } from "../credentials.ts"
 import denoConfig from "../../deno.json" with { type: "json" }
-import { extractGraphQLMessage, isDebugMode, WriteError } from "./errors.ts"
+import { AuthError, ValidationError, WriteError } from "./errors.ts"
 import { graphqlFetch, graphQLOperation } from "./graphql-transport.ts"
 import { LINEAR_API_ENDPOINT } from "../const.ts"
-import { withTerminalColors } from "./terminal.ts"
 import { AsyncLocalStorage } from "node:async_hooks"
 
 export { ClientError }
 
 // One invocation resolves its credentials once. A login/config change during
 // a long apply must not swap the principal after workspace verification.
-const invocationClient = new AsyncLocalStorage<
-  { active: boolean; client?: GraphQLClient }
->()
+interface Invocation {
+  active: boolean
+  client?: GraphQLClient
+  apiKey?: Promise<string | undefined>
+}
+
+const invocationClient = new AsyncLocalStorage<Invocation>()
 
 export function withGraphQLContext<T>(action: () => Promise<T>): Promise<T> {
-  const invocation: { active: boolean; client?: GraphQLClient } = {
+  const invocation: Invocation = {
     active: true,
   }
   return invocationClient.run(invocation, async () => {
@@ -29,37 +36,13 @@ export function withGraphQLContext<T>(action: () => Promise<T>): Promise<T> {
       // context must not lend its finished invocation's principal to later work.
       invocation.active = false
       invocation.client = undefined
+      invocation.apiKey = undefined
     }
   })
 }
 
-// Re-export error utilities for backward compatibility
-export { isClientError } from "./errors.ts"
-
-/**
- * Logs a GraphQL ClientError formatted for display to the user.
- * @deprecated Use handleError from errors.ts for consistent error handling
- */
-export function logClientError(error: ClientError): void {
-  const message = extractGraphQLMessage(error)
-  console.error(`✗ ${message}\n`)
-
-  // Only show query details in debug mode
-  if (isDebugMode()) {
-    withTerminalColors(Deno.stderr, () => {
-      const rawQuery = error.request?.query
-      const query = typeof rawQuery === "string" ? rawQuery.trim() : rawQuery
-      const vars = JSON.stringify(error.request?.variables, null, 2)
-
-      console.error(gray(String(query)))
-      console.error("")
-      console.error(gray(vars))
-    })
-  }
-}
-
 function workspaceCredentialNotFound(workspace: string): Error {
-  return new Error(
+  return new AuthError(
     `Workspace "${workspace}" not found in credentials. ` +
       `Run \`linear auth login\` to add it, or \`linear auth list\` to see configured workspaces.`,
   )
@@ -68,68 +51,81 @@ function workspaceCredentialNotFound(workspace: string): Error {
 /**
  * Get the resolved API key following the precedence chain:
  * 1. LINEAR_API_KEY env var (conflicts with --workspace)
- * 2. api_key in project config
- * 3. --workspace flag → credentials lookup
- * 4. Project's workspace config → credentials lookup
- * 5. default workspace from credentials file
+ * 2. --workspace flag → credentials lookup
+ * 3. LINEAR_WORKSPACE or project's workspace config → credentials lookup
+ * 4. default workspace from credentials file
  */
-export function getResolvedApiKey(): string | undefined {
+async function resolveApiKey(): Promise<string | undefined> {
+  // Reject obsolete/invalid selected configuration even if an env key exists.
+  loadConfig()
   const cliWorkspace = getCliWorkspace()
   const envApiKey = Deno.env.get("LINEAR_API_KEY")
 
   // Error if both LINEAR_API_KEY and --workspace are set
-  if (envApiKey && cliWorkspace) {
-    throw new Error(
+  if (envApiKey != null && cliWorkspace != null) {
+    throw new AuthError(
       "Cannot use --workspace flag when LINEAR_API_KEY environment variable is set. " +
         "Either unset LINEAR_API_KEY or remove the --workspace flag.",
     )
   }
 
-  // 1: LINEAR_API_KEY env var
-  if (envApiKey) {
+  if (envApiKey != null) {
+    if (envApiKey.trim() === "") throw new AuthError("LINEAR_API_KEY is empty")
     return envApiKey
   }
 
-  // 2: api_key in project config
-  const configApiKey = getOption("api_key")
-  if (configApiKey) {
-    return configApiKey
-  }
-
-  // 3: --workspace flag → credentials lookup
-  if (cliWorkspace) {
-    const key = getCredentialApiKey(cliWorkspace)
+  if (cliWorkspace != null) {
+    if (cliWorkspace === "") {
+      throw new ValidationError("--workspace must not be empty")
+    }
+    const key = await getCredentialApiKey(cliWorkspace)
     if (key) return key
     // Explicit --workspace flag must match a configured workspace
     throw workspaceCredentialNotFound(cliWorkspace)
   }
 
-  // 4: Project's workspace config → credentials lookup
   const projectWorkspace = getOption("workspace")
-  if (projectWorkspace) {
-    const key = getCredentialApiKey(projectWorkspace)
+  if (projectWorkspace != null) {
+    const key = await getCredentialApiKey(projectWorkspace)
     if (key) return key
     throw workspaceCredentialNotFound(projectWorkspace)
   }
 
-  // 5: Default workspace from credentials file
-  return getCredentialApiKey()
+  return await getCredentialApiKey()
+}
+
+/** Resolve once per invocation, shared by typed requests and attachment fetches. */
+export function getResolvedApiKey(): Promise<string | undefined> {
+  const invocation = invocationClient.getStore()
+  if (!invocation?.active) return resolveApiKey()
+  return invocation.apiKey ??= resolveApiKey()
 }
 
 /**
  * Get the GraphQL endpoint URL.
  */
 export function getGraphQLEndpoint(): string {
+  loadEnvironment()
   return Deno.env.get("LINEAR_GRAPHQL_ENDPOINT") || LINEAR_API_ENDPOINT
 }
 
-function createClient(apiKey?: string): GraphQLClient {
+function createClient(
+  apiKey?: string | (() => Promise<string>),
+): GraphQLClient {
   return new GraphQLClient(getGraphQLEndpoint(), {
     headers: {
-      ...(apiKey == null ? {} : { Authorization: apiKey }),
+      ...(typeof apiKey === "string" ? { Authorization: apiKey } : {}),
       "User-Agent": `jihuanshe-linear/${denoConfig.version}`,
     },
     fetch: async (input, init) => {
+      // Authentication and local validation happen before the dispatch boundary.
+      // They must never become an unknown mutation or trigger transport retries.
+      if (typeof apiKey === "function") {
+        const key = await apiKey()
+        const headers = new Headers(init?.headers)
+        headers.set("Authorization", key)
+        init = { ...init, headers }
+      }
       // All typed requests use GraphQL JSON. Classify before transport so a
       // fetch exception after sending a mutation is never called zero-effect.
       const operation = graphQLOperation(init?.body)
@@ -198,14 +194,18 @@ export function createPublicGraphQLClient(): GraphQLClient {
 export function getGraphQLClient(): GraphQLClient {
   const invocation = invocationClient.getStore()
   if (invocation?.active && invocation.client != null) return invocation.client
-  const apiKey = getResolvedApiKey()
-  if (!apiKey) {
-    throw new Error(
-      "No API key configured. Set LINEAR_API_KEY, add api_key to .linear.toml, or run `linear auth login`.",
-    )
-  }
-
-  const client = createGraphQLClient(apiKey)
+  let resolved: Promise<string> | undefined
+  const client = createClient(() =>
+    resolved ??= (async () => {
+      const apiKey = await getResolvedApiKey()
+      if (!apiKey) {
+        throw new AuthError("No API key configured", {
+          suggestion: "Set LINEAR_API_KEY or run `linear auth login`.",
+        })
+      }
+      return apiKey
+    })()
+  )
   if (invocation?.active) invocation.client = client
   return client
 }

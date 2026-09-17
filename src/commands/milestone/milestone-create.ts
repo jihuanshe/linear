@@ -10,7 +10,8 @@ import {
   handleError,
   ValidationError,
 } from "../../utils/errors.ts"
-import { printWriteResult, setMachineOutput } from "../../utils/write-result.ts"
+import { printWriteResult } from "../../utils/write-result.ts"
+import { validateMilestoneTargetDate } from "./milestone-date.ts"
 
 const CreateProjectMilestone = gql(`
   mutation CreateProjectMilestone($input: ProjectMilestoneCreateInput!) {
@@ -31,10 +32,12 @@ const CreateProjectMilestone = gql(`
 
 export const createCommand = withUsageMetadata(new Command(), {
   writes: true,
-  outputModes: ["human", "json"],
 })
   .name("create")
-  .option("--json", "Output a JSON write result")
+  .option(
+    "--json",
+    "Output a JSON write result; the created milestone is in data.projectMilestone",
+  )
   .description("Create a new project milestone")
   .option(
     "--project <project:string>",
@@ -50,7 +53,6 @@ export const createCommand = withUsageMetadata(new Command(), {
     async (
       { project: projectIdOrSlug, name, description, targetDate, json },
     ) => {
-      setMachineOutput(json ?? false)
       const { Spinner } = await import("@std/cli/unstable-spinner")
       const showSpinner = !json && shouldShowSpinner()
       const spinner = showSpinner ? new Spinner() : null
@@ -60,9 +62,7 @@ export const createCommand = withUsageMetadata(new Command(), {
         if (!name.trim()) {
           throw new ValidationError("Milestone name is required")
         }
-        if (targetDate != null && !/^\d{4}-\d{2}-\d{2}$/.test(targetDate)) {
-          throw new ValidationError("Target date must be in YYYY-MM-DD format")
-        }
+        if (targetDate != null) validateMilestoneTargetDate(targetDate)
         // Resolve project slug to full UUID
         const projectId = await resolveProjectId(projectIdOrSlug)
 
@@ -84,7 +84,7 @@ export const createCommand = withUsageMetadata(new Command(), {
         const milestone = result.projectMilestoneCreate.projectMilestone
         assertMutationReceipt(milestone, result.projectMilestoneCreate)
         if (json) {
-          printWriteResult(milestone)
+          printWriteResult({ projectMilestone: milestone })
           return
         }
         console.log(`✓ Created milestone: ${milestone.name}`)

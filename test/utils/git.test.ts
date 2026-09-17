@@ -1,9 +1,5 @@
 import { assertEquals, assertRejects } from "@std/assert"
-import {
-  getCurrentBranch,
-  getRepoDir,
-  isInsideGitRepo,
-} from "../../src/utils/git.ts"
+import { getCurrentBranch, isInsideGitRepo } from "../../src/utils/git.ts"
 import { CliError } from "../../src/utils/errors.ts"
 
 Deno.test("getCurrentBranch - handles errors when not in a git repository", async () => {
@@ -17,24 +13,6 @@ Deno.test("getCurrentBranch - handles errors when not in a git repository", asyn
       async () => await getCurrentBranch(),
       CliError,
       "Failed to get current branch",
-    )
-  } finally {
-    Deno.chdir(originalCwd)
-    await Deno.remove(tempDir, { recursive: true })
-  }
-})
-
-Deno.test("getRepoDir - handles errors when not in a git repository", async () => {
-  // Create a temporary directory that's not a git repo
-  const tempDir = await Deno.makeTempDir()
-  const originalCwd = Deno.cwd()
-
-  try {
-    Deno.chdir(tempDir)
-    await assertRejects(
-      async () => await getRepoDir(),
-      CliError,
-      "Failed to get repository directory",
     )
   } finally {
     Deno.chdir(originalCwd)

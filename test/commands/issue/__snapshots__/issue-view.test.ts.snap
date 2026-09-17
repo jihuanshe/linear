@@ -18,7 +18,6 @@ Options:
   --show-resolved-threads  - Include resolved threads in human output; JSON always retains all fetched threads                         
   --no-pager               - Disable automatic paging for long output                                                                  
   -j, --json               - Output all fetched threads including resolved history; comments and attachments retain {nodes, pageInfo}  
-  --no-download            - Keep remote URLs instead of downloading files                                                             
 
 "
 stderr:

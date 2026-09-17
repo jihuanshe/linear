@@ -21,7 +21,7 @@ const { denoDir: testDenoDir } = JSON.parse(
 // Note: These tests use the cliValue parameter (highest precedence)
 // to avoid interference from config files that may exist in the repo
 
-Deno.test("getOption - download_images returns boolean for truthy strings", () => {
+Deno.test("getOption - issue_create_ask_project returns boolean for truthy strings", () => {
   const truthyValues = [
     "true",
     "TRUE",
@@ -38,12 +38,12 @@ Deno.test("getOption - download_images returns boolean for truthy strings", () =
   ]
 
   for (const value of truthyValues) {
-    const result = getOption("download_images", value)
+    const result = getOption("issue_create_ask_project", value)
     assertEquals(result, true, `Expected "${value}" to coerce to true`)
   }
 })
 
-Deno.test("getOption - download_images returns boolean for falsy strings", () => {
+Deno.test("getOption - issue_create_ask_project returns boolean for falsy strings", () => {
   const falsyValues = [
     "false",
     "FALSE",
@@ -60,32 +60,16 @@ Deno.test("getOption - download_images returns boolean for falsy strings", () =>
   ]
 
   for (const value of falsyValues) {
-    const result = getOption("download_images", value)
-    assertEquals(result, false, `Expected "${value}" to coerce to false`)
-  }
-})
-
-Deno.test("getOption - download_images returns undefined for unrecognized strings", () => {
-  const result = getOption("download_images", "maybe")
-  assertEquals(result, undefined)
-})
-
-Deno.test("getOption - issue_create_ask_project returns boolean for truthy strings", () => {
-  const truthyValues = ["true", "yes", "1", "on", "t"]
-
-  for (const value of truthyValues) {
-    const result = getOption("issue_create_ask_project", value)
-    assertEquals(result, true, `Expected "${value}" to coerce to true`)
-  }
-})
-
-Deno.test("getOption - issue_create_ask_project returns boolean for falsy strings", () => {
-  const falsyValues = ["false", "no", "0", "off", "f"]
-
-  for (const value of falsyValues) {
     const result = getOption("issue_create_ask_project", value)
     assertEquals(result, false, `Expected "${value}" to coerce to false`)
   }
+})
+
+Deno.test("getOption - issue_create_ask_project rejects unrecognized strings", () => {
+  assertThrows(
+    () => getOption("issue_create_ask_project", "maybe"),
+    ValidationError,
+  )
 })
 
 Deno.test("getOption - issue_create_assign_self accepts valid mode values", () => {
@@ -98,8 +82,10 @@ Deno.test("getOption - issue_create_assign_self accepts valid mode values", () =
 })
 
 Deno.test("getOption - issue_create_assign_self rejects invalid mode values", () => {
-  const result = getOption("issue_create_assign_self", "true")
-  assertEquals(result, undefined)
+  assertThrows(
+    () => getOption("issue_create_assign_self", "true"),
+    ValidationError,
+  )
 })
 
 Deno.test("getOption - environment variables take precedence over config file", async () => {
@@ -212,7 +198,7 @@ Deno.test("getOption - config file is used when no env var is set", async () => 
   }
 })
 
-Deno.test("CLI reports a malformed higher-priority config without falling back", async () => {
+Deno.test("CLI rejects obsolete project config when an action needs configuration", async () => {
   const tempDir = await Deno.makeTempDir()
 
   try {
@@ -231,7 +217,8 @@ Deno.test("CLI reports a malformed higher-priority config without falling back",
         "--allow-all",
         `--config=${denoJsonPath}`,
         mainUrl.toString(),
-        "version",
+        "auth",
+        "token",
       ],
       cwd: tempDir,
       clearEnv: true,
@@ -256,7 +243,7 @@ Deno.test("CLI reports a malformed higher-priority config without falling back",
     const stderr = new TextDecoder().decode(result.stderr)
     assertStringIncludes(
       stderr,
-      "Failed to parse config file at ./linear.toml",
+      "Unsupported project config file:",
     )
     assertEquals(stderr.includes("Uncaught"), false)
     assertEquals(stderr.includes("at loadConfigFromPath"), false)
@@ -727,7 +714,7 @@ Deno.test("resolveIssueSort - invalid cli value throws", () => {
   assertThrows(
     () => resolveIssueSort("banana"),
     ValidationError,
-    'Invalid issue sort: "banana"',
+    "Invalid value for issue_sort",
   )
 })
 
@@ -737,7 +724,7 @@ Deno.test("resolveIssueSort - invalid env value throws instead of defaulting", (
     assertThrows(
       () => resolveIssueSort(),
       ValidationError,
-      'Invalid issue sort: "banana"',
+      "Invalid value for issue_sort",
     )
   } finally {
     Deno.env.delete("LINEAR_ISSUE_SORT")
@@ -750,7 +737,7 @@ Deno.test("resolveIssueSort - empty env value throws instead of defaulting", () 
     assertThrows(
       () => resolveIssueSort(),
       ValidationError,
-      'Invalid issue sort: ""',
+      "Invalid value for issue_sort",
     )
   } finally {
     Deno.env.delete("LINEAR_ISSUE_SORT")

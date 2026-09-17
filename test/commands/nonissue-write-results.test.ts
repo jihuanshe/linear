@@ -155,6 +155,7 @@ const writes = [
     args: ["label", "create", "--name", "Example"],
     field: "issueLabelCreate",
     entity: "issueLabel",
+    resourceKey: "issueLabel",
     object: { id, name: "Example", color: "#5E6AD2", team: null },
     id,
   },
@@ -163,6 +164,7 @@ const writes = [
     args: ["milestone", "create", "--project", projectId, "--name", "Example"],
     field: "projectMilestoneCreate",
     entity: "projectMilestone",
+    resourceKey: "projectMilestone",
     object: {
       id,
       name: "Example",
@@ -187,6 +189,7 @@ const writes = [
     args: ["initiative", "create", "--name", "Example"],
     field: "initiativeCreate",
     entity: "initiative",
+    resourceKey: "initiative",
     object: {
       id,
       name: "Example",
@@ -237,6 +240,7 @@ const writes = [
     args: ["initiative-update", "create", id, "--body", "A status update"],
     field: "initiativeUpdateCreate",
     entity: "initiativeUpdate",
+    resourceKey: "initiativeUpdate",
     object: {
       id,
       body: "A status update",
@@ -250,6 +254,7 @@ const writes = [
     args: ["project-update", "create", projectId, "--body", "A status update"],
     field: "projectUpdateCreate",
     entity: "projectUpdate",
+    resourceKey: "projectUpdate",
     object: {
       id,
       body: "A status update",
@@ -272,6 +277,7 @@ const writes = [
     ],
     field: "documentCreate",
     entity: "document",
+    resourceKey: "document",
     object: {
       id,
       title: "Example",
@@ -285,6 +291,7 @@ const writes = [
     args: ["team", "create", "--name", "Example", "--key", "EX"],
     field: "teamCreate",
     entity: "team",
+    resourceKey: "team",
     object: { id, key: "EX", name: "Example" },
     id,
   },
@@ -324,7 +331,15 @@ for (const write of writes) {
         result.result.effect,
         outcome === "applied" ? "applied" : "unknown",
       )
-      if (outcome === "applied") assertEquals(result.result.data.id, write.id)
+      if (outcome === "applied") {
+        if (write.resourceKey) {
+          assertEquals(result.result.data, {
+            [write.resourceKey]: write.object,
+          })
+        } else {
+          assertEquals(result.result.data.id, write.id)
+        }
+      }
     })
   }
   if (write.entity) {
@@ -591,7 +606,7 @@ Deno.test("write result keeps Markdown stdin bytes in a project status update", 
     body,
   )
   assertEquals(result.code, 0, result.stdout)
-  assertEquals(result.result.data.body, body)
+  assertEquals(result.result.data.projectUpdate.body, body)
   assertEquals(
     (result.mutations[0]?.variables.input as { body: string }).body,
     body,

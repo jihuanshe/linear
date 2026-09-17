@@ -12,13 +12,9 @@ function looksLikeUrl(value: string): boolean {
 export const linkCommand = withUsageMetadata(new Command(), { writes: true })
   .name("link")
   .description("Link a URL to an issue")
-  .arguments("<urlOrIssueId:string> [url:string]")
+  .arguments("<issueId:string> <url:string>")
   .option("--json", "Output a JSON write result with the attachment")
   .option("-t, --title <title:string>", "Custom title for the link")
-  .example(
-    "Link a URL to issue detected from branch",
-    "linear issue link https://github.com/org/repo/pull/123",
-  )
   .example(
     "Link a URL to a specific issue",
     "linear issue link ENG-123 https://github.com/org/repo/pull/123",
@@ -27,42 +23,23 @@ export const linkCommand = withUsageMetadata(new Command(), { writes: true })
     "Link with a custom title",
     'linear issue link ENG-123 https://example.com --title "Design doc"',
   )
-  .action(async (options, urlOrIssueId, url) => {
+  .action(async (options, issueId, url) => {
     const { title, json } = options
 
     try {
-      let issueIdInput: string | undefined
-      let linkUrl: string
-
-      if (url != null) {
-        // Two args: first is an Issue reference (identifier or UUID), second is URL.
-        issueIdInput = urlOrIssueId
-        linkUrl = url
-      } else if (looksLikeUrl(urlOrIssueId)) {
-        // One arg that looks like a URL: auto-detect issue from branch
-        issueIdInput = undefined
-        linkUrl = urlOrIssueId
-      } else {
+      if (!looksLikeUrl(url)) {
         throw new ValidationError(
-          `Expected a URL but got '${urlOrIssueId}'`,
+          `Invalid URL: '${url}'`,
           { suggestion: "Provide a URL starting with http:// or https://." },
         )
       }
 
-      if (!looksLikeUrl(linkUrl)) {
-        throw new ValidationError(
-          `Invalid URL: '${linkUrl}'`,
-          { suggestion: "Provide a URL starting with http:// or https://." },
-        )
-      }
-
-      const resolvedIdentifier = await getIssueIdentifier(issueIdInput)
+      const resolvedIdentifier = await getIssueIdentifier(issueId)
       if (!resolvedIdentifier) {
         throw new ValidationError(
           "Could not determine issue identifier",
           {
-            suggestion:
-              "Please provide an issue identifier like 'ENG-123', or run from a branch that contains an issue identifier.",
+            suggestion: "Please provide an issue identifier like 'ENG-123'.",
           },
         )
       }
@@ -71,7 +48,7 @@ export const linkCommand = withUsageMetadata(new Command(), { writes: true })
       const issueUuid = await requireIssueId(resolvedIdentifier)
 
       const { attachment } = await linkIssueUrl(issueUuid, {
-        url: linkUrl,
+        url,
         title,
       })
       if (json) {

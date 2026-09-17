@@ -1,4 +1,5 @@
-import { CliError, NotFoundError, ValidationError } from "../../utils/errors.ts"
+import { ValidationError } from "../../utils/errors.ts"
+import { readTextSource } from "../../utils/text-source.ts"
 
 // Linear's API rejects project descriptions longer than this. The web UI
 // accepts longer descriptions through a different endpoint, but the
@@ -9,36 +10,11 @@ export async function resolveProjectDescription(
   description: string | undefined,
   descriptionFile: string | undefined,
 ): Promise<string | undefined> {
-  if (description != null && descriptionFile != null) {
-    throw new ValidationError(
-      "Cannot use --description and --description-file together",
-      {
-        suggestion: "Pass only one of --description or --description-file.",
-      },
-    )
-  }
-
-  let value: string | undefined
-  if (description != null) {
-    value = description
-  } else if (descriptionFile != null) {
-    if (descriptionFile === "") {
-      throw new ValidationError("Description file path cannot be empty")
-    }
-    try {
-      value = await Deno.readTextFile(descriptionFile)
-    } catch (error) {
-      if (error instanceof Deno.errors.NotFound) {
-        throw new NotFoundError("File", descriptionFile)
-      }
-      throw new CliError(
-        `Failed to read description file: ${
-          error instanceof Error ? error.message : String(error)
-        }`,
-        { cause: error },
-      )
-    }
-  }
+  const value = await readTextSource(
+    "description",
+    description,
+    descriptionFile,
+  )
 
   if (value != null && value.length > PROJECT_DESCRIPTION_MAX_LENGTH) {
     throw new ValidationError(

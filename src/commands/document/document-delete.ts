@@ -3,7 +3,7 @@ import { withUsageMetadata } from "../usage.ts"
 import { Confirm } from "../../utils/prompt.ts"
 import { gql } from "../../__codegen__/gql.ts"
 import { getGraphQLClient } from "../../utils/graphql.ts"
-import { printWriteResult, setMachineOutput } from "../../utils/write-result.ts"
+import { printWriteResult } from "../../utils/write-result.ts"
 import {
   type BulkOperationResult,
   collectBulkIds,
@@ -27,8 +27,6 @@ interface DocumentDeleteResult extends BulkOperationResult {
 export const deleteCommand = withUsageMetadata(new Command(), {
   writes: true,
   interactive: true,
-  confirmationRequiredUnless: "--yes",
-  outputModes: ["human", "json"],
 })
   .name("delete")
   .option("--json", "Output a JSON write result")
@@ -50,7 +48,6 @@ export const deleteCommand = withUsageMetadata(new Command(), {
       { yes, bulk, bulkFile, bulkStdin, json },
       documentId,
     ) => {
-      setMachineOutput(json ?? false)
       try {
         const client = getGraphQLClient()
 

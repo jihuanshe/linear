@@ -4,41 +4,18 @@ import { Input, Select } from "../../utils/prompt.ts"
 import { gql } from "../../__codegen__/gql.ts"
 import { getGraphQLClient } from "../../utils/graphql.ts"
 import { getEditor, openEditor } from "../../utils/editor.ts"
+import { readTextSource } from "../../utils/text-source.ts"
 import { resolveProjectId } from "../../utils/linear.ts"
-import { printWriteResult, setMachineOutput } from "../../utils/write-result.ts"
+import { printWriteResult } from "../../utils/write-result.ts"
 import { shouldShowSpinner } from "../../utils/hyperlink.ts"
 import {
   assertMutationReceipt,
   assertMutationSuccess,
-  CliError,
   handleError,
-  NotFoundError,
   ValidationError,
 } from "../../utils/errors.ts"
 
 type ProjectUpdateHealth = "onTrack" | "atRisk" | "offTrack"
-
-/**
- * Read content from stdin if available (piped input)
- */
-async function readContentFromStdin(): Promise<string | undefined> {
-  // Check if stdin has data (not a TTY)
-  if (Deno.stdin.isTerminal()) {
-    return undefined
-  }
-
-  try {
-    const content = await new Response(Deno.stdin.readable).text()
-    return content.length > 0 ? content : undefined
-  } catch (error) {
-    throw new CliError(
-      `Failed to read update content from stdin: ${
-        error instanceof Error ? error.message : String(error)
-      }`,
-      { cause: error },
-    )
-  }
-}
 
 const CreateProjectUpdate = gql(`
   mutation CreateProjectUpdate($input: ProjectUpdateCreateInput!) {
@@ -62,15 +39,27 @@ const CreateProjectUpdate = gql(`
 export const createCommand = withUsageMetadata(new Command(), {
   writes: true,
   interactive: true,
-  outputModes: ["human", "json"],
 })
   .name("create")
-  .option("--json", "Output a JSON write result")
+  .option(
+    "--json",
+    "Output a JSON write result; the created update is in data.projectUpdate",
+  )
   .description("Create a new status update for a project")
   .alias("c")
   .arguments("<projectId:string>")
-  .option("--body <body:string>", "Update content (inline)")
-  .option("--body-file <path:string>", "Read content from file")
+  .option("--body <body:string>", "Update content (inline)", {
+    preserveEmpty: true,
+  })
+  .option(
+    "--body-file <path:string>",
+    "Read UTF-8 content from a file (- for stdin)",
+    { preserveEmpty: true },
+  )
+  .option(
+    "--edit",
+    "Open an editor, optionally seeded by --body or --body-file",
+  )
   .option(
     "--health <health:string>",
     "Project health status (onTrack, atRisk, offTrack)",
@@ -78,39 +67,37 @@ export const createCommand = withUsageMetadata(new Command(), {
   .option("-i, --interactive", "Interactive mode with prompts")
   .action(
     async (
-      { body, bodyFile, health, interactive, json },
+      { body, bodyFile, health, interactive, json, edit },
       projectId,
     ) => {
-      setMachineOutput(json ?? false)
       const { Spinner } = await import("@std/cli/unstable-spinner")
-      const client = getGraphQLClient()
 
       try {
-        if (json && interactive) {
+        if (json && (interactive || edit)) {
           throw new ValidationError(
-            "--json cannot be combined with --interactive",
+            "--json cannot be combined with --interactive or --edit",
           )
         }
-        if (body !== undefined && bodyFile !== undefined) {
-          throw new ValidationError("Use either --body or --body-file")
+        if (
+          interactive &&
+          (body != null || bodyFile != null || edit || health != null)
+        ) {
+          throw new ValidationError(
+            "--interactive cannot be combined with body or health options",
+          )
         }
+        if (
+          interactive && (!Deno.stdin.isTerminal() || !Deno.stdout.isTerminal())
+        ) {
+          throw new ValidationError("Interactive creation requires a terminal")
+        }
+        let finalBody = await readTextSource("body", body, bodyFile)
+        const client = getGraphQLClient()
         // Resolve project ID
         const resolvedProjectId = await resolveProjectId(projectId)
 
-        // Determine if we should use interactive mode
-        let useInteractive = !json && interactive && Deno.stdout.isTerminal()
-
-        // If no flags provided and is TTY, enter interactive mode
-        const noFlagsProvided = !body && !bodyFile && !health
-        if (
-          !json && noFlagsProvided && Deno.stdout.isTerminal() &&
-          Deno.stdin.isTerminal()
-        ) {
-          useInteractive = true
-        }
-
         // Interactive mode
-        if (useInteractive) {
+        if (interactive) {
           const result = await promptInteractiveCreate()
 
           const input: {
@@ -121,7 +108,7 @@ export const createCommand = withUsageMetadata(new Command(), {
             projectId: resolvedProjectId,
           }
 
-          if (result.body) {
+          if (result.body != null) {
             input.body = result.body
           }
 
@@ -133,40 +120,10 @@ export const createCommand = withUsageMetadata(new Command(), {
           return
         }
 
-        // Non-interactive mode: resolve content from various sources
-        let finalBody: string | undefined
-
-        if (body !== undefined) {
-          // Content provided inline via --body
-          finalBody = body
-        } else if (bodyFile) {
-          // Content from file via --body-file
-          try {
-            finalBody = await Deno.readTextFile(bodyFile)
-          } catch (error) {
-            if (error instanceof Deno.errors.NotFound) {
-              throw new NotFoundError("File", bodyFile)
-            } else {
-              throw new CliError(
-                `Failed to read body file: ${
-                  error instanceof Error ? error.message : String(error)
-                }`,
-              )
-            }
-          }
-        } else if (!Deno.stdin.isTerminal()) {
-          // Try reading from stdin if piped
-          const stdinContent = await readContentFromStdin()
-          if (stdinContent) {
-            finalBody = stdinContent
-          }
-        } else if (!json && Deno.stdout.isTerminal()) {
-          // No content provided, open editor
-          console.log("Opening editor for update content...")
-          finalBody = await openEditor()
-          if (!finalBody) {
-            console.log("No content entered.")
-          }
+        if (edit) {
+          finalBody = await openEditor(finalBody)
+        } else if (finalBody == null && !Deno.stdin.isTerminal()) {
+          finalBody = await readTextSource("body", undefined, "-") || undefined
         }
 
         // Validate health value if provided
@@ -190,7 +147,7 @@ export const createCommand = withUsageMetadata(new Command(), {
           projectId: resolvedProjectId,
         }
 
-        if (finalBody) {
+        if (finalBody != null) {
           input.body = finalBody
         }
 
@@ -253,7 +210,7 @@ async function promptInteractiveCreate(): Promise<{
       message: "Update content (markdown)",
       default: "",
     })
-    body = inlineContent.trim() || undefined
+    body = inlineContent
   } else if (bodyMethod === "editor" && editorDisplayName) {
     console.log(`Opening ${editorDisplayName}...`)
     body = await openEditor()
@@ -264,19 +221,7 @@ async function promptInteractiveCreate(): Promise<{
     const filePath = await Input.prompt({
       message: "File path",
     })
-    try {
-      body = await Deno.readTextFile(filePath)
-    } catch (error) {
-      if (error instanceof Deno.errors.NotFound) {
-        throw new NotFoundError("File", filePath)
-      } else {
-        throw new CliError(
-          `Failed to read file: ${
-            error instanceof Error ? error.message : String(error)
-          }`,
-        )
-      }
-    }
+    body = await readTextSource("body", undefined, filePath)
   }
 
   return {
@@ -308,7 +253,7 @@ async function createProjectUpdate(
     const projectUpdate = result?.projectUpdateCreate.projectUpdate
     assertMutationReceipt(projectUpdate, result?.projectUpdateCreate)
     if (json) {
-      printWriteResult(projectUpdate)
+      printWriteResult({ projectUpdate })
       return
     }
 

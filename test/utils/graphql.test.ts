@@ -1,17 +1,15 @@
-import {
-  assertEquals,
-  assertRejects,
-  assertStringIncludes,
-  assertThrows,
-} from "@std/assert"
+import { assertEquals, assertRejects, assertStringIncludes } from "@std/assert"
 import { stub } from "@std/testing/mock"
 import { FakeTime } from "@std/testing/time"
 import { setCliWorkspace } from "../../src/config.ts"
-import { WriteError } from "../../src/utils/errors.ts"
+import { loadCredentials } from "../../src/credentials.ts"
+import { AuthError, errorResult, WriteError } from "../../src/utils/errors.ts"
 import {
   createGraphQLClient,
   createPublicGraphQLClient,
+  getGraphQLClient,
   getResolvedApiKey,
+  withGraphQLContext,
 } from "../../src/utils/graphql.ts"
 
 Deno.test("GraphQL clients preserve authentication boundaries", async () => {
@@ -47,13 +45,14 @@ Deno.test("GraphQL clients preserve authentication boundaries", async () => {
   }
 })
 
-Deno.test("getResolvedApiKey - errors when --workspace not found in credentials", () => {
-  // Setup - use a workspace name that definitely doesn't exist
+Deno.test("getResolvedApiKey - errors when --workspace not found in credentials", async () => {
+  using _inventory = stub(Deno, "readTextFileSync", () => "workspaces = []")
+  loadCredentials()
   Deno.env.delete("LINEAR_API_KEY")
   setCliWorkspace("nonexistent-workspace-xyz-123")
 
   try {
-    const error = assertThrows(
+    const error = await assertRejects(
       () => getResolvedApiKey(),
       Error,
     )
@@ -67,14 +66,16 @@ Deno.test("getResolvedApiKey - errors when --workspace not found in credentials"
   }
 })
 
-Deno.test("getResolvedApiKey - errors when configured workspace is not found", () => {
+Deno.test("getResolvedApiKey - errors when configured workspace is not found", async () => {
+  using _inventory = stub(Deno, "readTextFileSync", () => "workspaces = []")
+  loadCredentials()
   const workspace = "nonexistent-config-workspace-xyz-123"
   Deno.env.delete("LINEAR_API_KEY")
   Deno.env.set("LINEAR_WORKSPACE", workspace)
   setCliWorkspace(undefined)
 
   try {
-    const error = assertThrows(
+    const error = await assertRejects(
       () => getResolvedApiKey(),
       Error,
     )
@@ -87,13 +88,13 @@ Deno.test("getResolvedApiKey - errors when configured workspace is not found", (
   }
 })
 
-Deno.test("getResolvedApiKey - errors when LINEAR_API_KEY and --workspace both set", () => {
+Deno.test("getResolvedApiKey - errors when LINEAR_API_KEY and --workspace both set", async () => {
   // Setup
   Deno.env.set("LINEAR_API_KEY", "test-api-key")
   setCliWorkspace("test-workspace")
 
   try {
-    assertThrows(
+    await assertRejects(
       () => getResolvedApiKey(),
       Error,
       "Cannot use --workspace flag when LINEAR_API_KEY environment variable is set",
@@ -105,13 +106,13 @@ Deno.test("getResolvedApiKey - errors when LINEAR_API_KEY and --workspace both s
   }
 })
 
-Deno.test("getResolvedApiKey - returns LINEAR_API_KEY when set without --workspace", () => {
+Deno.test("getResolvedApiKey - returns LINEAR_API_KEY when set without --workspace", async () => {
   // Setup
   Deno.env.set("LINEAR_API_KEY", "test-api-key")
   setCliWorkspace(undefined)
 
   try {
-    const result = getResolvedApiKey()
+    const result = await getResolvedApiKey()
     assertEquals(result, "test-api-key")
   } finally {
     // Cleanup
@@ -189,7 +190,7 @@ for (const phase of ["headers", "body", "interrupted body"]) {
     assertEquals(error.effect, "unknown")
     assertEquals(fetchStub.calls.length, 1)
     assertEquals(cancelled, phase === "body" ? 1 : 0)
-    assertEquals(time.now, phase === "interrupted body" ? 0 : 30_000)
+    assertEquals(time.now, phase === "interrupted body" ? 0 : 60_000)
     assertEquals(time.next(), false)
   })
 }
@@ -204,8 +205,7 @@ Deno.test("GraphQL client preserves a complete mutation receipt across a pause a
     ...args: Parameters<TextDecoder["decode"]>
   ) {
     const text = decode.apply(this, args)
-    // Unlike retried queries, mutations need a long process pause to cross the
-    // total deadline after finishing within their single-attempt deadline.
+    // Model a process pause after the entire receipt has been consumed.
     if (args[0] == null) elapsedAfterEof = 60_000
     return text
   })
@@ -223,6 +223,56 @@ Deno.test("GraphQL client preserves a complete mutation receipt across a pause a
   )
   assertEquals(fetchStub.calls.length, 1)
   assertEquals(time.next(), false)
+})
+
+Deno.test("lazy authentication fails before a mutation dispatch with effect none", async () => {
+  Deno.env.set("LINEAR_API_KEY", "")
+  using fetchStub = stub(globalThis, "fetch", () => {
+    throw new Error("must not dispatch")
+  })
+  try {
+    const client = getGraphQLClient()
+    const error = await assertRejects(
+      () => client.request("mutation Write { issueUpdate { success } }"),
+      AuthError,
+      "LINEAR_API_KEY is empty",
+    )
+    assertEquals(errorResult(error).effect, "none")
+    assertEquals(fetchStub.calls.length, 0)
+  } finally {
+    Deno.env.delete("LINEAR_API_KEY")
+  }
+})
+
+Deno.test("invocation pins the principal across verification, mutation and token consumers", async () => {
+  const authorizations: Array<string | null> = []
+  using _fetch = stub(globalThis, "fetch", (_input, init) => {
+    authorizations.push(new Headers(init?.headers).get("authorization"))
+    return Promise.resolve(
+      Response.json({ data: { result: { success: true } } }),
+    )
+  })
+  Deno.env.set("LINEAR_API_KEY", "verified-key")
+  try {
+    await withGraphQLContext(async () => {
+      await getGraphQLClient().request("query Verify { organization { id } }")
+      Deno.env.set("LINEAR_API_KEY", "replacement-key")
+      assertEquals(await getResolvedApiKey(), "verified-key")
+      await getGraphQLClient().request(
+        "mutation Write { issueUpdate { success } }",
+      )
+    })
+    await withGraphQLContext(async () => {
+      await getGraphQLClient().request("query Next { organization { id } }")
+    })
+    assertEquals(authorizations, [
+      "verified-key",
+      "verified-key",
+      "replacement-key",
+    ])
+  } finally {
+    Deno.env.delete("LINEAR_API_KEY")
+  }
 })
 
 Deno.test("GraphQL client preserves the caller's shorter verification deadline", async () => {

@@ -1,15 +1,16 @@
 import { Command } from "@cliffy/command"
-import { resolveProjectContent } from "./project-content.ts"
+import { readTextSource } from "../../utils/text-source.ts"
+import { getProjectStatuses, resolveProjectStatusId } from "./project-status.ts"
 import { withUsageMetadata } from "../usage.ts"
 import { printWriteResult } from "../../utils/write-result.ts"
 import { Input, Select } from "../../utils/prompt.ts"
 import { gql } from "../../__codegen__/gql.ts"
 import type { ProjectCreateInput } from "../../__codegen__/graphql.ts"
 import { getGraphQLClient } from "../../utils/graphql.ts"
+import { resolveWriteTeam } from "../../utils/issue-read.ts"
 import {
   getAllTeams,
   getProjectLabelIdByName,
-  getTeamIdByKey,
   getTeamKey,
   lookupUserId,
 } from "../../utils/linear.ts"
@@ -35,18 +36,6 @@ const CreateProject = gql(`
         slugId
         name
         url
-      }
-    }
-  }
-`)
-
-const GetProjectStatuses = gql(`
-  query GetProjectStatuses {
-    projectStatuses {
-      nodes {
-        id
-        name
-        type
       }
     }
   }
@@ -111,7 +100,7 @@ export const createCommand = withUsageMetadata(new Command(), {
   )
   .option(
     "-s, --status <status:string>",
-    "Project status (planned, started, paused, completed, canceled, backlog)",
+    "Status UUID or type (planned, started, paused, completed, canceled, backlog)",
     { preserveEmpty: true },
   )
   .option("--start-date <startDate:string>", "Start date (YYYY-MM-DD)", {
@@ -208,7 +197,8 @@ export const createCommand = withUsageMetadata(new Command(), {
           json: jsonOutput,
         } = options
 
-        const content = await resolveProjectContent(
+        const content = await readTextSource(
+          "content",
           providedContent,
           providedContentFile,
         )
@@ -222,8 +212,8 @@ export const createCommand = withUsageMetadata(new Command(), {
           providedDescription,
           providedDescriptionFile,
         )
-        const descriptionFile = providedDescriptionFile
         let teams = providedTeams || []
+        let teamIds: string[] | undefined
         let lead = providedLead
         let status = providedStatus
         let startDate = providedStartDate
@@ -248,12 +238,10 @@ export const createCommand = withUsageMetadata(new Command(), {
             })
           }
 
-          // Description (optional) — skip the prompt when --description-file was passed.
-          if (description == null && descriptionFile == null) {
+          if (description == null) {
             description = await Input.prompt({
               message: "Description (optional):",
             })
-            if (!description) description = undefined
           }
 
           // Team selection (required)
@@ -261,47 +249,45 @@ export const createCommand = withUsageMetadata(new Command(), {
             const allTeams = await getAllTeams()
             const teamOptions = allTeams.map((t) => ({
               name: `${t.name} (${t.key})`,
-              value: t.key,
+              value: t.id,
             }))
 
             // Try to get default team from config
             const defaultTeam = getTeamKey()
-            const defaultIndex = defaultTeam
-              ? teamOptions.findIndex((t) => t.value === defaultTeam)
-              : -1
+            const defaultTeamId = allTeams.find((team) =>
+              team.id.toLowerCase() === defaultTeam?.toLowerCase() ||
+              team.key.toLowerCase() === defaultTeam?.toLowerCase()
+            )?.id
 
             const selectedTeam = await Select.prompt({
               message: "Team:",
               options: teamOptions,
-              default: defaultIndex >= 0
-                ? teamOptions[defaultIndex].value
-                : undefined,
+              default: defaultTeamId,
             })
-            teams = [selectedTeam]
+            teamIds = [selectedTeam]
           }
 
           // Status selection - get actual statuses from API
           if (!status) {
-            const statusResult = await client.request(GetProjectStatuses)
-            const projectStatuses = statusResult.projectStatuses?.nodes || []
+            const projectStatuses = await getProjectStatuses()
 
             if (projectStatuses.length > 0) {
               const statusOptions = projectStatuses.map(
-                (s: { id: string; name: string; type: string }) => ({
+                (s) => ({
                   name: s.name,
-                  value: s.type,
+                  value: s.id,
                 }),
               )
 
               // Find default (planned) status
-              const defaultStatus = statusOptions.find(
-                (s: { value: string }) => s.value === "planned",
+              const defaultStatus = projectStatuses.find(
+                (s) => s.type === "planned",
               )
 
               const selectedStatus = await Select.prompt({
                 message: "Status:",
                 options: statusOptions,
-                default: defaultStatus?.value || statusOptions[0]?.value,
+                default: defaultStatus?.id || statusOptions[0]?.value,
               })
               status = selectedStatus
             }
@@ -344,7 +330,7 @@ export const createCommand = withUsageMetadata(new Command(), {
           })
         }
 
-        if (teams.length === 0) {
+        if (teams.length === 0 && teamIds == null) {
           // Try default team from config
           const defaultTeam = getTeamKey()
           if (defaultTeam) {
@@ -357,12 +343,8 @@ export const createCommand = withUsageMetadata(new Command(), {
         }
 
         // Resolve team IDs
-        const teamIds = await Promise.all(
-          teams.map(async (teamKey) => {
-            const teamId = await getTeamIdByKey(teamKey.toUpperCase())
-            if (!teamId) throw new NotFoundError("Team", teamKey)
-            return teamId
-          }),
+        teamIds ??= await Promise.all(
+          teams.map(async (team) => (await resolveWriteTeam(team)).id),
         )
 
         // Build input - resolve all optional fields first
@@ -374,38 +356,9 @@ export const createCommand = withUsageMetadata(new Command(), {
           }
         }
 
-        let statusId: string | undefined
-        if (status != null) {
-          // Map display value to API type if needed
-          const statusLower = status.toLowerCase()
-          const statusTypeMapping: Record<string, string> = {
-            "planned": "planned",
-            "in progress": "started",
-            "started": "started",
-            "paused": "paused",
-            "completed": "completed",
-            "canceled": "canceled",
-            "backlog": "backlog",
-          }
-          const apiStatusType = statusTypeMapping[statusLower]
-          if (!apiStatusType) {
-            throw new ValidationError(`Invalid status: ${status}`, {
-              suggestion:
-                "Valid values: planned, started, paused, completed, canceled, backlog",
-            })
-          }
-
-          // Look up the actual status ID from the organization's project statuses
-          const statusResult = await client.request(GetProjectStatuses)
-          const projectStatuses = statusResult.projectStatuses?.nodes || []
-          const matchingStatus = projectStatuses.find(
-            (s: { type: string }) => s.type === apiStatusType,
-          )
-          if (!matchingStatus) {
-            throw new NotFoundError("Project status", apiStatusType)
-          }
-          statusId = matchingStatus.id
-        }
+        const statusId = status == null
+          ? undefined
+          : await resolveProjectStatusId(status)
 
         const labelIds: string[] = []
         for (const label of labels) {

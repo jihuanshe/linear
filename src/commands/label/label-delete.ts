@@ -7,7 +7,7 @@ import { getGraphQLClient } from "../../utils/graphql.ts"
 import { getTeamKey } from "../../utils/linear.ts"
 import { shouldShowSpinner } from "../../utils/hyperlink.ts"
 import { completeConnection } from "../../utils/pagination.ts"
-import { printWriteResult, setMachineOutput } from "../../utils/write-result.ts"
+import { printWriteResult } from "../../utils/write-result.ts"
 import {
   assertMutationSuccess,
   handleError,
@@ -134,8 +134,6 @@ async function resolveLabelId(
 export const deleteCommand = withUsageMetadata(new Command(), {
   writes: true,
   interactive: true,
-  confirmationRequiredUnless: "--force",
-  outputModes: ["human", "json"],
 })
   .name("delete")
   .option("--json", "Output a JSON write result")
@@ -147,7 +145,6 @@ export const deleteCommand = withUsageMetadata(new Command(), {
   )
   .option("-f, --force", "Skip confirmation prompt")
   .action(async ({ team: teamKey, force, json }, nameOrId) => {
-    setMachineOutput(json ?? false)
     try {
       const client = getGraphQLClient()
 

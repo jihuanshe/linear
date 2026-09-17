@@ -30,7 +30,7 @@ linear usage --json          # 命令树与能力元数据
 
 常见操作用专用命令；精确字段、少见筛选和跨实体查询用 `linear api`。只有专用命令未覆盖的写入才用原生 mutation，不绕过已有命令的名称解析、输入校验、原始值比较或读回。GraphQL 与直接 HTTP 的用法见 `linear guide graphql`。
 
-普通更新直接使用专用命令和保存的原始依据，见 `linear guide automation`。需要组合多项写入并记录进度时使用 `linear guide issue-delivery`；Git/Jujutsu、GitHub 和组织治理流程由 `linear recipe` 提供可运行示例。
+普通更新直接使用专用命令和保存的原始依据，见 `linear guide automation`。需要组合多项写入并记录进度时使用 `linear guide issue-delivery`；团队迁移和只读健康检查由 `linear recipe` 提供可运行示例。
 
 以下名称相近，但操作不同：
 
@@ -47,8 +47,8 @@ linear usage --json          # 命令树与能力元数据
 
 用与后续命令相同的凭据和工作区参数运行 `auth whoami --json`，核对工作区短名 `organization.urlKey`；稳定工作区身份是 `organization.id`。
 
-- 使用已存凭据时，`auth list` 查看工作区，`--workspace <slug>` 选择单次命令的身份；无需修改默认值。
-- `LINEAR_API_KEY` 与 `--workspace` 冲突；配置中的 `api_key` 优先于 `--workspace`。使用这两种密钥时，不带 `--workspace` 核对身份；切换到已保存凭据前须排除这两种来源。
+- 使用已存凭据时，`auth list` 查看本地工作区库存，不联网验证密钥。`--workspace <slug>` 选择单次命令的身份；无需修改默认值。
+- `LINEAR_API_KEY` 与 `--workspace` 冲突；使用环境密钥时，不带 `--workspace` 核对身份。切换到已保存凭据前须排除环境密钥，包括项目 `.env` 中的值。
 - 缺凭据或 401 时，通过 `auth login` 提示符输入 API 密钥，不粘贴进聊天或命令行；无系统密钥环时用 `--plaintext`。代理端点由 `LINEAR_GRAPHQL_ENDPOINT` 指定，登录仍须验证身份。
 
 身份不匹配或认证失败时，停止依赖该凭据的操作。
@@ -69,6 +69,6 @@ https://linear.app/<workspace>/project/<project-name>-<project-slug-id>/issues
 
 `issue query --project` 默认覆盖项目关联的全部团队；显式 `--team` 会缩窄结果。没有项目范围时，默认团队来自 `LINEAR_TEAM_ID` 或配置 `team_id`（环境变量优先），不从目录名推断。查询整个工作区用 `--all-teams`；未知团队用 `team list` 查找。
 
-个人待办用 `issue mine`，终端选择用只读 `issue pick`；需要筛选或机器输出时用 `issue query --assignee self`。`--state` 匹配状态类型，如 `started`；`--state-name` 匹配工作流名称，如 `Merged`。状态和成员分别用 `team states --json`、`user list --json` 查询。
+个人未开始待办用 `issue query --team <KEY> --assignee self --state unstarted`；添加项目筛选时保留 `--team`，查询范围仍是该团队与项目的交集。终端选择用只读 `issue pick`。`--state` 匹配状态类型，如 `started`；`--state-name` 匹配工作流名称，如 `Merged`。状态和成员分别用 `team states --json`、`user list --json` 查询。
 
 按外部对象 URL 查重用 `issue query --url` 或 `--url-file`，不能用 `--search` 的相关性结果证明不存在。精确匹配与分页边界见 `linear guide automation`。

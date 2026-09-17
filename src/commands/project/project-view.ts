@@ -1,12 +1,14 @@
 import { Command } from "@cliffy/command"
+import { rgb24 } from "@std/fmt/colors"
 import { renderMarkdown } from "../../utils/markdown.ts"
 import { gql } from "../../__codegen__/gql.ts"
 import { getGraphQLClient } from "../../utils/graphql.ts"
-import { formatRelativeTime, printStyled } from "../../utils/display.ts"
+import { formatRelativeTime } from "../../utils/display.ts"
 import { openProjectPage } from "../../utils/actions.ts"
 import { shouldShowSpinner } from "../../utils/hyperlink.ts"
 import { handleError, NotFoundError } from "../../utils/errors.ts"
 import { completeProjectCollections } from "./project-read.ts"
+import { resolveProjectId } from "../../utils/linear.ts"
 
 const GetProjectDetails = gql(`
   query GetProjectDetails($id: String!, $includeContent: Boolean!) {
@@ -96,11 +98,6 @@ export const viewCommand = new Command()
   .action(async (options, projectId) => {
     const { web, app, json, includeContent } = options
 
-    if (web || app) {
-      await openProjectPage(projectId, { app, web: !app })
-      return
-    }
-
     const { Spinner } = await import("@std/cli/unstable-spinner")
     const showSpinner = shouldShowSpinner() && !json
     const spinner = showSpinner ? new Spinner() : null
@@ -108,8 +105,14 @@ export const viewCommand = new Command()
 
     try {
       const client = getGraphQLClient()
+      const resolvedId = await resolveProjectId(projectId)
+      if (web || app) {
+        spinner?.stop()
+        await openProjectPage(resolvedId, { app, web: !app })
+        return
+      }
       const result = await client.request(GetProjectDetails, {
-        id: projectId,
+        id: resolvedId,
         includeContent: includeContent === true,
       })
       spinner?.stop()
@@ -140,7 +143,12 @@ export const viewCommand = new Command()
       // Status with color styling
       const statusLine = `**Status:** ${project.status.name}`
       if (Deno.stdout.isTerminal()) {
-        printStyled([statusLine, `color: ${project.status.color}`])
+        console.log(
+          rgb24(
+            statusLine,
+            parseInt(project.status.color.replace("#", ""), 16),
+          ),
+        )
       } else {
         lines.push(statusLine)
       }

@@ -1,11 +1,8 @@
 import { Command } from "@cliffy/command"
 import { findRecipe, listRecipes } from "../recipes/catalog.ts"
 import { handleError, NotFoundError, ValidationError } from "../utils/errors.ts"
-import { withUsageMetadata } from "./usage.ts"
 
-export const recipeCommand = withUsageMetadata(new Command(), {
-  outputModes: ["human", "json"],
-})
+export const recipeCommand = new Command()
   .description("Read bundled workflow examples and script source")
   .arguments("[name:string]")
   .option(

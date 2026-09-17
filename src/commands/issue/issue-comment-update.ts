@@ -1,7 +1,15 @@
 import { Command } from "@cliffy/command"
 import { withUsageMetadata } from "../usage.ts"
 import { withMarkdownHint } from "../../utils/markdown-help.ts"
-import { Input } from "../../utils/prompt.ts"
+import { openEditor } from "../../utils/editor.ts"
+import { readTextSource } from "../../utils/text-source.ts"
+import { composeCommentBody } from "../../operations/issue-content.ts"
+import {
+  prepareUploads,
+  uploadFile,
+  type UploadResult,
+} from "../../utils/upload.ts"
+import { shouldShowSpinner } from "../../utils/hyperlink.ts"
 import { gql } from "../../__codegen__/gql.ts"
 import { getGraphQLClient } from "../../utils/graphql.ts"
 import {
@@ -9,8 +17,10 @@ import {
   assertMutationSuccess,
   handleError,
   ValidationError,
+  withAppliedReceipts,
 } from "../../utils/errors.ts"
 import {
+  asRecord,
   loadBasisFile,
   prepareReplacement,
   scalarField,
@@ -31,9 +41,19 @@ export const commentUpdateCommand = withUsageMetadata(new Command(), {
   })
   .option(
     "--body-file <path:string>",
-    "Read comment body from a file (preferred for markdown content)",
+    "Read UTF-8 comment body from a file (- for stdin)",
     { preserveEmpty: true },
   )
+  .option(
+    "-a, --attach <filepath:string>",
+    "Upload and append a file (repeatable); without explicit body/edit, preserve the saved original body (current body with --unprotected)",
+    { collect: true, preserveEmpty: true },
+  )
+  .option(
+    "--public",
+    "Upload attached images to a public, unauthenticated URL (default: private, workspace-members only)",
+  )
+  .option("--edit", "Open the current comment in an editor")
   .option(
     "-j, --json",
     "Output a JSON write result; the comment is in data.comment",
@@ -53,43 +73,29 @@ export const commentUpdateCommand = withUsageMetadata(new Command(), {
     { collect: true, preserveEmpty: true },
   )
   .action(async (options, commentId) => {
-    const { body, bodyFile, json } = options
+    const { body, bodyFile, json, edit } = options
+    const uploadedFiles: UploadResult[] = []
 
     try {
-      // Validate that body and bodyFile are not both provided
-      if (body != null && bodyFile != null) {
+      if (!commentId.trim()) {
+        throw new ValidationError("Comment ID cannot be empty")
+      }
+      const attachments = options.attach ?? []
+      if (options.public && attachments.length === 0) {
+        throw new ValidationError("--public requires at least one --attach")
+      }
+      let newBody = await readTextSource("body", body, bodyFile)
+      if (edit && (json || newBody != null)) {
         throw new ValidationError(
-          "Cannot specify both --body and --body-file",
+          "--edit cannot be combined with --json, --body, or --body-file",
         )
       }
 
-      // Read body from file if provided
-      let newBody = body
-      if (bodyFile != null) {
-        if (bodyFile === "") {
-          throw new ValidationError("Body file path cannot be empty")
-        }
-        try {
-          newBody = await Deno.readTextFile(bodyFile)
-        } catch (error) {
-          throw new ValidationError(
-            `Failed to read body file: ${bodyFile}`,
-            {
-              suggestion: `Error: ${
-                error instanceof Error ? error.message : String(error)
-              }`,
-            },
-          )
-        }
-      }
-
-      if (json && newBody == null) {
+      if (!edit && newBody == null && attachments.length === 0) {
         throw new ValidationError(
-          "JSON mode requires --body or --body-file",
-          {
-            suggestion:
-              "Provide the replacement body explicitly; JSON mode never prompts for input.",
-          },
+          json
+            ? "JSON mode requires --body, --body-file, or --attach"
+            : "Provide --body, --body-file, --attach, or --edit",
         )
       }
 
@@ -97,7 +103,7 @@ export const commentUpdateCommand = withUsageMetadata(new Command(), {
         ? await loadBasisFile(options.baseFile)
         : undefined
       if (
-        newBody !== undefined || original != null || options.unprotected ||
+        !edit || original != null || options.unprotected ||
         options.expectField?.some((field) => !field.trim())
       ) {
         validateReplacementOptions({
@@ -107,26 +113,34 @@ export const commentUpdateCommand = withUsageMetadata(new Command(), {
         })
       }
       const client = getGraphQLClient()
-      if (newBody === undefined) {
-        if (!Deno.stdin.isTerminal()) {
-          throw new ValidationError(
-            "Provide --body or --body-file in non-interactive mode",
-          )
-        }
+      if (edit) {
         const initial = await readComment(client, commentId)
         if (!options.unprotected) original ??= initial
-        newBody = await Input.prompt({
-          message: "New comment body",
-          default: initial.comment!.body,
-        })
+        newBody = await openEditor(initial.comment!.body)
       }
-      if (!newBody.trim()) {
-        throw new ValidationError("Comment body cannot be empty")
-      }
+      composeCommentBody(newBody)
+      const prepared = await prepareUploads(attachments, {
+        makePublic: options.public,
+      })
 
-      const current = await readComment(client, commentId)
+      let current = await readComment(client, commentId)
       const id = current.comment!.id
-      const plan = prepareReplacement({
+      if (newBody == null) {
+        const savedBody = options.unprotected
+          ? current.comment!.body
+          : asRecord(original!.comment, "Original comment").body
+        if (typeof savedBody !== "string") {
+          throw new ValidationError("Original comment body must be a string")
+        }
+        newBody = savedBody
+      }
+      composeCommentBody(newBody)
+      // Appending depends on the whole body, even when the pre-upload body
+      // happens to equal the current value. Reject drift before uploading.
+      const expectFields = prepared.length > 0 && !options.unprotected
+        ? [...new Set([...(options.expectField ?? []), "body"])]
+        : options.expectField
+      let plan = prepareReplacement({
         objectKey: "comment",
         targetId: id,
         original,
@@ -134,13 +148,45 @@ export const commentUpdateCommand = withUsageMetadata(new Command(), {
         desired: { body: newBody },
         fields: { body: scalarField("body") },
         unprotected: options.unprotected,
-        expectFields: options.expectField,
+        expectFields,
       })
+      for (const file of prepared) {
+        const result = await uploadFile(file.filepath, {
+          expectedSha256: file.sha256,
+          showProgress: shouldShowSpinner() && !json,
+          makePublic: options.public,
+        })
+        uploadedFiles.push(result)
+        if (!json) console.log(`✓ Uploaded ${result.filename}`)
+        if (result.public) {
+          console.warn(
+            `⚠ Uploaded to a public URL readable by anyone: ${result.assetUrl}`,
+          )
+        }
+      }
+      if (uploadedFiles.length > 0) {
+        current = await readComment(client, id)
+        plan = prepareReplacement({
+          objectKey: "comment",
+          targetId: id,
+          original,
+          current,
+          desired: { body: composeCommentBody(newBody, uploadedFiles) },
+          fields: { body: scalarField("body") },
+          unprotected: options.unprotected,
+          expectFields,
+        })
+      }
+      const receipts = uploadedFiles.map((file) => ({
+        kind: "upload",
+        ...file,
+      }))
       if (Object.keys(plan.input).length === 0) {
         if (json) {
           printWriteResult({ comment: current.comment }, {
-            effect: "none",
+            effect: receipts.length > 0 ? "applied" : "none",
             fields: plan.fields,
+            ...(receipts.length > 0 ? { receipts } : {}),
           })
         } else console.log("No changes needed")
         return
@@ -174,12 +220,21 @@ export const commentUpdateCommand = withUsageMetadata(new Command(), {
       assertMutationReceipt(comment, data, id)
 
       if (json) {
-        printWriteResult({ comment }, { fields: plan.fields })
+        printWriteResult({ comment }, {
+          fields: plan.fields,
+          ...(receipts.length > 0 ? { receipts } : {}),
+        })
       } else {
         console.log("✓ Comment updated")
         console.log(comment.url)
       }
     } catch (error) {
-      handleError(error, "Failed to update comment")
+      handleError(
+        withAppliedReceipts(
+          error,
+          uploadedFiles.map((file) => ({ kind: "upload", ...file })),
+        ),
+        "Failed to update comment",
+      )
     }
   })

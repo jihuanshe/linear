@@ -23,6 +23,7 @@ import {
 } from "../../utils/replacement.ts"
 import { readMilestone } from "./milestone-read.ts"
 import { printWriteResult } from "../../utils/write-result.ts"
+import { validateMilestoneTargetDate } from "./milestone-date.ts"
 
 const UpdateProjectMilestone = gql(`
   mutation UpdateProjectMilestone($id: String!, $input: ProjectMilestoneUpdateInput!) {
@@ -108,18 +109,7 @@ export const updateCommand = withUsageMetadata(new Command(), { writes: true })
         if (projectIdOrSlug != null && !projectIdOrSlug.trim()) {
           throw new ValidationError("Project cannot be empty")
         }
-        if (targetDate != null) {
-          const date = new Date(targetDate)
-          if (
-            !/^\d{4}-\d{2}-\d{2}$/.test(targetDate) ||
-            !Number.isFinite(date.getTime()) ||
-            date.toISOString().slice(0, 10) !== targetDate
-          ) {
-            throw new ValidationError(
-              "Target date must be a valid calendar date in YYYY-MM-DD format",
-            )
-          }
-        }
+        if (targetDate != null) validateMilestoneTargetDate(targetDate)
         if (
           name == null && description == null && targetDate == null &&
           sortOrder == null &&

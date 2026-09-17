@@ -26,7 +26,7 @@ Options:
   -h, --help                     - Show this help.                                                                       
   -t, --title         <title>    - New title for the document; empty string clears it                                    
   -c, --content       <content>  - New markdown content (inline; empty string clears it)                                 
-  -f, --content-file  <path>     - Read new content from file                                                            
+  -f, --content-file  <path>     - Read UTF-8 content from a file (- for stdin; empty input clears content)              
   --icon              <icon>     - New icon (emoji)                                                                      
   --project           <project>  - Attach to project (UUID, slug ID, or name)                                            
   -e, --edit                     - Open current content in \$EDITOR for editing                                           

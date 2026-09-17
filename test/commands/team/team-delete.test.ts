@@ -6,8 +6,15 @@ import { setupMockLinearServer } from "../../utils/test-helpers.ts"
 async function runDelete(issueCount: number, args: string[]) {
   const { server, cleanup } = await setupMockLinearServer([
     {
-      queryName: "GetTeamIdByKey",
-      response: { data: { teams: { nodes: [{ id: "team-id" }] } } },
+      queryName: "GetWriteTeamByKey",
+      response: {
+        data: {
+          teams: {
+            nodes: [{ id: "team-id", key: "ENG" }],
+            pageInfo: { hasNextPage: false, endCursor: null },
+          },
+        },
+      },
     },
     {
       queryName: "GetTeamDetails",
@@ -96,8 +103,15 @@ Deno.test("Team delete refuses issues added while confirmation is open", async (
   const team = { id: "team-id", key: "ENG", name: "Engineering", issueCount: 0 }
   const { server, cleanup } = await setupMockLinearServer([
     {
-      queryName: "GetTeamIdByKey",
-      response: { data: { teams: { nodes: [{ id: "team-id" }] } } },
+      queryName: "GetWriteTeamByKey",
+      response: {
+        data: {
+          teams: {
+            nodes: [{ id: "team-id", key: "ENG" }],
+            pageInfo: { hasNextPage: false, endCursor: null },
+          },
+        },
+      },
     },
     { queryName: "GetTeamDetails", response: { data: { team } } },
   ])

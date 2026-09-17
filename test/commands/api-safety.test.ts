@@ -32,7 +32,13 @@ type Page = {
   headers?: Record<string, string>
 }
 
-async function runApi(query: string, flags: string[], pages: Page[] = []) {
+async function runApi(
+  query: string | undefined,
+  flags: string[],
+  pages: Page[] = [],
+  input?: string[],
+  outputFile?: string,
+) {
   const root = await Deno.makeTempDir()
   const requests: RequestBody[] = []
   const server = Deno.serve(
@@ -52,9 +58,26 @@ async function runApi(query: string, flags: string[], pages: Page[] = []) {
     },
   )
   try {
-    const output = await new Deno.Command(Deno.execPath(), {
-      args: ["run", "--allow-all", "--quiet", main, "api", query, ...flags],
-      stdin: "null",
+    const args = [
+      "run",
+      "--allow-all",
+      "--quiet",
+      main,
+      "api",
+      ...(query == null ? [] : [query]),
+      ...flags,
+    ]
+    const child = new Deno.Command(outputFile ? "sh" : Deno.execPath(), {
+      args: outputFile
+        ? [
+          "-c",
+          'exec "$@" > "$API_OUTPUT"',
+          "api-test",
+          Deno.execPath(),
+          ...args,
+        ]
+        : args,
+      stdin: input ? "piped" : "null",
       stdout: "piped",
       stderr: "piped",
       clearEnv: true,
@@ -66,8 +89,19 @@ async function runApi(query: string, flags: string[], pages: Page[] = []) {
         NO_COLOR: "1",
         LINEAR_API_KEY: "test-token",
         LINEAR_GRAPHQL_ENDPOINT: `http://127.0.0.1:${server.addr.port}`,
+        ...(outputFile ? { API_OUTPUT: outputFile } : {}),
       },
-    }).output()
+    }).spawn()
+    const pending = child.output()
+    if (input) {
+      const writer = child.stdin.getWriter()
+      for (const [index, chunk] of input.entries()) {
+        if (index > 0) await new Promise((resolve) => setTimeout(resolve, 500))
+        await writer.write(new TextEncoder().encode(chunk))
+      }
+      await writer.close()
+    }
+    const output = await pending
     return {
       code: output.code,
       stdout: new TextDecoder().decode(output.stdout),
@@ -205,7 +239,7 @@ for (
     {
       name: "partial initial cursor",
       query: read,
-      flags: ["--paginate", "--variable", "after=already-read"],
+      flags: ["--paginate", "--variables-json", '{"after":"already-read"}'],
       message: "starts at the first page",
     },
     ...["last: 1", 'first: 1, before: "tail"'].map((arguments_) => ({
@@ -417,6 +451,25 @@ Deno.test("API safety reports unknown when a mutation result is unreadable and d
   )
 })
 
+Deno.test("API preserves mutation partial data and errors without replay or a replacement envelope", async () => {
+  const envelope = {
+    data: { issueUpdate: { success: true, issue: { id: "written" } } },
+    errors: [{
+      message: "Nested field failed",
+      path: ["issueUpdate", "issue", "comments"],
+    }],
+    extensions: { trace: "mutation-partial" },
+  }
+  const result = await runApi(write, ["--unprotected"], [{
+    status: 503,
+    body: envelope,
+  }])
+  assertEquals(result.code, 1)
+  assertEquals(result.requests.length, 1)
+  assertEquals(result.stderr, "")
+  assertEquals(JSON.parse(result.stdout), envelope)
+})
+
 // Exercise command action, parsing, serialization and the real transport policy
 // together, replacing only HTTP and clocks. Error-envelope exits use runApi
 // above because throwing from Deno.exit is not equivalent to process termination.
@@ -478,8 +531,8 @@ for (const status of [200, 400, 429, 502, 503, 504]) {
       `${write}\n${read}`,
       "--operation-name",
       "Read",
-      "--variable",
-      "after=cursor",
+      "--variables-json",
+      '{"after":"cursor"}',
     ], (_input, init) => {
       requests.push(JSON.parse(String(init?.body)))
       times.push(Date.now())
@@ -553,3 +606,136 @@ for (const phase of ["headers", "body"]) {
     assertEquals(cancelled, phase === "body" ? 1 : 0)
   })
 }
+
+for (const source of ["json", "file"]) {
+  Deno.test(`API preserves all JSON variable types from ${source}`, async () => {
+    const variables = {
+      literal: "true",
+      path: "@x",
+      stdin: "@-",
+      values: [true, false, null, 42, "007", { names: ["a", "b"] }],
+    }
+    const file = await Deno.makeTempFile()
+    try {
+      await Deno.writeTextFile(file, JSON.stringify(variables))
+      const envelope = { data: { viewer: { id: "ok" } } }
+      const result = await runApi(read, [
+        `--variables-${source}`,
+        source === "json" ? JSON.stringify(variables) : file,
+      ], [{ body: envelope }])
+      assertEquals(result.code, 0, result.stderr)
+      assertEquals(result.requests.map((request) => request.variables), [
+        variables,
+      ])
+      assertEquals(JSON.parse(result.stdout), envelope)
+      assertEquals(result.stderr, "")
+    } finally {
+      await Deno.remove(file)
+    }
+  })
+
+  for (const value of ["null", "[]", '"true"', "true", "42", "{invalid"]) {
+    Deno.test(`API rejects nonobject or malformed ${source} variables ${value} locally`, async () => {
+      const file = await Deno.makeTempFile()
+      try {
+        await Deno.writeTextFile(file, value)
+        const result = await runApi(read, [
+          `--variables-${source}`,
+          source === "json" ? value : file,
+        ])
+        assertEquals(result.code, 1)
+        assertEquals(result.requests, [])
+        assertStringIncludes(
+          assertLocalFailure(result),
+          `--variables-${source}`,
+        )
+      } finally {
+        await Deno.remove(file)
+      }
+    })
+  }
+}
+
+for (
+  const flags of [
+    [
+      "--variables-json",
+      "{}",
+      "--variables-file",
+      "/nonexistent/variables.json",
+    ],
+    [
+      "--variables-file",
+      "/nonexistent/variables.json",
+      "--variables-json",
+      "{}",
+    ],
+  ]
+) {
+  Deno.test(`API rejects conflicting variable selectors locally: ${flags[0]}`, async () => {
+    const result = await runApi(read, flags)
+    assertEquals(result.code, 1)
+    assertEquals(result.requests, [])
+    assertStringIncludes(assertLocalFailure(result), "mutually exclusive")
+  })
+}
+
+for (const path of ["", "-"]) {
+  Deno.test(`API rejects variables-file ${JSON.stringify(path)} without reading stdin`, async () => {
+    const result = await runApi(read, ["--variables-file", path])
+    assertEquals(result.code, 1)
+    assertEquals(result.requests, [])
+    assertStringIncludes(assertLocalFailure(result), "requires a file path")
+  })
+}
+
+Deno.test("API reads explicit stdin to EOF even when chunks arrive over 100ms apart", async () => {
+  const envelope = { data: { viewer: { id: "slow-input" } } }
+  const result = await runApi("-", [], [{ body: envelope }], [
+    "query Slow { viewer { ",
+    "id } }\n",
+  ])
+  assertEquals(result.code, 0, result.stderr)
+  assertEquals(result.requests.map((request) => request.query), [
+    "query Slow { viewer { id } }",
+  ])
+  assertEquals(JSON.parse(result.stdout), envelope)
+  assertEquals(result.stderr, "")
+})
+
+for (const query of [undefined, "-"]) {
+  Deno.test(`API rejects ${query == null ? "implicit" : "empty explicit"} stdin`, async () => {
+    const result = await runApi(query, [], [], [query == null ? read : " \n"])
+    assertEquals(result.code, 1)
+    assertEquals(result.requests, [])
+    assertStringIncludes(assertLocalFailure(result), "No query provided")
+  })
+}
+
+Deno.test({
+  name: "API stdout redirection retains the complete raw GraphQL result",
+  ignore: Deno.build.os === "windows",
+  async fn() {
+    const file = await Deno.makeTempFile()
+    try {
+      const envelope = {
+        data: { viewer: { id: "redirected" } },
+        extensions: { trace: "retained" },
+      }
+      const result = await runApi(
+        read,
+        [],
+        [{ body: envelope }],
+        undefined,
+        file,
+      )
+      assertEquals(result.code, 0, result.stderr)
+      assertEquals(result.stdout, "")
+      assertEquals(result.stderr, "")
+      assertEquals(JSON.parse(await Deno.readTextFile(file)), envelope)
+      assertEquals(result.requests.length, 1)
+    } finally {
+      await Deno.remove(file)
+    }
+  },
+})

@@ -22,6 +22,17 @@ stderr:
 ""
 `;
 
+snapshot[`Team List Command - With Mock Teams 1`] = `
+stdout:
+"KEY      NAME          CYCLES UPDATED      ID    
+BACKEND  Backend Team  Yes    575 days ago team-1
+FRONTEND Frontend Team No     577 days ago team-2
+SEC      Security Team Yes    572 days ago team-3
+"
+stderr:
+""
+`;
+
 snapshot[`Team List Command - No Teams Found 1`] = `
 stdout:
 "No teams found.
@@ -71,6 +82,18 @@ stdout:
   }
 }
 '
+stderr:
+""
+`;
+
+snapshot[`Team List Command - Pagination (Multiple Pages) 1`] = `
+stdout:
+"KEY   NAME       CYCLES UPDATED      ID          
+ALPHA Alpha Team Yes    428 days ago team-page1-1
+BETA  Beta Team  No     427 days ago team-page1-2
+DELTA Delta Team No     425 days ago team-page2-2
+GAMMA Gamma Team Yes    426 days ago team-page2-1
+"
 stderr:
 ""
 `;

@@ -6,7 +6,8 @@ import { withUsageMetadata } from "./usage.ts"
 export const downloadCommand = withUsageMetadata(
   new Command()
     .description(
-      "Download a Linear asset and verify its SHA-256",
+      "Download a Linear asset and verify its SHA-256\n\n" +
+        "Accepts HTTPS uploads.linear.app and public.linear.app URLs. Public assets need no credentials; redirects never receive Linear credentials.",
     )
     .arguments("<asset-url:string>")
     .option(

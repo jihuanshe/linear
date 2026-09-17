@@ -5,11 +5,11 @@ import { withMarkdownHint } from "../../utils/markdown-help.ts"
 import { gql } from "../../__codegen__/gql.ts"
 import type { IssueUpdateInput } from "../../__codegen__/graphql.ts"
 import { getGraphQLClient } from "../../utils/graphql.ts"
+import { readTextSource } from "../../utils/text-source.ts"
 import {
   getCycleIdByNameOrNumber,
   getIssueId,
   getIssueIdentifier,
-  getIssueProjectId,
   getProjectIdByName,
   getWorkflowStates,
   isLinearUuid,
@@ -130,6 +130,11 @@ export async function prepareIssueUpdate(
   options: UpdateIssueOptions,
   issueIdArg?: string,
 ) {
+  if (issueIdArg == null || !issueIdArg.trim()) {
+    throw new ValidationError(
+      "An explicit issue reference is required (UUID, identifier, or Linear Issue URL)",
+    )
+  }
   validateIssueWriteOptions(options)
   const {
     assignee,
@@ -218,13 +223,6 @@ export async function prepareIssueUpdate(
     )
   }
 
-  // Validate that description and descriptionFile are not both provided
-  if (description != null && descriptionFile != null) {
-    throw new ValidationError(
-      "Cannot specify both --description and --description-file",
-    )
-  }
-
   if (
     assignee == null && !unassign && dueDate == null && parent == null &&
     priority == null && estimate == null && description == null &&
@@ -241,34 +239,19 @@ export async function prepareIssueUpdate(
     )
   }
 
-  // Read description from file if provided
-  let finalDescription = description
-  if (descriptionFile === "") {
-    throw new ValidationError("Description file path cannot be empty")
-  }
-  if (descriptionFile != null) {
-    try {
-      finalDescription = await Deno.readTextFile(descriptionFile)
-    } catch (error) {
-      throw new ValidationError(
-        `Failed to read description file: ${descriptionFile}`,
-        {
-          suggestion: `Error: ${
-            error instanceof Error ? error.message : String(error)
-          }`,
-        },
-      )
-    }
-  }
+  const finalDescription = await readTextSource(
+    "description",
+    description,
+    descriptionFile,
+  )
 
-  // Resolve the Issue reference from the argument or current VCS context.
   const issueReference = await getIssueIdentifier(issueIdArg)
   if (!issueReference) {
     throw new ValidationError(
-      "Could not determine issue identifier",
+      `Invalid issue reference: ${issueIdArg}`,
       {
         suggestion:
-          "Provide an issue identifier such as ENG-123, a UUID, or a VCS context containing an issue identifier.",
+          "Provide an issue identifier such as ENG-123, a UUID, or a Linear Issue URL.",
       },
     )
   }
@@ -327,7 +310,7 @@ export async function prepareIssueUpdate(
   }
 
   const targetProjectId = projectId ??
-    (team != null ? await getIssueProjectId(target.issue.id) : undefined)
+    (team != null ? target.issue.project?.id : undefined)
   if (targetProjectId != null) {
     await requireProjectTeam(
       targetProjectId,
@@ -343,7 +326,7 @@ export async function prepareIssueUpdate(
       projectMilestoneId = milestone
     } else {
       milestoneProjectId = projectId ??
-        await getIssueProjectId(target.issue.id)
+        target.issue.project?.id
       if (milestoneProjectId == null) {
         throw new ValidationError(
           "--milestone requires --project to be set (issue has no existing project)",
@@ -425,7 +408,7 @@ export async function prepareIssueUpdate(
       "Issue project changed while checking team compatibility",
     )
   }
-  // A milestone name uses the project observed by its own lookup.
+  // A milestone name uses the explicit project or the initial read's project.
   if (
     project == null && milestoneProjectId != null &&
     current.issue.project?.id !== milestoneProjectId
@@ -601,7 +584,7 @@ export const updateCommand = withUsageMetadata(new Command(), { writes: true })
   .description(withMarkdownHint(
     "Update an issue; verify fields with up to 3 reads without repeating the write",
   ))
-  .arguments("[issueId:string]")
+  .arguments("<issueId:string>")
   .option(
     "-a, --assignee <assignee:string>",
     "Assignee (user UUID, username, name, email, 'self', or '@me')",

@@ -3,7 +3,7 @@ import {
   PROJECT_DESCRIPTION_MAX_LENGTH,
   resolveProjectDescription,
 } from "../../../src/commands/project/project-description.ts"
-import { NotFoundError, ValidationError } from "../../../src/utils/errors.ts"
+import { ValidationError } from "../../../src/utils/errors.ts"
 
 Deno.test("resolveProjectDescription - returns undefined when neither flag set", async () => {
   const result = await resolveProjectDescription(undefined, undefined)
@@ -30,7 +30,7 @@ Deno.test("resolveProjectDescription - rejects passing both flags", async () => 
   await assertRejects(
     () => resolveProjectDescription("inline", "/tmp/some.md"),
     ValidationError,
-    "Cannot use --description and --description-file together",
+    "Cannot specify both --description and --description-file",
   )
 })
 
@@ -66,10 +66,10 @@ Deno.test("resolveProjectDescription - accepts description exactly at the cap", 
   assertEquals(result, exact)
 })
 
-Deno.test("resolveProjectDescription - throws NotFoundError for missing file", async () => {
+Deno.test("resolveProjectDescription - rejects missing file", async () => {
   await assertRejects(
     () => resolveProjectDescription(undefined, "/tmp/does-not-exist-xyz.md"),
-    NotFoundError,
-    "File not found",
+    ValidationError,
+    "Failed to read description file",
   )
 })

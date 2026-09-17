@@ -1,8 +1,7 @@
 import { assertEquals } from "@std/assert"
 import { fromFileUrl } from "@std/path"
 
-// Testing the credentials module requires running subprocesses because
-// credentials are loaded at module initialization via top-level await.
+// Isolate the lazy credential inventory and key cache in subprocesses.
 
 const credentialsUrl = new URL("../src/credentials.ts", import.meta.url)
 const keyringUrl = new URL("../src/keyring/index.ts", import.meta.url)
@@ -56,9 +55,10 @@ async function runWithCredentials(
     stderr: "piped",
   })
 
-  const { stdout, stderr } = await command.output()
+  const { stdout, stderr, success } = await command.output()
   const output = new TextDecoder().decode(stdout).trim()
   const errorOutput = new TextDecoder().decode(stderr)
+  assertEquals(success, true, errorOutput)
 
   if (errorOutput && !errorOutput.startsWith("Check file:")) {
     console.error("Subprocess stderr:", errorOutput)
@@ -120,7 +120,7 @@ Deno.test("credentials - addCredential creates file and sets default", async () 
     }
       await addCredential("test-workspace", "lin_api_test123");
       console.log(JSON.stringify({
-        apiKey: getCredentialApiKey("test-workspace"),
+        apiKey: await getCredentialApiKey("test-workspace"),
         default: getDefaultWorkspace()
       }));
     `
@@ -229,7 +229,7 @@ Deno.test("credentials - removeCredential cleans up cache", async () => {
     }
       await addCredential("workspace-a", "lin_api_a");
       await removeCredential("workspace-a");
-      console.log(getCredentialApiKey("workspace-a") ?? "undefined");
+      console.log(await getCredentialApiKey("workspace-a") ?? "undefined");
     `
 
     const output = await runWithCredentials(tempDir, code)
@@ -269,7 +269,7 @@ Deno.test("credentials - getCredentialApiKey returns key for workspace", async (
     const code = `
       ${mockBackendAndImport("addCredential, getCredentialApiKey")}
       await addCredential("my-workspace", "lin_api_mykey");
-      console.log(getCredentialApiKey("my-workspace"));
+      console.log(await getCredentialApiKey("my-workspace"));
     `
 
     const output = await runWithCredentials(tempDir, code)
@@ -286,7 +286,7 @@ Deno.test("credentials - getCredentialApiKey returns default when no workspace s
     const code = `
       ${mockBackendAndImport("addCredential, getCredentialApiKey")}
       await addCredential("default-workspace", "lin_api_default");
-      console.log(getCredentialApiKey());
+      console.log(await getCredentialApiKey());
     `
 
     const output = await runWithCredentials(tempDir, code)
@@ -303,7 +303,7 @@ Deno.test("credentials - getCredentialApiKey returns undefined for unknown works
     const code = `
       ${mockBackendAndImport("addCredential, getCredentialApiKey")}
       await addCredential("known-workspace", "lin_api_known");
-      console.log(getCredentialApiKey("unknown-workspace") ?? "undefined");
+      console.log(await getCredentialApiKey("unknown-workspace") ?? "undefined");
     `
 
     const output = await runWithCredentials(tempDir, code)
@@ -320,7 +320,7 @@ Deno.test("credentials - getCredentialApiKey reads from cache", async () => {
     const code = `
       ${mockBackendAndImport("addCredential, getCredentialApiKey")}
       await addCredential("ws", "lin_api_cached");
-      console.log(getCredentialApiKey("ws"));
+      console.log(await getCredentialApiKey("ws"));
     `
 
     const output = await runWithCredentials(tempDir, code)
@@ -373,8 +373,8 @@ Deno.test("credentials - old format TOML backward compatibility", async () => {
       console.log(JSON.stringify({
         default: getDefaultWorkspace(),
         workspaces: getWorkspaces(),
-        apiKey: getCredentialApiKey("preexisting"),
-        credApiKey: getCredentialApiKey(),
+        apiKey: await getCredentialApiKey("preexisting"),
+        credApiKey: await getCredentialApiKey(),
       }));
     `
 
@@ -410,8 +410,8 @@ Deno.test("credentials - old format with multiple workspaces", async () => {
       console.log(JSON.stringify({
         default: getDefaultWorkspace(),
         workspaces: getWorkspaces().sort(),
-        apiKeyA: getCredentialApiKey("ws-a"),
-        apiKeyB: getCredentialApiKey("ws-b"),
+        apiKeyA: await getCredentialApiKey("ws-a"),
+        apiKeyB: await getCredentialApiKey("ws-b"),
       }));
     `
 
@@ -470,7 +470,7 @@ try {
   console.log(JSON.stringify({
     error: e.message,
     workspaces: getWorkspaces(),
-    cached: getCredentialApiKey("ws") ?? "undefined",
+    cached: await getCredentialApiKey("ws") ?? "undefined",
   }));
 }
     `
@@ -485,7 +485,7 @@ try {
   }
 })
 
-Deno.test("credentials - loadCredentials warns but continues when keyring fails for one workspace", async () => {
+Deno.test("credentials - inventory and selected credential do not read unrelated keyring entries", async () => {
   const tempDir = await Deno.makeTempDir()
 
   try {
@@ -498,8 +498,10 @@ Deno.test("credentials - loadCredentials warns but continues when keyring fails 
 
     const code = `
 import { _setBackend } from "${keyringUrl}";
+const reads = [];
 _setBackend({
   async get(account: string) {
+    reads.push(account);
     if (account === "ws-fail") throw new Error("keyring error");
     return "lin_api_ok";
   },
@@ -510,8 +512,8 @@ _setBackend({
 const { getWorkspaces, getCredentialApiKey } = await import("${credentialsUrl}");
 console.log(JSON.stringify({
   workspaces: getWorkspaces(),
-  okKey: getCredentialApiKey("ws-ok"),
-  failKey: getCredentialApiKey("ws-fail") ?? "undefined",
+  okKey: await getCredentialApiKey("ws-ok"),
+  reads,
 }));
     `
 
@@ -519,7 +521,7 @@ console.log(JSON.stringify({
     const result = JSON.parse(output)
     assertEquals(result.workspaces, ["ws-ok", "ws-fail"])
     assertEquals(result.okKey, "lin_api_ok")
-    assertEquals(result.failKey, "undefined")
+    assertEquals(result.reads, ["ws-ok"])
   } finally {
     await Deno.remove(tempDir, { recursive: true })
   }
@@ -547,7 +549,7 @@ try {
   console.log(JSON.stringify({
     error: e.message,
     workspaces: getWorkspaces(),
-    cached: getCredentialApiKey("ws") ?? "undefined",
+    cached: await getCredentialApiKey("ws") ?? "undefined",
   }));
 }
     `
@@ -562,7 +564,7 @@ try {
   }
 })
 
-Deno.test("credentials - loadCredentials warns when keyring returns null for workspace", async () => {
+Deno.test("credentials - selected missing keyring entry rejects without fallback", async () => {
   const tempDir = await Deno.makeTempDir()
 
   try {
@@ -585,10 +587,12 @@ _setBackend({
   async isAvailable() { return true },
 });
 const { getWorkspaces, getCredentialApiKey } = await import("${credentialsUrl}");
+let error;
+try { await getCredentialApiKey("ws-missing") } catch (e) { error = e.message }
 console.log(JSON.stringify({
   workspaces: getWorkspaces(),
-  aKey: getCredentialApiKey("ws-a"),
-  missingKey: getCredentialApiKey("ws-missing") ?? "undefined",
+  aKey: await getCredentialApiKey("ws-a"),
+  error,
 }));
     `
 
@@ -596,7 +600,10 @@ console.log(JSON.stringify({
     const result = JSON.parse(output)
     assertEquals(result.workspaces, ["ws-a", "ws-missing"])
     assertEquals(result.aKey, "lin_api_a")
-    assertEquals(result.missingKey, "undefined")
+    assertEquals(
+      result.error,
+      'No keyring credential for workspace "ws-missing"',
+    )
   } finally {
     await Deno.remove(tempDir, { recursive: true })
   }
@@ -716,7 +723,7 @@ _setBackend({
   async isAvailable() { return true },
 });
 const { getCredentialApiKey } = await import("${credentialsUrl}");
-console.log(getCredentialApiKey("my-ws"));
+console.log(await getCredentialApiKey("my-ws"));
     `
 
     const command = new Deno.Command("deno", {
@@ -752,7 +759,7 @@ Deno.test("credentials - addCredential with plaintext writes key to TOML file", 
       const path = getCredentialsPath()!;
       const toml = await Deno.readTextFile(path);
       console.log(JSON.stringify({
-        apiKey: getCredentialApiKey("my-ws"),
+        apiKey: await getCredentialApiKey("my-ws"),
         hasInlineKey: toml.includes("lin_api_plain"),
         hasWorkspacesArray: toml.includes("workspaces"),
         mode: Deno.build.os === "windows"
@@ -825,8 +832,8 @@ Deno.test("credentials - migrateToKeyring moves inline keys to keyring", async (
         migrated: migrated.sort(),
         hasWorkspacesArray: toml.includes("workspaces"),
         hasInlineKey: toml.includes("lin_api"),
-        keyA: getCredentialApiKey("ws-a"),
-        keyB: getCredentialApiKey("ws-b"),
+        keyA: await getCredentialApiKey("ws-a"),
+        keyB: await getCredentialApiKey("ws-b"),
       }));
     `
 
@@ -870,7 +877,7 @@ Deno.test("credentials - removeCredential on inline-format file preserves inline
         hasWorkspacesArray: toml.includes("workspaces"),
         hasInlineKeyB: toml.includes("lin_api_b"),
         hasInlineKeyA: toml.includes("lin_api_a"),
-        keyB: getCredentialApiKey("ws-b"),
+        keyB: await getCredentialApiKey("ws-b"),
       }));
     `
 
@@ -912,8 +919,8 @@ Deno.test("credentials - setDefaultWorkspace on inline-format file preserves inl
         hasWorkspacesArray: toml.includes("workspaces"),
         hasInlineKeyA: toml.includes("lin_api_a"),
         hasInlineKeyB: toml.includes("lin_api_b"),
-        keyA: getCredentialApiKey("ws-a"),
-        keyB: getCredentialApiKey("ws-b"),
+        keyA: await getCredentialApiKey("ws-a"),
+        keyB: await getCredentialApiKey("ws-b"),
       }));
     `
 
@@ -931,7 +938,7 @@ Deno.test("credentials - setDefaultWorkspace on inline-format file preserves inl
   }
 })
 
-Deno.test("credentials - addCredential with plaintext false on inline file migrates all keys to keyring", async () => {
+Deno.test("credentials - login cannot implicitly migrate other workspaces", async () => {
   const tempDir = await Deno.makeTempDir()
 
   try {
@@ -948,26 +955,30 @@ Deno.test("credentials - addCredential with plaintext false on inline file migra
         "addCredential, getCredentialsPath, getCredentialApiKey, isUsingInlineFormat",
       )
     }
-      await addCredential("ws-b", "lin_api_b", { plaintext: false });
+      let error;
+      try { await addCredential("ws-b", "lin_api_b", { plaintext: false }); }
+      catch (e) { error = e.message; }
       const toml = await Deno.readTextFile(getCredentialsPath()!);
       console.log(JSON.stringify({
+        error,
         isInline: isUsingInlineFormat(),
         hasWorkspacesArray: toml.includes("workspaces"),
         hasInlineKeyA: toml.includes("lin_api_a"),
         hasInlineKeyB: toml.includes("lin_api_b"),
-        keyA: getCredentialApiKey("ws-a"),
-        keyB: getCredentialApiKey("ws-b"),
+        keyA: await getCredentialApiKey("ws-a"),
+        keyB: await getCredentialApiKey("ws-b"),
       }));
     `
 
     const output = await runWithCredentials(tempDir, code)
     const result = JSON.parse(output)
-    assertEquals(result.isInline, false)
-    assertEquals(result.hasWorkspacesArray, true)
-    assertEquals(result.hasInlineKeyA, false)
+    assertEquals(result.error, "Cannot change credential storage during login")
+    assertEquals(result.isInline, true)
+    assertEquals(result.hasWorkspacesArray, false)
+    assertEquals(result.hasInlineKeyA, true)
     assertEquals(result.hasInlineKeyB, false)
     assertEquals(result.keyA, "lin_api_a")
-    assertEquals(result.keyB, "lin_api_b")
+    assertEquals(result.keyB, undefined)
   } finally {
     await Deno.remove(tempDir, { recursive: true })
   }
@@ -1010,8 +1021,8 @@ console.log(JSON.stringify({
   hasInlineKeyA: toml.includes("lin_api_a"),
   hasInlineKeyB: toml.includes("lin_api_b"),
   hasWorkspacesArray: toml.includes("workspaces"),
-  keyA: getCredentialApiKey("ws-a"),
-  keyB: getCredentialApiKey("ws-b"),
+  keyA: await getCredentialApiKey("ws-a"),
+  keyB: await getCredentialApiKey("ws-b"),
 }));
     `
 
@@ -1055,5 +1066,59 @@ Deno.test("credentials - migrateToKeyring is no-op when already using keyring", 
     assertEquals(result.migrated, [])
   } finally {
     await Deno.remove(tempDir, { recursive: true })
+  }
+})
+
+Deno.test("credentials - migration never overwrites an existing different keyring secret", async () => {
+  const root = await Deno.makeTempDir()
+  try {
+    await Deno.mkdir(`${root}/linear`)
+    const path = `${root}/linear/credentials.toml`
+    const original = 'default = "ws"\nws = "synthetic-inline-key"\n'
+    await Deno.writeTextFile(path, original)
+    const output = await runWithCredentials(
+      root,
+      `
+      import { _setBackend } from "${keyringUrl}";
+      let writes = 0;
+      _setBackend({
+        async get() { return "synthetic-existing-key" },
+        async set() { writes++ }, async delete() { writes++ }, async isAvailable() { return true }
+      });
+      const { migrateToKeyring, isUsingInlineFormat } = await import("${credentialsUrl}");
+      let rejected = false;
+      try { await migrateToKeyring() } catch { rejected = true }
+      console.log(JSON.stringify({rejected, writes, inline: isUsingInlineFormat()}));
+    `,
+    )
+    assertEquals(JSON.parse(output), {
+      rejected: true,
+      writes: 0,
+      inline: true,
+    })
+    assertEquals(await Deno.readTextFile(path), original)
+  } finally {
+    await Deno.remove(root, { recursive: true })
+  }
+})
+
+Deno.test("credentials - invalid mixed inventory is not rewritten by login", async () => {
+  const root = await Deno.makeTempDir()
+  try {
+    await Deno.mkdir(`${root}/linear`)
+    const path = `${root}/linear/credentials.toml`
+    const original = 'workspaces = ["first"]\nother = "synthetic-secret"\n'
+    await Deno.writeTextFile(path, original)
+    const output = await runWithCredentials(
+      root,
+      `
+      ${mockBackendAndImport("addCredential")}
+      try { await addCredential("new", "synthetic-new-key") } catch (e) { console.log(e.name) }
+    `,
+    )
+    assertEquals(output, "AuthError")
+    assertEquals(await Deno.readTextFile(path), original)
+  } finally {
+    await Deno.remove(root, { recursive: true })
   }
 })

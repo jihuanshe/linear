@@ -1,8 +1,9 @@
 import { Command } from "@cliffy/command"
 import { unicodeWidth } from "@std/cli"
+import { underline } from "@std/fmt/colors"
 import { gql } from "../../__codegen__/gql.ts"
 import { getGraphQLClient } from "../../utils/graphql.ts"
-import { padDisplay, printStyledHeader } from "../../utils/display.ts"
+import { padDisplay } from "../../utils/display.ts"
 import { resolveProjectId } from "../../utils/linear.ts"
 import { shouldShowSpinner } from "../../utils/hyperlink.ts"
 import { handleError, NotFoundError } from "../../utils/errors.ts"
@@ -116,7 +117,7 @@ export const listCommand = new Command()
         padDisplay("PROJECT", PROJECT_WIDTH),
       ]
 
-      printStyledHeader(headerCells)
+      console.log(underline(headerCells.join(" ")))
 
       // Print each milestone
       for (const milestone of sortedMilestones) {

@@ -6,7 +6,7 @@ import { Confirm } from "../../utils/prompt.ts"
 import { gql } from "../../__codegen__/gql.ts"
 import { getGraphQLClient } from "../../utils/graphql.ts"
 import { shouldShowSpinner } from "../../utils/hyperlink.ts"
-import { printWriteResult, setMachineOutput } from "../../utils/write-result.ts"
+import { printWriteResult } from "../../utils/write-result.ts"
 import {
   assertMutationReceipt,
   assertMutationSuccess,
@@ -18,8 +18,6 @@ import {
 export const unarchiveCommand = withUsageMetadata(new Command(), {
   writes: true,
   interactive: true,
-  confirmationRequiredUnless: "--force",
-  outputModes: ["human", "json"],
 })
   .name("unarchive")
   .option("--json", "Output a JSON write result")
@@ -27,7 +25,6 @@ export const unarchiveCommand = withUsageMetadata(new Command(), {
   .arguments("<initiativeId:string>")
   .option("-y, --force", "Skip confirmation prompt")
   .action(async ({ force, json }, initiativeId) => {
-    setMachineOutput(json ?? false)
     const client = getGraphQLClient()
 
     // Resolve initiative ID

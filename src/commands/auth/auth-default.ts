@@ -26,15 +26,12 @@ export const defaultCommand = withUsageMetadata(new Command(), {
         })
       }
 
-      if (workspaces.length === 1) {
-        console.log(`Only one workspace configured: ${workspaces[0]}`)
-        return
-      }
-
       const currentDefault = getDefaultWorkspace()
 
       // If no workspace specified, prompt to select one
-      if (!workspace) {
+      if (workspace == null && workspaces.length === 1) {
+        workspace = workspaces[0]
+      } else if (workspace == null) {
         workspace = await Select.prompt({
           message: "Select default workspace",
           options: workspaces.map((ws) => ({

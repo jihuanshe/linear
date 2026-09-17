@@ -221,6 +221,7 @@ for (
 
 for (
   const error of [
+    new DOMException("fetch timed out", "TimeoutError"),
     new Deno.errors.ConnectionReset("reset"),
     new TypeError("fetch failed", {
       cause: Object.assign(new Error("reset"), { code: "ECONNRESET" }),
@@ -233,18 +234,14 @@ for (
   ]
 ) {
   for (const document of [query, mutation]) {
-    Deno.test(`GraphQL transport classifies ${error.message}: ${document.split(" ")[0]}`, async () => {
+    Deno.test(`GraphQL transport never guesses retries from ${error.message}: ${document.split(" ")[0]}`, async () => {
       using c = clock()
       using fetchStub = stub(globalThis, "fetch", () => Promise.reject(error))
       const pending = assertRejects(() => request(document))
       await c.time.runAllAsync()
       assertEquals(await pending, error)
-      const transient = error.message.includes("Connection refused") ||
-        error.cause != null || error instanceof Deno.errors.ConnectionReset
-      assertEquals(
-        fetchStub.calls.length,
-        document === query && transient ? 3 : 1,
-      )
+      assertEquals(fetchStub.calls.length, 1)
+      assertEquals(c.time.next(), false)
     })
   }
 }
@@ -285,7 +282,7 @@ for (const phase of ["before", "headers", "body", "wait"]) {
 }
 
 for (const phase of ["headers", "body"]) {
-  Deno.test(`GraphQL transport bounds hanging ${phase} and total attempts plus waits`, async () => {
+  Deno.test(`GraphQL transport bounds hanging ${phase} at the single total deadline`, async () => {
     using c = clock()
     const dispatches: number[] = []
     const signals: AbortSignal[] = []
@@ -302,18 +299,23 @@ for (const phase of ["headers", "body"]) {
             },
             cancel() {
               cancelled++
+              // A pending cancellation must not extend the request deadline.
+              return new Promise<void>(() => {})
             },
           }),
         ),
       )
     })
     const pending = assertRejects(() => request(), DOMException, "timed out")
-    await c.time.runAllAsync()
+    await c.time.tickAsync(59_999)
+    assertEquals(signals.map((signal) => signal.aborted), [false])
+    assertEquals(cancelled, 0)
+    await c.time.tickAsync(1)
     assertEquals((await pending).name, "TimeoutError")
-    assertEquals(dispatches, [0, 30_250])
+    assertEquals(dispatches, [0])
     assertEquals(c.time.now - start, 60_000)
-    assertEquals(signals.map((signal) => signal.aborted), [true, true])
-    assertEquals(cancelled, phase === "body" ? 2 : 0)
+    assertEquals(signals.map((signal) => signal.aborted), [true])
+    assertEquals(cancelled, phase === "body" ? 1 : 0)
     assertEquals(c.time.next(), false)
   })
 }
@@ -463,8 +465,8 @@ for (const status of [400, 401, 403, 429, 503]) {
   })
 }
 
-for (const status of [200, 401]) {
-  Deno.test(`GraphQL transport body reset on HTTP ${status} does not override authentication failure`, async () => {
+for (const status of [200, 400, 401, 429, 502, 503, 504]) {
+  Deno.test(`GraphQL transport never retries interrupted HTTP ${status} bodies`, async () => {
     using c = clock()
     let requests = 0
     const failure = new Deno.errors.ConnectionReset("body reset")
@@ -483,17 +485,44 @@ for (const status of [200, 401]) {
           : Response.json({ data: { viewer: { id: "ok" } } }),
       )
     })
-    if (status === 401) {
-      assertEquals(await assertRejects(() => request()), failure)
-      assertEquals(requests, 1)
-    } else {
-      const pending = request()
-      await c.time.runAllAsync()
-      assertEquals(await (await pending).json(), {
-        data: { viewer: { id: "ok" } },
-      })
-      assertEquals(requests, 2)
-    }
+    assertEquals(await assertRejects(() => request()), failure)
+    assertEquals(requests, 1)
     assertEquals(c.time.next(), false)
   })
+}
+
+for (const phase of ["headers", "body"]) {
+  for (const document of [query, mutation]) {
+    Deno.test(`GraphQL transport accepts ${phase} after 30 seconds: ${document.split(" ")[0]}`, async () => {
+      using c = clock()
+      const envelope = { data: { id: "completed" } }
+      using fetchStub = stub(globalThis, "fetch", () => {
+        if (phase === "headers") {
+          return new Promise<Response>((resolve) => {
+            setTimeout(() => resolve(Response.json(envelope)), 45_000)
+          })
+        }
+        return Promise.resolve(
+          new Response(
+            new ReadableStream({
+              start(controller) {
+                setTimeout(() => {
+                  controller.enqueue(
+                    new TextEncoder().encode(JSON.stringify(envelope)),
+                  )
+                  controller.close()
+                }, 45_000)
+              },
+            }),
+          ),
+        )
+      })
+      const pending = request(document)
+      await c.time.runAllAsync()
+      assertEquals(await (await pending).json(), envelope)
+      assertEquals(fetchStub.calls.length, 1)
+      assertEquals(c.time.now - start, 45_000)
+      assertEquals(c.time.next(), false)
+    })
+  }
 }

@@ -1,10 +1,13 @@
 import { assertEquals, assertRejects, assertStringIncludes } from "@std/assert"
 import {
   extractIssueRelationSnapshot,
-  fetchIssuesForQuery,
+  getAllTeams,
+  getCycleIdByNameOrNumber,
   getIssueIdentifier,
+  getOrganizationMembers,
   getProjectOptionsByName,
   getProjectsForTeam,
+  getTeamMembers,
   isLinearUuid,
   lookupUserId,
   planIssueRelations,
@@ -17,6 +20,130 @@ import {
 } from "../../src/utils/linear.ts"
 import { NotFoundError, ValidationError } from "../../src/utils/errors.ts"
 import { setupMockLinearServer } from "../utils/test-helpers.ts"
+
+for (
+  const [queryName, invoke] of [
+    ["GetAllTeams", () => getAllTeams()],
+    ["GetTeamMembers", () => getTeamMembers("ENG", true)],
+    ["GetOrganizationMembers", () => getOrganizationMembers(true)],
+    [
+      "GetTeamCyclesForLookup",
+      () => getCycleIdByNameOrNumber("Later", "team-1"),
+    ],
+  ] as const
+) {
+  for (const cursors of [[""], ["cursor-a", "cursor-b", "cursor-a"]]) {
+    Deno.test(`${queryName} rejects invalid pagination ${JSON.stringify(cursors)}`, async () => {
+      const { server, cleanup } = await setupMockLinearServer([{
+        queryName,
+        response: (_request, history) => {
+          if (history.length > cursors.length) {
+            return { errors: [{ message: "Unexpected extra page" }] }
+          }
+          const page = {
+            nodes: [],
+            pageInfo: {
+              hasNextPage: true,
+              endCursor: cursors[history.length - 1],
+            },
+          }
+          if (queryName === "GetAllTeams") return { data: { teams: page } }
+          if (queryName === "GetTeamMembers") {
+            return { data: { team: { members: page } } }
+          }
+          if (queryName === "GetOrganizationMembers") {
+            return { data: { viewer: { organization: { users: page } } } }
+          }
+          return {
+            data: {
+              team: {
+                key: "ENG",
+                cyclesEnabled: true,
+                cycles: page,
+                activeCycle: null,
+              },
+            },
+          }
+        },
+      }])
+      try {
+        await assertRejects(invoke, Error, "empty or repeated cursor")
+        assertEquals(server.graphqlRequests.length, cursors.length)
+      } finally {
+        await cleanup()
+      }
+    })
+  }
+}
+
+Deno.test("getAllTeams sorts the complete connection", async () => {
+  const { server, cleanup } = await setupMockLinearServer([{
+    queryName: "GetAllTeams",
+    response: ({ variables }) => ({
+      data: {
+        teams: variables.after == null
+          ? {
+            nodes: [{ id: "z", key: "ZZ", name: "Zulu" }],
+            pageInfo: { hasNextPage: true, endCursor: "more" },
+          }
+          : {
+            nodes: [{ id: "a", key: "AA", name: "Alpha" }],
+            pageInfo: { hasNextPage: false, endCursor: "last" },
+          },
+      },
+    }),
+  }])
+  try {
+    assertEquals(await getAllTeams(), [
+      { id: "a", key: "AA", name: "Alpha" },
+      { id: "z", key: "ZZ", name: "Zulu" },
+    ])
+    assertEquals(server.graphqlRequests.map((r) => r.variables), [
+      { first: 100 },
+      { first: 100, after: "more" },
+    ])
+  } finally {
+    await cleanup()
+  }
+})
+
+for (const reference of ["active", "now", "Later"]) {
+  Deno.test(`Cycle lookup ${reference} only reads required pages`, async () => {
+    const { server, cleanup } = await setupMockLinearServer([{
+      queryName: "GetTeamCyclesForLookup",
+      response: ({ variables }) => ({
+        data: {
+          team: {
+            key: "ENG",
+            cyclesEnabled: true,
+            activeCycle: { id: "active-cycle", number: 9, name: "Current" },
+            cycles: variables.after == null
+              ? {
+                nodes: [{ id: "older-cycle", name: "Earlier", number: 8 }],
+                pageInfo: { hasNextPage: true, endCursor: "older" },
+              }
+              : {
+                nodes: [{ id: "later-cycle", name: "Later", number: 10 }],
+                pageInfo: { hasNextPage: false, endCursor: "last" },
+              },
+          },
+        },
+      }),
+    }])
+    try {
+      assertEquals(
+        await getCycleIdByNameOrNumber(reference, "team-1"),
+        reference === "Later" ? "later-cycle" : "active-cycle",
+      )
+      assertEquals(server.graphqlRequests.length, reference === "Later" ? 2 : 1)
+      if (reference === "Later") {
+        assertEquals(server.graphqlRequests[1].variables.after, "older")
+      }
+    } finally {
+      await cleanup()
+    }
+  })
+}
 
 for (const input of ["", " ", "\t\n"]) {
   Deno.test(`lookupUserId rejects empty reference ${JSON.stringify(input)}`, async () => {
@@ -277,21 +404,15 @@ Deno.test("getIssueId - handles integer-only IDs with team prefix", async () => 
   Deno.env.delete("LINEAR_TEAM_ID")
 })
 
-Deno.test("getIssueId - integer-only id without a team points at `linear config`", async () => {
-  // An empty team id is falsy, so getTeamKey() resolves to undefined even
-  // though the repo's .linear.toml sets one — this exercises the no-team branch.
+Deno.test("getIssueId - integer-only id rejects an explicitly empty team", async () => {
   Deno.env.set("LINEAR_TEAM_ID", "")
 
   try {
-    const error = await assertRejects(
+    await assertRejects(
       () => getIssueIdentifier("123"),
       ValidationError,
-      "no team is set",
+      "Invalid value for team_id",
     )
-    // Regression guard for #245: the suggestion must name the real command
-    // (`config`), never the non-existent `configure`.
-    assertStringIncludes(error.suggestion ?? "", "linear config")
-    assertEquals(error.suggestion?.includes("configure"), false)
   } finally {
     Deno.env.delete("LINEAR_TEAM_ID")
   }
@@ -374,7 +495,7 @@ Deno.test("searchIssuesByTerm - without limit fetches a single page", async () =
 
   try {
     const result = await searchIssuesByTerm("issue", {
-      teamKey: "CLI",
+      teamKeys: ["CLI"],
     })
 
     assertEquals(result, {
@@ -417,69 +538,6 @@ Deno.test("searchIssuesByTerm - without limit fetches a single page", async () =
       },
       totalCount: 2,
     })
-  } finally {
-    await cleanup()
-  }
-})
-
-Deno.test("fetchIssuesForQuery rejects non-adjacent project team cursor cycles", async () => {
-  const { server, cleanup } = await setupMockLinearServer([
-    {
-      queryName: "GetIssuesForQuery",
-      response: {
-        data: {
-          issues: {
-            nodes: [{
-              id: "issue-1",
-              project: {
-                id: "project-1",
-                teams: {
-                  nodes: [{ key: "ENG" }],
-                  pageInfo: { hasNextPage: true, endCursor: "cursor-a" },
-                },
-              },
-            }],
-            pageInfo: { hasNextPage: false, endCursor: null },
-          },
-        },
-      },
-    },
-    {
-      queryName: "GetProjectTeamsForDoctor",
-      variables: { after: "cursor-a" },
-      response: {
-        data: {
-          project: {
-            teams: {
-              nodes: [{ key: "OPS" }],
-              pageInfo: { hasNextPage: true, endCursor: "cursor-b" },
-            },
-          },
-        },
-      },
-    },
-    {
-      queryName: "GetProjectTeamsForDoctor",
-      variables: { after: "cursor-b" },
-      response: {
-        data: {
-          project: {
-            teams: {
-              nodes: [{ key: "ENG" }],
-              pageInfo: { hasNextPage: true, endCursor: "cursor-a" },
-            },
-          },
-        },
-      },
-    },
-  ])
-  try {
-    await assertRejects(
-      () => fetchIssuesForQuery({ includeProjectTeamMetadata: true }),
-      Error,
-      "empty or repeated cursor",
-    )
-    assertEquals(server.graphqlRequests.length, 3)
   } finally {
     await cleanup()
   }

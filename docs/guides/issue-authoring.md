@@ -9,6 +9,8 @@ commands:
   - issue export
   - issue history
   - issue comment add
+  - issue comment view
+  - issue comment update
   - issue comment resolve
   - issue comment unresolve
   - issue attach
@@ -44,6 +46,43 @@ CLI 会检查 Issue 团队与项目是否兼容，需要先查看范围时使用
 上传前移除凭据和非必要个人数据。上传默认工作区私有；用户要求公开访问时可用 `--public`，它只支持位图。附件存在不证明外部链接可以访问，未验证时注明。
 
 缺少关键材料时，在正文中说明缺口及其对当前判断的影响。上传失败后保留已创建的 Issue，继续补充材料，避免删除重建产生重复记录。需要核验上传字节时使用 `linear download --help`；`issue view --json` 只返回附件元数据。
+
+### 文件作为侧栏附件
+
+将 `ENG-123` 换成明确的目标 Issue 标识符；以下命令上传本地文件并创建普通侧栏附件，不创建评论：
+
+```bash
+linear issue attach ENG-123 'evidence]draft.txt' --title '复查证据' --json
+```
+
+### 新评论附带文件
+
+准备好 UTF-8 说明文件后执行：
+
+```bash
+linear issue comment add ENG-123 --body-file explanation.md --attach screenshot.png --attach 'evidence]draft.txt' --json
+```
+
+CLI 保留说明原文，在后面用空行分隔生成的文件片段；图片内联显示，其他文件生成链接。只发文件时省略 `--body-file`。显式传入空正文或空文件会在上传前失败，不用 `--body ''` 表示「省略正文」。
+
+### 给已有评论补充文件
+
+先保存原始评论，再补充文件；不要在准备提交时用新读取覆盖 `comment-base.json`：
+
+```bash
+set -eu
+COMMENT_ID='替换为评论 UUID'
+linear issue comment view "$COMMENT_ID" --json > comment-base.json
+linear issue comment update "$COMMENT_ID" --base-file comment-base.json --attach screenshot.png --attach 'evidence]draft.txt' --json
+```
+
+只传 `--attach` 会保留原始正文并追加文件片段；同时传 `--body-file` 则替换正文后追加。CLI 在上传前核对原始依据，上传完成后再次核对，冲突时不更新评论。
+
+需要指定插入位置时，用 `jq -e -j '.comment.body' comment-base.json > comment.md` 提取草稿，独立执行 `linear upload <file>`，将输出中 `markdown:` 后的完整片段复制到目标位置，再用 `linear issue comment update "$COMMENT_ID" --body-file comment.md --base-file comment-base.json --json` 提交。保留片段中的转义和已有正文的链接、换行。
+
+如果远端正文已变化，更新会拒绝写入；已有上传回执时，保留 URL，读取并审阅新正文后手动合并，不重复传 `--attach`。上传成功而附件或评论关联失败时，JSON 错误保留上传回执；`unknown` 表示关联结果需先对账，不能自动重试整条命令。这三种任务使用普通附件与普通 Comment；Linear 原生 linked Comment 是另一种关联语义。专用命令未覆盖的 GraphQL 能力通过 `linear schema` 和 `linear api` 查询使用，不用它们绕过已有专用写命令的校验。
+
+下载使用返回的 `https://uploads.linear.app/...` 或 `https://public.linear.app/...` URL。私有资源需要工作区凭据；公开资源不读取或发送凭据。`linear download "$ASSET_URL" --output evidence.bin --sha256 "$EXPECTED_SHA256" --json` 在散列校验通过后生成新文件，拒绝覆盖已有路径；重定向不会携带 Linear 凭据。
 
 ## 维护正文与讨论
 

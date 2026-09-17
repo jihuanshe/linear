@@ -1,6 +1,6 @@
 import { Command } from "@cliffy/command"
 import { withUsageMetadata } from "../usage.ts"
-import { Confirm, isPromptDisabled, Secret } from "../../utils/prompt.ts"
+import { isPromptDisabled, Secret } from "../../utils/prompt.ts"
 import { yellow } from "@std/fmt/colors"
 import { gql } from "../../__codegen__/gql.ts"
 import {
@@ -8,8 +8,8 @@ import {
   getWorkspaces,
   hasWorkspace,
   isUsingInlineFormat,
-  migrateToKeyring,
 } from "../../credentials.ts"
+import { getCliWorkspace, loadEnvironment } from "../../config.ts"
 import * as keyring from "../../keyring/index.ts"
 import {
   AuthError,
@@ -45,14 +45,11 @@ export const loginCommand = withUsageMetadata(new Command(), {
   )
   .action(async (options) => {
     try {
+      loadEnvironment()
       let apiKey = options.key?.trim()
-      const promptDisabled =
-        !apiKey || options.plaintext || isUsingInlineFormat()
-          ? isPromptDisabled()
-          : false
 
       if (!apiKey) {
-        if (promptDisabled) {
+        if (isPromptDisabled()) {
           throw new ValidationError(
             "An API key is required when interactive prompting is disabled",
             {
@@ -85,6 +82,12 @@ export const loginCommand = withUsageMetadata(new Command(), {
         const viewer = result.viewer
         const org = viewer.organization
         const workspace = org.urlKey
+        const selectedWorkspace = getCliWorkspace()
+        if (selectedWorkspace != null && selectedWorkspace !== workspace) {
+          throw new ValidationError(
+            `API key belongs to workspace "${workspace}", not "${selectedWorkspace}"`,
+          )
+        }
 
         // Require keyring when not using plaintext and not already in inline format
         if (!options.plaintext && !isUsingInlineFormat()) {
@@ -122,30 +125,6 @@ export const loginCommand = withUsageMetadata(new Command(), {
               "Note: Credential stored as plaintext to match existing format.",
             ),
           )
-        }
-
-        // Prompt to migrate inline credentials to keyring
-        if (isUsingInlineFormat() && !promptDisabled) {
-          const keyringOk = await keyring.isAvailable()
-          if (keyringOk) {
-            console.log()
-            console.log(
-              yellow(
-                "Your credentials are stored as plaintext in the credentials file.",
-              ),
-            )
-            const migrate = await Confirm.prompt({
-              message:
-                "Migrate all credentials to the system keyring for better security?",
-              default: true,
-            })
-            if (migrate) {
-              const migrated = await migrateToKeyring()
-              console.log(
-                `Migrated ${migrated.length} workspace(s) to system keyring.`,
-              )
-            }
-          }
         }
 
         // Warn if LINEAR_API_KEY is set

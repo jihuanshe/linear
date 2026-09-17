@@ -56,7 +56,7 @@ Deno.test("main leaf help includes JSON aliases injected by the root command", a
   assertEquals(result.stderr, "")
 })
 
-Deno.test("startup credentials warning honors disabled color policy", async () => {
+Deno.test("credential inventory warning honors disabled color policy", async () => {
   const root = await Deno.makeTempDir()
   try {
     const config = join(root, "linear")
@@ -65,7 +65,7 @@ Deno.test("startup credentials warning honors disabled color policy", async () =
       join(config, "credentials.toml"),
       'default = "missing"\nworkspaces = ["present"]\n',
     )
-    const result = await run(["--help"], {
+    const result = await run(["auth", "list"], {
       HOME: join(root, "home"),
       XDG_CONFIG_HOME: root,
       NO_COLOR: "",
@@ -98,7 +98,7 @@ for (
     ["issue", "update", "ENG-123", "--priority", "not-a-number", "--json"],
     ["issue", "update", "ENG-123", "--title", "Desired", "--json"],
     ["issue", "create", "--json"],
-    ["api", "--variable", "badformat"],
+    ["api", "--variables-json", "not-json"],
     ["api"],
     ["--workspace", "sandbox", "api", "--variables-json"],
     ["--workspace=sandbox", "api", "--operation-name"],
@@ -137,10 +137,15 @@ for (
 Deno.test("main rejects disabled prompts without reading stdin", async () => {
   const { server, cleanup } = await setupMockLinearServer([
     {
-      queryName: "GetTeamIdByKey",
-      variables: { team: "SOURCE" },
+      queryName: "GetWriteTeamByKey",
+      variables: { key: "SOURCE" },
       response: {
-        data: { teams: { nodes: [{ id: "source-team-id" }] } },
+        data: {
+          teams: {
+            nodes: [{ id: "source-team-id", key: "SOURCE" }],
+            pageInfo: { hasNextPage: false, endCursor: null },
+          },
+        },
       },
     },
     {
@@ -273,7 +278,6 @@ Deno.test("global workspace selection does not change label --all scope", async 
     ], {
       HOME: join(root, "home"),
       XDG_CONFIG_HOME: configRoot,
-      LINEAR_API_KEY: "",
       LINEAR_GRAPHQL_ENDPOINT: server.getEndpoint(),
       NO_COLOR: "1",
     })
@@ -346,12 +350,12 @@ Deno.test("label list rejects conflicting scopes", async () => {
   assertEquals(result.stderr, "")
 })
 
-Deno.test("label list rejects the old bare workspace flag with migration guidance", async () => {
+Deno.test("global workspace requires a value through the command parser", async () => {
   const result = await run([
+    "--json",
     "label",
     "list",
     "--workspace",
-    "--json",
   ])
 
   assertEquals(result.code, 1)
@@ -359,17 +363,21 @@ Deno.test("label list rejects the old bare workspace flag with migration guidanc
   assertEquals(failure.ok, false)
   assertEquals(failure.effect, "none")
   assertMatch(failure.error.message, /Missing value for option "--workspace"/)
-  assertMatch(failure.error.message, /--workspace-labels/)
   assertEquals(result.stderr, "")
 })
 
 Deno.test("team delete dry-run requires an empty team and points to the migration recipe", async () => {
   const { server, cleanup } = await setupMockLinearServer([
     {
-      queryName: "GetTeamIdByKey",
-      variables: { team: "SOURCE" },
+      queryName: "GetWriteTeamByKey",
+      variables: { key: "SOURCE" },
       response: {
-        data: { teams: { nodes: [{ id: "source-team-id" }] } },
+        data: {
+          teams: {
+            nodes: [{ id: "source-team-id", key: "SOURCE" }],
+            pageInfo: { hasNextPage: false, endCursor: null },
+          },
+        },
       },
     },
     {
@@ -432,11 +440,11 @@ Deno.test("team delete rechecks current emptiness before its mutation", async ()
   let reads = 0
   const { server, cleanup } = await setupMockLinearServer([
     {
-      queryName: "GetTeamIdByKey",
+      queryName: "GetWriteTeamByKey",
       response: {
         data: {
           teams: {
-            nodes: [{ id: "source-team-id" }],
+            nodes: [{ id: "source-team-id", key: "SOURCE" }],
             pageInfo: { hasNextPage: false, endCursor: null },
           },
         },
@@ -488,11 +496,11 @@ for (const payload of [{ success: false }, null]) {
     async () => {
       const { server, cleanup } = await setupMockLinearServer([
         {
-          queryName: "GetTeamIdByKey",
+          queryName: "GetWriteTeamByKey",
           response: {
             data: {
               teams: {
-                nodes: [{ id: "source-team-id" }],
+                nodes: [{ id: "source-team-id", key: "SOURCE" }],
                 pageInfo: { hasNextPage: false, endCursor: null },
               },
             },
@@ -641,7 +649,6 @@ Deno.test("global JSON navigation reuses the live usage document at every depth"
       ["doc"],
       ["issue", "comment"],
       ["issue", "relation"],
-      ["issue", "agent-session"],
     ]
   ) {
     const [navigation, usage] = await Promise.all([
@@ -678,11 +685,9 @@ Deno.test("global JSON rejects unsupported actions without requests or credentia
         ["config"],
         ["update"],
         ["issue", "pick"],
-        ["issue", "mine"],
         ["issue", "id"],
         ["issue", "title"],
         ["issue", "url"],
-        ["issue", "describe"],
         ["cycle", "list"],
         ["cycle", "view", "active"],
         ["milestone", "list", "--project", "project-1"],
@@ -701,6 +706,11 @@ Deno.test("global JSON rejects unsupported actions without requests or credentia
           LINEAR_GRAPHQL_ENDPOINT: server.getEndpoint(),
         })
         assertEquals(result.code, 1, JSON.stringify(result))
+        if (args[0] === "completions" && argv.at(-1) === "-j") {
+          assertEquals(result.stdout, "")
+          assertMatch(result.stderr, /Unknown (option|command) "-j"/)
+          continue
+        }
         const failure = JSON.parse(result.stdout)
         assertEquals(failure.effect, "none")
         assertEquals(
@@ -739,7 +749,6 @@ Deno.test("JSON rejects browser, editor and exclusive output selections before r
         ["project", "create", "--interactive"],
         ["initiative", "update", "initiative-1", "--interactive"],
         ["recipe", "migrate-team", "--source"],
-        ["api", "query { viewer { id } }", "--silent"],
       ]
     ) {
       // Test inherited and locally shadowed option actions separately.
@@ -842,12 +851,10 @@ Deno.test("malformed configuration preserves machine errors for global JSON and 
   try {
     for (
       const args of [
-        ["--json", "version"],
-        ["version", "-j"],
-        ["--json=false"],
-        ["-jh"],
-        ["--workspace", "sandbox", "api"],
-        ["--json", "api"],
+        ["--json", "team", "list"],
+        ["issue", "view", "ENG-123", "-j"],
+        ["--workspace", "sandbox", "api", "{ viewer { id } }"],
+        ["--json", "api", "{ viewer { id } }"],
       ]
     ) {
       const result = await run(args, { XDG_CONFIG_HOME: root })
@@ -862,7 +869,7 @@ Deno.test("malformed configuration preserves machine errors for global JSON and 
   }
 })
 
-Deno.test("raw API retains its GraphQL envelope and implicit silent mode", async () => {
+Deno.test("raw API retains its GraphQL envelope with optional JSON selectors", async () => {
   const envelope = { data: { viewer: { id: "user-1" } } }
   const { server, cleanup } = await setupMockLinearServer([{
     queryName: "MachineViewer",
@@ -875,7 +882,6 @@ Deno.test("raw API retains its GraphQL envelope and implicit silent mode", async
         ["api", query],
         ["--json", "api", query],
         ["api", "-j", query],
-        ["api", query, "--silent"],
       ]
     ) {
       const result = await run(args, {
@@ -883,11 +889,10 @@ Deno.test("raw API retains its GraphQL envelope and implicit silent mode", async
         LINEAR_GRAPHQL_ENDPOINT: server.getEndpoint(),
       })
       assertEquals(result.code, 0, JSON.stringify(result))
-      if (args.includes("--silent")) assertEquals(result.stdout, "")
-      else assertEquals(JSON.parse(result.stdout), envelope)
+      assertEquals(JSON.parse(result.stdout), envelope)
       assertEquals(result.stderr, "")
     }
-    assertEquals(server.graphqlRequests.length, 4)
+    assertEquals(server.graphqlRequests.length, 3)
   } finally {
     await cleanup()
   }
@@ -925,7 +930,6 @@ Deno.test("JSON keeps human-only display toggles and no-pager compatible", async
       "--no-pager",
       "--no-comments",
       "--show-resolved-threads",
-      "--no-download",
     ], {
       LINEAR_API_KEY: "test-token",
       LINEAR_GRAPHQL_ENDPOINT: server.getEndpoint(),

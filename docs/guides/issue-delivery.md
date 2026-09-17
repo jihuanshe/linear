@@ -88,7 +88,7 @@ jq -e '.ok == true and .data.status == "completed"' apply.json >/dev/null
 
 正文读回按 Markdown 结构比较，识别链接尖括号、URL 非 ASCII 字符的编码、列表标记及单段列表项之间空行的规范化。文字、链接目标、段落、显式换行与代码内容的变化仍会报差异。这不证明富文本节点或提及通知等价；写入前的原始依据检查继续精确比较 API 字符串。
 
-读回最多尝试 3 次，默认每个 Issue 的总时限为 10 秒。仅取消读回，不能据此推断此前 mutation 被取消。`.data.readBack` 按 `issues` 的零起始下标保存 `{organization,issue,receipts}`，不是完整 `issue view`；`createdIdentifiers` 同样按下标记录新建 Issue 的编号。
+读到不同值时最多尝试 3 次，默认每个 Issue 的总时限为 10 秒；不可用结果直接报告。仅取消读回，不能据此推断此前 mutation 被取消。`.data.readBack` 按 `issues` 的零起始下标保存 `{organization,issue,receipts}`，不是完整 `issue view`；`createdIdentifiers` 同样按下标记录新建 Issue 的编号。
 
 ## 执行账本与恢复
 

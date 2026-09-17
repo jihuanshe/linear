@@ -1,6 +1,8 @@
 import { Command } from "@cliffy/command"
 import { withUsageMetadata } from "../usage.ts"
 import { Input, Select } from "../../utils/prompt.ts"
+import { openEditor } from "../../utils/editor.ts"
+import { readTextSource } from "../../utils/text-source.ts"
 import { gql } from "../../__codegen__/gql.ts"
 import {
   INITIATIVE_STATUSES,
@@ -9,7 +11,7 @@ import {
 import { getGraphQLClient } from "../../utils/graphql.ts"
 import { lookupUserId } from "../../utils/linear.ts"
 import { shouldShowSpinner } from "../../utils/hyperlink.ts"
-import { printWriteResult, setMachineOutput } from "../../utils/write-result.ts"
+import { printWriteResult } from "../../utils/write-result.ts"
 import {
   assertMutationReceipt,
   assertMutationSuccess,
@@ -49,10 +51,12 @@ const DEFAULT_COLORS = [
 export const createCommand = withUsageMetadata(new Command(), {
   writes: true,
   interactive: true,
-  outputModes: ["human", "json"],
 })
   .name("create")
-  .option("--json", "Output a JSON write result")
+  .option(
+    "--json",
+    "Output a JSON write result; the created initiative is in data.initiative",
+  )
   .description("Create a new Linear initiative")
   .option("-n, --name <name:string>", "Initiative name (required)", {
     preserveEmpty: true,
@@ -60,6 +64,18 @@ export const createCommand = withUsageMetadata(new Command(), {
   .option("-d, --description <description:string>", "Initiative description", {
     preserveEmpty: true,
   })
+  .option("--content <text:string>", "Initiative Markdown content", {
+    preserveEmpty: true,
+  })
+  .option(
+    "--content-file <path:string>",
+    "Read UTF-8 content from a file (- for stdin)",
+    { preserveEmpty: true },
+  )
+  .option(
+    "--edit",
+    "Open an editor, optionally seeded by --content or --content-file",
+  )
   .option(
     "-s, --status <status:string>",
     "Status: planned, active, completed, proposed, canceled (case-insensitive; non-interactive omission uses server default). Use --status to set explicitly",
@@ -81,10 +97,9 @@ export const createCommand = withUsageMetadata(new Command(), {
   .option("--icon <icon:string>", "Icon name", { preserveEmpty: true })
   .option(
     "-i, --interactive",
-    "Interactive mode (default if no flags provided)",
+    "Interactive mode with prompts",
   )
   .action(async (options) => {
-    setMachineOutput(options.json ?? false)
     try {
       for (
         const [field, value] of Object.entries({
@@ -99,9 +114,9 @@ export const createCommand = withUsageMetadata(new Command(), {
           throw new ValidationError(`--${field} cannot be empty`)
         }
       }
-      if (options.json && options.interactive) {
+      if (options.json && (options.interactive || options.edit)) {
         throw new ValidationError(
-          "--json cannot be combined with --interactive",
+          "--json cannot be combined with --interactive or --edit",
         )
       }
       if (
@@ -110,6 +125,12 @@ export const createCommand = withUsageMetadata(new Command(), {
       ) {
         throw new ValidationError("Interactive creation requires a terminal")
       }
+      let content = await readTextSource(
+        "content",
+        options.content,
+        options.contentFile,
+      )
+      if (options.edit) content = await openEditor(content)
       const {
         name: providedName,
         description: providedDescription,
@@ -132,9 +153,8 @@ export const createCommand = withUsageMetadata(new Command(), {
       let color = providedColor
 
       // Determine if we should run in interactive mode
-      const noFlagsProvided = !name
       const isInteractive = !options.json &&
-        (noFlagsProvided || interactiveFlag) &&
+        interactiveFlag &&
         Deno.stdin.isTerminal() && Deno.stdout.isTerminal()
 
       if (isInteractive) {
@@ -250,6 +270,7 @@ export const createCommand = withUsageMetadata(new Command(), {
       const input = {
         name: name as string,
         ...(description != null && { description }),
+        ...(content != null && { content }),
         ...(apiStatus != null && { status: apiStatus }),
         ...(ownerId != null && { ownerId }),
         ...(targetDate != null && { targetDate }),
@@ -274,7 +295,7 @@ export const createCommand = withUsageMetadata(new Command(), {
         spinner?.stop()
         assertMutationReceipt(initiative, result?.initiativeCreate)
         if (options.json) {
-          printWriteResult(initiative)
+          printWriteResult({ initiative })
           return
         }
 

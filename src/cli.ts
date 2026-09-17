@@ -30,14 +30,10 @@ import {
   withUsageMetadata,
 } from "./commands/usage.ts"
 import { guidesForCommandPath } from "./guides/guides.ts"
-import { setCliWorkspace } from "./config.ts"
+import { loadEnvironment, setCliWorkspace } from "./config.ts"
 import { supportsStdoutStyling } from "./utils/terminal.ts"
 import { setMachineOutput } from "./utils/write-result.ts"
 import { UnsupportedOutputError, ValidationError } from "./utils/errors.ts"
-
-// Import config and credentials setup
-import "./config.ts"
-import "./credentials.ts"
 
 // The root command. Kept in this internal module (rather than the package entry
 // point src/main.ts) so its complex inferred cliffy type stays out of the
@@ -123,6 +119,7 @@ Environment Variables:
 interface UsageInjectable extends UsageCommandSource {
   hasCommands(): boolean
   reset(): unknown
+  globalAction(action: () => void): unknown
   meta(name: string, value: string): unknown
   getCommands(): UsageInjectable[]
   getCommand(name: string): UsageInjectable | undefined
@@ -184,7 +181,6 @@ function guardMachineOutput(
     "edit",
     "raw",
     "source",
-    "silent",
   ])
   for (const option of this.getBaseOptions()) {
     // Cliffy names a negative definition "no-interactive", so it is not an
@@ -200,11 +196,17 @@ function guardMachineOutput(
   }
 }
 
-function wireMachineOutput(command: UsageInjectable): void {
+function initializeCommands(command: UsageInjectable): void {
   if (command.getName() === "completions") return
   command.reset()
   if (command.hasCommands()) {
     withUsageMetadata(command, { outputModes: ["human", "json"] })
+  } else if (
+    !["usage", "guide", "recipe", "version"].includes(command.getName())
+  ) {
+    // Leaf global actions run after parsing and before the actual operation.
+    // Standalone help/version and offline navigation never load dotenv.
+    command.globalAction(loadEnvironment)
   }
   const json = command.getBaseOptions().find((option) => option.name === "json")
   if (json != null && !json.global) {
@@ -219,25 +221,10 @@ function wireMachineOutput(command: UsageInjectable): void {
       return action?.call(this, options, ...args)
     }
   }
-  for (const child of command.getCommands()) wireMachineOutput(child)
+  for (const child of command.getCommands()) initializeCommands(child)
 }
 
-wireMachineOutput(cli)
-
-// Cliffy's completion commands disable inherited globals. Accept the selector
-// there too, solely to reject it with the same machine error before execution.
-const completionCommands = [cli.getCommand("completions")!]
-const jsonOption = cli.getBaseOptions().find((option) =>
-  option.name === "json"
-)!
-for (const command of completionCommands) {
-  completionCommands.push(...command.getCommands(true))
-  command.reset()
-    .globalOption(jsonOption.flags.join(", "), jsonOption.description, {
-      action: guardMachineOutput,
-    })
-    .globalAction(guardMachineOutput)
-}
+initializeCommands(cli)
 
 // Leaf help carries a "Related guides" breadcrumb derived from guide
 // frontmatter (src/guides/guides.ts owns the relationship); domains render

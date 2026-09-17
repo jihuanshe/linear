@@ -20,12 +20,18 @@ export async function downloadFile(
   try {
     url = new URL(assetUrl)
   } catch {
-    throw new ValidationError("Expected an HTTPS uploads.linear.app asset URL")
+    throw new ValidationError(
+      "Expected an HTTPS uploads.linear.app or public.linear.app asset URL",
+    )
   }
   if (
-    url.origin !== "https://uploads.linear.app" || url.username || url.password
+    !["https://uploads.linear.app", "https://public.linear.app"].includes(
+      url.origin,
+    ) || url.username || url.password
   ) {
-    throw new ValidationError("Expected an HTTPS uploads.linear.app asset URL")
+    throw new ValidationError(
+      "Expected an HTTPS uploads.linear.app or public.linear.app asset URL",
+    )
   }
   if (expectedSha256 != null && !/^[a-f0-9]{64}$/i.test(expectedSha256)) {
     throw new ValidationError(
@@ -39,8 +45,9 @@ export async function downloadFile(
   } catch (error) {
     if (!(error instanceof Deno.errors.NotFound)) throw error
   }
-  const key = getResolvedApiKey()
-  if (!key) throw new AuthError("No API key configured")
+  const privateAsset = url.origin === "https://uploads.linear.app"
+  const key = privateAsset ? await getResolvedApiKey() : undefined
+  if (privateAsset && !key) throw new AuthError("No API key configured")
   const temporary = await Deno.makeTempFile({
     dir: dirname(path),
     prefix: ".linear-download-",
@@ -52,7 +59,7 @@ export async function downloadFile(
     for (let redirects = 0; redirects <= 5; redirects++) {
       response = await fetch(url, {
         redirect: "manual",
-        headers: redirects === 0 ? { Authorization: key } : {},
+        headers: redirects === 0 && key != null ? { Authorization: key } : {},
         signal: AbortSignal.timeout(120_000),
       })
       if (![301, 302, 303, 307, 308].includes(response.status)) break

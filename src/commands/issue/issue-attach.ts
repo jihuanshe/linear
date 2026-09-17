@@ -2,7 +2,7 @@ import { createIssueAttachment } from "../../operations/issue-content.ts"
 import { printWriteResult } from "../../utils/write-result.ts"
 import { Command } from "@cliffy/command"
 import { withUsageMetadata } from "../usage.ts"
-import { getIssueIdentifier, requireIssueId } from "../../utils/linear.ts"
+import { requireIssueId } from "../../utils/linear.ts"
 import {
   uploadFile,
   type UploadResult,
@@ -31,31 +31,23 @@ export const attachCommand = withUsageMetadata(new Command(), { writes: true })
   .option("--json", "Output a JSON write result with the attachment")
   .option("-t, --title <title:string>", "Custom title for the attachment")
   .option(
-    "-c, --comment <body:string>",
-    "Create a linked comment with this body; the file remains a sidebar attachment",
-  )
-  .option(
     "--public",
     "Upload images to a public, unauthenticated URL (default: private, workspace-members only)",
   )
   .action(async (options, issueId, filepath) => {
-    const { title, comment, public: makePublic, json } = options
+    const { title, public: makePublic, json } = options
 
     let uploadResult: UploadResult | undefined
     try {
-      const resolvedIdentifier = await getIssueIdentifier(issueId)
-      if (!resolvedIdentifier) {
-        throw new ValidationError(
-          "Could not determine issue identifier",
-          { suggestion: "Please provide an issue identifier like 'ENG-123'." },
-        )
+      if (!issueId.trim()) {
+        throw new ValidationError("Issue identifier cannot be empty")
       }
 
       // Validate file exists
       await validateFilePath(filepath)
 
       // Get the issue UUID (attachmentCreate needs UUID, not identifier)
-      const issueUuid = await requireIssueId(resolvedIdentifier)
+      const issueUuid = await requireIssueId(issueId)
 
       // Upload the file
       uploadResult = await uploadFile(filepath, {
@@ -73,7 +65,6 @@ export const attachCommand = withUsageMetadata(new Command(), { writes: true })
       const { attachment } = await createIssueAttachment(issueUuid, {
         url: uploadResult.assetUrl,
         title: title || basename(filepath),
-        commentBody: comment,
       })
       if (json) {
         printWriteResult({ attachment }, {
@@ -86,7 +77,7 @@ export const attachCommand = withUsageMetadata(new Command(), { writes: true })
       if (uploadResult.contentType.startsWith("image/")) {
         const suggested = [
           "linear issue comment add",
-          resolvedIdentifier,
+          issueId,
           "--attach",
           quoteForShell(filepath),
           ...(makePublic ? ["--public"] : []),

@@ -7,7 +7,7 @@ import { gql } from "../../__codegen__/gql.ts"
 import { getGraphQLClient } from "../../utils/graphql.ts"
 import { shouldShowSpinner } from "../../utils/hyperlink.ts"
 import { completeConnection } from "../../utils/pagination.ts"
-import { printWriteResult, setMachineOutput } from "../../utils/write-result.ts"
+import { printWriteResult } from "../../utils/write-result.ts"
 import {
   assertMutationSuccess,
   handleError,
@@ -73,8 +73,6 @@ async function resolveProjectId(
 export const removeProjectCommand = withUsageMetadata(new Command(), {
   writes: true,
   interactive: true,
-  confirmationRequiredUnless: "--force",
-  outputModes: ["human", "json"],
 })
   .name("remove-project")
   .option("--json", "Output a JSON write result")
@@ -87,7 +85,6 @@ export const removeProjectCommand = withUsageMetadata(new Command(), {
       initiativeArg,
       projectArg,
     ) => {
-      setMachineOutput(json ?? false)
       const client = getGraphQLClient()
 
       // Resolve initiative

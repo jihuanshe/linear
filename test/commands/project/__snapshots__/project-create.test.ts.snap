@@ -22,7 +22,7 @@ Options:
   --content-file          <path>         - Read project overview markdown from a file                                             
   -t, --team              <team>         - Team key (required, can be repeated for multiple teams)                                
   -l, --lead              <lead>         - Project lead (user UUID, username, name, email, 'self', or '@me')                      
-  -s, --status            <status>       - Project status (planned, started, paused, completed, canceled, backlog)                
+  -s, --status            <status>       - Status UUID or type (planned, started, paused, completed, canceled, backlog)           
   --start-date            <startDate>    - Start date (YYYY-MM-DD)                                                                
   --target-date           <targetDate>   - Target completion date (YYYY-MM-DD)                                                    
   --priority              <priority>     - Project priority (none, urgent, high, medium, low)                                     

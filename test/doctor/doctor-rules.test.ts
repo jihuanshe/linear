@@ -1,12 +1,37 @@
 import { assertEquals } from "@std/assert"
 import { doctorRuleIds, evaluateDoctorIssues } from "../../recipes/doctor.js"
-import type { FetchedQueryIssueResult as DoctorIssue } from "../../src/utils/linear.ts"
+// The recipe consumes DoctorIssues plus DoctorProjectTeams, not issue query.
+type DoctorIssue = {
+  id: string
+  identifier: string
+  title: string
+  url: string
+  priority: number
+  estimate: number | null
+  updatedAt: string
+  state: { name: string; type: string }
+  team: {
+    id: string
+    key: string
+    cyclesEnabled: boolean
+    issueEstimationType: string
+    activeCycle: { number: number } | null
+  }
+  project: {
+    id: string
+    name: string
+    teams: {
+      nodes: { key: string }[]
+      pageInfo: { hasNextPage: boolean; endCursor: string | null }
+    }
+  } | null
+  cycle: { id: string; number: number } | null
+}
 type DoctorScope = { kind: string; target?: string }
 type DoctorPolicy = {
   includeHistory: boolean
   includeArchived: boolean
   staleDays: number
-  backlogCycleRequired: false
   selectedRules: string[]
 }
 type DoctorProject = {
@@ -36,7 +61,6 @@ function makePolicy(
     includeHistory,
     includeArchived: false,
     staleDays,
-    backlogCycleRequired: false,
     selectedRules,
   }
 }
@@ -66,26 +90,15 @@ function makeIssue(options: {
     title: options.title ?? "Test issue",
     url: "https://linear.app/test/issue/JHS-1/test-issue",
     priority: options.priority ?? 2,
-    priorityLabel: options.priority === 0 ? "No priority" : "High",
     estimate: options.estimate === undefined ? 1 : options.estimate,
-    createdAt: "2026-08-01T00:00:00.000Z",
     updatedAt: options.updatedAt ?? "2026-08-29T00:00:00.000Z",
     state: {
-      id: "state-1",
       name: options.stateName ?? "In Progress",
-      color: "#f2c94c",
       type: options.stateType ?? "started",
-    },
-    assignee: {
-      id: "user-1",
-      name: "alex",
-      displayName: "Alex",
-      initials: "AL",
     },
     team: {
       id: "team-1",
       key: "JHS",
-      name: "集换社",
       cyclesEnabled: options.cyclesEnabled ?? true,
       issueEstimationType: options.issueEstimationType ?? "fibonacci",
       activeCycle: options.activeCycle === null
@@ -103,21 +116,12 @@ function makeIssue(options: {
         },
       },
     },
-    projectMilestone: null,
     cycle: options.cycle === undefined
       ? {
         id: "cycle-1",
         number: 16,
-        name: "Cycle 16",
-        isActive: true,
-        isNext: false,
-        isPrevious: false,
-        isFuture: false,
-        isPast: false,
       }
       : options.cycle,
-    labels: { nodes: [] },
-    inverseRelations: { nodes: [] },
   }
 }
 

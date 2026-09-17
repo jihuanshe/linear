@@ -190,13 +190,17 @@ await cliffySnapshotTest({
   denoArgs,
   canFail: true,
   async fn() {
-    // Empty team id is falsy, so getTeamKey() resolves to undefined even though
-    // the repo's .linear.toml sets one.
-    Deno.env.set("LINEAR_TEAM_ID", "")
+    const directory = await Deno.makeTempDir()
+    const cwd = Deno.cwd()
+    Deno.chdir(directory)
+    Deno.env.delete("LINEAR_TEAM_ID")
+    Deno.env.set("XDG_CONFIG_HOME", directory)
+    Deno.env.set("APPDATA", directory)
     try {
       await statesCommand.parse()
     } finally {
-      Deno.env.delete("LINEAR_TEAM_ID")
+      Deno.chdir(cwd)
+      await Deno.remove(directory, { recursive: true })
     }
   },
 })

@@ -5,7 +5,6 @@
     "jsr:@cliffy/ansi@^1.2.1": "1.2.1",
     "jsr:@cliffy/command@1.2.1": "1.2.1",
     "jsr:@cliffy/internal@1.2.1": "1.2.1",
-    "jsr:@cliffy/internal@^1.2.1": "1.2.1",
     "jsr:@cliffy/keycode@1.2.1": "1.2.1",
     "jsr:@cliffy/prompt@^1.2.1": "1.2.1",
     "jsr:@cliffy/table@1.2.1": "1.2.1",
@@ -39,13 +38,10 @@
     "npm:@graphql-codegen/cli@7.2.0": "7.2.0_graphql@17.0.2",
     "npm:@graphql-codegen/cli@^7.2.0": "7.2.0_graphql@17.0.2",
     "npm:@graphql-typed-document-node/core@^3.2.0": "3.2.0_graphql@17.0.2",
-    "npm:@types/mdast@^4.0.4": "4.0.4",
     "npm:graphql-request@^7.4.0": "7.4.0_graphql@17.0.2",
     "npm:graphql@^17.0.2": "17.0.2",
     "npm:remark-gfm@^4.0.1": "4.0.1",
     "npm:remark-parse@11": "11.0.0",
-    "npm:remark-stringify@11": "11.0.0",
-    "npm:sanitize-filename@^1.6.4": "1.6.4",
     "npm:unified@^11.0.5": "11.0.5",
     "npm:unist-util-visit@^5.1.0": "5.1.0",
     "npm:valibot@^1.4.2": "1.4.2"
@@ -54,7 +50,7 @@
     "@cliffy/ansi@1.2.1": {
       "integrity": "b8702def9c0110b6eeb2b3b71e0b26cbe0a427facbb4f9c0189da0ba19feb549",
       "dependencies": [
-        "jsr:@cliffy/internal@1.2.1",
+        "jsr:@cliffy/internal",
         "jsr:@std/encoding@^1.0.10",
         "jsr:@std/fmt@^1.0.10",
         "jsr:@std/io"
@@ -63,7 +59,7 @@
     "@cliffy/command@1.2.1": {
       "integrity": "b7b017c81560d96580ea810c8564566884d8194416f6fc06bfdc8846e8fd590f",
       "dependencies": [
-        "jsr:@cliffy/internal@1.2.1",
+        "jsr:@cliffy/internal",
         "jsr:@cliffy/table",
         "jsr:@std/fmt@^1.0.10",
         "jsr:@std/semver",
@@ -83,7 +79,7 @@
       "integrity": "e468fae0f52093ff2099f5be0bbc7632348ab82a3b7337b12ddd888aeb5d6eed",
       "dependencies": [
         "jsr:@cliffy/ansi@1.2.1",
-        "jsr:@cliffy/internal@1.2.1",
+        "jsr:@cliffy/internal",
         "jsr:@cliffy/keycode",
         "jsr:@std/assert@^1.0.19",
         "jsr:@std/fmt@^1.0.10",
@@ -102,7 +98,7 @@
       "integrity": "f1834b7ce533f835d54acc502374f29afd2c7d34d7e947d829ad6a689ad9f9fb",
       "dependencies": [
         "jsr:@cliffy/ansi@1.2.1",
-        "jsr:@cliffy/internal@1.2.1",
+        "jsr:@cliffy/internal",
         "jsr:@std/assert@^1.0.19",
         "jsr:@std/fmt@^1.0.10",
         "jsr:@std/testing@1.0.19"
@@ -2069,12 +2065,6 @@
     "safer-buffer@2.1.2": {
       "integrity": "sha512-YZo3K82SD7Riyi0E1EQPojLz7kpepnSQI9IyPbHHg1XXXevb5dJI7tpyN2ADxGcQbHG7vcyRHk0cbwqcQriUtg=="
     },
-    "sanitize-filename@1.6.4": {
-      "integrity": "sha512-9ZyI08PsvdQl2r/bBIGubpVdR3RR9sY6RDiWFPreA21C/EFlQhmgo20UZlNjZMMZNubusLhAQozkA0Od5J21Eg==",
-      "dependencies": [
-        "truncate-utf8-bytes"
-      ]
-    },
     "semver@6.3.1": {
       "integrity": "sha512-BR7VvDCVHO+q2xBEWskxS6DJE1qRnb7DxzUrogb71CWoSficBxYsiAGd+Kl0mmq/MprG9yArRkyrQxTO6XjMzA==",
       "bin": true
@@ -2158,12 +2148,6 @@
     "trough@2.2.0": {
       "integrity": "sha512-tmMpK00BjZiUyVyvrBK7knerNgmgvcV/KLVyuma/SC+TQN167GrMRciANTz09+k3zW8L8t60jWO1GpfkZdjTaw=="
     },
-    "truncate-utf8-bytes@1.0.2": {
-      "integrity": "sha512-95Pu1QXQvruGEhv62XCMO3Mm90GscOCClvrIUwCM0PYOXK3kaF3l3sIHxx71ThJfcbM2O5Au6SO3AWCSEfW4mQ==",
-      "dependencies": [
-        "utf8-byte-length"
-      ]
-    },
     "ts-log@3.0.2": {
       "integrity": "sha512-esq6hx2lM66sQV1YcFkIYTqrWWabmqBqobKHyn1CswdI5FgfQhkmiKiRWVGBNlIbdjBxEIkNvMIwLKKPgRYZLQ=="
     },
@@ -2232,9 +2216,6 @@
     },
     "urlpattern-polyfill@10.1.0": {
       "integrity": "sha512-IGjKp/o0NL3Bso1PymYURCJxMPNAf/ILOpendP9f5B6e1rTJgdgiOvgfoT8VxCAdY+Wisb9uhGaJJf3yZ2V9nw=="
-    },
-    "utf8-byte-length@1.0.5": {
-      "integrity": "sha512-Xn0w3MtiQ6zoz2vFyUVruaCL53O/DwUvkEeOvj+uulMm0BkUGYWmBYVyElqZaSLhY6ZD0ulfU3aBra2aVT4xfA=="
     },
     "valibot@1.4.2": {
       "integrity": "sha512-gjdCvJ6d3RyHAneqxMYMW9QMCwYMb3jpOO0IyHZV1bnRHFBHrX3VkIILt5XYR0WhwHiH7Mty8ovuPZ/O3gamrg=="
@@ -2316,7 +2297,6 @@
     "dependencies": [
       "jsr:@cliffy/ansi@^1.2.1",
       "jsr:@cliffy/command@1.2.1",
-      "jsr:@cliffy/internal@^1.2.1",
       "jsr:@cliffy/prompt@^1.2.1",
       "jsr:@cliffy/testing@^1.2.1",
       "jsr:@littletof/charmd@~0.1.2",
@@ -2332,13 +2312,10 @@
       "jsr:@std/toml@^1.0.11",
       "npm:@graphql-codegen/cli@^7.2.0",
       "npm:@graphql-typed-document-node/core@^3.2.0",
-      "npm:@types/mdast@^4.0.4",
       "npm:graphql-request@^7.4.0",
       "npm:graphql@^17.0.2",
       "npm:remark-gfm@^4.0.1",
       "npm:remark-parse@11",
-      "npm:remark-stringify@11",
-      "npm:sanitize-filename@^1.6.4",
       "npm:unified@^11.0.5",
       "npm:unist-util-visit@^5.1.0",
       "npm:valibot@^1.4.2"

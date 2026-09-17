@@ -17,8 +17,6 @@ await cliffySnapshotTest({
   },
 })
 
-// Regression test for #245: with no team configured, the suggestion must point
-// at the real `linear config` command, not the non-existent `linear configure`.
 await cliffySnapshotTest({
   name: "Team Key Command - No Team Configured",
   meta: import.meta,
@@ -27,13 +25,17 @@ await cliffySnapshotTest({
   denoArgs,
   canFail: true,
   async fn() {
-    // An empty team key is falsy, so getTeamKey() resolves to undefined even
-    // though the repo's .linear.toml sets one — this exercises the error path.
-    Deno.env.set("LINEAR_TEAM_ID", "")
+    const directory = await Deno.makeTempDir()
+    const cwd = Deno.cwd()
+    Deno.chdir(directory)
+    Deno.env.delete("LINEAR_TEAM_ID")
+    Deno.env.set("XDG_CONFIG_HOME", directory)
+    Deno.env.set("APPDATA", directory)
     try {
       await keyCommand.parse()
     } finally {
-      Deno.env.delete("LINEAR_TEAM_ID")
+      Deno.chdir(cwd)
+      await Deno.remove(directory, { recursive: true })
     }
   },
 })

@@ -5,12 +5,7 @@ import { gql } from "../../__codegen__/gql.ts"
 import { getGraphQLClient } from "../../utils/graphql.ts"
 import { formatRelativeTime } from "../../utils/display.ts"
 import { shouldShowSpinner } from "../../utils/hyperlink.ts"
-import { getOption } from "../../config.ts"
 import { completeConnection } from "../../utils/pagination.ts"
-import {
-  downloadMarkdownImages,
-  replaceImageUrls,
-} from "../../utils/markdown-images.ts"
 import {
   handleError,
   isClientError,
@@ -142,8 +137,7 @@ export const viewCommand = new Command()
   .option("--raw", "Output raw markdown without rendering")
   .option("-w, --web", "Open document in browser")
   .option("--json", "Output full document as JSON")
-  .option("--no-download", "Keep remote URLs instead of downloading files")
-  .action(async ({ raw, web, json, download }, id) => {
+  .action(async ({ raw, web, json }, id) => {
     const { Spinner } = await import("@std/cli/unstable-spinner")
     const showSpinner = shouldShowSpinner() && !raw && !json
     const spinner = showSpinner ? new Spinner() : null
@@ -168,20 +162,12 @@ export const viewCommand = new Command()
         return
       }
 
-      // JSON output preserves the raw GraphQL response; skip image rewrites.
       if (json) {
         console.log(JSON.stringify(result, null, 2))
         return
       }
 
-      let content = document.content
-      const shouldDownload = download && getOption("download_images") !== false
-      if (shouldDownload && content) {
-        const urlToPath = await downloadMarkdownImages([content])
-        if (urlToPath.size > 0) {
-          content = await replaceImageUrls(content, urlToPath)
-        }
-      }
+      const content = document.content
 
       // Raw output (for piping)
       if (raw || !Deno.stdout.isTerminal()) {

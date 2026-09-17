@@ -2,7 +2,6 @@ import { Kind, type OperationTypeNode, parse } from "graphql"
 
 // Internal, reversible defaults, not a CLI configuration surface. Each logical
 // request (one pagination page) includes headers, body consumption and waits.
-const attemptTimeoutMs = 30_000
 const requestTimeoutMs = 60_000
 const maxAttempts = 3
 const retryStatuses = new Set([429, 502, 503, 504])
@@ -63,42 +62,6 @@ function retryableResponse(response: Response, text: string): boolean {
     }
   }
   return retryStatuses.has(response.status)
-}
-
-function transientNetworkError(error: unknown): boolean {
-  if (!(error instanceof Error)) return false
-  if (
-    error instanceof DOMException && error.name === "TimeoutError" ||
-    error instanceof Deno.errors.ConnectionReset ||
-    error instanceof Deno.errors.ConnectionRefused ||
-    error instanceof Deno.errors.ConnectionAborted ||
-    error instanceof Deno.errors.TimedOut ||
-    error instanceof Deno.errors.UnexpectedEof ||
-    error instanceof Deno.errors.BrokenPipe
-  ) return true
-  const codes = new Set([
-    "ECONNRESET",
-    "ECONNREFUSED",
-    "ECONNABORTED",
-    "ETIMEDOUT",
-    "EPIPE",
-    "EAI_AGAIN",
-    "ENETUNREACH",
-    "EHOSTUNREACH",
-  ])
-  // Fetch can wrap OS failures. Do not retry generic TypeErrors (invalid URL,
-  // TLS/configuration errors, etc.) or a caller's AbortError.
-  let cause: unknown = error
-  for (let depth = 0; depth < 4 && cause instanceof Error; depth++) {
-    if ("code" in cause && codes.has(String(cause.code))) return true
-    if (
-      cause instanceof TypeError &&
-      /\b(connection reset|connection refused|connection closed before message completed|broken pipe|temporary failure in name resolution|network is unreachable|connect(?:ion)? timed out)\b/i
-        .test(cause.message)
-    ) return true
-    cause = cause.cause
-  }
-  return false
 }
 
 function retryAfter(response: Response): number | undefined {
@@ -192,58 +155,34 @@ export async function graphqlFetch(
 
   for (let attempt = 1;; attempt++) {
     checkDeadline()
-    let result: { response: Response; text: string } | undefined
-    let response: Response | undefined
-    let failure: unknown
-    {
-      using current = deadline(
-        overall.signal,
-        Math.min(attemptTimeoutMs, end - performance.now()),
-      )
-      try {
-        const pending = fetch(input, { ...init, signal: current.signal })
-        // Even a fetch implementation that resolves after cancellation must not
-        // leave an unread response body behind.
-        void pending.then((response) => {
-          if (current.signal.aborted) {
-            void response.body?.cancel().catch(() => {})
-          }
-        }, () => {})
-        response = await abortable(pending, current.signal)
-        result = { response, text: await readBody(response, current.signal) }
-        current.signal.throwIfAborted()
-      } catch (error) {
-        result = undefined
-        failure = error
+    const pending = fetch(input, { ...init, signal: overall.signal })
+    // Even a fetch implementation that resolves after cancellation must not
+    // leave an unread response body behind.
+    void pending.then((response) => {
+      if (overall.signal.aborted) {
+        void response.body?.cancel().catch(() => {})
       }
-    }
+    }, () => {})
+    const response = await abortable(pending, overall.signal)
+    const text = await readBody(response, overall.signal)
+    overall.signal.throwIfAborted()
     // Once the body is complete, preserve it even if synchronous cleanup
     // crossed the deadline. An exhausted budget still prevents another retry.
-    if (result == null) checkDeadline()
     const retry = query && attempt < maxAttempts &&
-      (result
-        ? retryableResponse(result.response, result.text)
-        : transientNetworkError(failure) &&
-          (response == null || response.status === 200 ||
-            retryStatuses.has(response.status)))
+      retryableResponse(response, text)
     const backoff = Math.ceil(
       Math.min(5_000, 500 * 2 ** (attempt - 1)) * (0.5 + Math.random() * 0.5),
     )
-    // Headers still constrain retry when the response body was interrupted.
-    const wait = Math.max(
-      backoff,
-      response ? retryAfter(response) ?? 0 : 0,
-    )
+    const wait = Math.max(backoff, retryAfter(response) ?? 0)
     if (!retry || wait >= end - performance.now()) {
-      if (!result) throw failure
-      return new Response(result.response.body == null ? null : result.text, {
-        status: result.response.status,
-        statusText: result.response.statusText,
-        headers: result.response.headers,
+      return new Response(response.body == null ? null : text, {
+        status: response.status,
+        statusText: response.statusText,
+        headers: response.headers,
       })
     }
     // Do not clamp Retry-After to the remaining budget and hammer the server.
-    // If it cannot be honored, the original response/failure is surfaced above.
+    // If it cannot be honored, the original response is surfaced above.
     let timer: ReturnType<typeof setTimeout> | undefined
     try {
       await abortable(

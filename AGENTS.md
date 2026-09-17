@@ -28,7 +28,7 @@
 ## 实现边界
 
 - 常见领域操作、名称解析和写入校验使用专用命令。`linear schema` 与 `linear api` 只补专用命令未覆盖的长尾 GraphQL；已有专用写命令时，不用原生 mutation 绕过它的校验、原始值比较或读回。
-- `usage` 与根／领域导航从实际 Cliffy 命令树生成，不维护第二份命令目录。`withUsageMetadata` 与定义和执行该行为的命令模块放在一起；`writes`、`interactive`、`confirmation` 和 `outputModes` 描述能力，不代表授权。
+- `usage` 与根／领域导航从实际 Cliffy 命令树生成，不维护第二份命令目录。`withUsageMetadata` 与定义和执行该行为的命令模块放在一起；`writes`、`interactive` 和 `outputModes` 描述能力，不代表授权。
 - 全局 `--json`／`-j` 选择机器输出，命令是否支持由自身输出契约决定，不能从继承到的选项反推能力。不支持或与其他输出方式冲突时，在命令副作用前拒绝；根／领域 JSON 导航复用 `usage` 数据。命令局部 JSON 定义保留类型与语义描述，根命令统一接入别名和执行前校验。
 - 指南的 Markdown 是内容事实源。元数据头只使用 `name`、`description`、`commands`；它定义命令与指南的关系。新增指南时同步 `src/guides/content.ts` 的静态导入清单，指南测试必须证明文件、名称、命令引用和二进制嵌入一致。
 - 工作流示例的说明与脚本以 `recipes/` 为源，通过静态文本导入随二进制分发。`linear recipe` 只展示和导出，不执行脚本、不访问网络。说明必须写清依赖、输入、写入范围及失败后的动作；安装用户不能依赖源码目录。测试核对说明、脚本、索引与编译产物的一致性。

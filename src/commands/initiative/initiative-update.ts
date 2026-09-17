@@ -1,6 +1,8 @@
 import { Command } from "@cliffy/command"
 import { withUsageMetadata } from "../usage.ts"
 import { Input, Select } from "../../utils/prompt.ts"
+import { openEditor } from "../../utils/editor.ts"
+import { readTextSource } from "../../utils/text-source.ts"
 import { gql } from "../../__codegen__/gql.ts"
 import type { InitiativeUpdateInput } from "../../__codegen__/graphql.ts"
 import {
@@ -78,10 +80,16 @@ export const updateCommand = withUsageMetadata(new Command(), {
     { preserveEmpty: true },
   )
   .option(
-    "--content-file <path:string>",
-    "Read the initiative's Markdown content from a file; replaces the full content",
+    "--content <text:string>",
+    "Replace the initiative's Markdown content; empty string clears it",
     { preserveEmpty: true },
   )
+  .option(
+    "--content-file <path:string>",
+    "Read UTF-8 content from a file (- for stdin); replaces the full content",
+    { preserveEmpty: true },
+  )
+  .option("--edit", "Open the current initiative content in an editor")
   .option(
     "--status <status:string>",
     "New status (planned, active, completed, proposed, canceled; case-insensitive)",
@@ -121,9 +129,18 @@ export const updateCommand = withUsageMetadata(new Command(), {
   )
   .action(async (options, initiativeId) => {
     try {
-      const content = options.contentFile !== undefined
-        ? await Deno.readTextFile(options.contentFile)
-        : undefined
+      let content = await readTextSource(
+        "content",
+        options.content,
+        options.contentFile,
+      )
+      if (
+        options.edit && (content != null || options.json || options.interactive)
+      ) {
+        throw new ValidationError(
+          "--edit cannot be combined with --content, --content-file, --json, or --interactive",
+        )
+      }
       for (
         const [field, value] of Object.entries({
           name: options.name,
@@ -171,7 +188,7 @@ export const updateCommand = withUsageMetadata(new Command(), {
         Deno.stdin.isTerminal() && Object.keys(input).length === 0 &&
         options.owner === undefined
       if (
-        !interactive && Object.keys(input).length === 0 &&
+        !interactive && !options.edit && Object.keys(input).length === 0 &&
         options.owner === undefined
       ) {
         if (
@@ -193,7 +210,10 @@ export const updateCommand = withUsageMetadata(new Command(), {
         else console.log("No changes specified")
         return
       }
-      if (!interactive || original != null || options.unprotected) {
+      if (
+        (!interactive && !options.edit) || original != null ||
+        options.unprotected
+      ) {
         validateReplacementOptions({
           original,
           unprotected: options.unprotected,
@@ -202,6 +222,14 @@ export const updateCommand = withUsageMetadata(new Command(), {
       }
       const client = getGraphQLClient()
       const resolvedId = await resolveInitiativeId(client, initiativeId)
+      if (options.edit) {
+        const initial = await readInitiative(client, resolvedId, {
+          includeContent: true,
+        })
+        if (!options.unprotected) original ??= initial
+        content = await openEditor(initial.initiative!.content ?? "")
+        input.content = content
+      }
       if (options.owner !== undefined) {
         const ownerId = await lookupUserId(options.owner)
         if (!ownerId) throw new NotFoundError("Owner", options.owner)

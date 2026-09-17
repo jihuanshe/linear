@@ -9,7 +9,7 @@ import {
   handleError,
   ValidationError,
 } from "../../utils/errors.ts"
-import { printWriteResult, setMachineOutput } from "../../utils/write-result.ts"
+import { printWriteResult } from "../../utils/write-result.ts"
 
 const DeleteProjectMilestone = gql(`
   mutation DeleteProjectMilestone($id: String!) {
@@ -22,8 +22,6 @@ const DeleteProjectMilestone = gql(`
 export const deleteCommand = withUsageMetadata(new Command(), {
   writes: true,
   interactive: true,
-  confirmationRequiredUnless: "--force",
-  outputModes: ["human", "json"],
 })
   .name("delete")
   .option("--json", "Output a JSON write result")
@@ -31,7 +29,6 @@ export const deleteCommand = withUsageMetadata(new Command(), {
   .arguments("<id:string>")
   .option("-f, --force", "Skip confirmation prompt")
   .action(async ({ force, json }, id) => {
-    setMachineOutput(json ?? false)
     // Confirmation prompt unless --force is used
     if (!force) {
       if (json || !Deno.stdin.isTerminal()) {

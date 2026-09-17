@@ -1,9 +1,10 @@
 import { Command } from "@cliffy/command"
+import { rgb24 } from "@std/fmt/colors"
 import { renderMarkdown } from "../../utils/markdown.ts"
 import { open } from "@opensrc/deno-open"
 import { readInitiative } from "./initiative-read.ts"
 import { getGraphQLClient } from "../../utils/graphql.ts"
-import { formatRelativeTime, printStyled } from "../../utils/display.ts"
+import { formatRelativeTime } from "../../utils/display.ts"
 import { shouldShowSpinner } from "../../utils/hyperlink.ts"
 import { handleError, NotFoundError } from "../../utils/errors.ts"
 import { resolveInitiativeId } from "./initiative-resolve.ts"
@@ -106,7 +107,9 @@ export const viewCommand = new Command()
       const statusLine = `**Status:** ${statusDisplay}`
       if (Deno.stdout.isTerminal()) {
         const statusColor = STATUS_COLORS[initiative.status] || "#6B6F76"
-        printStyled([statusLine, `color: ${statusColor}`])
+        console.log(
+          rgb24(statusLine, parseInt(statusColor.replace("#", ""), 16)),
+        )
       } else {
         lines.push(statusLine)
       }

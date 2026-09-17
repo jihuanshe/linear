@@ -5,9 +5,8 @@ stdout:
 "
 Usage: create
 
-Writes: true            
-Interactive: true       
-Output modes: human,json
+Writes: true     
+Interactive: true
 
 Description:
 
@@ -22,10 +21,11 @@ Description:
 Options:
 
   -h, --help                     - Show this help.                                                             
-  --json                         - Output a JSON write result                                                  
+  --json                         - Output a JSON write result; the created document is in data.document        
   -t, --title         <title>    - Document title (required)                                                   
   -c, --content       <content>  - Markdown content (inline)                                                   
-  -f, --content-file  <path>     - Read content from file                                                      
+  -f, --content-file  <path>     - Read UTF-8 content from a file (- for stdin)                                
+  --edit                         - Open an editor, optionally seeded by --content or --content-file            
   --project           <project>  - Attach to project (UUID, slug ID, or name; exactly one parent is required)  
   --issue             <issue>    - Attach to issue (identifier like TC-123; exactly one parent is required)    
   --icon              <icon>     - Document icon (emoji)                                                       

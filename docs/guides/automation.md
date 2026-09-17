@@ -89,17 +89,19 @@ CLI 完成名称解析后，会按同一 UUID 最后读取并比较原始依据�
 
 创建、评论追加、侧栏关联和原生标签增删不要求不存在的旧值；Issue 的 `--add-label` / `--remove-label` 使用上游增量操作，不转换为完整集合覆盖。关系新增仍检查是否会替换已有关系。
 
-需要把导出与提交接入自己的脚本时，可修改 `linear recipe guarded-edit`。多项写入的执行进度与恢复见 `linear guide issue-delivery`。
+给 Issue 加侧栏文件用 `issue attach`；新建带文件评论用 `issue comment add --attach`；给已有评论补文件时，先保存 `issue comment view --json`，再用 `issue comment update --base-file <原始读取> --attach <文件>`。三种路径的完整示例与上传后冲突恢复见 `linear guide issue-authoring`。多项写入的执行进度与恢复见 `linear guide issue-delivery`。
 
 ## 机器输出与写入效果
 
 `--json`（`-j`）可放在命令路径前、中、后，含义相同，例如 `linear --json issue view ENG-123` 与 `linear issue view ENG-123 --json`。根和领域导航也支持 JSON；`usage --json` 的 `outputModes` 描述各命令是否提供机器结果。未支持的命令在执行前返回 `UnsupportedOutputError`，不输出人类文本或代为执行其他命令。
 
-JSON 不与浏览器／应用跳转、显式交互／编辑、原文／脚本输出或静默输出组合。`--json --help`、`--json --version` 同样被拒绝；命令元数据用 `usage --json`，构建身份用 `version --json`。`schema --json --output <file>` 保存 JSON 文件，同时在 stdout 返回同一份 JSON。
+JSON 不与浏览器／应用跳转、显式交互／编辑或原文／脚本输出组合。`--json --help`、`--json --version` 同样被拒绝；命令元数据用 `usage --json`，构建身份用 `version --json`。`schema --json --output <file>` 保存 JSON 文件，成功时 stdout 留空。
 
 `--no-pager` 仍是命令级选项。自动化显式传入目标编号或 UUID，并使用 `LINEAR_PROMPT_DISABLED=1` 禁用提示；JSON 不代替删除确认或写入授权。人类输出和 `NO_COLOR=1` 都不能代替机器协议。
 
 专用业务写命令的 `--json` 在 stdout 输出一份 `{ok,effect,data,...}`，可附 `fields`、`verification` 或回执。失败使用 `ok: false` 和 `error`。退出码为零只表示本次调用完整成功；`effect` 单独说明写入效果。`linear api` 是例外：它保留原始 GraphQL 响应，规则见 `linear guide graphql`。
+
+创建单个实体时，`data` 下保留 GraphQL 资源字段，而不是把字段直接展开到 `data`；例如 Issue 编号在 `data.issue.identifier`，Document ID 在 `data.document.id`。具体路径见创建命令的 `--json` 帮助。删除、批量操作、上传与原生 API 各自保留其合同。
 
 | 写入效果 `effect` | 可据此决定的下一步                                                    |
 | ----------------- | --------------------------------------------------------------------- |
@@ -111,15 +113,15 @@ JSON 不与浏览器／应用跳转、显式交互／编辑、原文／脚本输
 
 多行 Markdown 用文件参数；`document view --raw` 只输出正文，不能替代带身份的原始读取。原生 `linear api` 保留 GraphQL 响应，属于 `linear guide graphql` 中的明确例外。
 
-`issue update` 在 mutation 确认后读取相同 Issue 和工作区，核对请求的字段及标签增删结果；最多读取 3 次，总时限 10 秒。正文沿用 `issue apply` 的 Markdown 结构比较，写前原始依据仍精确比较。成功结果的 `verification.status` 为 `verified`，`readBack` 保存 `{organization,issue}`；无需写入时沿用提交前的读取，不另做写后核验。
+`issue update` 在 mutation 确认后读取相同 Issue 和工作区，核对请求的字段及标签增删结果；仅在读到不同值时重读，最多读取 3 次，总时限 10 秒。身份、权限、结构等导致的不可用结果直接报告。正文沿用 `issue apply` 的 Markdown 结构比较，写前原始依据仍精确比较。成功结果的 `verification.status` 为 `verified`，`readBack` 保存 `{organization,issue}`；无需写入时沿用提交前的读取，不另做写后核验。
 
 读回不匹配或不可用时，命令以非零退出，保留 `effect: applied` 与 `data` 中的 mutation 回执；`error.details.verification.status` 为 `different` 或 `unavailable`。此时只补充读取和对账，不重发 mutation。这个读回不验证评论、附件或更晚发生的并发修改。
 
 ## 网络等待与查询重试
 
-专用命令与 `linear api` 共用 GraphQL 请求规则：每次尝试最多 30 秒，每个逻辑请求最多 60 秒，包含响应正文读取和重试等待，最多尝试 3 次。分页的每一页分别计时，不是整个命令或整批 `apply` 的总时限；写后核验等调用方更短的取消期限仍然有效。此规则不涵盖文件 PUT、下载或其他非 GraphQL 网络操作。
+专用命令与 `linear api` 共用 GraphQL 请求规则：每个逻辑请求最多 60 秒，包含响应正文读取和重试等待，query 最多尝试 3 次。分页的每一页分别计时，不是整个命令或整批 `apply` 的总时限；写后核验等调用方更短的取消期限仍然有效。此规则不涵盖文件 PUT、下载或其他非 GraphQL 网络操作。
 
-只有明确选中的 query 会对 HTTP 429／502／503／504、已分类的瞬态网络失败，以及 HTTP 200／400 中单纯的 `RATELIMITED` 错误重试。已有部分数据、认证、权限和校验错误不重试。等待使用有界退避，并遵守 `Retry-After` 的秒数或 HTTP 日期；剩余时间不足以遵守服务器要求时，返回原始失败，不缩短等待后强行重试。
+只有明确选中的 query 会对 HTTP 429／502／503／504，以及 HTTP 200／400 中单纯的 `RATELIMITED` 错误重试。无完整响应的连接错误、已有部分数据、认证、权限和校验错误不重试。等待使用有界退避，并遵守 `Retry-After` 的秒数或 HTTP 日期；剩余时间不足以遵守服务器要求时，返回原始失败，不缩短等待后强行重试。
 
 mutation 不自动重发。派发后的超时、连接或响应读取失败仍可能已经写入，按 `effect` 与回执对账，不把超时理解为撤销。
 
@@ -169,7 +171,9 @@ linear project update <ID> --content-file project-content.md --base-file project
 
 读取成功后才提取草稿；保留 `project-original.json` 原样，不把编辑后的内容写回依据。Markdown 往返的富文本限制同样适用，见 `linear guide markdown`。
 
-单独导出评论用 `issue comment list <ID> --limit 0 --json`；省略 `--limit 0` 时最多读取 50 条，并返回 `{nodes,pageInfo}`。属性变更经过用 `issue history <ID> --json`。
+单独导出评论用 `issue comment list <ID> --limit 0 --json`；省略 `--limit 0` 时最多读取 50 条，并返回 `{nodes,pageInfo}`。属性变更经过用 `issue history <ID> --json`，默认读取全部历史页，也返回 `{nodes,pageInfo}`；使用有限 `--limit` 时检查后续游标。
+
+`history` 展示上游返回的活动记录，不保证每次写入都有独立条目。Kadoraba 实测中，紧接创建的部分标题／正文修改未出现，后续优先级和附件变更有记录；原生 GraphQL 返回相同结果，具体原因未确定。用 `view` 读取当前状态；判断写入是否发生要结合本次回执与读回，不能因历史缺项重发写入。
 
 `issue view` 的未解决数量按完整读取后的根线程计算，JSON 保留已解决历史；`--no-comments` 跳过评论，也不显示数量。线程收束见 `linear guide issue-authoring`。`resolve`／`unresolve` 的 JSON 写结果将读回的根评论放在 `.data.comment`；读回失败仍保留已确认的 `effect: applied`。
 

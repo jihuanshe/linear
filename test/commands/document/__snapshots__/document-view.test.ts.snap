@@ -11,11 +11,10 @@ Description:
 
 Options:
 
-  -h, --help     - Show this help.                                
-  --raw          - Output raw markdown without rendering          
-  -w, --web      - Open document in browser                       
-  --json         - Output full document as JSON                   
-  --no-download  - Keep remote URLs instead of downloading files  
+  -h, --help  - Show this help.                        
+  --raw       - Output raw markdown without rendering  
+  -w, --web   - Open document in browser               
+  --json      - Output full document as JSON           
 
 "
 stderr:
@@ -128,7 +127,7 @@ stderr:
 ""
 `;
 
-snapshot[`Document View Command - No Download Keeps Remote URLs 1`] = `
+snapshot[`Document View Command - Raw Content Keeps Remote URLs 1`] = `
 stdout:
 "# Doc
 

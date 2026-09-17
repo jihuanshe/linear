@@ -12,7 +12,7 @@ import {
   handleError,
   NotFoundError,
 } from "../../utils/errors.ts"
-import { printWriteResult, setMachineOutput } from "../../utils/write-result.ts"
+import { printWriteResult } from "../../utils/write-result.ts"
 
 const GetProjectInitiativeLinksForAdd = gql(`
   query GetProjectInitiativeLinksForAdd($id: String!, $after: String) {
@@ -70,7 +70,6 @@ async function resolveProjectId(
 
 export const addProjectCommand = withUsageMetadata(new Command(), {
   writes: true,
-  outputModes: ["human", "json"],
 })
   .name("add-project")
   .option("--json", "Output a JSON write result")
@@ -87,7 +86,6 @@ export const addProjectCommand = withUsageMetadata(new Command(), {
       initiativeArg,
       projectArg,
     ) => {
-      setMachineOutput(json ?? false)
       const client = getGraphQLClient()
 
       // Resolve initiative

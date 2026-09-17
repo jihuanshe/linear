@@ -16,6 +16,7 @@ import {
   readIssueRelationInventory,
 } from "../commands/issue/issue-relation.ts"
 import {
+  composeCommentBody,
   createIssueAttachment,
   createIssueComment,
   linkIssueUrl,
@@ -36,7 +37,7 @@ import {
   type ReplacementFieldPlan,
 } from "../utils/replacement.ts"
 import { errorResult, ValidationError, WriteError } from "../utils/errors.ts"
-import { formatAsMarkdownLink, uploadFile } from "../utils/upload.ts"
+import { uploadFile } from "../utils/upload.ts"
 import { type WriteEffect } from "../utils/write-result.ts"
 import {
   differentIssueFields,
@@ -384,6 +385,7 @@ async function expand(loaded: LoadedManifest): Promise<DeliveryItem[][]> {
         )
       }
       const body = contentFrom(loaded, comment.body, comment.bodyFile)
+      composeCommentBody(body)
       const key = await keyFor(index, "comment", String(commentIndex), {
         targetIdentity,
         body,
@@ -394,12 +396,10 @@ async function expand(loaded: LoadedManifest): Promise<DeliveryItem[][]> {
         kind: "comment",
         describe: "add comment " + (commentIndex + 1),
         async run(state, beforeWrite) {
-          const links = uploads.map((key) =>
-            formatAsMarkdownLink(uploadReceipt(state, key))
+          const fullBody = composeCommentBody(
+            body,
+            uploads.map((key) => uploadReceipt(state, key)),
           )
-          const fullBody = [body, ...links].filter((value) =>
-            value !== undefined && value !== ""
-          ).join("\n\n")
           const { comment: created } = await createIssueComment(
             requireTarget(state).id,
             { body: fullBody, beforeWrite },

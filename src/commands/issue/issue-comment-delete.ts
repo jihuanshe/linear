@@ -15,7 +15,6 @@ const DeleteComment = gql(`
 export const commentDeleteCommand = withUsageMetadata(new Command(), {
   writes: true,
   interactive: true,
-  confirmationRequiredUnless: "--confirm",
 })
   .name("delete")
   .description("Delete a comment")

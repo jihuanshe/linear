@@ -50,17 +50,17 @@ linear usage --json               # 机器可读命令树
 linear guide                      # 内嵌指南索引
 linear guide issue-delivery       # Issue 交付与恢复指南
 linear recipe                     # 工作流示例索引
-linear recipe guarded-edit        # 示例的完整说明
+linear recipe doctor              # 示例的完整说明
 ```
 
 `usage` 和 `--help` 由当前二进制的真实命令树生成。指南与工作流示例随二进制编译发布，可离线读取；指南说明跨命令工作流，示例提供可审阅、修改的普通脚本。
 
 ## 使用示例
 
-终端工作流可以从显式 Issue 编号开始，也可以从 Git 分支名中的编号（如 `eng-123-fix-login`），或 Jujutsu 提交的 `Linear-issue` 尾注推断当前 Issue：
+读取可从 Git 分支名中的编号（如 `eng-123-fix-login`）或 Jujutsu 提交的 `Linear-issue` 尾注推断当前 Issue；写入须显式提供目标。`issue id` 可将当前工作上下文转换为编号：
 
 ```bash
-linear issue mine
+linear issue query --team ENG --assignee self --state unstarted
 linear issue query --search "login bug"
 linear issue view ENG-123
 linear issue pick
@@ -68,17 +68,17 @@ linear issue view ENG-123 --json > original.json
 linear issue update ENG-123 --base-file original.json --state "In Progress"
 ```
 
-Git/Jujutsu 工作上下文、GitHub PR／自动链接、团队迁移与只读健康检查使用 `linear recipe` 中的工作流示例。`issue pick` 保留终端选择，只输出编号；配置团队的可读 key 用 `team key`，团队 UUID 从 `team list --json` 读取。
+团队迁移与只读健康检查使用 `linear recipe` 中的工作流示例。`issue pick` 保留终端选择，只输出编号；配置团队的可读 key 用 `team key`，团队 UUID 从 `team list --json` 读取。
 
 先读取示例说明，再按需导出脚本：
 
 ```bash
-linear recipe guarded-edit
-linear recipe guarded-edit --source > guarded-edit.js
-linear recipe guarded-edit --json > guarded-edit.json
+linear recipe doctor
+linear recipe doctor --source > doctor.js
+linear recipe doctor --json > doctor.json
 ```
 
-`--json` 返回 `name`、`description`、`filename`、`body` 和 `source`；`--source` 原样输出一个脚本。查看和导出不访问网络、不执行脚本，也不需要源码目录。执行导出的 JavaScript 示例需要 Deno，Shell 示例需要 `sh` 及其调用的工具；具体依赖与失败处理由每份示例说明。源码中的[示例目录](recipes/README.md)供维护者阅读。
+`--json` 返回 `name`、`description`、`filename`、`body` 和 `source`；`--source` 原样输出一个脚本。查看和导出不访问网络、不执行脚本，也不需要源码目录。执行导出的示例需要 Deno；具体依赖与失败处理由每份示例说明。源码中的[示例目录](recipes/README.md)供维护者阅读。
 
 无人值守执行应禁用提示、分离 stdout 与 stderr，并只消费目标命令明确提供的结构化输出：
 

@@ -789,12 +789,20 @@ Deno.test("delivery retains a completed upload when a comment fails before sendi
   const original = issue()
   const f = await fixture({ issues: [original] })
   try {
-    await Deno.writeFile(join(f.dir, "proof.yrp"), new Uint8Array([1, 2, 3]))
+    const body = "\uFEFF  Evidence  \r\n    code\r\n\\n\r\n"
+    await Deno.writeFile(
+      join(f.dir, "proof]draft.yrp"),
+      new Uint8Array([1, 2, 3]),
+    )
+    await Deno.writeFile(join(f.dir, "screenshot.png"), new Uint8Array([4, 5]))
     const loaded = await f.load(
       manifest([{
         operation: "update",
         identifier: original.identifier,
-        comments: [{ body: "Evidence", files: [{ path: "proof.yrp" }] }],
+        comments: [{
+          body,
+          files: [{ path: "proof]draft.yrp" }, { path: "screenshot.png" }],
+        }],
       }]),
     )
     const first = await apply(loaded, {
@@ -806,7 +814,7 @@ Deno.test("delivery retains a completed upload when a comment fails before sendi
     })
     assertEquals(first.status, "stopped-on-failure")
     assertEquals(first.summary.unknown, 0)
-    assertEquals(f.server.uploadRequests.length, 1)
+    assertEquals(f.server.uploadRequests.length, 2)
     assertEquals(f.state.comments.size, 0)
     const checkpoint = (await loadCheckpoint(f.path))!
     assertEquals(
@@ -822,11 +830,12 @@ Deno.test("delivery retains a completed upload when a comment fails before sendi
     assertEquals(JSON.stringify(checkpoint).includes("uploadUrl"), false)
     const resumed = await apply(loaded)
     assertEquals(resumed.status, "completed")
-    assertEquals(f.server.uploadRequests.length, 1)
+    assertEquals(f.server.uploadRequests.length, 2)
     assertEquals(f.state.comments.size, 1)
-    assertStringIncludes(
+    assertEquals(
       [...f.state.comments.values()][0].body,
-      "https://uploads.linear.app/file-1",
+      body + "\n\n[proof\\]draft.yrp](https://uploads.linear.app/file-1)" +
+        "\n\n![screenshot.png](https://uploads.linear.app/file-2)",
     )
   } finally {
     await f.cleanup()
@@ -1530,8 +1539,8 @@ Deno.test("delivery submits captured description and comment bytes without refre
   const original = issue()
   const f = await fixture({ issues: [original] })
   try {
-    const description = " \nCaptured description\n ",
-      body = " \nCaptured comment\n "
+    const description = "\uFEFF \r\n    Captured description\r\n\\n\r\n ",
+      body = "\uFEFF \r\nCaptured comment  \r\n\\n\r\n "
     await Deno.writeTextFile(join(f.dir, "description.md"), description)
     await Deno.writeTextFile(join(f.dir, "comment.md"), body)
     const loaded = await f.load(

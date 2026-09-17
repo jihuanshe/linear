@@ -1,8 +1,8 @@
 import { Command } from "@cliffy/command"
 import { handleError, withAppliedReceipts } from "../utils/errors.ts"
 import { printWriteResult } from "../utils/write-result.ts"
+import { formatAsMarkdownLink } from "../operations/issue-content.ts"
 import {
-  formatAsMarkdownLink,
   prepareUploads,
   uploadFile,
   type UploadResult,

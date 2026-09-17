@@ -289,7 +289,12 @@ async function inventoryFile(
     contentType: getMimeType(resolvedPath),
     sha256: encodeHex(await crypto.subtle.digest("SHA-256", bytes)),
     ...(text
-      ? { content: new TextDecoder("utf-8", { fatal: true }).decode(bytes) }
+      ? {
+        content: new TextDecoder("utf-8", { fatal: true, ignoreBOM: true })
+          .decode(
+            bytes,
+          ),
+      }
       : {}),
   }
 }

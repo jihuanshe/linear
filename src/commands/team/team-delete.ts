@@ -4,7 +4,7 @@ import { printWriteResult } from "../../utils/write-result.ts"
 import { assertPromptAllowed, Confirm } from "../../utils/prompt.ts"
 import { gql } from "../../__codegen__/gql.ts"
 import { getGraphQLClient } from "../../utils/graphql.ts"
-import { getTeamIdByKey } from "../../utils/linear.ts"
+import { resolveWriteTeam } from "../../utils/issue-read.ts"
 import {
   assertMutationSuccess,
   handleError,
@@ -26,7 +26,6 @@ const DeleteTeam = gql(`
 export const deleteCommand = withUsageMetadata(new Command(), {
   writes: true,
   interactive: true,
-  confirmationRequiredUnless: "--force",
 })
   .name("delete")
   .description(
@@ -39,8 +38,7 @@ export const deleteCommand = withUsageMetadata(new Command(), {
   .action(async ({ force, dryRun, json }, teamKey) => {
     try {
       const client = getGraphQLClient()
-      const teamId = await getTeamIdByKey(teamKey.toUpperCase())
-      if (!teamId) throw new NotFoundError("Team", teamKey)
+      const { id: teamId } = await resolveWriteTeam(teamKey)
       const readEmptyTeam = async () => {
         const { team } = await client.request(GetTeamDetails, { id: teamId })
         if (!team) throw new NotFoundError("Team", teamKey)

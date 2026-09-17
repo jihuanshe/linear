@@ -1,15 +1,12 @@
 import { completeIssueLabels } from "./issue-read.ts"
 import { gql } from "../__codegen__/gql.ts"
 import type {
-  GetAllTeamsQuery,
-  GetAllTeamsQueryVariables as _GetAllTeamsQueryVariables,
   GetIssueDetailsQuery,
   GetIssueDetailsWithCommentsQuery,
   GetIssuesForQueryQuery,
   GetOrganizationMembersQuery,
   GetProjectIdOptionsByNameQuery,
   GetProjectsForTeamQuery,
-  GetProjectTeamsForDoctorQuery,
   GetTeamMembersQuery,
   IssueFilter,
   IssueSortInput,
@@ -600,27 +597,6 @@ const issueCommentsForUrlLookupQuery = gql(/* GraphQL */ `
   }
 `)
 
-async function fetchAllIssueCommentBodies(issueId: string): Promise<string[]> {
-  const client = getGraphQLClient()
-  const fetchPage = async (after?: string) => {
-    const result = await client.request(issueCommentsForUrlLookupQuery, {
-      id: issueId,
-      after,
-    })
-    const comments = result.issue?.comments
-    if (comments == null) {
-      throw new CliError(`Unable to read comments for ${issueId}`)
-    }
-    return comments
-  }
-  const comments = await completeConnection(
-    await fetchPage(),
-    fetchPage,
-    `comment lookup for ${issueId}`,
-  )
-  return comments.nodes.map((comment) => comment.body)
-}
-
 const issueDetailsQuery = gql(/* GraphQL */ `
   query GetIssueDetails($id: String!) {
     organization { id urlKey }
@@ -869,8 +845,6 @@ const queryIssuesQuery = gql(/* GraphQL */ `
     $first: Int
     $after: String
     $includeArchived: Boolean
-    $includeProjectTeamMetadata: Boolean!
-    $includeEstimationMetadata: Boolean!
     $includeDescription: Boolean!
     $includeComments: Boolean!
   ) {
@@ -918,7 +892,6 @@ const queryIssuesQuery = gql(/* GraphQL */ `
           key
           name
           cyclesEnabled
-          issueEstimationType @include(if: $includeEstimationMetadata)
           activeCycle {
             number
           }
@@ -926,18 +899,6 @@ const queryIssuesQuery = gql(/* GraphQL */ `
         project {
           id
           name
-          teams(
-            first: 100
-            includeArchived: $includeArchived
-          ) @include(if: $includeProjectTeamMetadata) {
-            nodes {
-              key
-            }
-            pageInfo {
-              hasNextPage
-              endCursor
-            }
-          }
         }
         projectMilestone {
           id
@@ -982,99 +943,13 @@ const queryIssuesQuery = gql(/* GraphQL */ `
   }
 `)
 
-const projectTeamsQuery = gql(/* GraphQL */ `
-  query GetProjectTeamsForDoctor(
-    $id: String!
-    $first: Int
-    $after: String
-    $includeArchived: Boolean
-  ) {
-    project(id: $id) {
-      teams(
-        first: $first
-        after: $after
-        includeArchived: $includeArchived
-      ) {
-        nodes {
-          key
-        }
-        pageInfo {
-          hasNextPage
-          endCursor
-        }
-      }
-    }
-  }
-`)
-
 type QueryIssuesPayload = GetIssuesForQueryQuery["issues"]
-type QueryIssueNode = QueryIssuesPayload["nodes"][number]
-type ProjectTeamConnection = NonNullable<
-  NonNullable<QueryIssueNode["project"]>["teams"]
->
 
 export type FetchedQueryIssueResult = QueryIssuesPayload["nodes"][number]
 
 export type FetchedQueryIssuePayload = {
   nodes: QueryIssuesPayload["nodes"]
   pageInfo: QueryIssuesPayload["pageInfo"]
-}
-
-async function fetchCompleteProjectTeams(
-  projectId: string,
-  initial: ProjectTeamConnection,
-  includeArchived?: boolean,
-): Promise<ProjectTeamConnection> {
-  const fetchPage = async (after: string, first: number) => {
-    const result: GetProjectTeamsForDoctorQuery = await getGraphQLClient()
-      .request(projectTeamsQuery, {
-        id: projectId,
-        first,
-        after,
-        includeArchived,
-      })
-    if (result.project == null) {
-      throw new NotFoundError("Project", projectId)
-    }
-    return result.project.teams
-  }
-  return await completeConnection(
-    initial,
-    fetchPage,
-    `project teams for ${projectId}`,
-  )
-}
-
-async function completeDoctorProjectTeams(
-  issues: QueryIssuesPayload["nodes"],
-  includeArchived?: boolean,
-): Promise<QueryIssuesPayload["nodes"]> {
-  const completeTeams = new Map<string, ProjectTeamConnection>()
-  for (const issue of issues) {
-    const project = issue.project
-    if (
-      project == null || project.teams == null ||
-      !project.teams.pageInfo.hasNextPage || completeTeams.has(project.id)
-    ) {
-      continue
-    }
-    completeTeams.set(
-      project.id,
-      await fetchCompleteProjectTeams(
-        project.id,
-        project.teams,
-        includeArchived,
-      ),
-    )
-  }
-
-  if (completeTeams.size === 0) return issues
-  return issues.map((issue) => {
-    const project = issue.project
-    if (project == null) return issue
-    const teams = completeTeams.get(project.id)
-    return teams == null ? issue : { ...issue, project: { ...project, teams } }
-  })
 }
 
 function buildWorkflowStateFilter(
@@ -1093,15 +968,13 @@ function buildWorkflowStateFilter(
   }
 }
 
-export interface FetchIssuesForQueryOptions {
+interface IssueFilterOptions {
   teamKeys?: string[]
   allTeams?: boolean
   state?: string[]
   stateNames?: string[]
   assignee?: string
   unassigned?: boolean
-  sort?: "manual" | "priority"
-  limit?: number
   projectId?: string
   noProject?: boolean
   projectLabel?: string
@@ -1110,15 +983,18 @@ export interface FetchIssuesForQueryOptions {
   labelNames?: string[]
   createdAfter?: string
   updatedAfter?: string
-  includeArchived?: boolean
-  includeProjectTeamMetadata?: boolean
-  includeEstimationMetadata?: boolean
-  /** Exact URL to locate in an issue's URL, description, or comments. */
-  exactUrl?: string
   /** Resolved once by batch callers to avoid repeating user lookup requests. */
   assigneeId?: string
   /** Use Linear's current-principal filter without a separate viewer lookup. */
   assigneeIsMe?: boolean
+}
+
+export interface FetchIssuesForQueryOptions extends IssueFilterOptions {
+  sort?: "manual" | "priority"
+  limit?: number
+  includeArchived?: boolean
+  /** Exact URL to locate in an issue's URL, description, or comments. */
+  exactUrl?: string
 }
 
 interface LinearIssueUrlReference {
@@ -1266,11 +1142,16 @@ async function filterIssuesByExactUrl(
       containsExactUrl(issue.description, target)
     let comments = issue.comments
     if (comments?.pageInfo?.hasNextPage) {
-      const bodies = await fetchAllIssueCommentBodies(issue.id)
-      comments = {
-        nodes: bodies.map((body) => ({ body })),
-        pageInfo: { hasNextPage: false, endCursor: null },
-      }
+      comments = await completeConnection(comments, async (after) => {
+        const result = await getGraphQLClient().request(
+          issueCommentsForUrlLookupQuery,
+          { id: issue.id, after },
+        )
+        if (result.issue?.comments == null) {
+          throw new CliError(`Unable to read comments for ${issue.id}`)
+        }
+        return result.issue.comments
+      }, `comment lookup for ${issue.id}`)
     }
     const commentMatch = comments?.nodes.some((comment) =>
       containsExactUrl(comment.body, target)
@@ -1282,30 +1163,10 @@ async function filterIssuesByExactUrl(
   return matched
 }
 
-export async function fetchIssuesForQuery(
-  options: FetchIssuesForQueryOptions,
-): Promise<FetchedQueryIssuePayload> {
-  let filter: IssueFilter = {}
-  const exactIssueReference = options.exactUrl == null
-    ? undefined
-    : parseLinearIssueUrl(options.exactUrl)
-
-  if (options.exactUrl != null) {
-    if (exactIssueReference != null) {
-      filter.id = { eq: exactIssueReference.identifier }
-    } else {
-      // The URL may have been recorded in the description or a comment. Keep
-      // both paths in the upstream candidate filter so an empty description
-      // match cannot cause a duplicate Issue to be created.
-      filter = {
-        or: [
-          { description: { contains: options.exactUrl } },
-          { comments: { body: { contains: options.exactUrl } } },
-        ],
-      }
-    }
-  }
-
+async function buildIssueFilter(
+  options: IssueFilterOptions,
+): Promise<IssueFilter> {
+  const filter: IssueFilter = {}
   if (options.allTeams) {
     // No team filter — workspace-wide
   } else if (options.teamKeys && options.teamKeys.length > 0) {
@@ -1380,6 +1241,28 @@ export async function fetchIssuesForQuery(
       gte: parseDateFilter(options.updatedAfter, "--updated-after"),
     }
   }
+  return filter
+}
+
+export async function fetchIssuesForQuery(
+  options: FetchIssuesForQueryOptions,
+): Promise<FetchedQueryIssuePayload> {
+  const filter = await buildIssueFilter(options)
+  const exactIssueReference = options.exactUrl == null
+    ? undefined
+    : parseLinearIssueUrl(options.exactUrl)
+
+  if (options.exactUrl != null) {
+    if (exactIssueReference != null) {
+      filter.id = { eq: exactIssueReference.identifier }
+    } else {
+      // Both candidate paths are needed before exact local matching.
+      filter.or = [
+        { description: { contains: options.exactUrl } },
+        { comments: { body: { contains: options.exactUrl } } },
+      ]
+    }
+  }
 
   const sort = options.sort ?? "priority"
   let sortPayload: Array<IssueSortInput>
@@ -1418,8 +1301,6 @@ export async function fetchIssuesForQuery(
       first,
       after,
       includeArchived: options.includeArchived,
-      includeProjectTeamMetadata: options.includeProjectTeamMetadata === true,
-      includeEstimationMetadata: options.includeEstimationMetadata === true,
       includeDescription: options.exactUrl != null,
       includeComments: options.exactUrl != null && exactIssueReference == null,
     })
@@ -1432,14 +1313,10 @@ export async function fetchIssuesForQuery(
     fetchAll ? 0 : limit,
   )
 
-  const completedNodes = options.includeProjectTeamMetadata === true
-    ? await completeDoctorProjectTeams(allNodes, options.includeArchived)
-    : allNodes
-
   const matchedNodes = options.exactUrl == null
-    ? completedNodes
+    ? allNodes
     : await filterIssuesByExactUrl(
-      completedNodes,
+      allNodes,
       options.exactUrl,
       exactIssueReference,
     )
@@ -1568,21 +1445,8 @@ export type FetchedIssueSearchPayload = {
   totalCount: SearchIssuesPayload["totalCount"]
 }
 
-export interface SearchIssuesByTermOptions {
-  teamKey?: string
-  teamKeys?: string[]
-  state?: string[]
-  stateNames?: string[]
-  assignee?: string
-  unassigned?: boolean
+export interface SearchIssuesByTermOptions extends IssueFilterOptions {
   limit?: number
-  projectId?: string
-  noProject?: boolean
-  projectLabel?: string
-  cycleId?: string
-  labelNames?: string[]
-  createdAfter?: string
-  updatedAfter?: string
   includeComments?: boolean
   includeArchived?: boolean
   orderBy?: PaginationOrderBy
@@ -1592,76 +1456,7 @@ export async function searchIssuesByTerm(
   term: string,
   options: SearchIssuesByTermOptions = {},
 ): Promise<FetchedIssueSearchPayload> {
-  const filter: IssueFilter = {}
-
-  if (options.teamKeys != null && options.teamKeys.length > 0) {
-    if (options.teamKeys.length === 1) {
-      filter.team = { key: { eq: options.teamKeys[0] } }
-    } else {
-      filter.team = {
-        or: options.teamKeys.map((key) => ({ key: { eq: key } })),
-      }
-    }
-  } else if (options.teamKey != null) {
-    filter.team = { key: { eq: options.teamKey } }
-  }
-
-  const stateFilter = buildWorkflowStateFilter(
-    options.state,
-    options.stateNames,
-  )
-  if (stateFilter != null) filter.state = stateFilter
-
-  if (options.unassigned) {
-    filter.assignee = { null: true }
-  } else if (options.assignee) {
-    const userId = await lookupUserId(options.assignee)
-    if (!userId) {
-      throw new NotFoundError("User", options.assignee)
-    }
-    filter.assignee = { id: { eq: userId } }
-  }
-
-  if (options.projectId) {
-    filter.project = { id: { eq: options.projectId } }
-  } else if (options.noProject) {
-    filter.project = { null: true }
-  } else if (options.projectLabel) {
-    filter.project = {
-      labels: { name: { eqIgnoreCase: options.projectLabel } },
-    }
-  }
-
-  if (options.cycleId) {
-    filter.cycle = { id: { eq: options.cycleId } }
-  }
-
-  if (options.labelNames != null && options.labelNames.length > 0) {
-    if (options.labelNames.length === 1) {
-      filter.labels = {
-        some: { name: { eqIgnoreCase: options.labelNames[0] } },
-      }
-    } else {
-      filter.labels = {
-        and: options.labelNames.map((name) => ({
-          some: { name: { eqIgnoreCase: name } },
-        })),
-      }
-    }
-  }
-
-  if (options.createdAfter) {
-    filter.createdAt = {
-      gte: parseDateFilter(options.createdAfter, "--created-after"),
-    }
-  }
-
-  if (options.updatedAfter) {
-    filter.updatedAt = {
-      gte: parseDateFilter(options.updatedAfter, "--updated-after"),
-    }
-  }
-
+  const filter = await buildIssueFilter(options)
   const client = getGraphQLClient()
   let totalCount = 0
   const first = options.limit === 0
@@ -1895,51 +1690,6 @@ export async function getProjectsForTeam(
   )
 }
 
-export async function getTeamIdByKey(
-  team: string,
-): Promise<string | undefined> {
-  const client = getGraphQLClient()
-  const query = gql(/* GraphQL */ `
-    query GetTeamIdByKey($team: String!) {
-      teams(filter: { key: { eq: $team } }) {
-        nodes {
-          id
-        }
-      }
-    }
-  `)
-  const data = await client.request(query, { team })
-  return data.teams?.nodes[0]?.id
-}
-
-export async function searchTeamsByKeySubstring(
-  keySubstring: string,
-): Promise<Record<string, string>> {
-  const client = getGraphQLClient()
-  const query = gql(/* GraphQL */ `
-    query GetTeamIdOptionsByKey($team: String!) {
-      teams(filter: { key: { containsIgnoreCase: $team } }) {
-        nodes {
-          id
-          key
-          name
-        }
-      }
-    }
-  `)
-  const data = await client.request(query, { team: keySubstring })
-  const qResults = data.teams?.nodes || []
-  const sortedResults = qResults.sort((a, b) =>
-    a.key.toLowerCase().localeCompare(b.key.toLowerCase())
-  )
-  return Object.fromEntries(
-    sortedResults.map((t) => [
-      t.id,
-      `${(t as { id: string; key: string; name: string }).name} (${t.key})`,
-    ]),
-  )
-}
-
 export async function lookupUserId(
   input: "self" | "@me" | string,
 ): Promise<string | undefined> {
@@ -2170,24 +1920,16 @@ export async function getAllTeams(): Promise<
     }
   `)
 
-  const allTeams = []
-  let hasNextPage = true
-  let after: string | null | undefined = undefined
-
-  while (hasNextPage) {
-    const result: GetAllTeamsQuery = await client.request(query, {
-      first: 100, // Fetch 100 teams per page
-      after,
-    })
-
-    const teams = result.teams.nodes
-    allTeams.push(...teams)
-
-    hasNextPage = result.teams.pageInfo.hasNextPage
-    after = result.teams.pageInfo.endCursor
+  const fetchPage = async (after?: string) => {
+    const result = await client.request(query, { first: 100, after })
+    return result.teams
   }
-
-  return allTeams.sort((a, b) =>
+  const { nodes } = await completeConnection(
+    await fetchPage(),
+    fetchPage,
+    "teams",
+  )
+  return nodes.sort((a, b) =>
     a.name.toLowerCase().localeCompare(b.name.toLowerCase())
   )
 }
@@ -2220,9 +1962,6 @@ export async function getLabelsForTeam(
 
 type TeamMembersConnection = GetTeamMembersQuery["team"]["members"]
 
-// `includeDisabled` is explicit so callers can't silently inherit Linear's
-// default of false, which is what made `team members --all` a no-op: disabled
-// users were never fetched, so filtering on `active` could not reveal them.
 export async function getTeamMembers(
   teamKey: string,
   includeDisabled: boolean,
@@ -2269,39 +2008,20 @@ export async function getTeamMembers(
     }
   `)
 
-  const nodes: TeamMembersConnection["nodes"] = []
-  // Describes the exhausted source connection, so hasNextPage is always false
-  // once pagination completes. Matches label list and project list.
-  let pageInfo: TeamMembersConnection["pageInfo"] = {
-    hasNextPage: false,
-    endCursor: null,
-  }
-  let hasNextPage = true
-  let after: string | null | undefined = undefined
-
-  while (hasNextPage) {
-    // Annotated to break the circular inference between `after` and the
-    // request's own result type.
-    const result: GetTeamMembersQuery = await client.request(query, {
+  const fetchPage = async (after?: string) => {
+    const result = await client.request(query, {
       teamKey,
       includeDisabled,
-      first: 100, // Fetch 100 members per page
+      first: 100,
       after,
     })
-
-    const members = result.team.members
-    nodes.push(...members.nodes)
-    pageInfo = members.pageInfo
-
-    hasNextPage = members.pageInfo.hasNextPage
-    const nextCursor = members.pageInfo.endCursor
-    if (hasNextPage && (nextCursor == null || nextCursor === after)) {
-      throw new CliError(
-        "Linear reported more team members but did not advance the page cursor",
-      )
-    }
-    after = nextCursor
+    return result.team.members
   }
+  const { nodes, pageInfo } = await completeConnection(
+    await fetchPage(),
+    fetchPage,
+    "team members",
+  )
 
   // Sort after all pages are fetched so ordering is global, not per-page.
   nodes.sort((a, b) =>
@@ -2360,34 +2080,19 @@ export async function getOrganizationMembers(
     }
   `)
 
-  const nodes: OrganizationMembersConnection["nodes"] = []
-  let pageInfo: OrganizationMembersConnection["pageInfo"] = {
-    hasNextPage: false,
-    endCursor: null,
-  }
-  let hasNextPage = true
-  let after: string | null | undefined = undefined
-
-  while (hasNextPage) {
-    const result: GetOrganizationMembersQuery = await client.request(query, {
+  const fetchPage = async (after?: string) => {
+    const result = await client.request(query, {
       includeDisabled,
       first: 100,
       after,
     })
-
-    const users = result.viewer.organization.users
-    nodes.push(...users.nodes)
-    pageInfo = users.pageInfo
-
-    hasNextPage = users.pageInfo.hasNextPage
-    const nextCursor = users.pageInfo.endCursor
-    if (hasNextPage && (nextCursor == null || nextCursor === after)) {
-      throw new CliError(
-        "Linear reported more workspace members but did not advance the page cursor",
-      )
-    }
-    after = nextCursor
+    return result.viewer.organization.users
   }
+  const { nodes, pageInfo } = await completeConnection(
+    await fetchPage(),
+    fetchPage,
+    "workspace members",
+  )
 
   nodes.sort((a, b) =>
     a.displayName.toLowerCase().localeCompare(b.displayName.toLowerCase())
@@ -2403,23 +2108,6 @@ export async function getIssueTeam(issueIdentifier: string) {
   const data = await getGraphQLClient().request(query, { id: issueIdentifier })
   if (data.issue == null) throw new NotFoundError("Issue", issueIdentifier)
   return data.issue.team
-}
-
-export async function getIssueProjectId(
-  issueIdentifier: string,
-): Promise<string | undefined> {
-  const client = getGraphQLClient()
-  const query = gql(/* GraphQL */ `
-    query GetIssueProjectId($id: String!) {
-      issue(id: $id) {
-        project {
-          id
-        }
-      }
-    }
-  `)
-  const data = await client.request(query, { id: issueIdentifier })
-  return data.issue?.project?.id ?? undefined
 }
 
 /**
@@ -2535,38 +2223,36 @@ export async function getCycleIdByNameOrNumber(
     )
   }
 
-  const cycles = [...(data.team.cycles?.nodes || [])]
-  let pageInfo = data.team.cycles?.pageInfo
-  while (pageInfo?.hasNextPage) {
-    const page = await client.request(query, {
-      teamId,
-      after: pageInfo.endCursor,
-    })
-    if (!page.team) {
-      throw new NotFoundError("Team", teamId)
-    }
-    cycles.push(...(page.team.cycles?.nodes || []))
-    pageInfo = page.team.cycles?.pageInfo
-  }
   const keyword = cycleNameOrNumber.toLowerCase()
+  if ((keyword === "active" || keyword === "now") && data.team.activeCycle) {
+    return data.team.activeCycle.id
+  }
+  const { nodes: cycles } = await completeConnection(
+    data.team.cycles,
+    async (after) => {
+      const page = await client.request(query, { teamId, after })
+      if (!page.team) {
+        throw new NotFoundError("Team", teamId)
+      }
+      return page.team.cycles
+    },
+    `cycles for ${data.team.key}`,
+  )
 
   // Reserved keywords take precedence over coincidental cycle names; use the
   // cycle number to reach a cycle literally named "next"/"previous"/"active".
   if (keyword === "active" || keyword === "now") {
-    if (!data.team.activeCycle) {
-      const next = cycles.find((c) => c.isNext)
-      throw new CliError(
-        `Team ${data.team.key} has no active cycle`,
-        {
-          suggestion: next != null
-            ? `The next cycle (#${next.number}) starts ${
-              String(next.startsAt).slice(0, 10)
-            } — use --cycle next, a cycle number, or a name.`
-            : "Use a cycle number or name instead.",
-        },
-      )
-    }
-    return data.team.activeCycle.id
+    const next = cycles.find((c) => c.isNext)
+    throw new CliError(
+      `Team ${data.team.key} has no active cycle`,
+      {
+        suggestion: next != null
+          ? `The next cycle (#${next.number}) starts ${
+            String(next.startsAt).slice(0, 10)
+          } — use --cycle next, a cycle number, or a name.`
+          : "Use a cycle number or name instead.",
+      },
+    )
   }
 
   if (keyword === "next") {

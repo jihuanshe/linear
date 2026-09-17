@@ -477,41 +477,6 @@ function printDebugInfo(error: unknown): void {
 }
 
 /**
- * Wrap an async operation with error handling.
- * Similar to Rust's .context() for adding context to errors.
- *
- * @example
- * const issue = await withContext(
- *   () => getIssue(id),
- *   "Failed to fetch issue"
- * );
- */
-export async function withContext<T>(
-  fn: () => Promise<T>,
-  context: string,
-): Promise<T> {
-  try {
-    return await fn()
-  } catch (error) {
-    if (error instanceof CliError) {
-      // Re-throw with context added
-      throw new CliError(`${context}: ${error.userMessage}`, {
-        suggestion: error.suggestion,
-        cause: error.cause ?? error,
-      })
-    }
-    if (isClientError(error)) {
-      const message = extractGraphQLMessage(error)
-      throw new CliError(`${context}: ${message}`, { cause: error })
-    }
-    if (error instanceof Error) {
-      throw new CliError(`${context}: ${error.message}`, { cause: error })
-    }
-    throw new CliError(`${context}: ${String(error)}`, { cause: error })
-  }
-}
-
-/**
  * Create a standardized "not found" error handler for GraphQL queries.
  *
  * @example

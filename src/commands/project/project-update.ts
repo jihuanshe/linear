@@ -1,13 +1,13 @@
 import { Command } from "@cliffy/command"
-import { resolveProjectContent } from "./project-content.ts"
+import { readTextSource } from "../../utils/text-source.ts"
+import { resolveProjectStatusId } from "./project-status.ts"
 import { withUsageMetadata } from "../usage.ts"
 import { gql } from "../../__codegen__/gql.ts"
 import type { ProjectUpdateInput } from "../../__codegen__/graphql.ts"
 import { getGraphQLClient } from "../../utils/graphql.ts"
+import { resolveWriteTeam } from "../../utils/issue-read.ts"
 import {
   getProjectLabelIdByName,
-  getTeamIdByKey,
-  isLinearUuid,
   lookupUserId,
   resolveProjectId,
 } from "../../utils/linear.ts"
@@ -22,7 +22,6 @@ import {
 } from "../../utils/replacement.ts"
 import { readProject } from "./project-read.ts"
 import { printWriteResult } from "../../utils/write-result.ts"
-import { completeConnection } from "../../utils/pagination.ts"
 import {
   assertMutationReceipt,
   assertMutationSuccess,
@@ -57,29 +56,6 @@ const UpdateProject = gql(`
     }
   }
 `)
-
-const GetProjectStatusesForUpdate = gql(`
-  query GetProjectStatusesForUpdate($after: String) {
-    projectStatuses(first: 100, after: $after) {
-      nodes {
-        id
-        name
-        type
-      }
-      pageInfo { hasNextPage endCursor }
-    }
-  }
-`)
-
-const STATUS_TYPE_MAPPING: Record<string, string> = {
-  "planned": "planned",
-  "in progress": "started",
-  "started": "started",
-  "paused": "paused",
-  "completed": "completed",
-  "canceled": "canceled",
-  "backlog": "backlog",
-}
 
 export const updateCommand = withUsageMetadata(new Command(), { writes: true })
   .name("update")
@@ -219,7 +195,8 @@ export const updateCommand = withUsageMetadata(new Command(), { writes: true })
           description,
           descriptionFile,
         )
-        const resolvedContent = await resolveProjectContent(
+        const resolvedContent = await readTextSource(
+          "content",
           content,
           contentFile,
         )
@@ -253,46 +230,8 @@ export const updateCommand = withUsageMetadata(new Command(), { writes: true })
         if (startDate != null) input.startDate = startDate
         if (targetDate != null) input.targetDate = targetDate
 
-        if (status != null && isLinearUuid(status)) {
-          input.statusId = status.toLowerCase()
-        } else if (status != null) {
-          const statusLower = status.toLowerCase()
-          const apiStatusType = STATUS_TYPE_MAPPING[statusLower]
-          if (!apiStatusType) {
-            spinner?.stop()
-            throw new ValidationError(`Invalid status: ${status}`, {
-              suggestion:
-                "Valid values: planned, started, paused, completed, canceled, backlog",
-            })
-          }
-          const statusResult = await client.request(
-            GetProjectStatusesForUpdate,
-            {},
-          )
-          const projectStatuses = (await completeConnection(
-            statusResult.projectStatuses,
-            async (after) =>
-              (await client.request(GetProjectStatusesForUpdate, { after }))
-                .projectStatuses,
-            "project statuses",
-          )).nodes
-          const matchingStatuses = projectStatuses.filter(
-            (s: { type: string }) => s.type === apiStatusType,
-          )
-          if (matchingStatuses.length > 1) {
-            throw new ValidationError(
-              `Project status type is ambiguous: ${apiStatusType}`,
-              {
-                suggestion: "Use the exact Project status UUID with --status.",
-              },
-            )
-          }
-          const matchingStatus = matchingStatuses[0]
-          if (!matchingStatus) {
-            spinner?.stop()
-            throw new NotFoundError("Project status", apiStatusType)
-          }
-          input.statusId = matchingStatus.id
+        if (status != null) {
+          input.statusId = await resolveProjectStatusId(status)
         }
 
         if (lead != null) {
@@ -305,14 +244,9 @@ export const updateCommand = withUsageMetadata(new Command(), { writes: true })
         }
 
         if (teams && teams.length > 0) {
-          const teamIds = await Promise.all(
-            teams.map(async (teamKey) => {
-              const teamId = await getTeamIdByKey(teamKey.toUpperCase())
-              if (!teamId) throw new NotFoundError("Team", teamKey)
-              return teamId
-            }),
+          input.teamIds = await Promise.all(
+            teams.map(async (team) => (await resolveWriteTeam(team)).id),
           )
-          input.teamIds = teamIds
         }
 
         if (labels && labels.length > 0) {
@@ -381,7 +315,9 @@ export const updateCommand = withUsageMetadata(new Command(), { writes: true })
         const project = result.projectUpdate.project
         assertMutationReceipt(project, result, resolvedId)
 
-        let outputProject = project
+        let verification:
+          | { status: "verified"; content: string | null }
+          | undefined
         if (plan.input.content === "") {
           try {
             const readBack = await readProject(client, resolvedId)
@@ -391,7 +327,10 @@ export const updateCommand = withUsageMetadata(new Command(), { writes: true })
             ) {
               throw new CliError("Project content is not empty on read-back")
             }
-            outputProject = { ...project, content: readBack.project.content }
+            verification = {
+              status: "verified",
+              content: readBack.project.content,
+            }
           } catch (error) {
             throw new WriteError(
               "The project update was applied, but clearing content could not be verified.",
@@ -416,10 +355,10 @@ export const updateCommand = withUsageMetadata(new Command(), { writes: true })
         }
 
         if (json) {
-          printWriteResult({ project: outputProject }, { fields: plan.fields })
+          printWriteResult({ project }, { fields: plan.fields, verification })
         } else {
-          console.log(`✓ Updated project: ${outputProject.name}`)
-          if (outputProject.url) console.log(outputProject.url)
+          console.log(`✓ Updated project: ${project.name}`)
+          if (project.url) console.log(project.url)
         }
       } catch (error) {
         spinner?.stop()

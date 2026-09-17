@@ -56,7 +56,6 @@ async function removeIssue(issue: Awaited<ReturnType<typeof resolveIssue>>) {
 export const deleteCommand = withUsageMetadata(new Command(), {
   writes: true,
   interactive: true,
-  confirmationRequiredUnless: "--confirm",
 })
   .name("delete")
   .description(

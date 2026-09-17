@@ -26,15 +26,10 @@ export interface UsageArgumentMetadata {
   type: string
   required: boolean
   variadic: boolean
-  list: boolean
   description?: string
 }
 
 export type UsageOutputMode = "human" | "json"
-
-export interface UsageConfirmationMetadata {
-  requiredUnless: string
-}
 
 export interface UsageGuideMetadata {
   name: string
@@ -67,7 +62,6 @@ export interface UsageCommandMetadata {
   details: string
   writes: boolean
   interactive: boolean
-  confirmation: UsageConfirmationMetadata | null
   outputModes: UsageOutputMode[]
   /**
    * Related guides derived from guide frontmatter; omitted when none relate.
@@ -87,7 +81,6 @@ export interface UsageDocument {
 export interface UsageMetadataAnnotation {
   writes?: boolean
   interactive?: boolean
-  confirmationRequiredUnless?: string
   outputModes?: UsageOutputMode[]
 }
 
@@ -97,7 +90,6 @@ interface UsageMetadataTarget {
 
 const META_WRITES = "Writes"
 const META_INTERACTIVE = "Interactive"
-const META_CONFIRMATION = "Confirmation required unless"
 const META_OUTPUT_MODES = "Output modes"
 
 /**
@@ -117,9 +109,6 @@ export function withUsageMetadata<T extends UsageMetadataTarget>(
   if (metadata.interactive === true) {
     command.meta(META_INTERACTIVE, "true")
   }
-  if (metadata.confirmationRequiredUnless != null) {
-    command.meta(META_CONFIRMATION, metadata.confirmationRequiredUnless)
-  }
   if (metadata.outputModes != null) {
     command.meta(META_OUTPUT_MODES, metadata.outputModes.join(","))
   }
@@ -134,7 +123,6 @@ function argumentMetadata(
     type: argument.type,
     required: !argument.optional,
     variadic: argument.variadic === true,
-    list: argument.list === true,
     ...(argument.description == null
       ? {}
       : { description: argument.description }),
@@ -230,7 +218,6 @@ function commandMetadata(command: UsageCommandSource): UsageCommandMetadata {
   const path = command.getPath()
   const subcommands = visibleSubcommands(command)
   const meta = command.getMeta()
-  const confirmationRequiredUnless = meta[META_CONFIRMATION]
   const relatedGuides = guidesForCommandPath(path).map((guide) => ({
     name: guide.name,
     description: guide.description,
@@ -250,9 +237,6 @@ function commandMetadata(command: UsageCommandSource): UsageCommandMetadata {
       : `${path} usage`,
     writes: meta[META_WRITES] === "true",
     interactive: meta[META_INTERACTIVE] === "true",
-    confirmation: confirmationRequiredUnless == null
-      ? null
-      : { requiredUnless: confirmationRequiredUnless },
     outputModes: outputModes(command),
   }
 }
@@ -279,9 +263,6 @@ function commandSummary(command: UsageCommandMetadata): string {
   const capabilities = [
     ...(command.writes ? ["writes"] : []),
     ...(command.interactive ? ["interactive"] : []),
-    ...(command.confirmation == null
-      ? []
-      : [`confirm: ${command.confirmation.requiredUnless}`]),
     ...(!command.hasSubcommands && command.outputModes.includes("json")
       ? ["json"]
       : []),

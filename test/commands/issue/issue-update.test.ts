@@ -8,8 +8,76 @@ import { snapshotTest } from "@cliffy/testing"
 import { assertEquals, assertRejects, assertStringIncludes } from "@std/assert"
 import { stub } from "@std/testing/mock"
 import { stripIgnoredCharacters } from "graphql"
-import { updateCommand } from "../../../src/commands/issue/issue-update.ts"
+import {
+  prepareIssueUpdate,
+  updateCommand,
+} from "../../../src/commands/issue/issue-update.ts"
+import { ValidationError } from "../../../src/utils/errors.ts"
 import { commonDenoArgs } from "../../utils/test-helpers.ts"
+
+Deno.test("issue update requires an explicit valid target without consulting VCS", async () => {
+  const { server, cleanup } = await setupMockLinearServer([])
+  const command = stub(Deno, "Command", () => {
+    throw new Error("Unexpected VCS command")
+  })
+  try {
+    for (
+      const reference of [
+        undefined,
+        "",
+        " \n",
+        "feature/ENG-123",
+        "not-an-issue",
+      ]
+    ) {
+      await assertRejects(
+        () =>
+          prepareIssueUpdate(
+            { title: "Updated", unprotected: true },
+            reference,
+          ),
+        ValidationError,
+        reference?.trim()
+          ? "Invalid issue reference"
+          : "explicit issue reference is required",
+      )
+    }
+    assertEquals(command.calls.length, 0)
+    assertEquals(server.graphqlRequests, [])
+  } finally {
+    command.restore()
+    await cleanup()
+  }
+})
+
+Deno.test("issue update CLI rejects an omitted target before transport", async () => {
+  const { server, cleanup } = await setupMockLinearServer([])
+  try {
+    const result = await new Deno.Command(Deno.execPath(), {
+      args: [
+        "run",
+        ...commonDenoArgs,
+        "src/main.ts",
+        "issue",
+        "update",
+        "--title",
+        "Updated",
+        "--unprotected",
+        "--json",
+      ],
+      stdin: "null",
+      stdout: "piped",
+      stderr: "piped",
+    }).output()
+    assertEquals(result.code, 1)
+    const body = JSON.parse(new TextDecoder().decode(result.stdout))
+    assertEquals(body.effect, "none")
+    assertStringIncludes(body.error.message, "issueId")
+    assertEquals(server.graphqlRequests, [])
+  } finally {
+    await cleanup()
+  }
+})
 
 for (
   const args of [
@@ -326,7 +394,6 @@ await snapshotTest({
   denoArgs: commonDenoArgs,
   async fn() {
     const { cleanup } = await setupMockLinearServer([
-      // Mock response for getTeamIdByKey() - converting team key to ID
       {
         queryName: "GetTeamIdByKey",
         variables: { team: "ENG" },
@@ -392,7 +459,6 @@ await snapshotTest({
   denoArgs: commonDenoArgs,
   async fn() {
     const { cleanup } = await setupMockLinearServer([
-      // Mock response for getTeamIdByKey() - team keys may contain digits
       {
         queryName: "GetTeamIdByKey",
         variables: { team: "PLA4" },
@@ -472,7 +538,6 @@ await snapshotTest({
           },
         },
       },
-      // Mock response for getTeamIdByKey()
       {
         queryName: "GetTeamIdByKey",
         variables: { team: "ENG" },
@@ -555,7 +620,6 @@ await snapshotTest({
   denoArgs: commonDenoArgs,
   async fn() {
     const { cleanup } = await setupMockLinearServer([
-      // Mock response for getTeamIdByKey() - converting team key to ID
       {
         queryName: "GetTeamIdByKey",
         variables: { team: "ENG" },
@@ -625,7 +689,6 @@ await snapshotTest({
   denoArgs: commonDenoArgs,
   async fn() {
     const { cleanup } = await setupMockLinearServer([
-      // Mock response for getTeamIdByKey()
       {
         queryName: "GetTeamIdByKey",
         variables: { team: "ENG" },
@@ -690,7 +753,6 @@ await snapshotTest({
   denoArgs: commonDenoArgs,
   async fn() {
     const { cleanup } = await setupMockLinearServer([
-      // Mock response for getTeamIdByKey()
       {
         queryName: "GetTeamIdByKey",
         variables: { team: "ENG" },
@@ -726,6 +788,7 @@ await snapshotTest({
                     name: "Sprint 8",
                   },
                 ],
+                pageInfo: { hasNextPage: false, endCursor: null },
               },
               activeCycle: {
                 id: "cycle-1",
@@ -1192,6 +1255,7 @@ await snapshotTest({
                     isPrevious: false,
                   },
                 ],
+                pageInfo: { hasNextPage: false, endCursor: null },
               },
               activeCycle: {
                 id: "cycle-6-id",
@@ -1273,6 +1337,7 @@ await snapshotTest({
                     isPrevious: false,
                   },
                 ],
+                pageInfo: { hasNextPage: false, endCursor: null },
               },
               activeCycle: {
                 id: "cycle-5-id",
@@ -1375,6 +1440,7 @@ Deno.test("Issue Update Command - relative cycle offset requires an active cycle
                   isPrevious: false,
                 },
               ],
+              pageInfo: { hasNextPage: false, endCursor: null },
             },
             activeCycle: null,
           },

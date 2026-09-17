@@ -2,7 +2,7 @@ import { snapshotTest } from "@cliffy/testing"
 import { assertEquals, assertRejects, assertStringIncludes } from "@std/assert"
 import { stub } from "@std/testing/mock"
 import { commentUpdateCommand } from "../../../src/commands/issue/issue-comment-update.ts"
-import { Input } from "../../../src/utils/prompt.ts"
+import { join } from "@std/path"
 import type { MockGraphQLRequest } from "../../utils/mock_linear_server.ts"
 
 const originalComment = {
@@ -20,57 +20,83 @@ import {
 } from "../../utils/test-helpers.ts"
 
 for (const field of ["body", ""]) {
-  Deno.test(`interactive comment dependency preserves basis capture: ${JSON.stringify(field)}`, async () => {
-    const { server, cleanup } = await setupMockLinearServer([originalComment, {
-      queryName: "UpdateComment",
-      response: {
-        data: {
-          commentUpdate: {
-            success: true,
-            comment: {
-              id: "comment-123",
-              body: "New body",
-              url: "https://linear.app/test",
+  Deno.test({
+    name: `interactive comment dependency preserves basis capture: ${
+      JSON.stringify(field)
+    }`,
+    ignore: Deno.build.os === "windows",
+    async fn() {
+      const dir = await Deno.makeTempDir()
+      const editor = join(dir, "editor")
+      const config = join(dir, "gitconfig")
+      const seen = join(dir, "seen.md")
+      await Deno.writeTextFile(config, "")
+      await Deno.writeTextFile(
+        editor,
+        `#!/bin/sh\ncp "$1" '${seen}'\nprintf '%s' 'New body' > "$1"\n`,
+      )
+      await Deno.chmod(editor, 0o700)
+      const previous = new Map(
+        ["EDITOR", "GIT_CONFIG_GLOBAL"].map((key) => [key, Deno.env.get(key)]),
+      )
+      Deno.env.set("EDITOR", editor)
+      Deno.env.set("GIT_CONFIG_GLOBAL", config)
+      const { server, cleanup } = await setupMockLinearServer([
+        originalComment,
+        {
+          queryName: "UpdateComment",
+          response: {
+            data: {
+              commentUpdate: {
+                success: true,
+                comment: {
+                  id: "comment-123",
+                  body: "New body",
+                  url: "https://linear.app/test",
+                },
+              },
             },
           },
         },
-      },
-    }])
-    const terminal = stub(
-      Object.getPrototypeOf(Deno.stdin),
-      "isTerminal",
-      () => true,
-    )
-    const prompt = stub(Input, "prompt", () => Promise.resolve("New body"))
-    const output = stub(console, "log")
-    const errors = stub(console, "error")
-    const exit = stub(Deno, "exit", () => {
-      throw new Error("EXIT")
-    })
-    try {
-      const run = () =>
-        commentUpdateCommand.parse(["comment-123", "--expect-field", field])
-      if (field === "") {
-        await assertRejects(run, Error, "EXIT")
-        assertEquals(prompt.calls.length, 0)
-        assertEquals(server.graphqlRequests, [])
-      } else {
-        await run()
-        assertEquals(prompt.calls.length, 1)
-        assertEquals(server.graphqlRequests.length, 3)
-        assertEquals(server.graphqlRequests[2].variables, {
-          id: "comment-123",
-          input: { body: "New body" },
-        })
+      ])
+      const output = stub(console, "log")
+      const errors = stub(console, "error")
+      const exit = stub(Deno, "exit", () => {
+        throw new Error("EXIT")
+      })
+      try {
+        const run = () =>
+          commentUpdateCommand.parse([
+            "comment-123",
+            "--edit",
+            "--expect-field",
+            field,
+          ])
+        if (field === "") {
+          await assertRejects(run, Error, "EXIT")
+          await assertRejects(() => Deno.stat(seen), Deno.errors.NotFound)
+          assertEquals(server.graphqlRequests, [])
+        } else {
+          await run()
+          assertEquals(await Deno.readTextFile(seen), "Original body")
+          assertEquals(server.graphqlRequests.length, 3)
+          assertEquals(server.graphqlRequests[2].variables, {
+            id: "comment-123",
+            input: { body: "New body" },
+          })
+        }
+      } finally {
+        exit.restore()
+        errors.restore()
+        output.restore()
+        for (const [key, value] of previous) {
+          if (value == null) Deno.env.delete(key)
+          else Deno.env.set(key, value)
+        }
+        await Deno.remove(dir, { recursive: true })
+        await cleanup()
       }
-    } finally {
-      exit.restore()
-      errors.restore()
-      output.restore()
-      prompt.restore()
-      terminal.restore()
-      await cleanup()
-    }
+    },
   })
 }
 
@@ -266,7 +292,7 @@ await snapshotTest({
   },
 })
 
-Deno.test("Issue Comment Update Command - JSON requires an explicit body", async () => {
+Deno.test("Issue Comment Update Command - JSON requires explicit content", async () => {
   const errorLogs: string[] = []
   const errorStub = stub(console, "error", (...args: unknown[]) => {
     errorLogs.push(args.map(String).join(" "))
@@ -290,7 +316,7 @@ Deno.test("Issue Comment Update Command - JSON requires an explicit body", async
 
   assertEquals(
     errorLogs.some((line) =>
-      line.includes("JSON mode requires --body or --body-file")
+      line.includes("JSON mode requires --body, --body-file, or --attach")
     ),
     true,
   )

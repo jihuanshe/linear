@@ -12,7 +12,6 @@ import { AuthError, handleError, NotFoundError } from "../../utils/errors.ts"
 export const logoutCommand = withUsageMetadata(new Command(), {
   writes: true,
   interactive: true,
-  confirmationRequiredUnless: "--force",
 })
   .name("logout")
   .description("Remove a workspace credential")

@@ -20,6 +20,7 @@ import { gql } from "../../__codegen__/gql.ts"
 import { getOption } from "../../config.ts"
 import { getGraphQLClient } from "../../utils/graphql.ts"
 import { getEditor, openEditor } from "../../utils/editor.ts"
+import { readTextSource } from "../../utils/text-source.ts"
 import { getPriorityDisplay } from "../../utils/display.ts"
 import {
   fetchParentIssueData,
@@ -32,7 +33,6 @@ import {
   getProjectIdByName,
   getProjectOptionsByName,
   getProjectsForTeam,
-  getTeamIdByKey,
   getTeamKey,
   getWorkflowStates,
   isLinearUuid,
@@ -58,6 +58,15 @@ type IssueCreatePreloadedData = {
   projects?: ProjectOption[]
 }
 
+type IssueDraftFields = {
+  assigneeId?: string | null
+  priority?: number
+  estimate?: number
+  labelIds?: string[]
+  stateId?: string
+  projectId?: string
+}
+
 type AdditionalField = {
   key: string
   label: string
@@ -65,7 +74,7 @@ type AdditionalField = {
     teamKey: string,
     teamId: string,
     preloaded?: IssueCreatePreloadedData,
-  ) => Promise<string | number | string[] | undefined>
+  ) => Promise<string | number | string[] | null | undefined>
 }
 
 function getIssueCreateAssignSelfMode(): "always" | "auto" | "never" {
@@ -222,7 +231,7 @@ const ADDITIONAL_FIELDS: AdditionalField[] = [
         ],
         default: false,
       })
-      return assignToSelf ? await lookupUserId("self") : undefined
+      return assignToSelf ? await lookupUserId("self") : null
     },
   },
   {
@@ -296,14 +305,7 @@ async function promptAdditionalFields(
   labels: IssueLabel[],
   includeProject: boolean,
   autoAssignToSelf: boolean,
-): Promise<{
-  assigneeId?: string
-  priority?: number
-  estimate?: number
-  labelIds: string[]
-  stateId?: string
-  projectId?: string
-}> {
+): Promise<IssueDraftFields> {
   // Build options that display defaults in parentheses for workflow state and assignee
   let defaultStateName: string | null = null
   if (states.length > 0) {
@@ -327,18 +329,7 @@ async function promptAdditionalFields(
     options: additionalFieldOptions,
   })
 
-  // Initialize default values
-  let assigneeId: string | undefined
-  let priority: number | undefined
-  let estimate: number | undefined
-  let labelIds: string[] = []
-  let stateId: string | undefined
-  let projectId: string | undefined
-
-  // Set assignee default based on configuration
-  if (autoAssignToSelf) {
-    assigneeId = await lookupUserId("self")
-  }
+  const changes: IssueDraftFields = {}
 
   // Process selected fields
   for (const fieldKey of selectedFields) {
@@ -355,35 +346,28 @@ async function promptAdditionalFields(
 
       switch (fieldKey) {
         case "workflow_state":
-          stateId = value as string | undefined
+          changes.stateId = value as string | undefined
           break
         case "assignee":
-          assigneeId = value as string | undefined
+          changes.assigneeId = value as string | null | undefined
           break
         case "priority":
-          priority = value === 0 ? undefined : (value as number)
+          changes.priority = value as number
           break
         case "labels":
-          labelIds = (value as string[]) || []
+          changes.labelIds = (value as string[]) || []
           break
         case "estimate":
-          estimate = value as number | undefined
+          changes.estimate = value as number | undefined
           break
         case "project":
-          projectId = value as string | undefined
+          changes.projectId = value as string | undefined
           break
       }
     }
   }
 
-  return {
-    assigneeId,
-    priority,
-    estimate,
-    labelIds,
-    stateId,
-    projectId,
-  }
+  return changes
 }
 
 async function promptInteractiveIssueCreation(
@@ -398,7 +382,7 @@ async function promptInteractiveIssueCreation(
   title: string
   teamId: string
   teamKey: string
-  assigneeId?: string
+  assigneeId?: string | null
   priority?: number
   estimate?: number
   labelIds: string[]
@@ -407,27 +391,6 @@ async function promptInteractiveIssueCreation(
   parentId?: string
   projectId?: string | null
 }> {
-  const autoAssignToSelfPromise =
-    shouldAssignSelfByDefaultForInteractiveCreate()
-  const teamResolutionPromise = (async () => {
-    const defaultTeamKey = getTeamKey()
-    if (defaultTeamKey) {
-      const teamId = await getTeamIdByKey(defaultTeamKey)
-      if (teamId) {
-        return {
-          teamId: teamId,
-          teamKey: defaultTeamKey,
-          needsTeamSelection: false,
-        }
-      }
-    }
-    return {
-      teamId: null,
-      teamKey: null,
-      needsTeamSelection: true,
-    }
-  })()
-
   // If we have a parent issue, display its title
   if (parentData) {
     const parentTitle = `${parentData.identifier}: ${parentData.title}`
@@ -440,9 +403,27 @@ async function promptInteractiveIssueCreation(
     minLength: 1,
   })
 
-  // Await team resolution
-  const teamResult = await teamResolutionPromise
-  const autoAssignToSelf = await autoAssignToSelfPromise
+  const teamResult = await (async () => {
+    const defaultTeamKey = getTeamKey()
+    if (defaultTeamKey) {
+      try {
+        const team = await resolveWriteTeam(defaultTeamKey)
+        return {
+          teamId: team.id,
+          teamKey: team.key,
+          needsTeamSelection: false,
+        }
+      } catch (error) {
+        if (!(error instanceof NotFoundError)) throw error
+      }
+    }
+    return {
+      teamId: null,
+      teamKey: null,
+      needsTeamSelection: true,
+    }
+  })()
+  const autoAssignToSelf = await shouldAssignSelfByDefaultForInteractiveCreate()
   const askProject = shouldAskProjectDuringInteractiveCreate()
   let teamId: string
   let teamKey: string
@@ -470,7 +451,6 @@ async function promptInteractiveIssueCreation(
     teamId = team.id
     teamKey = team.key
   } else {
-    // Team was resolved in background
     teamId = teamResult.teamId!
     teamKey = teamResult.teamKey!
   }
@@ -494,25 +474,17 @@ async function promptInteractiveIssueCreation(
     default: "",
   })
 
-  let finalDescription: string | undefined
-  if (description === "e" && editorDisplayName) {
-    console.log(`Opening ${editorDisplayName}...`)
+  let finalDescription = description
+  if (description === "e") {
+    if (editorDisplayName) console.log(`Opening ${editorDisplayName}...`)
     finalDescription = await openEditor()
-    if (finalDescription && finalDescription.length > 0) {
+    if (finalDescription.length > 0) {
       console.log(
         `Description entered (${finalDescription.length} characters)`,
       )
     } else {
       console.log("No description entered")
-      finalDescription = undefined
     }
-  } else if (description === "e" && !editorDisplayName) {
-    console.error(
-      "No editor found. Please set EDITOR environment variable or configure git editor with: git config --global core.editor <editor>",
-    )
-    finalDescription = undefined
-  } else if (description.trim().length > 0) {
-    finalDescription = description.trim()
   }
 
   let projectId = initialProjectId
@@ -539,21 +511,11 @@ async function promptInteractiveIssueCreation(
     default: "submit",
   })
 
-  // Initialize default values for additional fields
-  let assigneeId: string | undefined
-  let priority: number | undefined
-  let estimate: number | undefined
-  let labelIds: string[] = []
-  let stateId: string | undefined
-
-  // Set assignee default based on configuration
-  if (autoAssignToSelf) {
-    assigneeId = await lookupUserId("self")
-  }
-
-  // Set default state (resolved earlier)
-  if (defaultState) {
-    stateId = defaultState.id
+  const draft: IssueDraftFields = {
+    assigneeId: autoAssignToSelf ? await lookupUserId("self") : undefined,
+    stateId: defaultState?.id,
+    labelIds: [],
+    projectId,
   }
 
   if (nextAction === "more_fields") {
@@ -566,27 +528,18 @@ async function promptInteractiveIssueCreation(
       autoAssignToSelf,
     )
 
-    // Override defaults with user selections
-    assigneeId = additionalFieldsResult.assigneeId
-    priority = additionalFieldsResult.priority
-    estimate = additionalFieldsResult.estimate
-    labelIds = additionalFieldsResult.labelIds
-    stateId = additionalFieldsResult.stateId
-    projectId = additionalFieldsResult.projectId ?? projectId
+    Object.assign(draft, additionalFieldsResult)
   }
 
   return {
     title,
     teamId,
     teamKey,
-    assigneeId,
-    priority,
-    estimate,
-    labelIds,
+    ...draft,
+    labelIds: draft.labelIds ?? [],
     description: finalDescription,
-    stateId,
     parentId,
-    projectId: projectId ?? parentData?.projectId ?? null,
+    projectId: draft.projectId ?? parentData?.projectId ?? null,
   }
 }
 
@@ -636,17 +589,11 @@ export async function prepareIssueCreate(options: CreateIssueOptions) {
       "Title is required when not using interactive mode",
     )
   }
-  if (description != null && descriptionFile != null) {
-    throw new ValidationError(
-      "Cannot specify both --description and --description-file",
-    )
-  }
-  if (descriptionFile === "") {
-    throw new ValidationError("Description file path cannot be empty")
-  }
-  const finalDescription = descriptionFile == null
-    ? description
-    : await Deno.readTextFile(descriptionFile)
+  const finalDescription = await readTextSource(
+    "description",
+    description,
+    descriptionFile,
+  )
 
   team = team ?? getTeamKey()
   if (!team) throw new ValidationError("Could not determine team")
@@ -765,7 +712,7 @@ const createIssueMutation = gql(`
   mutation CreateIssue($input: IssueCreateInput!) {
     issueCreate(input: $input) {
       success
-      issue { id identifier url team { key } }
+      issue { id identifier title url team { key } }
     }
   }
 `)
@@ -917,32 +864,11 @@ export const createCommand = withUsageMetadata(new Command(), {
       })
       interactive = interactive && Deno.stdout.isTerminal() && json !== true
 
-      // Validate that description and descriptionFile are not both provided
-      if (description != null && descriptionFile != null) {
-        throw new ValidationError(
-          "Cannot specify both --description and --description-file",
-        )
-      }
-
-      // Read description from file if provided
-      let finalDescription = description
-      if (descriptionFile === "") {
-        throw new ValidationError("Description file path cannot be empty")
-      }
-      if (descriptionFile != null) {
-        try {
-          finalDescription = await Deno.readTextFile(descriptionFile)
-        } catch (error) {
-          throw new ValidationError(
-            `Failed to read description file: ${descriptionFile}`,
-            {
-              suggestion: `Error: ${
-                error instanceof Error ? error.message : String(error)
-              }`,
-            },
-          )
-        }
-      }
+      const finalDescription = await readTextSource(
+        "description",
+        description,
+        descriptionFile,
+      )
 
       // If no creation flags are provided beyond project/parent, use interactive mode.
       const onlyInteractiveSeedFlagsProvided = !title && !assignee &&

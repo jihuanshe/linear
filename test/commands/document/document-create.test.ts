@@ -112,7 +112,7 @@ for (
         assertEquals(body.effect, "none")
         assertStringIncludes(
           body.error.message,
-          args.includes("--content") ? "either" : "empty",
+          args.includes("--content") ? "both" : "empty",
         )
       } else {
         assertEquals(server.graphqlRequests[0].variables, {

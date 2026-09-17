@@ -55,7 +55,7 @@ export interface ReadBackOptions {
   verificationDelay?: (milliseconds: number) => Promise<void>
 }
 
-/** Retries only observation after a confirmed write. */
+/** Reread stale values after a confirmed write; transport owns server retries. */
 export async function withReadBackRetries<
   T extends {
     verification: { status: "verified" | "different" | "unavailable" }
@@ -70,8 +70,9 @@ export async function withReadBackRetries<
       new Promise<void>((resolve) => setTimeout(resolve, milliseconds)))
   let result = await read(signal)
   for (const wait of [250, 750]) {
-    if (result.verification.status === "verified" || signal.aborted) break
+    if (result.verification.status !== "different" || signal.aborted) break
     await delay(wait)
+    if (signal.aborted) break
     result = await read(signal)
   }
   return result

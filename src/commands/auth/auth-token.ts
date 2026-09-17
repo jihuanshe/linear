@@ -5,15 +5,14 @@ import { getResolvedApiKey } from "../../utils/graphql.ts"
 export const tokenCommand = new Command()
   .name("token")
   .description("Print the configured API token")
-  .action(() => {
+  .action(async () => {
     try {
-      const apiKey = getResolvedApiKey()
+      const apiKey = await getResolvedApiKey()
       if (apiKey) {
         console.log(apiKey)
       } else {
         throw new AuthError("No API key configured", {
-          suggestion:
-            "Set LINEAR_API_KEY, add api_key to .linear.toml, or run `linear auth login`.",
+          suggestion: "Set LINEAR_API_KEY or run `linear auth login`.",
         })
       }
     } catch (error) {

@@ -20,15 +20,25 @@ linear schema -o "${TMPDIR:-/tmp}/linear-schema.graphql"
 rg -A 30 '^type Issue ' "${TMPDIR:-/tmp}/linear-schema.graphql"
 ```
 
-含 `$` 或多行查询使用单引号 heredoc，避免 shell 展开。简单变量用 `--variable`，对象或数组用 `--variables-json`：
+含 `$` 或多行查询使用单引号 heredoc，避免 shell 展开。用 `-` 显式读取 stdin 到 EOF，变量以 JSON 对象传入：
 
 ```bash
-linear api --variable teamId=abc123 <<'GRAPHQL'
+linear api - --variables-json '{"teamId":"abc123"}' <<'GRAPHQL'
 query($teamId: String!) { team(id: $teamId) { name } }
 GRAPHQL
 ```
 
-`linear api` 默认输出 JSON，保留 `{data,errors}` 响应及嵌套字段，不要求显式 `--json`。`--silent` 可省略原始响应输出，但不能与显式 `--json` 同用。检查退出码和目标字段；HTTP 200 仍可包含部分失败，不能忽略 `errors`。见 [Linear 错误处理](https://linear.app/developers/graphql#error-handling)。
+查询也可以直接作为参数。变量较多时保存到文件，二选一使用 `--variables-json` 或 `--variables-file`；文件内容必须是 JSON 对象，文件参数不读取 stdin。JSON 字符串按原值发送，对象内可以包含数组：
+
+```bash
+cat >variables.json <<'JSON'
+{"filter":{"title":{"in":["true","@x"]}}}
+JSON
+linear api 'query($filter: IssueFilter!) { issues(filter: $filter, first: 10) { nodes { identifier title } } }' \
+  --variables-file variables.json >issues.json
+```
+
+`linear api` 默认输出 JSON，保留 `{data,errors}` 响应及嵌套字段，不要求显式 `--json`。通过 shell 重定向保存结果，检查退出码和目标字段；HTTP 200 仍可包含部分失败，不能忽略 `errors`。见 [Linear 错误处理](https://linear.app/developers/graphql#error-handling)。
 
 请求前的本地拒绝或没有可读 GraphQL 结果时，stdout 使用 CLI 的 `{ok:false,effect,error}` 错误结果。原生 mutation 的不可读结果标记为 `unknown`；上游正常返回的 GraphQL 响应保持原样。
 
@@ -39,7 +49,7 @@ GRAPHQL
 `--paginate` 只处理 query 的一个分页连接（connection）。查询必须声明 `$after: String`，把它作为 `after: $after` 传给该连接，并返回 `nodes` 与 `pageInfo { hasNextPage endCursor }`。命令从第一页开始；显式非空 `after` 和 mutation 都在请求前被拒绝：
 
 ```bash
-linear api --paginate \
+linear api - --paginate \
   --variables-json '{"filter":{"team":{"key":{"eq":"ENG"}},"project":{"name":{"eq":"Example project"}}}}' \
   >issues.json 2>issues.log <<'GRAPHQL'
 query ProjectIssues($filter: IssueFilter!, $after: String) {

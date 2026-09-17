@@ -5,10 +5,8 @@ stdout:
 "
 Usage: delete [documentId]
 
-Writes: true                       
-Interactive: true                  
-Confirmation required unless: --yes
-Output modes: human,json           
+Writes: true     
+Interactive: true
 
 Description:
 

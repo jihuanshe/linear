@@ -17,7 +17,6 @@ import {
   getCycleIdByNameOrNumber,
   getProjectIdByName,
   getProjectOptionsByName,
-  getTeamIdByKey,
   getTeamKey,
   isIssueBlocked,
   isLinearUuid,
@@ -26,6 +25,7 @@ import {
   searchIssuesByTerm,
   selectOption,
 } from "../../utils/linear.ts"
+import { resolveWriteTeam } from "../../utils/issue-read.ts"
 import { pipeToUserPager, shouldUsePager } from "../../utils/pager.ts"
 import { shouldShowSpinner } from "../../utils/hyperlink.ts"
 import { header, muted, warning } from "../../utils/styling.ts"
@@ -455,10 +455,7 @@ export const queryCommand = withUsageMetadata(new Command(), {
             },
           )
         }
-        const teamId = await getTeamIdByKey(resolvedTeamKeys[0])
-        if (!teamId) {
-          throw new NotFoundError("Team", resolvedTeamKeys[0])
-        }
+        const { id: teamId } = await resolveWriteTeam(resolvedTeamKeys[0])
         cycleId = await getCycleIdByNameOrNumber(cycle, teamId)
       }
 
@@ -555,21 +552,8 @@ export const queryCommand = withUsageMetadata(new Command(), {
         }
 
         const result = await searchIssuesByTerm(searchTerm, {
-          teamKeys: resolvedTeamKeys,
-          state: stateArray,
-          stateNames,
-          assignee,
-          unassigned,
-          limit: limit === 0 ? 0 : limit,
-          projectId,
-          noProject: unprojected === true,
-          projectLabel,
-          cycleId,
-          labelNames,
-          createdAfter,
-          updatedAfter,
+          ...queryOptions,
           includeComments: searchComments,
-          includeArchived,
         })
 
         spinner?.stop()

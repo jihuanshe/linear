@@ -3,11 +3,8 @@ import { renderMarkdown } from "../../utils/markdown.ts"
 import { gql } from "../../__codegen__/gql.ts"
 import { getGraphQLClient } from "../../utils/graphql.ts"
 import { formatRelativeTime } from "../../utils/display.ts"
-import {
-  getCycleIdByNameOrNumber,
-  getTeamIdByKey,
-  getTeamKey,
-} from "../../utils/linear.ts"
+import { getCycleIdByNameOrNumber, getTeamKey } from "../../utils/linear.ts"
+import { resolveWriteTeam } from "../../utils/issue-read.ts"
 import { shouldShowSpinner } from "../../utils/hyperlink.ts"
 import {
   handleError,
@@ -65,10 +62,7 @@ export const viewCommand = new Command()
         )
       }
 
-      const teamId = await getTeamIdByKey(teamKey)
-      if (!teamId) {
-        throw new NotFoundError("Team", teamKey)
-      }
+      const { id: teamId } = await resolveWriteTeam(teamKey)
 
       const cycleId = await getCycleIdByNameOrNumber(cycleRef, teamId)
 

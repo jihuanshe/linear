@@ -1,5 +1,4 @@
-// Helper function to get the appropriate pager command
-export function getPagerCommand(): { command: string; args: string[] } | null {
+export function getPagerCommand(): { command: string; args: string[] } {
   // Respect user's PAGER environment variable
   const userPager = Deno.env.get("PAGER")
   if (userPager) {
@@ -11,70 +10,9 @@ export function getPagerCommand(): { command: string; args: string[] } | null {
     }
   }
 
-  // Platform-specific fallbacks with color support
-  const os = Deno.build.os
-  switch (os) {
-    case "windows":
-      // Windows: try more first (built-in), then less if available
-      return { command: "more", args: [] }
-    case "darwin":
-    case "linux":
-    default:
-      // Unix-like systems: prefer less with color support and no alternate screen
-      return { command: "less", args: ["-R", "-X"] }
-  }
-}
-
-// Helper function to try fallback pagers
-async function tryFallbackPagers(
-  content: string,
-  failedPager: string,
-): Promise<void> {
-  const fallbacks = []
-  const os = Deno.build.os
-
-  if (os === "windows") {
-    // Windows fallbacks
-    if (failedPager !== "more") fallbacks.push({ command: "more", args: [] })
-    if (failedPager !== "less") {
-      fallbacks.push({ command: "less", args: ["-R", "-X"] })
-    }
-  } else {
-    // Unix-like fallbacks
-    if (failedPager !== "less") {
-      fallbacks.push({ command: "less", args: ["-R", "-X"] })
-    }
-    if (failedPager !== "more") fallbacks.push({ command: "more", args: [] })
-    if (failedPager !== "cat") fallbacks.push({ command: "cat", args: [] })
-  }
-
-  for (const fallback of fallbacks) {
-    try {
-      const process = new Deno.Command(fallback.command, {
-        args: fallback.args,
-        stdin: "piped",
-        stdout: "inherit",
-        stderr: "inherit",
-      })
-
-      const child = process.spawn()
-      const writer = child.stdin.getWriter()
-
-      await writer.write(new TextEncoder().encode(content))
-      await writer.close()
-
-      const status = await child.status
-      if (status.success) {
-        return // Successfully used fallback
-      }
-    } catch {
-      // Continue to next fallback
-      continue
-    }
-  }
-
-  // If all pagers fail, output directly to console
-  console.log(content)
+  return Deno.build.os === "windows"
+    ? { command: "more", args: [] }
+    : { command: "less", args: ["-R", "-X"] }
 }
 
 /**
@@ -82,10 +20,6 @@ async function tryFallbackPagers(
  */
 export async function pipeToUserPager(content: string): Promise<void> {
   const pagerConfig = getPagerCommand()
-  if (!pagerConfig) {
-    console.log(content)
-    return
-  }
 
   try {
     const process = new Deno.Command(pagerConfig.command, {
@@ -103,12 +37,10 @@ export async function pipeToUserPager(content: string): Promise<void> {
 
     const status = await child.status
     if (!status.success) {
-      // Try fallback pagers if the primary one fails
-      await tryFallbackPagers(content, pagerConfig.command)
+      console.log(content)
     }
   } catch {
-    // Try fallback pagers if the primary one is not available
-    await tryFallbackPagers(content, pagerConfig.command)
+    console.log(content)
   }
 }
 

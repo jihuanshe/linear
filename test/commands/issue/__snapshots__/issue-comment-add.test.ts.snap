@@ -21,7 +21,7 @@ stderr:
 snapshot[`Issue Comment Add Command - Help 1`] = `
 stdout:
 "
-Usage: add [issueId]
+Usage: add <issueId>
 
 Writes: true     
 Interactive: true
@@ -40,7 +40,8 @@ Options:
 
   -h, --help                - Show this help.                                                                                     
   -b, --body    <text>      - Comment body text                                                                                   
-  --body-file   <path>      - Read comment body from a file (preferred for markdown content)                                      
+  --body-file   <path>      - Read UTF-8 comment body from a file (- for stdin)                                                   
+  --edit                    - Open an editor, optionally seeded by --body or --body-file                                          
   -p, --parent  <id>        - Parent comment ID for replies                                                                       
   -a, --attach  <filepath>  - Upload a file and add its Markdown link to the comment (images render inline; repeatable)           
   --public                  - Upload attached images to a public, unauthenticated URL (default: private, workspace-members only)  

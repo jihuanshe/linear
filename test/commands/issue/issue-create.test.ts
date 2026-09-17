@@ -11,6 +11,328 @@ import { createCommand } from "../../../src/commands/issue/issue-create.ts"
 import { ValidationError } from "../../../src/utils/errors.ts"
 import { commonDenoArgs } from "../../utils/test-helpers.ts"
 
+for (const outcome of ["missing", "ambiguous", "unauthorized", "unavailable"]) {
+  Deno.test(`interactive issue default Team ${outcome} only falls back on not-found`, async () => {
+    const pageInfo = { hasNextPage: false, endCursor: null }
+    const { server, cleanup } = await setupMockLinearServer([
+      {
+        queryName: "GetWriteTeamByKey",
+        variables: { key: "OLD" },
+        status: outcome === "unauthorized" ? 401 : 200,
+        response: ["missing", "ambiguous"].includes(outcome)
+          ? {
+            data: {
+              teams: {
+                nodes: outcome === "missing" ? [] : [
+                  { id: teamWriteIds.OLD, key: "OLD" },
+                  { id: teamWriteIds.ENG, key: "OLD" },
+                ],
+                pageInfo,
+              },
+            },
+          }
+          : { errors: [{ message: `Team lookup ${outcome}` }] },
+      },
+      {
+        queryName: "GetAllTeams",
+        response: {
+          data: {
+            teams: {
+              nodes: [
+                { id: teamWriteIds.ENG, key: "ENG", name: "Engineering" },
+                { id: teamWriteIds.OPS, key: "OPS", name: "Operations" },
+              ],
+              pageInfo,
+            },
+          },
+        },
+      },
+      {
+        queryName: "GetWorkflowStates",
+        variables: { teamKey: teamWriteIds.OPS },
+        response: { data: { team: { states: { nodes: [] } } } },
+      },
+      {
+        queryName: "GetLabelsForTeam",
+        variables: { teamKey: "OPS" },
+        response: { data: { team: { labels: { nodes: [] } } } },
+      },
+      {
+        queryName: "CreateIssue",
+        response: {
+          data: {
+            issueCreate: {
+              success: true,
+              issue: {
+                id: "new",
+                identifier: "OPS-9",
+                url: "https://linear.app/test/issue/OPS-9",
+                team: { key: "OPS" },
+              },
+            },
+          },
+        },
+      },
+    ], {
+      LINEAR_TEAM_ID: "OLD",
+      LINEAR_ISSUE_CREATE_ASSIGN_SELF: "never",
+      LINEAR_ISSUE_CREATE_ASK_PROJECT: "false",
+    })
+    const stdin = stub(
+      Object.getPrototypeOf(Deno.stdin),
+      "isTerminal",
+      () => true,
+    )
+    const stdout = stub(
+      Object.getPrototypeOf(Deno.stdout),
+      "isTerminal",
+      () => true,
+    )
+    const input = stub(Input, "prompt", () => Promise.resolve("Draft"))
+    const select = stub(
+      Select,
+      "prompt",
+      (options: { message: string; options: unknown }) => {
+        if (options.message === "What's next?") return Promise.resolve("submit")
+        assertEquals(options.message, "Which team should this issue belong to?")
+        assertEquals(options.options, [
+          { name: "Engineering (ENG)", value: teamWriteIds.ENG },
+          { name: "Operations (OPS)", value: teamWriteIds.OPS },
+        ])
+        return Promise.resolve(teamWriteIds.OPS)
+      },
+    )
+    const log = stub(console, "log", () => {})
+    const errors: string[] = []
+    const stderr = stub(console, "error", (...args: unknown[]) => {
+      errors.push(args.join(" "))
+    })
+    const exit = stub(Deno, "exit", () => {
+      throw new Error("EXIT")
+    })
+    try {
+      if (outcome === "missing") {
+        await createCommand.parse([])
+      } else {
+        await assertRejects(() => createCommand.parse([]), Error, "EXIT")
+        assertStringIncludes(
+          errors.join("\n"),
+          outcome === "ambiguous" ? "ambiguous" : `Team lookup ${outcome}`,
+        )
+        assertEquals(select.calls.length, 0)
+      }
+      const writes = server.graphqlRequests.filter((request) =>
+        request.query.includes("mutation ")
+      )
+      assertEquals(writes.length, outcome === "missing" ? 1 : 0)
+      if (outcome === "missing") {
+        assertEquals(
+          (writes[0].variables.input as Record<string, unknown>).teamId,
+          teamWriteIds.OPS,
+        )
+      }
+      assertEquals(
+        server.graphqlRequests.filter((request) =>
+          request.query.includes("query GetWriteTeam")
+        ).map((request) => request.variables),
+        [{ key: "OLD" }],
+      )
+      assertEquals(
+        server.graphqlRequests.filter((request) =>
+          request.query.includes("query GetAllTeams")
+        ).length,
+        outcome === "missing" ? 1 : 0,
+      )
+    } finally {
+      exit.restore()
+      stderr.restore()
+      log.restore()
+      select.restore()
+      input.restore()
+      stdout.restore()
+      stdin.restore()
+      await cleanup()
+    }
+  })
+}
+
+for (
+  const selection of [[], ["priority"], ["assignee"], ["workflow_state"], [
+    "labels",
+  ]]
+) {
+  Deno.test(`interactive issue draft preserves unselected defaults: ${JSON.stringify(selection)}`, async () => {
+    const { server, cleanup } = await setupMockLinearServer([
+      {
+        queryName: "GetTeamIdByKey",
+        response: { data: { teams: { nodes: [{ id: teamWriteIds.ENG }] } } },
+      },
+      {
+        queryName: "GetWorkflowStates",
+        response: {
+          data: {
+            team: {
+              states: {
+                nodes: [
+                  {
+                    id: "backlog",
+                    name: "Backlog",
+                    type: "backlog",
+                    position: 0,
+                  },
+                  {
+                    id: "ready",
+                    name: "Ready",
+                    type: "unstarted",
+                    position: 1,
+                  },
+                  {
+                    id: "working",
+                    name: "Working",
+                    type: "started",
+                    position: 2,
+                  },
+                ],
+              },
+            },
+          },
+        },
+      },
+      {
+        queryName: "GetLabelsForTeam",
+        response: {
+          data: {
+            team: {
+              labels: { nodes: [{ id: "label", name: "Bug", color: "red" }] },
+            },
+          },
+        },
+      },
+      {
+        queryName: "GetViewerId",
+        response: { data: { viewer: { id: "self" } } },
+      },
+      {
+        queryName: "ProjectTeams",
+        response: {
+          data: {
+            project: {
+              id: "abcdef01-2345-4678-9abc-def012345678",
+              name: "Release",
+              teams: {
+                nodes: [{
+                  id: teamWriteIds.ENG,
+                  key: "ENG",
+                  name: "Engineering",
+                }],
+                pageInfo: { hasNextPage: false, endCursor: null },
+              },
+            },
+          },
+        },
+      },
+      {
+        queryName: "CreateIssue",
+        response: {
+          data: {
+            issueCreate: {
+              success: true,
+              issue: {
+                id: "new",
+                identifier: "ENG-9",
+                url: "https://linear.app/test/issue/ENG-9",
+                team: { key: "ENG" },
+              },
+            },
+          },
+        },
+      },
+    ], { LINEAR_TEAM_ID: "ENG", LINEAR_ISSUE_CREATE_ASSIGN_SELF: "always" })
+    const stdin = stub(
+      Object.getPrototypeOf(Deno.stdin),
+      "isTerminal",
+      () => true,
+    )
+    const terminal = stub(
+      Object.getPrototypeOf(Deno.stdout),
+      "isTerminal",
+      () => true,
+    )
+    const input = stub(
+      Input,
+      "prompt",
+      (options: string | { message: string }) => {
+        const message = typeof options === "string" ? options : options.message
+        return Promise.resolve(
+          message.startsWith("Description")
+            ? "Existing description"
+            : "Draft title",
+        )
+      },
+    )
+    const select = stub(Select, "prompt", (options: { message: string }) => {
+      switch (options.message) {
+        case "What's next?":
+          return Promise.resolve("more_fields")
+        case "What priority should this issue have?":
+          return Promise.resolve(0)
+        case "Assign this issue to yourself?":
+          return Promise.resolve(false)
+        case "Which workflow state should this issue be in?":
+          return Promise.resolve("working")
+        default:
+          throw new Error(`Unexpected prompt: ${options.message}`)
+      }
+    })
+    const checkbox = stub(
+      Checkbox,
+      "prompt",
+      (options: { message: string }) =>
+        Promise.resolve(
+          options.message === "Select additional fields to configure"
+            ? selection
+            : ["label"],
+        ),
+    )
+    const log = stub(console, "log", () => {})
+    try {
+      await createCommand.parse([
+        "--project",
+        "abcdef01-2345-4678-9abc-def012345678",
+      ])
+      const writes = server.graphqlRequests.filter((request) =>
+        request.query.includes("mutation CreateIssue")
+      )
+      assertEquals(writes.length, 1)
+      assertEquals(writes[0].variables.input, {
+        title: "Draft title",
+        description: "Existing description",
+        teamId: teamWriteIds.ENG,
+        projectId: "abcdef01-2345-4678-9abc-def012345678",
+        stateId: selection.includes("workflow_state") ? "working" : "ready",
+        labelIds: selection.includes("labels") ? ["label"] : [],
+        assigneeId: selection.includes("assignee") ? null : "self",
+        ...(selection.includes("priority") ? { priority: 0 } : {}),
+        useDefaultTemplate: true,
+      })
+      assertEquals(
+        server.graphqlRequests.filter((request) =>
+          request.query.includes("query GetViewerId")
+        ).length,
+        1,
+      )
+    } finally {
+      log.restore()
+      checkbox.restore()
+      select.restore()
+      input.restore()
+      terminal.restore()
+      stdin.restore()
+      await cleanup()
+    }
+  })
+}
+
 for (
   const args of [
     ...[
@@ -114,6 +436,61 @@ Deno.test("create CLI preserves a legal explicit empty description", async () =>
     assertEquals(
       (writes[0].variables.input as Record<string, unknown>).description,
       "",
+    )
+  } finally {
+    await cleanup()
+  }
+})
+
+Deno.test("Issue Create Command - JSON receipt includes the server title in data.issue", async () => {
+  const issue = {
+    id: "issue-id",
+    identifier: "ENG-123",
+    title: "Server title",
+    url: "https://linear.app/test/issue/ENG-123",
+    team: { key: "ENG" },
+  }
+  const { server, cleanup } = await setupMockLinearServer([
+    {
+      queryName: "GetTeamIdByKey",
+      variables: { team: "ENG" },
+      response: { data: { teams: { nodes: [{ id: teamWriteIds.ENG }] } } },
+    },
+    {
+      queryName: "CreateIssue",
+      response: { data: { issueCreate: { success: true, issue } } },
+    },
+  ], { LINEAR_TEAM_ID: "ENG", LINEAR_ISSUE_CREATE_ASSIGN_SELF: "never" })
+  try {
+    const result = await new Deno.Command(Deno.execPath(), {
+      args: [
+        "run",
+        ...commonDenoArgs,
+        "src/main.ts",
+        "issue",
+        "create",
+        "--json",
+        "--title",
+        "Requested title",
+      ],
+      stdin: "null",
+      stdout: "piped",
+      stderr: "piped",
+    }).output()
+    const stdout = new TextDecoder().decode(result.stdout)
+    assertEquals(result.code, 0, stdout)
+    assertEquals(new TextDecoder().decode(result.stderr), "")
+    const body = JSON.parse(stdout)
+    assertEquals(body.ok, true)
+    assertEquals(body.effect, "applied")
+    assertEquals(body.data, { success: true, issue })
+    const writes = server.graphqlRequests.filter((request) =>
+      request.query.includes("mutation CreateIssue")
+    )
+    assertEquals(writes.length, 1)
+    assertStringIncludes(
+      stripIgnoredCharacters(writes[0].query),
+      "issue{id identifier title url team{key}}",
     )
   } finally {
     await cleanup()
@@ -318,7 +695,6 @@ await snapshotTest({
   denoArgs: commonDenoArgs,
   async fn() {
     const { cleanup } = await setupMockLinearServer([
-      // Mock response for getTeamIdByKey() - converting team key to ID
       {
         queryName: "GetTeamIdByKey",
         variables: { team: "ENG" },
@@ -410,7 +786,6 @@ await snapshotTest({
           },
         },
       },
-      // Mock response for getTeamIdByKey()
       {
         queryName: "GetTeamIdByKey",
         variables: { team: "ENG" },
@@ -501,7 +876,6 @@ await snapshotTest({
   denoArgs: commonDenoArgs,
   async fn() {
     const { cleanup } = await setupMockLinearServer([
-      // Mock response for getTeamIdByKey() - converting team key to ID
       {
         queryName: "GetTeamIdByKey",
         variables: { team: "ENG" },
@@ -577,7 +951,6 @@ await snapshotTest({
   denoArgs: commonDenoArgs,
   async fn() {
     const { server, cleanup } = await setupMockLinearServer([
-      // Mock response for getTeamIdByKey()
       {
         queryName: "GetTeamIdByKey",
         variables: { team: "ENG" },
@@ -662,7 +1035,6 @@ await snapshotTest({
   denoArgs: commonDenoArgs,
   async fn() {
     const { cleanup } = await setupMockLinearServer([
-      // Mock response for getTeamIdByKey()
       {
         queryName: "GetTeamIdByKey",
         variables: { team: "ENG" },
@@ -822,6 +1194,7 @@ Deno.test("Issue Create Command - Explicit Project Still Uses Interactive Mode",
       variables: {
         input: {
           title: "Create dashboard issue",
+          description: "",
           labelIds: [],
           teamId: teamWriteIds.ENG,
           projectId: "project-123",
@@ -975,6 +1348,7 @@ Deno.test("Issue Create Command - Interactive Project Prompt Uses Team Projects"
       variables: {
         input: {
           title: "Issue with prompted project",
+          description: "",
           labelIds: [],
           teamId: teamWriteIds.ENG,
           projectId: "project-456",
@@ -1137,6 +1511,7 @@ Deno.test("Issue Create Command - Additional Fields Can Set Project", async () =
       variables: {
         input: {
           title: "Issue from more fields",
+          description: "",
           labelIds: [],
           teamId: teamWriteIds.ENG,
           projectId: "project-789",

@@ -144,12 +144,16 @@ Deno.test("zero-argument domain reuses its usage navigation", async () => {
   assertEquals(aliasResult.stdout, explicitUsage.stdout)
 })
 
-Deno.test("zero-argument commands with their own action stay unchanged", async () => {
-  const result = await run(["document"])
+Deno.test("document navigation reuses generated usage", async () => {
+  const [result, explicitUsage] = await Promise.all([
+    run(["document"]),
+    run(["document", "usage"]),
+  ])
 
   assertEquals(result.code, 0, result.stderr)
   assertEquals(result.stderr, "")
-  assertEquals(result.stdout, "Use --help to see available subcommands\n")
+  assertEquals(explicitUsage.code, 0, explicitUsage.stderr)
+  assertEquals(result.stdout, explicitUsage.stdout)
 })
 
 Deno.test("usage --json exposes the top-level command tree", async () => {
@@ -206,10 +210,6 @@ Deno.test("domain usage includes direct command options", async () => {
   assertStringIncludes(result.stdout, "create options:")
   assertStringIncludes(result.stdout, "--no-interactive")
   assertStringIncludes(result.stdout, "[writes; interactive; json]")
-  assertStringIncludes(
-    result.stdout,
-    "[writes; interactive; confirm: --confirm; json]",
-  )
   assertStringIncludes(result.stdout, "[interactive; json]")
   assertStringIncludes(
     result.stdout,
@@ -258,7 +258,7 @@ Deno.test("Cliffy help keeps canonical human metadata labels", async () => {
   assertEquals(deleteResult.stderr, "")
   assertMatch(
     deleteResult.stdout,
-    /\nWrites: true\s*\nInteractive: true\s*\nConfirmation required unless: --confirm\s*\n/,
+    /\nWrites: true\s*\nInteractive: true\s*\n/,
   )
 
   const apiResult = await run(["api", "--help"])
@@ -282,25 +282,6 @@ Deno.test("domain usage --json preserves arguments, aliases, and option types", 
     false,
   )
 
-  const mine = document.subcommands.find((command) => command.name === "mine")
-  assertEquals(mine?.aliases, ["list", "l"])
-  assertEquals(mine?.writes, false)
-  assertEquals(mine?.interactive, true)
-  assertEquals(
-    mine?.options.some((option) =>
-      ["assignee", "all-assignees", "unassigned"].includes(option.name)
-    ),
-    false,
-  )
-  assertEquals(
-    mine?.options.find((option) => option.name === "state")?.default,
-    ["unstarted"],
-  )
-  assertEquals(
-    mine?.options.find((option) => option.name === "limit")?.default,
-    50,
-  )
-
   const attach = document.subcommands.find((command) =>
     command.name === "attach"
   )
@@ -318,23 +299,19 @@ Deno.test("domain usage --json preserves arguments, aliases, and option types", 
   )
   assertEquals(create?.writes, true)
   assertEquals(create?.interactive, true)
-  assertEquals(create?.confirmation, null)
   assertEquals(create?.outputModes, ["human", "json"])
   const team = create?.options.find((option) => option.name === "team")
   assertEquals(team?.flags, ["--team"])
   assertEquals(team?.arguments[0]?.type, "string")
-  assertEquals(team?.arguments[0]?.list, false)
 
   const deleteCommand = document.subcommands.find((command) =>
     command.name === "delete"
   )
   assertEquals(deleteCommand?.writes, true)
   assertEquals(deleteCommand?.interactive, true)
-  assertEquals(deleteCommand?.confirmation, {
-    requiredUnless: "--confirm",
-  })
 
   const query = document.subcommands.find((command) => command.name === "query")
+  assertEquals(query?.aliases, ["q"])
   assertEquals(query?.interactive, true)
   assertEquals(query?.outputModes, ["human", "json"])
 
@@ -366,17 +343,18 @@ Deno.test("usage --json exposes required options and canonical alias paths", asy
   assertEquals(aliasDocument.command.path, "linear issue")
 })
 
-Deno.test("usage distinguishes list arguments from repeatable options", () => {
+Deno.test("usage distinguishes scalar and repeatable options", () => {
   const command = new Command()
     .name("sample")
     .description("Sample command")
-    .option("--items <items:string[]>", "Comma-separated items")
+    .option("--title <title:string>", "Title")
     .option("--tag <tag:string>", "Repeatable tag", { collect: true })
   const options = buildUsageDocument(command).command.options
 
-  const items = options.find((option) => option.name === "items")
-  assertEquals(items?.arguments[0]?.list, true)
-  assertEquals(items?.repeatable, false)
+  assertEquals(
+    options.find((option) => option.name === "title")?.repeatable,
+    false,
+  )
   assertEquals(
     options.find((option) => option.name === "tag")?.repeatable,
     true,
@@ -435,16 +413,9 @@ Deno.test("writes metadata exactly matches canonical write commands", () => {
   assertEquals(actual.sort(), CANONICAL_WRITES_COMMAND_PATHS)
 })
 
-Deno.test("pruned workflows stay outside the command tree and replacement options remain discoverable", () => {
-  assertEquals(cli.getCommand("doctor"), undefined)
+Deno.test("selection metadata and protected replacement options remain discoverable", () => {
   const issue = cli.getCommand("issue")!
-  for (const name of ["start", "commits", "pull-request", "pr"]) {
-    assertEquals(issue.getCommand(name), undefined)
-  }
   const team = cli.getCommand("team")!
-  for (const name of ["id", "autolinks"]) {
-    assertEquals(team.getCommand(name), undefined)
-  }
   assertEquals(
     buildUsageDocument(issue.getCommand("pick")!).command.writes,
     false,
@@ -486,28 +457,6 @@ Deno.test("usage metadata stays aligned with the registered command tree", () =>
     )
   ) {
     assertEquals(command.details, `${command.path} usage`)
-  }
-
-  const queue = [...cli.getCommands(true)]
-  for (const command of queue) {
-    queue.push(...command.getCommands(true))
-    const metadata = buildUsageDocument(command).command
-    const confirmationOption = command.getBaseOptions().find((option) =>
-      /skip confirmation prompt/i.test(option.description)
-    )
-    if (confirmationOption == null) continue
-
-    assertExists(
-      metadata.confirmation,
-      `${metadata.path} has a confirmation bypass option but no metadata`,
-    )
-    assertEquals(
-      confirmationOption.flags.includes(
-        metadata.confirmation.requiredUnless,
-      ),
-      true,
-      `${metadata.path} confirmation metadata does not name its bypass option`,
-    )
   }
 })
 

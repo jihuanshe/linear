@@ -208,9 +208,9 @@ Deno.test("document update refuses partial stdin read errors before any write", 
   assertEquals(result.effect, "none")
   assertStringIncludes(
     result.error.message,
-    "Failed to read document content from stdin",
+    "Failed to read content file: -",
   )
-  assertStringIncludes(result.error.message, "injected stdin read failure")
+  assertStringIncludes(result.error.suggestion, "injected stdin read failure")
   assertEquals(output.requests, [])
 })
 
