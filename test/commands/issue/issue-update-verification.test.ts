@@ -90,7 +90,7 @@ async function command(args: string[]) {
 
 Deno.test("issue update retries stale reads and accepts Linear Markdown normalization", async () => {
   const desired =
-    "情况已确认。\n\n+++ 来源与接手\n\n- [来源](https://example.com/反馈)\n\n- [修复单](https://example.com/case)\n\n+++\n"
+    "情况已确认。\n\n+++ 来源与接手\n\n- [来源](https://example.com/反馈)\n\n+ [修复单](https://example.com/case)\n\n+++\n"
   const actual =
     "情况已确认。\n\n+++ 来源与接手\n\n* [来源](<https://example.com/%E5%8F%8D%E9%A6%88>)\n* [修复单](<https://example.com/case>)\n\n+++"
   const f = await fixture((written, attempt) => ({
@@ -151,9 +151,7 @@ for (
               : {}),
             issue: {
               ...written.issue,
-              ...(mode === "different"
-                ? { description: "第一段\n第二段" }
-                : {}),
+              ...(mode === "different" ? { description: "---\n说明" } : {}),
               ...(mode === "identity"
                 ? { id: "99999999-9999-4999-8999-999999999999" }
                 : {}),
@@ -162,7 +160,7 @@ for (
         }
     )
     try {
-      const result = await command(["--description", "第一段\n\n第二段"])
+      const result = await command(["--description", "* ---\n  说明"])
       assertEquals(result.code, 1)
       assertEquals(result.output.ok, false)
       assertEquals(result.output.effect, "applied")
