@@ -76,6 +76,25 @@ Deno.test("recipe catalog embeds every instruction and script exactly once", asy
   }
 })
 
+Deno.test("release smoke only invokes recipes in the current catalog", async () => {
+  const workflow = await Deno.readTextFile(
+    join(root, ".github/workflows/ship-main.yml"),
+  )
+  const invocations = [...workflow.matchAll(
+    /(?:"\$release_binary"|smoke_cli) recipe ([\w-]+) --(json|source)/g,
+  )]
+  assertFalse(invocations.length === 0)
+  for (const [, name, output] of invocations) {
+    const result = await run(["recipe", name, `--${output}`])
+    assertEquals(result.code, 0, result.stdout + result.stderr)
+    const recipe = recipes.find((item) => item.name === name)!
+    assertEquals(
+      output === "json" ? JSON.parse(result.stdout).source : result.stdout,
+      recipe.source,
+    )
+  }
+})
+
 Deno.test("recipe discovery is offline and omits full instructions and source", async () => {
   const result = await run(["recipe", "--json"])
   assertEquals(result.code, 0, result.stderr)
