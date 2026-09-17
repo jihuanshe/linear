@@ -39,9 +39,10 @@ export const listCommand = new Command()
     "Project (UUID, slug ID, or name)",
     { required: true },
   )
-  .action(async ({ project: projectIdOrSlug }) => {
+  .option("--json", "Output the complete {nodes, pageInfo} connection as JSON")
+  .action(async ({ project: projectIdOrSlug, json }) => {
     const { Spinner } = await import("@std/cli/unstable-spinner")
-    const showSpinner = shouldShowSpinner()
+    const showSpinner = shouldShowSpinner() && !json
     const spinner = showSpinner ? new Spinner() : null
     spinner?.start()
 
@@ -55,7 +56,7 @@ export const listCommand = new Command()
         after: null,
       })
       if (!result.project) throw new NotFoundError("Project", projectId)
-      const { nodes: milestones } = await completeConnection(
+      const connection = await completeConnection(
         result.project.projectMilestones,
         async (after) => {
           const page = await client.request(GetProjectMilestones, {
@@ -69,6 +70,12 @@ export const listCommand = new Command()
       )
       spinner?.stop()
 
+      if (json) {
+        console.log(JSON.stringify(connection, null, 2))
+        return
+      }
+
+      const milestones = connection.nodes
       if (milestones.length === 0) {
         console.log("No milestones found for this project.")
         return

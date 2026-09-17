@@ -59,7 +59,7 @@ export const deleteCommand = withUsageMetadata(new Command(), {
 })
   .name("delete")
   .description(
-    "Delete an issue by identifier or UUID; bulk stops after an unknown outcome",
+    "Delete (trash) an issue by identifier or UUID; bulk stops after an unknown outcome",
   )
   .alias("d")
   .arguments("[issueId:string]")

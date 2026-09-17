@@ -690,7 +690,6 @@ Deno.test("global JSON rejects unsupported actions without requests or credentia
         ["issue", "url"],
         ["cycle", "list"],
         ["cycle", "view", "active"],
-        ["milestone", "list", "--project", "project-1"],
         ["team", "key"],
         ["completions"],
         ["completions", "bash"],

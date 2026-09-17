@@ -23,6 +23,7 @@ const GetDocument = gql(`
       content
       icon
       archivedAt
+      trashed
       url
       createdAt
       updatedAt
@@ -53,6 +54,7 @@ const GetDocumentWithComments = gql(`
       content
       icon
       archivedAt
+      trashed
       url
       createdAt
       updatedAt
@@ -136,7 +138,7 @@ export const viewCommand = new Command()
   .arguments("<id:string>")
   .option("--raw", "Output raw markdown without rendering")
   .option("-w, --web", "Open document in browser")
-  .option("--json", "Output full document as JSON")
+  .option("--json", "Output document JSON, including archivedAt and trashed")
   .action(async ({ raw, web, json }, id) => {
     const { Spinner } = await import("@std/cli/unstable-spinner")
     const showSpinner = shouldShowSpinner() && !raw && !json
@@ -187,6 +189,9 @@ export const viewCommand = new Command()
       // Metadata
       lines.push(`**Slug:** ${document.slugId}`)
       lines.push(`**URL:** ${document.url}`)
+
+      if (document.trashed) lines.push("**Lifecycle:** Deleted (in trash)")
+      else if (document.archivedAt) lines.push("**Lifecycle:** Archived")
 
       if (document.creator) {
         lines.push(`**Creator:** ${document.creator.name}`)

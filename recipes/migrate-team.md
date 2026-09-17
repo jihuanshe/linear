@@ -21,6 +21,8 @@ linear issue apply --file migration/manifest.json --confirm-workspace acme --jso
 
 `plan` 和 `apply` 使用相同原始依据与专用 Issue 更新校验；冻结后的并发归档仍由写入前读取拒绝。`apply` 默认第一次失败就停止，前面已成功的项保留，不自动回滚。只有用户明确选择继续时才加 `--continue-on-failure`；该选项不能越过 `unknown`。这不是跨 Issue 事务。
 
+Linear 迁移父 Issue 时可能联动其子 Issue；`plan` 不模拟这类上游副作用，审阅范围时需同时检查父子关系。跨团队会使用目标团队的 Workflow State UUID；需指定状态时使用目标团队的 UUID、名称或类型，不能用 `expectFields: ["state"]` 表达「保留同类状态」。若联动导致原值断言冲突，保留原始依据和账本，按 UUID 对账后修订仍需执行的目标，不覆盖原始依据来绕过冲突。
+
 执行进度只由 `manifest.json.checkpoint.json` 记录。已确认成功的项在续跑时跳过，已知无效果的失败可在处理原因后续跑；未知结果必须先按 UUID 对账，不能直接重试。保留清单、依据、账本与每次原始输出，不覆盖旧结果文件；完整恢复步骤见 `linear guide issue-delivery`。
 
 **旧迁移目录不转换、不重放。** 旧 `scope.json`、`receipts.jsonl` 和原始 stdout／stderr 必须原样保留。本脚本不再提供 `move`，也不生成新的 `receipts.jsonl`。先由操作人按稳定 UUID 核对旧回执和实际效果；任何 `unknown` 未查清前，不把它加入新执行清单。对账后仅为明确的剩余工作另建 manifest v2 和依据文件，不直接把旧 scope 全量转换，也不删除旧账本绕过恢复边界。

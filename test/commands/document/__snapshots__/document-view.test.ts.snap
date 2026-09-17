@@ -11,10 +11,10 @@ Description:
 
 Options:
 
-  -h, --help  - Show this help.                        
-  --raw       - Output raw markdown without rendering  
-  -w, --web   - Open document in browser               
-  --json      - Output full document as JSON           
+  -h, --help  - Show this help.                                         
+  --raw       - Output raw markdown without rendering                   
+  -w, --web   - Open document in browser                                
+  --json      - Output document JSON, including archivedAt and trashed  
 
 "
 stderr:

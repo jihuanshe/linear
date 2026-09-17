@@ -11,8 +11,9 @@ Description:
 
 Options:
 
-  -h, --help             - Show this help.                             
-  --project   <project>  - Project (UUID, slug ID, or name)  (required)
+  -h, --help             - Show this help.                                                     
+  --project   <project>  - Project (UUID, slug ID, or name)                          (required)
+  --json                 - Output the complete {nodes, pageInfo} connection as JSON            
 
 "
 stderr:

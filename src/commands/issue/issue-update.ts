@@ -641,7 +641,7 @@ export const updateCommand = withUsageMetadata(new Command(), { writes: true })
   )
   .option(
     "--team <team:string>",
-    "Move the issue to this team (UUID or key)",
+    "Move the issue to this team (UUID or key); Linear may also move child issues",
     { preserveEmpty: true },
   )
   .option(
@@ -687,7 +687,7 @@ export const updateCommand = withUsageMetadata(new Command(), { writes: true })
   )
   .option(
     "-j, --json",
-    "Output a JSON write result with the mutation receipt, verification, and readBack",
+    "Output data.issue plus top-level verification and readBack after a write",
   )
   .action(async (options, issueIdArg) => {
     try {

@@ -9,7 +9,7 @@
   },
   "tasks": {
     "dev": "deno task generate-graphql-types && deno run --allow-all --quiet src/main.ts ",
-    "install": "deno task generate-graphql-types && deno install --compile --frozen --lock=./deno.lock -c ./deno.json --allow-all --quiet -g -f -n linear ./src/main.ts",
+    "install": "deno task generate-graphql-types && deno install --compile --frozen --lock=./deno.lock -c ./deno.json --allow-all -g -f -n linear ./src/main.ts",
     "uninstall": "deno uninstall -g linear",
     "generate-graphql-types": "deno run --allow-all npm:@graphql-codegen/cli@7.2.0/graphql-codegen-esm",
     "sync-graphql-schema": "deno task dev schema -o graphql/schema.graphql && deno task generate-graphql-types",

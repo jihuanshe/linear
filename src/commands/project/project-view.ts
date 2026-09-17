@@ -44,6 +44,7 @@ const GetProjectDetails = gql(`
       canceledAt
       updatedAt
       archivedAt
+      trashed
       createdAt
       url
       teams(first: 100) {
@@ -91,7 +92,7 @@ export const viewCommand = new Command()
   .arguments("<projectId:string>")
   .option("-w, --web", "Open in web browser")
   .option("-a, --app", "Open in Linear.app")
-  .option("-j, --json", "Output as JSON")
+  .option("-j, --json", "Output JSON, including archivedAt and trashed")
   .option("--include-content", "Include the project's content", {
     default: true,
   })
@@ -139,6 +140,9 @@ export const viewCommand = new Command()
       // Basic info
       lines.push(`**Slug:** ${project.slugId}`)
       lines.push(`**URL:** ${project.url}`)
+
+      if (project.trashed) lines.push("**Lifecycle:** Deleted (in trash)")
+      else if (project.archivedAt) lines.push("**Lifecycle:** Archived")
 
       // Status with color styling
       const statusLine = `**Status:** ${project.status.name}`

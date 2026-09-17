@@ -860,7 +860,7 @@ Creates original.json and desired.md in a new directory. Read the saved discussi
           variadic: false,
         },
       ],
-      description: "Delete an issue by identifier or UUID; bulk stops after an unknown outcome",
+      description: "Delete (trash) an issue by identifier or UUID; bulk stops after an unknown outcome",
       details: "linear issue delete --help",
       hasSubcommands: false,
       interactive: true,
@@ -1487,7 +1487,7 @@ Run \`linear guide markdown\` for mentions, collapsible sections and rewrite ris
               variadic: false,
             },
           ],
-          description: "Move the issue to this team (UUID or key)",
+          description: "Move the issue to this team (UUID or key); Linear may also move child issues",
           flags: [
             "--team",
           ],
@@ -1638,7 +1638,7 @@ Run \`linear guide markdown\` for mentions, collapsible sections and rewrite ris
         },
         {
           arguments: [],
-          description: "Output a JSON write result with the mutation receipt, verification, and readBack",
+          description: "Output data.issue plus top-level verification and readBack after a write",
           flags: [
             "-j",
             "--json",
