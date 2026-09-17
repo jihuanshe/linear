@@ -162,7 +162,7 @@ const TeamByKey = gql(`
 `)
 
 /** Resolve once; subsequent operations use the returned UUID, not the key. */
-export async function resolveWriteTeam(input: string) {
+export async function resolveTeam(input: string) {
   const client = getGraphQLClient()
   if (isLinearUuid(input)) {
     const result = await client.request(TeamById, { id: input })

@@ -25,7 +25,7 @@ import {
   searchIssuesByTerm,
   selectOption,
 } from "../../utils/linear.ts"
-import { resolveWriteTeam } from "../../utils/issue-read.ts"
+import { resolveTeam } from "../../utils/issue-read.ts"
 import { pipeToUserPager, shouldUsePager } from "../../utils/pager.ts"
 import { shouldShowSpinner } from "../../utils/hyperlink.ts"
 import { header, muted, warning } from "../../utils/styling.ts"
@@ -453,7 +453,7 @@ export const queryCommand = withUsageMetadata(new Command(), {
             },
           )
         }
-        const { id: teamId } = await resolveWriteTeam(resolvedTeamKeys[0])
+        const { id: teamId } = await resolveTeam(resolvedTeamKeys[0])
         cycleId = await getCycleIdByNameOrNumber(cycle, teamId)
       }
 

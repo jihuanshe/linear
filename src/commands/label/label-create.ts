@@ -4,7 +4,7 @@ import { Input, Select } from "../../utils/prompt.ts"
 import { gql } from "../../__codegen__/gql.ts"
 import { getGraphQLClient } from "../../utils/graphql.ts"
 import { getAllTeams, getTeamKey } from "../../utils/linear.ts"
-import { resolveWriteTeam } from "../../utils/issue-read.ts"
+import { resolveTeam } from "../../utils/issue-read.ts"
 import { shouldShowSpinner } from "../../utils/hyperlink.ts"
 import { printWriteResult } from "../../utils/write-result.ts"
 import {
@@ -201,7 +201,7 @@ export const createCommand = withUsageMetadata(new Command(), {
 
       // Build input
       if (providedTeam != null) {
-        teamId = (await resolveWriteTeam(providedTeam)).id
+        teamId = (await resolveTeam(providedTeam)).id
       }
 
       const input = {

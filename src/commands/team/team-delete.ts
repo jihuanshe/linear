@@ -4,7 +4,7 @@ import { printWriteResult } from "../../utils/write-result.ts"
 import { assertPromptAllowed, Confirm } from "../../utils/prompt.ts"
 import { gql } from "../../__codegen__/gql.ts"
 import { getGraphQLClient } from "../../utils/graphql.ts"
-import { resolveWriteTeam } from "../../utils/issue-read.ts"
+import { resolveTeam } from "../../utils/issue-read.ts"
 import {
   assertMutationSuccess,
   handleError,
@@ -38,7 +38,7 @@ export const deleteCommand = withUsageMetadata(new Command(), {
   .action(async ({ yes, dryRun, json }, teamReference) => {
     try {
       const client = getGraphQLClient()
-      const { id: teamId } = await resolveWriteTeam(teamReference)
+      const { id: teamId } = await resolveTeam(teamReference)
       const readEmptyTeam = async () => {
         const { team } = await client.request(GetTeamDetails, { id: teamId })
         if (!team) throw new NotFoundError("Team", teamReference)
