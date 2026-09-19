@@ -49,9 +49,9 @@ linear issue view ENG-123 --json >original.json
 
 `original.json` 必须是原始读取产生、符合 `{organization,issue}` 结构的 JSON；其工作区、对象和所需字段必须匹配。可以用 `base` 内嵌同一结构，不能与 `baseFile` 同时使用。明确无保护替换使用 `unprotected: true`，不能附 `base`／`baseFile`；`expectFields` 必须有原始依据，且只接受该对象支持的 API 字段。
 
-`set` 与共享 Issue 操作的选项对应，使用 camelCase：例如 `descriptionFile`、`dueDate`、`addLabel`、`removeLabel`、`unassign` 和 `clearCycle`。团队位于 `set.team`，完整标签替换是 `set.label`。`label`、`addLabel`、`removeLabel` 对应可重复选项，因此值是字符串数组；清单的 `expectFields` 对应重复的 `--expect-field`。这些是输入选项名，读取和 mutation 仍保留 API 的字段名与结构。完整字段和有效值以 `issue create --help`、`issue update --help` 及清单校验为准，不另定义一套名称解析规则。
+`set` 与共享 Issue 操作的选项对应，使用 camelCase：例如 `descriptionFile`、`dueDate`、`addLabel`、`removeLabel`、`unassign`、`clearCycle` 和 `clearProject`。团队位于 `set.team`，完整标签替换是 `set.label`。`label`、`addLabel`、`removeLabel` 对应可重复选项，因此值是字符串数组；清单的 `expectFields` 对应重复的 `--expect-field`。这些是输入选项名，读取和 mutation 仍保留 API 的字段名与结构。完整字段和有效值以 `issue create --help`、`issue update --help` 及清单校验为准，不另定义一套名称解析规则。
 
-`create` 要求 `set.title` 和 `set.team`，不接受已有 `identifier`、原始依据或期望字段。`update` 要求 `identifier`，可用 UUID 或完整编号。`unassign: true` 清除负责人，`clearCycle: true` 清除周期；不能分别与 `assignee`、`cycle` 同用。标签增删与完整 `label` 替换互斥；空 `label` 替换不受支持，须逐项 `removeLabel`。只追加评论、附件或关系时省略 `set` 和原始依据。
+`create` 要求 `set.title` 和 `set.team`，不接受已有 `identifier`、原始依据或期望字段。`update` 要求 `identifier`，可用 UUID 或完整编号。`unassign: true` 清除负责人，`clearCycle: true` 清除周期；不能分别与 `assignee`、`cycle` 同用。`clearProject: true` 清除 Project 及其 milestone，不能与 `project`、`milestone` 同用；这两个字段都按原始读取保护，已无 Project 且无 milestone 时不重复写入。标签增删与完整 `label` 替换互斥；空 `label` 替换不受支持，须逐项 `removeLabel`。只追加评论、附件或关系时省略 `set` 和原始依据。
 
 `comments` 中的 `body`／`bodyFile` 互斥，`files` 嵌入评论；`public` 仅适用于该评论的上传图片。`attachments` 创建侧栏附件（Attachment）：`url` 项关联链接，`file` 项先上传再关联。关系使用完整编号或 UUID，支持 `related`、`blocks`、`blocked-by`、`duplicate`；`blocked-by` 反转 `blocks` 方向，同一边已存在时不重复写，不同类型或方向会拒绝。
 

@@ -34,6 +34,7 @@ Options:
   --remove-label      <label>        - Remove an issue label (UUID or name) without replacing other labels. May be repeated.                          
   --team              <team>         - Move the issue to this team (UUID or key); Linear may also move child issues                                   
   --project           <project>      - Project to assign the issue to (UUID, slug ID, or name)                                                        
+  --clear-project                    - Remove the issue from its project and clear its milestone (cannot be combined with --project or --milestone)   
   -s, --state         <state>        - Workflow state for the issue (UUID, name, or type)                                                             
   --milestone         <milestone>    - Project milestone (UUID, or name when --project is set or the issue already has a project)                     
   --cycle             <cycle>        - Cycle name, number, 'active'/'now', 'next', 'previous', or a relative offset like +1 (use --cycle=-1 for       

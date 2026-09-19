@@ -76,6 +76,18 @@ Deno.test("manifest v2 validates all local intent before any request", async (t)
       operation: "create",
       set: { title: "New", team: "ENG", addLabel: ["Bug"] },
     }],
+    ["create rejects clearProject", {
+      operation: "create",
+      set: { title: "New", team: "ENG", clearProject: true },
+    }],
+    [
+      "project and clearProject conflict",
+      update(original, { project: "P", clearProject: true }),
+    ],
+    [
+      "milestone and clearProject conflict",
+      update(original, { milestone: "M", clearProject: true }),
+    ],
     ["unknown field is rejected", update(original, { imaginaryField: "x" })],
     ["empty set is rejected", update(original, {})],
     ["empty comment string", {

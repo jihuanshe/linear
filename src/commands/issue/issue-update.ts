@@ -63,6 +63,7 @@ export interface UpdateIssueOptions {
   removeLabel?: string[]
   team?: string
   project?: string
+  clearProject?: boolean
   state?: string
   milestone?: string
   cycle?: string
@@ -140,6 +141,7 @@ export async function prepareIssueUpdate(
   const {
     assignee,
     unassign,
+    clearProject,
     clearCycle,
     dueDate,
     parent,
@@ -180,7 +182,7 @@ export async function prepareIssueUpdate(
     title,
     labelReferences,
   ].some((value) => value !== undefined) || unassign === true ||
-    clearCycle === true
+    clearCycle === true || clearProject === true
   if (
     hasReplacement || original != null || (options.expectField?.length ?? 0) > 0
   ) {
@@ -214,6 +216,16 @@ export async function prepareIssueUpdate(
     )
   }
 
+  if (clearProject && (project != null || milestone != null)) {
+    throw new ValidationError(
+      "Cannot combine --clear-project with --project or --milestone",
+      {
+        suggestion:
+          "Use --clear-project on its own to remove the project and its milestone.",
+      },
+    )
+  }
+
   if (clearCycle && cycle != null) {
     throw new ValidationError(
       "Cannot specify both --cycle and --clear-cycle",
@@ -228,7 +240,8 @@ export async function prepareIssueUpdate(
     assignee == null && !unassign && dueDate == null && parent == null &&
     priority == null && estimate == null && description == null &&
     descriptionFile == null && !replacesLabels && !addsLabels &&
-    !removesLabels && team == null && project == null && state == null &&
+    !removesLabels && team == null && project == null && !clearProject &&
+    state == null &&
     milestone == null && cycle == null && !clearCycle && title == null
   ) {
     throw new ValidationError(
@@ -308,7 +321,7 @@ export async function prepareIssueUpdate(
     }
   }
 
-  const targetProjectId = projectId ??
+  const targetProjectId = clearProject ? undefined : projectId ??
     (team != null ? target.issue.project?.id : undefined)
   if (targetProjectId != null) {
     await requireProjectTeam(
@@ -382,7 +395,10 @@ export async function prepareIssueUpdate(
   if (addedLabelIds.length > 0) input.addedLabelIds = addedLabelIds
   if (removedLabelIds.length > 0) input.removedLabelIds = removedLabelIds
   if (team != null) input.teamId = teamId
-  if (projectId !== undefined) input.projectId = projectId
+  if (clearProject) {
+    input.projectId = null
+    input.projectMilestoneId = null
+  } else if (projectId !== undefined) input.projectId = projectId
   if (projectMilestoneId !== undefined) {
     input.projectMilestoneId = projectMilestoneId
   }
@@ -400,7 +416,7 @@ export async function prepareIssueUpdate(
     throw new ValidationError("Issue team changed while resolving the update")
   }
   if (
-    team != null && project == null &&
+    team != null && project == null && !clearProject &&
     current.issue.project?.id !== target.issue.project?.id
   ) {
     throw new ValidationError(
@@ -648,6 +664,10 @@ export const updateCommand = withUsageMetadata(new Command(), { writes: true })
     "--project <project:string>",
     "Project to assign the issue to (UUID, slug ID, or name)",
     { preserveEmpty: true },
+  )
+  .option(
+    "--clear-project",
+    "Remove the issue from its project and clear its milestone (cannot be combined with --project or --milestone)",
   )
   .option(
     "-s, --state <state:string>",
