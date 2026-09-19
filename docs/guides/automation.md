@@ -155,15 +155,15 @@ linear api 'query ContextInitiatives($after: String) {
 
 ### 工作区项目上下文
 
-先按 `linear guide core` 核对工作区身份。已有承接先核对当前对象；需要发现项目时，使用跨团队的精简目录，不把默认团队当成全部工作区：
+项目目录、详情和资源可以按需组合读取。按 `linear guide core` 核对工作区身份；`project list` 默认按配置的团队筛选，需要当前凭据可见的跨团队目录时使用 `--all-teams`：
 
 ```bash
 linear project list --all-teams --limit 0 --json > projects.json
 ```
 
-检查命令成功、分页结束和当前凭据的可见范围。目录帮助发现候选，不返回完整正文或资源；不能据此宣布归属已经确定。项目 short `description` 和 Overview 长正文 `content` 是不同字段。对当前及候选项目，读取 `linear project view <project-id> --json`，并从下面的目录查询取得关联 Initiative；用 `linear initiative view <initiative-id> --json` 读取跨项目边界。两种 `view` 默认包含长正文。
+目录 JSON 保留 `{nodes,pageInfo}`；使用完整目录前检查命令成功和分页结束。目录包含短简介 `description`，不包含 Overview 长正文 `content` 或资源。需要单个项目详情时使用 `linear project view <project-id> --json`；关联 Initiative 的详情用 `linear initiative view <initiative-id> --json`。两种 `view` 默认包含长正文。
 
-候选项目的资源目录按稳定项目 UUID 查询，不要求每次建单先读取全部项目的资源：
+需要某个项目的关联 Initiative 和资源目录时，可按稳定项目 UUID 查询：
 
 ```bash
 linear api 'query ProjectResources($id: String!) {
@@ -190,9 +190,9 @@ linear api 'query ProjectResources($id: String!) {
 }' --variables-json '{"id":"替换为项目 UUID"}' > project-resources.json
 ```
 
-检查工作区、项目 ID、`errors` 和每个连接的 `pageInfo`。任何集合仍有下一页时，按其 `endCursor` 每次单独分页一个连接；`--paginate` 不会递归补齐嵌套连接，也不保证跨页快照一致。只有成功读取终页且节点为空，才是「没有可见资源」；权限不足、失败或未展开的正文均不是空目录。
+检查工作区、项目 ID、`errors` 和每个连接的 `pageInfo`。需要完整集合且仍有下一页时，按其 `endCursor` 每次单独分页一个连接；`--paginate` 不会递归补齐嵌套连接，也不保证跨页快照一致。只有成功读取终页且节点为空，才是「没有可见资源」；权限不足、失败或未展开的正文均不是空目录。
 
-目录中的相关文档通过 `linear document view <document-id> --json` 继续读取，外链按问题展开。候选说明不充分、互相冲突或未覆盖症状时，扩大到相邻项目、资料和实现；不能因为精简目录没有命中就默认分给当前仓库或负责人。完整阅读实际用于决定的边界，不把下载或片段搜索当成已读。
+资源目录只返回元数据。需要文档正文时使用 `linear document view <document-id> --json`；查询不会自动读取外链内容。
 
 需要补齐文档目录时，针对同一个项目单独分页；其他目录按相同方式每次读取一个连接：
 
@@ -211,7 +211,7 @@ linear api 'query ProjectDocuments($id: String!, $after: String) {
 
 核对工作区、项目 ID、`errors` 与终页标记，用完整目录替换原预览，不把两份节点直接拼接。
 
-同批复用已读且未变化的上下文，关键属性与新决定在写前刷新。需要历史项目时显式查询归档范围并保留状态，不把旧项目当成新工作的默认归属。分诊方法与业务例外由调用方的领域文档维护，CLI 不内置某个产品的路由表。
+这些读取均限于当前凭据可见的对象。需要归档项目时，通过 `linear api` 显式查询归档范围并保留状态。读取范围与分诊方法由调用方决定。
 
 ### 更新项目正文
 
