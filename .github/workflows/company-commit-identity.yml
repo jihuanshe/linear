@@ -1,0 +1,54 @@
+name: Company commit identity
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  verify-commit-identity:
+    name: verify-commit-identity
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Read pull request commits
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      # Keep this check self-contained: the organization runs this trusted file
+      # against other repositories. Never execute scripts from the PR checkout.
+      # The merge-generated squash commit is outside this PR-commit check.
+      - name: Verify author and committer email
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          shopt -s nocasematch
+          company='^[^@[:space:]]+@jihuanshe\.com$'
+          automation='^(amp@ampcode\.com|41898282\+github-actions\[bot\]@users\.noreply\.github\.com|49699333\+dependabot\[bot\]@users\.noreply\.github\.com)$'
+          web_committer='^noreply@github\.com$'
+          records="$(mktemp)"
+          trap 'rm -f "$records"' EXIT
+          git log --format='%H%x09%ae%x09%ce' "$BASE_SHA..$HEAD_SHA" > "$records"
+          if [ ! -s "$records" ]; then
+            echo '::error::No PR commits could be inspected'
+            exit 1
+          fi
+          bad=0
+          while IFS=$'\t' read -r sha author committer; do
+            if ! [[ "$author" =~ $company || "$author" =~ $automation ]]; then
+              printf '::error::Commit %s has an author email outside company policy\n' "$sha"
+              bad=1
+            fi
+            if ! [[ "$committer" =~ $company || "$committer" =~ $automation || "$committer" =~ $web_committer ]]; then
+              printf '::error::Commit %s has a committer email outside company policy\n' "$sha"
+              bad=1
+            fi
+          done < "$records"
+          exit "$bad"
