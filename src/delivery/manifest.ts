@@ -44,6 +44,7 @@ const setSchema = v.strictObject({
   removeLabel: v.optional(v.array(v.string())),
   team: v.optional(v.string()),
   project: v.optional(v.string()),
+  clearProject: v.optional(v.boolean()),
   parent: v.optional(referenceSchema),
   milestone: v.optional(v.string()),
   cycle: v.optional(v.string()),
@@ -132,7 +133,7 @@ function validateIssue(issue: DeliveryIssue, index: number): void {
       )
     }
     if (
-      issue.set.unassign || issue.set.clearCycle ||
+      issue.set.unassign || issue.set.clearCycle || issue.set.clearProject ||
       issue.set.addLabel != null || issue.set.removeLabel != null
     ) {
       throw new ValidationError(
@@ -176,6 +177,11 @@ function validateIssue(issue: DeliveryIssue, index: number): void {
     if (set.assignee !== undefined && set.unassign) {
       throw new ValidationError(
         label + ": assignee and unassign are mutually exclusive",
+      )
+    }
+    if (set.clearProject && (set.project != null || set.milestone != null)) {
+      throw new ValidationError(
+        label + ": clearProject cannot be combined with project or milestone",
       )
     }
     if (set.cycle !== undefined && set.clearCycle) {

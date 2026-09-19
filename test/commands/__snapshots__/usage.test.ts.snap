@@ -1513,6 +1513,16 @@ Run \`linear guide markdown\` for mentions, collapsible sections and rewrite ris
           staticallyRequired: false,
         },
         {
+          arguments: [],
+          description: "Remove the issue from its project and clear its milestone (cannot be combined with --project or --milestone)",
+          flags: [
+            "--clear-project",
+          ],
+          name: "clear-project",
+          repeatable: false,
+          staticallyRequired: false,
+        },
+        {
           arguments: [
             {
               name: "state",
