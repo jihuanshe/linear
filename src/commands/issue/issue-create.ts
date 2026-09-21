@@ -746,13 +746,20 @@ export async function createIssue(options: CreateIssueOptions) {
   return writeResult(await submitIssue(input, options.beforeWrite), { fields })
 }
 
+/** Printed on stderr after the write; the create is never blocked. */
+export function missingProjectReminder(identifier: string): string {
+  return `${identifier} was created without --project or --parent. Ownership is decided from the candidate Project's full content and the related Initiative content, not from names: linear project list --all-teams --limit 0 --json, then project view <id> --json and initiative view <id> --json (linear guide issue-authoring). Set it with issue update ${identifier} --project <project>.`
+}
+
 export const createCommand = withUsageMetadata(new Command(), {
   writes: true,
   interactive: true,
 })
   .name("create")
   .type("priority", priorityType)
-  .description(withMarkdownHint("Create a linear issue"))
+  .description(withMarkdownHint(
+    "Create a linear issue.\n\nDecide ownership before creating: read the project catalog (project list --all-teams --limit 0 --json), the candidate Project's full content (project view <id> --json), the related Initiative content (initiative view <id> --json), then check for an existing issue by its stable source URL (issue query --all-teams --url). Without --project or --parent the command still creates the issue and then prints a reminder on stderr. Order and entry points: linear guide issue-authoring.",
+  ))
   .option(
     "-a, --assignee <assignee:string>",
     "Assignee (user UUID, username, name, email, 'self', or '@me')",
@@ -800,7 +807,7 @@ export const createCommand = withUsageMetadata(new Command(), {
   )
   .option(
     "--project <project:string>",
-    "Project for the issue (UUID, slug ID, or name)",
+    "Project for the issue (UUID, slug ID, or name); choose it after reading the candidate Project and Initiative content",
     { preserveEmpty: true },
   )
   .option(
@@ -956,6 +963,9 @@ export const createCommand = withUsageMetadata(new Command(), {
           const issue = result.data.issue
           console.log("✓ Created issue " + issue.identifier + ": " + title)
           console.log(issue.url)
+        }
+        if (project == null && parentIdentifier == null) {
+          console.error(missingProjectReminder(result.data.issue.identifier))
         }
       } catch (error) {
         handleError(error, "Failed to create issue")

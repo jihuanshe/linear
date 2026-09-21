@@ -48,6 +48,11 @@ import {
   assertMutationReceipt,
   assertMutationSuccess,
 } from "../../utils/errors.ts"
+import {
+  fetchIssueContext,
+  formatIssueContextLines,
+  issueContextTraces,
+} from "../../utils/issue-context.ts"
 
 export interface UpdateIssueOptions {
   assignee?: string
@@ -74,7 +79,11 @@ export interface UpdateIssueOptions {
   unprotected?: boolean
   expectField?: string[]
   beforeWrite?: () => Promise<void>
+  /** Runs after name resolution and the domain checks, before any write. */
+  afterPrepare?: (prepared: PreparedIssueUpdate) => Promise<void>
 }
+
+export type PreparedIssueUpdate = Awaited<ReturnType<typeof prepareIssueUpdate>>
 
 export function validateIssueWriteOptions(options: UpdateIssueOptions) {
   if (
@@ -275,6 +284,7 @@ export async function prepareIssueUpdate(
   const teamKey = writeTeam.key
   const teamId = writeTeam.id
   let stateId: string | undefined
+  let targetState: { id: string; name: string; type: string } | undefined
   if (state != null) {
     const states = await getWorkflowStates(teamId)
     const workflowState = isLinearUuid(state)
@@ -284,6 +294,7 @@ export async function prepareIssueUpdate(
       throw workflowStateNotFoundError(teamKey, state, states)
     }
     stateId = workflowState.id
+    targetState = workflowState
   }
 
   let assigneeId: string | undefined
@@ -477,7 +488,50 @@ export async function prepareIssueUpdate(
       })
     }
   }
-  return { input: payload, current, fields }
+  return { input: payload, current, fields, targetState }
+}
+
+/** Cancelled and duplicate states close work; both deserve the same look. */
+export function closesIssue(
+  state: { name: string; type: string } | undefined,
+): boolean {
+  return state != null &&
+    (state.type === "canceled" || /duplicate/i.test(state.name))
+}
+
+/**
+ * Print the Issue's context on stderr before a closing state change. It never
+ * blocks: an unavailable read is reported, not thrown.
+ */
+export async function printClosingContext(
+  prepared: PreparedIssueUpdate,
+): Promise<void> {
+  const { targetState, current } = prepared
+  if (!closesIssue(targetState) || current.issue.state.id === targetState?.id) {
+    return
+  }
+  const lines = [
+    `Moving ${current.issue.identifier} to ${targetState?.name}. Context before closing:`,
+  ]
+  try {
+    const summary = await fetchIssueContext(current.issue.id)
+    lines.push(...formatIssueContextLines(summary))
+    const traces = issueContextTraces(summary)
+    lines.push(
+      traces.length === 0
+        ? "No sub-issues, relations, comments or changes by other accounts were found."
+        : `Traces to account for before closing: ${
+          traces.join(", ")
+        }. Explain the decision in the closing comment; a duplicate must name the kept Issue.`,
+    )
+  } catch (error) {
+    lines.push(
+      `Context unavailable: ${
+        error instanceof Error ? error.message : String(error)
+      }. Read issue view ${current.issue.identifier} before closing.`,
+    )
+  }
+  console.error(lines.join("\n"))
 }
 
 const updateIssueMutation = gql(`
@@ -510,6 +564,7 @@ export async function updateIssue(
   issueArg?: string,
 ) {
   const prepared = await prepareIssueUpdate(options, issueArg)
+  await options.afterPrepare?.(prepared)
   return await executeIssueUpdate(prepared, options.beforeWrite)
 }
 
@@ -541,6 +596,7 @@ export async function updateIssueAndVerify(
   verificationOptions: ReadBackOptions = {},
 ) {
   const prepared = await prepareIssueUpdate(options, issueArg)
+  await options.afterPrepare?.(prepared)
   const result = await executeIssueUpdate(prepared, options.beforeWrite)
   if (result.effect === "none") return result
   const expected = Object.fromEntries(
@@ -671,7 +727,7 @@ export const updateCommand = withUsageMetadata(new Command(), { writes: true })
   )
   .option(
     "-s, --state <state:string>",
-    "Workflow state for the issue (UUID, name, or type)",
+    "Workflow state for the issue (UUID, name, or type). A canceled-type or duplicate state first prints the issue's context (sub-issues, relations, comments and changes by other accounts) on stderr without blocking",
     { preserveEmpty: true },
   )
   .option(
@@ -711,7 +767,10 @@ export const updateCommand = withUsageMetadata(new Command(), { writes: true })
   )
   .action(async (options, issueArg) => {
     try {
-      const result = await updateIssueAndVerify(options, issueArg)
+      const result = await updateIssueAndVerify(
+        { ...options, afterPrepare: printClosingContext },
+        issueArg,
+      )
       if (options.json) console.log(JSON.stringify(result, null, 2))
       else {
         const issue = result.data.issue

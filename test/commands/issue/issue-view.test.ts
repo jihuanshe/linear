@@ -1974,3 +1974,199 @@ await snapshotTest({
     }
   },
 })
+
+// The Context section reads the viewer, comments and history in one read and
+// separates the current account from everyone else.
+function contextIssueRead() {
+  const viewer = { id: "user-viewer", name: "viewer", displayName: "Viewer" }
+  const other = { id: "user-other", name: "other", displayName: "Other" }
+  return {
+    organization: {
+      id: "99999999-9999-4999-8999-999999999999",
+      urlKey: "test-team",
+    },
+    viewer: { id: viewer.id },
+    issue: {
+      ...emptyIssueFields,
+      id: "11111111-1111-4111-8111-000000000321",
+      identifier: "TEST-321",
+      title: "Placeholder issue somebody picked up",
+      description: "Template body.",
+      url: "https://linear.app/test-team/issue/TEST-321",
+      branchName: "test-321",
+      priority: 3,
+      assignee: viewer,
+      state: {
+        id: "33333333-3333-4333-8333-333333333333",
+        type: "unstarted",
+        name: "Todo",
+        color: "#bec2c8",
+      },
+      team: {
+        id: "22222222-2222-4222-8222-222222222222",
+        key: "TEST",
+        activeCycle: null,
+      },
+      parent: {
+        id: "11111111-1111-4111-8111-000000000100",
+        identifier: "TEST-100",
+        title: "Epic",
+        state: { name: "In Progress", color: "#f87462" },
+      },
+      children: {
+        nodes: [
+          {
+            identifier: "TEST-322",
+            title: "Child",
+            state: { name: "Done", color: "#4cb782" },
+          },
+        ],
+        pageInfo: { hasNextPage: false },
+      },
+      relations: {
+        nodes: [{
+          id: "relation-1",
+          type: "duplicate",
+          relatedIssue: { identifier: "TEST-200", title: "Kept" },
+        }],
+        pageInfo: { hasNextPage: false },
+      },
+      comments: {
+        pageInfo: { hasNextPage: false, endCursor: null },
+        nodes: [
+          {
+            id: "comment-1",
+            body: "Taking this.",
+            quotedText: null,
+            documentContentId: null,
+            createdAt: "2026-09-02T09:00:00.000Z",
+            updatedAt: "2026-09-02T09:00:00.000Z",
+            url: "https://linear.app/issue/TEST-321#comment-1",
+            resolvedAt: null,
+            resolvingCommentId: null,
+            resolvingUser: null,
+            user: other,
+            externalUser: null,
+            parent: null,
+          },
+          {
+            id: "comment-2",
+            body: "Triage note.",
+            quotedText: null,
+            documentContentId: null,
+            createdAt: "2026-09-03T09:00:00.000Z",
+            updatedAt: "2026-09-03T09:00:00.000Z",
+            url: "https://linear.app/issue/TEST-321#comment-2",
+            resolvedAt: null,
+            resolvingCommentId: null,
+            resolvingUser: null,
+            user: viewer,
+            externalUser: null,
+            parent: null,
+          },
+        ],
+      },
+      attachments: {
+        pageInfo: { hasNextPage: false, endCursor: null },
+        nodes: [{
+          id: "attachment-1",
+          title: "PR",
+          url: "https://github.com/example/repo/pull/1",
+          subtitle: null,
+          sourceType: "github",
+          metadata: {},
+          createdAt: "2026-09-02T10:00:00.000Z",
+        }],
+      },
+      history: {
+        nodes: [
+          {
+            id: "history-2",
+            createdAt: "2026-09-02T08:00:00.000Z",
+            actor: other,
+            botActor: null,
+            fromState: { name: "Triage" },
+            toState: { name: "Todo" },
+            fromAssignee: null,
+            toAssignee: viewer,
+            fromProject: null,
+            toProject: null,
+          },
+          {
+            id: "history-1",
+            createdAt: "2026-09-01T08:00:00.000Z",
+            actor: viewer,
+            botActor: null,
+            fromState: null,
+            toState: null,
+            fromAssignee: null,
+            toAssignee: null,
+            fromProject: null,
+            toProject: null,
+          },
+        ],
+        pageInfo: { hasNextPage: false, endCursor: "history-1" },
+      },
+    },
+  }
+}
+
+await snapshotTest({
+  name: "Issue View Command - Context From Other Accounts",
+  meta: import.meta,
+  colors: false,
+  args: ["TEST-321"],
+  denoArgs,
+  async fn() {
+    const { cleanup } = await setupMockLinearServer([{
+      queryName: "GetIssueDetailsWithComments",
+      variables: { id: "TEST-321" },
+      response: { data: contextIssueRead() },
+    }])
+    try {
+      await viewCommand.parse()
+    } finally {
+      await cleanup()
+    }
+  },
+})
+
+Deno.test("Issue View Command - JSON adds a derived contextSummary", async () => {
+  const { server, cleanup } = await setupMockLinearServer([{
+    queryName: "GetIssueDetailsWithComments",
+    variables: { id: "TEST-321" },
+    response: { data: contextIssueRead() },
+  }])
+  const output: string[] = []
+  const logStub = stub(console, "log", (value: string) => output.push(value))
+  try {
+    await viewCommand.parse(["TEST-321", "--json"])
+    const body = JSON.parse(output.join("\n"))
+    assertEquals(body.viewer, { id: "user-viewer" })
+    assertEquals(body.issue.history.nodes.length, 2)
+    assertEquals(body.contextSummary.viewerIsAssignee, true)
+    assertEquals(body.contextSummary.parent.identifier, "TEST-100")
+    assertEquals(body.contextSummary.subIssues.byState, { Done: 1 })
+    assertEquals(body.contextSummary.relations.items, [{
+      kind: "duplicate of",
+      identifier: "TEST-200",
+      title: "Kept",
+    }])
+    assertEquals(body.contextSummary.attachments.count, 1)
+    assertEquals(body.contextSummary.comments.byOtherAccounts, 1)
+    assertEquals(body.contextSummary.comments.latestByOtherAccount, {
+      author: "Other",
+      createdAt: "2026-09-02T09:00:00.000Z",
+    })
+    assertEquals(body.contextSummary.history.changesByOtherAccounts, [{
+      createdAt: "2026-09-02T08:00:00.000Z",
+      actor: "Other",
+      changes: ["state Triage -> Todo", "assignee - -> Viewer"],
+    }])
+    assertEquals(server.graphqlRequests.length, 1)
+    assertMatch(server.graphqlRequests[0].query, /history\(first: 50/)
+  } finally {
+    logStub.restore()
+    await cleanup()
+  }
+})

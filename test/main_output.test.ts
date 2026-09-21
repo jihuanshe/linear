@@ -1060,7 +1060,9 @@ Deno.test("JSON keeps human-only display toggles and no-pager compatible", async
       LINEAR_GRAPHQL_ENDPOINT: server.getEndpoint(),
     })
     assertEquals(result.code, 0, JSON.stringify(result))
-    assertEquals(JSON.parse(result.stdout), data)
+    const { contextSummary, ...read } = JSON.parse(result.stdout)
+    assertEquals(read, data)
+    assertEquals(contextSummary.comments.fetched, false)
     assertEquals(result.stderr, "")
   } finally {
     await cleanup()

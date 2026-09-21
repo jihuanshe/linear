@@ -7,18 +7,23 @@ Usage: view [issue]
 
 Description:
 
-  View issue details with all comments and attachments, or open in browser/app. Accepts an issue UUID, identifier (e.g. ENG-123), number in the
-  configured team, or Linear URL; omit to use the current Git or Jujutsu context. For project, assignee and state changes, use issue history.  
+  View issue details with all comments and attachments, or open in browser/app. Accepts an issue UUID, identifier (e.g. ENG-123), number in the   
+  configured team, or Linear URL; omit to use the current Git or Jujutsu context.                                                                 
+                                                                                                                                                  
+  Output starts with a Context section: assignee vs. the current account, parent, sub-issues, relations, attachment and comment counts, the latest
+  comment by another account, and state, assignee or project changes by other accounts from the latest 50 history entries. Read it before         
+  cancelling, marking as duplicate or re-assigning; the full change log is issue history.                                                         
 
 Options:
 
-  -h, --help               - Show this help.                                                                                           
-  -w, --web                - Open in web browser                                                                                       
-  -a, --app                - Open in Linear.app                                                                                        
-  --no-comments            - Exclude comments from the output                                                                          
-  --show-resolved-threads  - Include resolved threads in human output; JSON always retains all fetched threads                         
-  --no-pager               - Disable automatic paging for long output                                                                  
-  -j, --json               - Output all fetched threads including resolved history; comments and attachments retain {nodes, pageInfo}  
+  -h, --help               - Show this help.                                                                                                          
+  -w, --web                - Open in web browser                                                                                                      
+  -a, --app                - Open in Linear.app                                                                                                       
+  --no-comments            - Exclude comments from the output                                                                                         
+  --show-resolved-threads  - Include resolved threads in human output; JSON always retains all fetched threads                                        
+  --no-pager               - Disable automatic paging for long output                                                                                 
+  -j, --json               - Output all fetched threads including resolved history; comments and attachments retain {nodes, pageInfo}. Adds viewer,   
+                             issue.history (latest 50) and a derived contextSummary                                                                   
 
 "
 stderr:
@@ -30,6 +35,15 @@ stdout:
 "# TEST-123: Fix authentication bug in login flow
 
 **State:** In Progress | **Priority:** --- | **Assignee:** Unassigned | **Unresolved threads:** 0
+
+## Context
+
+- Assignee: Unassigned
+- Parent: none
+- Sub-issues: none
+- Relations: none
+- Attachments: 0 | Comments: 0 (0 unresolved threads; none by other accounts)
+- Changes by other accounts: history not fetched
 
 Users are experiencing issues logging in when their session expires. This affects the main authentication flow and needs to be resolved quickly.
 
@@ -55,6 +69,15 @@ stdout:
 
 **State:** In Progress | **Priority:** ▄▆█ | **Assignee:** @Jane Smith
 
+## Context
+
+- Assignee: @Jane Smith
+- Parent: none
+- Sub-issues: none
+- Relations: none
+- Attachments: 0 | Comments: not fetched
+- Changes by other accounts: history not fetched
+
 Users are experiencing issues logging in when their session expires.
 "
 stderr:
@@ -66,6 +89,15 @@ stdout:
 "# TEST-123: Fix authentication bug in login flow
 
 **State:** In Progress | **Priority:** ⚠⚠⚠ | **Assignee:** @John Doe | **Unresolved threads:** 2
+
+## Context
+
+- Assignee: @John Doe
+- Parent: none
+- Sub-issues: none
+- Relations: none
+- Attachments: 0 | Comments: 4 (2 unresolved threads; 4 by other accounts, latest @Bob Senior 2024-01-15 16:00)
+- Changes by other accounts: history not fetched
 
 Users are experiencing issues logging in when their session expires.
 
@@ -98,6 +130,15 @@ stdout:
 "# TEST-246: Audit issue resource output
 
 **State:** In Progress | **Priority:** ▄▆█ | **Assignee:** @Jane Smith
+
+## Context
+
+- Assignee: @Jane Smith
+- Parent: none
+- Sub-issues: none
+- Relations: blocks TEST-247; related TEST-245
+- Attachments: 1 | Comments: not fetched
+- Changes by other accounts: history not fetched
 
 Ensure issue view shows both attachments and documents.
 
@@ -192,6 +233,43 @@ stdout:
         "endCursor": null
       }
     }
+  },
+  "contextSummary": {
+    "viewerId": null,
+    "assignee": null,
+    "viewerIsAssignee": null,
+    "parent": null,
+    "subIssues": {
+      "fetched": true,
+      "count": 0,
+      "complete": true,
+      "byState": {},
+      "items": []
+    },
+    "relations": {
+      "fetched": true,
+      "complete": true,
+      "items": []
+    },
+    "attachments": {
+      "fetched": true,
+      "count": 0,
+      "complete": true
+    },
+    "comments": {
+      "fetched": false,
+      "count": 0,
+      "complete": false,
+      "unresolvedThreads": 0,
+      "byOtherAccounts": 0,
+      "latestByOtherAccount": null
+    },
+    "history": {
+      "fetched": false,
+      "entries": 0,
+      "complete": false,
+      "changesByOtherAccounts": []
+    }
   }
 }
 '
@@ -276,6 +354,43 @@ stdout:
         "hasNextPage": false,
         "endCursor": null
       }
+    }
+  },
+  "contextSummary": {
+    "viewerId": null,
+    "assignee": null,
+    "viewerIsAssignee": null,
+    "parent": null,
+    "subIssues": {
+      "fetched": true,
+      "count": 0,
+      "complete": true,
+      "byState": {},
+      "items": []
+    },
+    "relations": {
+      "fetched": true,
+      "complete": true,
+      "items": []
+    },
+    "attachments": {
+      "fetched": true,
+      "count": 0,
+      "complete": true
+    },
+    "comments": {
+      "fetched": false,
+      "count": 0,
+      "complete": false,
+      "unresolvedThreads": 0,
+      "byOtherAccounts": 0,
+      "latestByOtherAccount": null
+    },
+    "history": {
+      "fetched": false,
+      "entries": 0,
+      "complete": false,
+      "changesByOtherAccounts": []
     }
   }
 }
@@ -396,6 +511,49 @@ stdout:
         "hasNextPage": false,
         "endCursor": null
       }
+    }
+  },
+  "contextSummary": {
+    "viewerId": null,
+    "assignee": {
+      "id": "44444444-4444-4444-8444-444444444444",
+      "name": "Jane Smith"
+    },
+    "viewerIsAssignee": null,
+    "parent": null,
+    "subIssues": {
+      "fetched": true,
+      "count": 0,
+      "complete": true,
+      "byState": {},
+      "items": []
+    },
+    "relations": {
+      "fetched": true,
+      "complete": true,
+      "items": []
+    },
+    "attachments": {
+      "fetched": true,
+      "count": 0,
+      "complete": true
+    },
+    "comments": {
+      "fetched": true,
+      "count": 2,
+      "complete": true,
+      "unresolvedThreads": 1,
+      "byOtherAccounts": 2,
+      "latestByOtherAccount": {
+        "author": "Jane Smith",
+        "createdAt": "2024-01-15T14:22:00Z"
+      }
+    },
+    "history": {
+      "fetched": false,
+      "entries": 0,
+      "complete": false,
+      "changesByOtherAccounts": []
     }
   }
 }
@@ -520,6 +678,57 @@ stdout:
         "endCursor": null
       }
     }
+  },
+  "contextSummary": {
+    "viewerId": null,
+    "assignee": {
+      "id": "44444444-4444-4444-8444-444444444444",
+      "name": "Jane Smith"
+    },
+    "viewerIsAssignee": null,
+    "parent": null,
+    "subIssues": {
+      "fetched": true,
+      "count": 0,
+      "complete": true,
+      "byState": {},
+      "items": []
+    },
+    "relations": {
+      "fetched": true,
+      "complete": true,
+      "items": [
+        {
+          "kind": "blocks",
+          "identifier": "TEST-247",
+          "title": "Blocked follow-up"
+        },
+        {
+          "kind": "related",
+          "identifier": "TEST-245",
+          "title": "Related investigation"
+        }
+      ]
+    },
+    "attachments": {
+      "fetched": true,
+      "count": 1,
+      "complete": true
+    },
+    "comments": {
+      "fetched": false,
+      "count": 0,
+      "complete": false,
+      "unresolvedThreads": 0,
+      "byOtherAccounts": 0,
+      "latestByOtherAccount": null
+    },
+    "history": {
+      "fetched": false,
+      "entries": 0,
+      "complete": false,
+      "changesByOtherAccounts": []
+    }
   }
 }
 '
@@ -532,6 +741,15 @@ stdout:
 "# TEST-456: Implement user authentication
 
 **State:** In Progress | **Priority:** ▄▆█ | **Assignee:** @Alice Developer
+
+## Context
+
+- Assignee: @Alice Developer
+- Parent: TEST-100 Epic: Security Improvements [In Progress]
+- Sub-issues: 3 (Done 1, Todo 1, In Progress 1): TEST-457, TEST-458, TEST-459
+- Relations: none
+- Attachments: 0 | Comments: not fetched
+- Changes by other accounts: history not fetched
 
 Add user authentication to the application.
 
@@ -557,6 +775,15 @@ stdout:
 
 **State:** In Progress | **Priority:** ▄▆  | **Assignee:** @Bob Senior | **Project:** Platform Infrastructure Q1 | **Milestone:** Phase 2: Observability
 
+## Context
+
+- Assignee: @Bob Senior
+- Parent: none
+- Sub-issues: none
+- Relations: none
+- Attachments: 0 | Comments: not fetched
+- Changes by other accounts: history not fetched
+
 Set up Datadog dashboards for the new service.
 "
 stderr:
@@ -568,6 +795,15 @@ stdout:
 "# TEST-890: Implement rate limiting
 
 **State:** Todo | **Priority:** ▄   | **Assignee:** Unassigned | **Project:** API Gateway v2 | **Cycle:** #7 Sprint 7 (now)
+
+## Context
+
+- Assignee: Unassigned
+- Parent: none
+- Sub-issues: none
+- Relations: none
+- Attachments: 0 | Comments: not fetched
+- Changes by other accounts: history not fetched
 
 Add rate limiting to the API gateway.
 "
@@ -581,6 +817,15 @@ stdout:
 
 **State:** Todo | **Priority:** ▄   | **Assignee:** Unassigned | **Cycle:** #8 (+1)
 
+## Context
+
+- Assignee: Unassigned
+- Parent: none
+- Sub-issues: none
+- Relations: none
+- Attachments: 0 | Comments: not fetched
+- Changes by other accounts: history not fetched
+
 Follow-up tuning work.
 "
 stderr:
@@ -592,6 +837,15 @@ stdout:
 "# TEST-321: Audit resolved comment thread output
 
 **State:** In Progress | **Priority:** ▄▆█ | **Assignee:** Unassigned | **Unresolved threads:** 1
+
+## Context
+
+- Assignee: Unassigned
+- Parent: none
+- Sub-issues: none
+- Relations: none
+- Attachments: 0 | Comments: 3 (1 unresolved threads; 3 by other accounts, latest @Alice Developer 2024-01-15 12:00)
+- Changes by other accounts: history not fetched
 
 Check how issue view handles resolved comment threads.
 
@@ -618,6 +872,15 @@ stdout:
 "# TEST-321: Audit resolved comment thread output
 
 **State:** In Progress | **Priority:** ▄▆█ | **Assignee:** Unassigned | **Unresolved threads:** 1
+
+## Context
+
+- Assignee: Unassigned
+- Parent: none
+- Sub-issues: none
+- Relations: none
+- Attachments: 0 | Comments: 3 (1 unresolved threads; 3 by other accounts, latest @Alice Developer 2024-01-15 12:00)
+- Changes by other accounts: history not fetched
 
 Check how issue view handles resolved comment threads.
 
@@ -753,6 +1016,46 @@ stdout:
         "endCursor": null
       }
     }
+  },
+  "contextSummary": {
+    "viewerId": null,
+    "assignee": null,
+    "viewerIsAssignee": null,
+    "parent": null,
+    "subIssues": {
+      "fetched": true,
+      "count": 0,
+      "complete": true,
+      "byState": {},
+      "items": []
+    },
+    "relations": {
+      "fetched": true,
+      "complete": true,
+      "items": []
+    },
+    "attachments": {
+      "fetched": true,
+      "count": 0,
+      "complete": true
+    },
+    "comments": {
+      "fetched": true,
+      "count": 2,
+      "complete": true,
+      "unresolvedThreads": 0,
+      "byOtherAccounts": 2,
+      "latestByOtherAccount": {
+        "author": "Jane Smith",
+        "createdAt": "2024-01-15T10:45:00Z"
+      }
+    },
+    "history": {
+      "fetched": false,
+      "entries": 0,
+      "complete": false,
+      "changesByOtherAccounts": []
+    }
   }
 }
 '
@@ -866,9 +1169,101 @@ stdout:
         "endCursor": null
       }
     }
+  },
+  "contextSummary": {
+    "viewerId": null,
+    "assignee": {
+      "id": "44444444-4444-4444-8444-444444444444",
+      "name": "Jane Smith"
+    },
+    "viewerIsAssignee": null,
+    "parent": null,
+    "subIssues": {
+      "fetched": true,
+      "count": 0,
+      "complete": true,
+      "byState": {},
+      "items": []
+    },
+    "relations": {
+      "fetched": true,
+      "complete": true,
+      "items": []
+    },
+    "attachments": {
+      "fetched": true,
+      "count": 0,
+      "complete": true
+    },
+    "comments": {
+      "fetched": true,
+      "count": 1,
+      "complete": true,
+      "unresolvedThreads": 1,
+      "byOtherAccounts": 1,
+      "latestByOtherAccount": {
+        "author": "John Doe",
+        "createdAt": "2024-01-15T10:30:00Z"
+      }
+    },
+    "history": {
+      "fetched": false,
+      "entries": 0,
+      "complete": false,
+      "changesByOtherAccounts": []
+    }
   }
 }
 '
+stderr:
+""
+`;
+
+snapshot[`Issue View Command - Context From Other Accounts 1`] = `
+stdout:
+"# TEST-321: Placeholder issue somebody picked up
+
+**State:** Todo | **Priority:** ▄▆  | **Assignee:** @Viewer | **Unresolved threads:** 2
+
+## Context
+
+- Assignee: @Viewer (the current account)
+- Parent: TEST-100 Epic [In Progress]
+- Sub-issues: 1 (Done 1): TEST-322
+- Relations: duplicate of TEST-200
+- Attachments: 1 | Comments: 2 (2 unresolved threads; 1 by other accounts, latest @Other 2026-09-02 09:00)
+- Changes by other accounts (all 2 history entries):
+  - 2026-09-02 08:00 @Other: state Triage -> Todo; assignee - -> Viewer
+
+Template body.
+
+## Parent
+
+- **TEST-100**: Epic _[In Progress]_
+
+
+## Sub-issues
+
+- **TEST-322**: Child _[Done]_
+
+
+## Attachments
+
+- **PR**: https://github.com/example/repo/pull/1 _[github]_
+
+
+## Comments
+
+- **@Other** - *9/2/2026* [thread: comment-1]
+
+  Taking this.
+
+- **@Viewer** - *9/3/2026* [thread: comment-2]
+
+  Triage note.
+
+
+"
 stderr:
 ""
 `;

@@ -20,31 +20,32 @@ Description:
 
 Options:
 
-  -h, --help                         - Show this help.                                                                                                
-  -a, --assignee      <assignee>     - Assignee (user UUID, username, name, email, 'self', or '@me')                                                  
-  --unassign                         - Clear the issue's assignee (cannot be combined with --assignee)                                                
-  --due-date          <date>         - Due date of the issue                                                                                          
-  --parent            <issue>        - Parent issue (UUID, identifier, number in the configured team, or Linear URL)                                  
-  -p, --priority      <priority>     - Priority (0/none, 1/urgent, 2/high, 3/medium, 4/low; names are case-insensitive)                               
-  --estimate          <estimate>     - Points estimate of the issue                                                                                   
-  -d, --description   <description>  - Description of the issue (empty string clears it)                                                              
-  --description-file  <path>         - Read UTF-8 description from a file (- for stdin; preferred for markdown content)                               
-  -l, --label         <label>        - Replace all issue labels (UUID or name). May be repeated.                                                      
-  --add-label         <label>        - Add an issue label (UUID or name) without replacing existing labels. May be repeated.                          
-  --remove-label      <label>        - Remove an issue label (UUID or name) without replacing other labels. May be repeated.                          
-  --team              <team>         - Move the issue to this team (UUID or key); Linear may also move child issues                                   
-  --project           <project>      - Project to assign the issue to (UUID, slug ID, or name)                                                        
-  --clear-project                    - Remove the issue from its project and clear its milestone (cannot be combined with --project or --milestone)   
-  -s, --state         <state>        - Workflow state for the issue (UUID, name, or type)                                                             
-  --milestone         <milestone>    - Project milestone (UUID, or name when --project is set or the issue already has a project)                     
-  --cycle             <cycle>        - Cycle name, number, 'active'/'now', 'next', 'previous', or a relative offset like +1 (use --cycle=-1 for       
-                                       negatives). Use --clear-cycle to remove the issue from its cycle                                               
-  --clear-cycle                      - Remove the issue from its cycle                                                                                
-  -t, --title         <title>        - Title of the issue                                                                                             
-  --base-file         <path>         - Saved view --json output from before editing; compare original values before writing                           
-  --unprotected                      - Skip original-value comparison; domain checks still apply                                                      
-  --expect-field      <field>        - Require this API field to match the saved original value (repeatable)                                          
-  -j, --json                         - Output data.issue plus top-level verification and readBack after a write                                       
+  -h, --help                         - Show this help.                                                                                               
+  -a, --assignee      <assignee>     - Assignee (user UUID, username, name, email, 'self', or '@me')                                                 
+  --unassign                         - Clear the issue's assignee (cannot be combined with --assignee)                                               
+  --due-date          <date>         - Due date of the issue                                                                                         
+  --parent            <issue>        - Parent issue (UUID, identifier, number in the configured team, or Linear URL)                                 
+  -p, --priority      <priority>     - Priority (0/none, 1/urgent, 2/high, 3/medium, 4/low; names are case-insensitive)                              
+  --estimate          <estimate>     - Points estimate of the issue                                                                                  
+  -d, --description   <description>  - Description of the issue (empty string clears it)                                                             
+  --description-file  <path>         - Read UTF-8 description from a file (- for stdin; preferred for markdown content)                              
+  -l, --label         <label>        - Replace all issue labels (UUID or name). May be repeated.                                                     
+  --add-label         <label>        - Add an issue label (UUID or name) without replacing existing labels. May be repeated.                         
+  --remove-label      <label>        - Remove an issue label (UUID or name) without replacing other labels. May be repeated.                         
+  --team              <team>         - Move the issue to this team (UUID or key); Linear may also move child issues                                  
+  --project           <project>      - Project to assign the issue to (UUID, slug ID, or name)                                                       
+  --clear-project                    - Remove the issue from its project and clear its milestone (cannot be combined with --project or --milestone)  
+  -s, --state         <state>        - Workflow state for the issue (UUID, name, or type). A canceled-type or duplicate state first prints the       
+                                       issue's context (sub-issues, relations, comments and changes by other accounts) on stderr without blocking    
+  --milestone         <milestone>    - Project milestone (UUID, or name when --project is set or the issue already has a project)                    
+  --cycle             <cycle>        - Cycle name, number, 'active'/'now', 'next', 'previous', or a relative offset like +1 (use --cycle=-1 for      
+                                       negatives). Use --clear-cycle to remove the issue from its cycle                                              
+  --clear-cycle                      - Remove the issue from its cycle                                                                               
+  -t, --title         <title>        - Title of the issue                                                                                            
+  --base-file         <path>         - Saved view --json output from before editing; compare original values before writing                          
+  --unprotected                      - Skip original-value comparison; domain checks still apply                                                     
+  --expect-field      <field>        - Require this API field to match the saved original value (repeatable)                                         
+  -j, --json                         - Output data.issue plus top-level verification and readBack after a write                                      
 
 "
 stderr:

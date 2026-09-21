@@ -10,13 +10,18 @@ Interactive: true
 
 Description:
 
-  Create a linear issue                                                            
-                                                                                   
-  For API Markdown bodies, prefer a bare Linear URL for mentions.                  
-  Named profile links can also mention people; \`@name\` handling varies by body.    
-  Get a person's canonical \`url\` from                                              
-  \`linear team members <TEAM> --json\` or \`linear user list --json\`.                
-  Run \`linear guide markdown\` for mentions, collapsible sections and rewrite risks.
+  Create a linear issue.                                                                                                                      
+                                                                                                                                              
+  Decide ownership before creating: read the project catalog (project list --all-teams --limit 0 --json), the candidate Project's full content
+  (project view <id> --json), the related Initiative content (initiative view <id> --json), then check for an existing issue by its stable    
+  source URL (issue query --all-teams --url). Without --project or --parent the command still creates the issue and then prints a reminder on 
+  stderr. Order and entry points: linear guide issue-authoring.                                                                               
+                                                                                                                                              
+  For API Markdown bodies, prefer a bare Linear URL for mentions.                                                                             
+  Named profile links can also mention people; \`@name\` handling varies by body.                                                               
+  Get a person's canonical \`url\` from                                                                                                         
+  \`linear team members <TEAM> --json\` or \`linear user list --json\`.                                                                           
+  Run \`linear guide markdown\` for mentions, collapsible sections and rewrite risks.                                                           
 
 Options:
 
@@ -30,7 +35,8 @@ Options:
   --description-file         <path>         - Read UTF-8 description from a file (- for stdin; preferred for markdown content)                        
   -l, --label                <label>        - Issue label (UUID or name). May be repeated.                                                            
   --team                     <team>         - Team UUID or key (uses the configured default team when omitted)                                        
-  --project                  <project>      - Project for the issue (UUID, slug ID, or name)                                                          
+  --project                  <project>      - Project for the issue (UUID, slug ID, or name); choose it after reading the candidate Project and       
+                                              Initiative content                                                                                      
   -s, --state                <state>        - Workflow state for the issue (UUID, name, or type)                                                      
   --milestone                <milestone>    - Project milestone (UUID, or name when --project is set)                                                 
   --cycle                    <cycle>        - Cycle name, number, 'active'/'now', 'next', 'previous', or a relative offset like +1 (use --cycle=-1    
@@ -51,7 +57,8 @@ stdout:
 https://linear.app/test-team/issue/ENG-123/fix-authentication-bug
 "
 stderr:
-""
+"ENG-123 was created without --project or --parent. Ownership is decided from the candidate Project's full content and the related Initiative content, not from names: linear project list --all-teams --limit 0 --json, then project view <id> --json and initiative view <id> --json (linear guide issue-authoring). Set it with issue update ENG-123 --project <project>.
+"
 `;
 
 snapshot[`Issue Create Command - With Milestone 1`] = `
@@ -69,7 +76,8 @@ stdout:
 https://linear.app/test-team/issue/ENG-456/test-case-insensitive-labels
 "
 stderr:
-""
+"ENG-456 was created without --project or --parent. Ownership is decided from the candidate Project's full content and the related Initiative content, not from names: linear project list --all-teams --limit 0 --json, then project view <id> --json and initiative view <id> --json (linear guide issue-authoring). Set it with issue update ENG-456 --project <project>.
+"
 `;
 
 snapshot[`Issue Create Command - Short Flag -p Is Priority 1`] = `
@@ -87,7 +95,8 @@ stdout:
 https://linear.app/test-team/issue/ENG-890/test-cycle-feature
 "
 stderr:
-""
+"ENG-890 was created without --project or --parent. Ownership is decided from the candidate Project's full content and the related Initiative content, not from names: linear project list --all-teams --limit 0 --json, then project view <id> --json and initiative view <id> --json (linear guide issue-authoring). Set it with issue update ENG-890 --project <project>.
+"
 `;
 
 snapshot[`Issue Create Command - Unknown State Lists Valid States 1`] = `

@@ -594,7 +594,9 @@ snapshot[`usage JSON describes command metadata 1`] = `
           variadic: false,
         },
       ],
-      description: "View issue details with all comments and attachments, or open in browser/app. Accepts an issue UUID, identifier (e.g. ENG-123), number in the configured team, or Linear URL; omit to use the current Git or Jujutsu context. For project, assignee and state changes, use issue history.",
+      description: "View issue details with all comments and attachments, or open in browser/app. Accepts an issue UUID, identifier (e.g. ENG-123), number in the configured team, or Linear URL; omit to use the current Git or Jujutsu context.
+
+Output starts with a Context section: assignee vs. the current account, parent, sub-issues, relations, attachment and comment counts, the latest comment by another account, and state, assignee or project changes by other accounts from the latest 50 history entries. Read it before cancelling, marking as duplicate or re-assigning; the full change log is issue history.",
       details: "linear issue view --help",
       guides: [
         {
@@ -664,7 +666,7 @@ snapshot[`usage JSON describes command metadata 1`] = `
         },
         {
           arguments: [],
-          description: "Output all fetched threads including resolved history; comments and attachments retain {nodes, pageInfo}",
+          description: "Output all fetched threads including resolved history; comments and attachments retain {nodes, pageInfo}. Adds viewer, issue.history (latest 50) and a derived contextSummary",
           flags: [
             "-j",
             "--json",
@@ -944,7 +946,9 @@ Creates original.json and desired.md in a new directory. Read the saved discussi
     {
       aliases: [],
       arguments: [],
-      description: "Create a linear issue
+      description: "Create a linear issue.
+
+Decide ownership before creating: read the project catalog (project list --all-teams --limit 0 --json), the candidate Project's full content (project view <id> --json), the related Initiative content (initiative view <id> --json), then check for an existing issue by its stable source URL (issue query --all-teams --url). Without --project or --parent the command still creates the issue and then prints a reminder on stderr. Order and entry points: linear guide issue-authoring.
 
 For API Markdown bodies, prefer a bare Linear URL for mentions.
 Named profile links can also mention people; \`@name\` handling varies by body.
@@ -1136,7 +1140,7 @@ Run \`linear guide markdown\` for mentions, collapsible sections and rewrite ris
               variadic: false,
             },
           ],
-          description: "Project for the issue (UUID, slug ID, or name)",
+          description: "Project for the issue (UUID, slug ID, or name); choose it after reading the candidate Project and Initiative content",
           flags: [
             "--project",
           ],
@@ -1531,7 +1535,7 @@ Run \`linear guide markdown\` for mentions, collapsible sections and rewrite ris
               variadic: false,
             },
           ],
-          description: "Workflow state for the issue (UUID, name, or type)",
+          description: "Workflow state for the issue (UUID, name, or type). A canceled-type or duplicate state first prints the issue's context (sub-issues, relations, comments and changes by other accounts) on stderr without blocking",
           flags: [
             "-s",
             "--state",

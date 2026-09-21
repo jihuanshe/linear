@@ -7,7 +7,10 @@ import { assertEquals, assertRejects, assertStringIncludes } from "@std/assert"
 import { Checkbox, Input, Select } from "@cliffy/prompt"
 import { stub } from "@std/testing/mock"
 import { stripIgnoredCharacters } from "graphql"
-import { createCommand } from "../../../src/commands/issue/issue-create.ts"
+import {
+  createCommand,
+  missingProjectReminder,
+} from "../../../src/commands/issue/issue-create.ts"
 import { ValidationError } from "../../../src/utils/errors.ts"
 import { commonDenoArgs } from "../../utils/test-helpers.ts"
 
@@ -479,7 +482,11 @@ Deno.test("Issue Create Command - JSON receipt includes the server title in data
     }).output()
     const stdout = new TextDecoder().decode(result.stdout)
     assertEquals(result.code, 0, stdout)
-    assertEquals(new TextDecoder().decode(result.stderr), "")
+    // No --project or --parent: the reminder goes to stderr after the write.
+    assertEquals(
+      new TextDecoder().decode(result.stderr),
+      missingProjectReminder("ENG-123") + "\n",
+    )
     const body = JSON.parse(stdout)
     assertEquals(body.ok, true)
     assertEquals(body.effect, "applied")
