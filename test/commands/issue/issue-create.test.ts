@@ -1118,6 +1118,159 @@ await snapshotTest({
   },
 })
 
+for (const ownership of ["none", "project", "parent"] as const) {
+  Deno.test(`Issue Create Command - Interactive Ownership Reminder: ${ownership}`, async () => {
+    const events: string[] = []
+    const { server, cleanup } = await setupMockLinearServer([
+      {
+        queryName: "GetTeamIdByKey",
+        response: { data: { teams: { nodes: [{ id: teamWriteIds.ENG }] } } },
+      },
+      {
+        queryName: "GetWorkflowStates",
+        response: { data: { team: { states: { nodes: [] } } } },
+      },
+      {
+        queryName: "GetLabelsForTeam",
+        response: { data: { team: { labels: { nodes: [] } } } },
+      },
+      {
+        queryName: "GetProjectsForTeam",
+        response: {
+          data: {
+            projects: {
+              nodes: [{ id: "project-selected", name: "Selected project" }],
+              pageInfo: { hasNextPage: false, endCursor: null },
+            },
+          },
+        },
+      },
+      {
+        queryName: "ProjectTeams",
+        response: {
+          data: {
+            project: {
+              id: "project-selected",
+              name: "Selected project",
+              teams: {
+                nodes: [{ id: teamWriteIds.ENG, key: "ENG" }],
+                pageInfo: { hasNextPage: false, endCursor: null },
+              },
+            },
+          },
+        },
+      },
+      {
+        queryName: "GetParentIssueData",
+        variables: { id: "ENG-220" },
+        response: {
+          data: {
+            issue: {
+              id: "parent-id",
+              identifier: "ENG-220",
+              title: "Parent without a project",
+              project: null,
+            },
+          },
+        },
+      },
+      {
+        queryName: "CreateIssue",
+        response: () => {
+          events.push("created")
+          return {
+            data: {
+              issueCreate: {
+                success: true,
+                issue: {
+                  id: "new-issue",
+                  identifier: "ENG-903",
+                  url: "https://linear.app/test-team/issue/ENG-903",
+                  team: { key: "ENG" },
+                },
+              },
+            },
+          }
+        },
+      },
+    ], {
+      LINEAR_TEAM_KEY: "ENG",
+      LINEAR_ISSUE_CREATE_ASSIGN_SELF: "never",
+      LINEAR_ISSUE_CREATE_ASK_PROJECT: "true",
+    })
+    const stdin = stub(
+      Object.getPrototypeOf(Deno.stdin),
+      "isTerminal",
+      () => true,
+    )
+    const stdout = stub(
+      Object.getPrototypeOf(Deno.stdout),
+      "isTerminal",
+      () => true,
+    )
+    const input = stub(Input, "prompt", () => Promise.resolve("Draft"))
+    const select = stub(Select, "prompt", (options: { message: string }) => {
+      if (options.message === "What's next?") return Promise.resolve("submit")
+      assertEquals(
+        options.message,
+        "Which project should this issue belong to?",
+      )
+      return Promise.resolve(
+        ownership === "project" ? "project-selected" : "__none__",
+      )
+    })
+    const log = stub(console, "log", () => {})
+    const errors: string[] = []
+    const stderr = stub(console, "error", (message: string) => {
+      events.push("reminder")
+      errors.push(message)
+    })
+    try {
+      await createCommand.parse(
+        ownership === "parent" ? ["--parent", "ENG-220"] : [],
+      )
+      const writes = server.graphqlRequests.filter((request) =>
+        request.query.includes("mutation CreateIssue")
+      )
+      assertEquals(writes.length, 1)
+      const payload = writes[0].variables.input as Record<string, unknown>
+      assertEquals(
+        payload.projectId,
+        ownership === "project" ? "project-selected" : null,
+      )
+      assertEquals(
+        payload.parentId,
+        ownership === "parent" ? "parent-id" : undefined,
+      )
+      assertEquals(
+        events,
+        ownership === "none" ? ["created", "reminder"] : ["created"],
+      )
+      if (ownership === "none") {
+        assertEquals(errors.length, 1)
+        assertStringIncludes(
+          errors[0],
+          "ENG-903 was created without --project or --parent.",
+        )
+        assertStringIncludes(
+          errors[0],
+          "issue update ENG-903 --project <project>",
+        )
+      } else {
+        assertEquals(errors, [])
+      }
+    } finally {
+      stderr.restore()
+      log.restore()
+      select.restore()
+      input.restore()
+      stdout.restore()
+      stdin.restore()
+      await cleanup()
+    }
+  })
+}
+
 Deno.test("Issue Create Command - Explicit Project Still Uses Interactive Mode", async () => {
   const { cleanup } = await setupMockLinearServer([
     {

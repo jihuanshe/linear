@@ -933,6 +933,12 @@ export const createCommand = withUsageMetadata(new Command(), {
             `✓ Created issue ${issue.identifier}: ${interactiveData.title}`,
           )
           console.log(issue.url)
+          if (
+            interactiveData.projectId == null &&
+            interactiveData.parentId == null
+          ) {
+            console.error(missingProjectReminder(issue.identifier))
+          }
 
           return
         } catch (error) {
