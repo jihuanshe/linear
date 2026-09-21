@@ -57,7 +57,7 @@ stdout:
 https://linear.app/test-team/issue/ENG-123/fix-authentication-bug
 "
 stderr:
-"ENG-123 was created without --project or --parent. Ownership is decided from the candidate Project's full content and the related Initiative content, not from names: linear project list --all-teams --limit 0 --json, then project view <id> --json and initiative view <id> --json (linear guide issue-authoring). Set it with issue update ENG-123 --project <project>.
+"ENG-123 has no --project or --parent. Decide ownership from the candidate Project's full content and the related Initiative content (linear guide issue-authoring), then run: issue update ENG-123 --project <project>
 "
 `;
 
@@ -76,7 +76,7 @@ stdout:
 https://linear.app/test-team/issue/ENG-456/test-case-insensitive-labels
 "
 stderr:
-"ENG-456 was created without --project or --parent. Ownership is decided from the candidate Project's full content and the related Initiative content, not from names: linear project list --all-teams --limit 0 --json, then project view <id> --json and initiative view <id> --json (linear guide issue-authoring). Set it with issue update ENG-456 --project <project>.
+"ENG-456 has no --project or --parent. Decide ownership from the candidate Project's full content and the related Initiative content (linear guide issue-authoring), then run: issue update ENG-456 --project <project>
 "
 `;
 
@@ -95,7 +95,7 @@ stdout:
 https://linear.app/test-team/issue/ENG-890/test-cycle-feature
 "
 stderr:
-"ENG-890 was created without --project or --parent. Ownership is decided from the candidate Project's full content and the related Initiative content, not from names: linear project list --all-teams --limit 0 --json, then project view <id> --json and initiative view <id> --json (linear guide issue-authoring). Set it with issue update ENG-890 --project <project>.
+"ENG-890 has no --project or --parent. Decide ownership from the candidate Project's full content and the related Initiative content (linear guide issue-authoring), then run: issue update ENG-890 --project <project>
 "
 `;
 

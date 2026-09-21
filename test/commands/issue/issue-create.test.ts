@@ -1250,7 +1250,7 @@ for (const ownership of ["none", "project", "parent"] as const) {
         assertEquals(errors.length, 1)
         assertStringIncludes(
           errors[0],
-          "ENG-903 was created without --project or --parent.",
+          "ENG-903 has no --project or --parent.",
         )
         assertStringIncludes(
           errors[0],

@@ -748,7 +748,7 @@ export async function createIssue(options: CreateIssueOptions) {
 
 /** Printed on stderr after the write; the create is never blocked. */
 export function missingProjectReminder(identifier: string): string {
-  return `${identifier} was created without --project or --parent. Ownership is decided from the candidate Project's full content and the related Initiative content, not from names: linear project list --all-teams --limit 0 --json, then project view <id> --json and initiative view <id> --json (linear guide issue-authoring). Set it with issue update ${identifier} --project <project>.`
+  return `${identifier} has no --project or --parent. Decide ownership from the candidate Project's full content and the related Initiative content (linear guide issue-authoring), then run: issue update ${identifier} --project <project>`
 }
 
 export const createCommand = withUsageMetadata(new Command(), {

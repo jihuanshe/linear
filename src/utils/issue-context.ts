@@ -408,16 +408,16 @@ export function formatIssueContextLines(
     : " (not the current account)"
   lines.push(`- Assignee: ${assigneeLabel}${ownership}`)
 
-  lines.push(
-    summary.parent == null
-      ? "- Parent: none"
-      : `- Parent: ${summary.parent.identifier} ${summary.parent.title} [${summary.parent.state}]`,
-  )
+  const parentLine = summary.parent == null
+    ? "- Parent: none"
+    : `- Parent: ${summary.parent.identifier} ${summary.parent.title} [${summary.parent.state}]`
+
+  let subIssuesLine: string
 
   if (!summary.subIssues.fetched) {
-    lines.push("- Sub-issues: not fetched")
+    subIssuesLine = "- Sub-issues: not fetched"
   } else if (summary.subIssues.count === 0) {
-    lines.push("- Sub-issues: none")
+    subIssuesLine = "- Sub-issues: none"
   } else {
     const states = Object.entries(summary.subIssues.byState)
       .map(([state, count]) => `${state} ${count}`)
@@ -425,29 +425,38 @@ export function formatIssueContextLines(
     const identifiers = summary.subIssues.items
       .map((item) => item.identifier)
       .join(", ")
-    lines.push(
-      `- Sub-issues: ${
-        countWithCompleteness(
-          summary.subIssues.count,
-          summary.subIssues.complete,
-        )
-      } (${states}): ${identifiers}`,
-    )
+    subIssuesLine = `- Sub-issues: ${
+      countWithCompleteness(
+        summary.subIssues.count,
+        summary.subIssues.complete,
+      )
+    } (${states}): ${identifiers}`
   }
 
+  let relationsLine: string
+
   if (!summary.relations.fetched) {
-    lines.push("- Relations: not fetched")
+    relationsLine = "- Relations: not fetched"
   } else if (summary.relations.items.length === 0) {
-    lines.push("- Relations: none")
+    relationsLine = "- Relations: none"
   } else {
     const described = summary.relations.items
       .map((item) => `${item.kind} ${item.identifier}`)
       .join("; ")
-    lines.push(
-      `- Relations: ${described}${
-        summary.relations.complete ? "" : " (more not fetched)"
-      }`,
-    )
+    relationsLine = `- Relations: ${described}${
+      summary.relations.complete ? "" : " (more not fetched)"
+    }`
+  }
+
+  // Three empty facts collapse into one line so an empty Context stays short.
+  if (
+    parentLine === "- Parent: none" &&
+    subIssuesLine === "- Sub-issues: none" &&
+    relationsLine === "- Relations: none"
+  ) {
+    lines.push("- Parent / Sub-issues / Relations: none")
+  } else {
+    lines.push(parentLine, subIssuesLine, relationsLine)
   }
 
   const attachments = summary.attachments.fetched

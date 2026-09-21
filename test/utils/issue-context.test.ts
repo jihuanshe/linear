@@ -245,9 +245,7 @@ Deno.test("formatIssueContextLines marks incomplete counts and other accounts", 
   assertEquals(issueContextTraces(quiet), [])
   assertEquals(formatIssueContextLines(quiet), [
     "- Assignee: @Other Person (not the current account)",
-    "- Parent: none",
-    "- Sub-issues: none",
-    "- Relations: none",
+    "- Parent / Sub-issues / Relations: none",
     "- Attachments: 0 | Comments: 0 (0 unresolved threads; none by other accounts)",
     "- Changes by other accounts: none (all 1 history entries)",
   ])

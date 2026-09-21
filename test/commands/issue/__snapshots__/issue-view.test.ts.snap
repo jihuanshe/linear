@@ -39,9 +39,7 @@ stdout:
 ## Context
 
 - Assignee: Unassigned
-- Parent: none
-- Sub-issues: none
-- Relations: none
+- Parent / Sub-issues / Relations: none
 - Attachments: 0 | Comments: 0 (0 unresolved threads; none by other accounts)
 - Changes by other accounts: history not fetched
 
@@ -72,9 +70,7 @@ stdout:
 ## Context
 
 - Assignee: @Jane Smith
-- Parent: none
-- Sub-issues: none
-- Relations: none
+- Parent / Sub-issues / Relations: none
 - Attachments: 0 | Comments: not fetched
 - Changes by other accounts: history not fetched
 
@@ -93,9 +89,7 @@ stdout:
 ## Context
 
 - Assignee: @John Doe
-- Parent: none
-- Sub-issues: none
-- Relations: none
+- Parent / Sub-issues / Relations: none
 - Attachments: 0 | Comments: 4 (2 unresolved threads; 4 by other accounts, latest @Bob Senior 2024-01-15 16:00)
 - Changes by other accounts: history not fetched
 
@@ -778,9 +772,7 @@ stdout:
 ## Context
 
 - Assignee: @Bob Senior
-- Parent: none
-- Sub-issues: none
-- Relations: none
+- Parent / Sub-issues / Relations: none
 - Attachments: 0 | Comments: not fetched
 - Changes by other accounts: history not fetched
 
@@ -799,9 +791,7 @@ stdout:
 ## Context
 
 - Assignee: Unassigned
-- Parent: none
-- Sub-issues: none
-- Relations: none
+- Parent / Sub-issues / Relations: none
 - Attachments: 0 | Comments: not fetched
 - Changes by other accounts: history not fetched
 
@@ -820,9 +810,7 @@ stdout:
 ## Context
 
 - Assignee: Unassigned
-- Parent: none
-- Sub-issues: none
-- Relations: none
+- Parent / Sub-issues / Relations: none
 - Attachments: 0 | Comments: not fetched
 - Changes by other accounts: history not fetched
 
@@ -841,9 +829,7 @@ stdout:
 ## Context
 
 - Assignee: Unassigned
-- Parent: none
-- Sub-issues: none
-- Relations: none
+- Parent / Sub-issues / Relations: none
 - Attachments: 0 | Comments: 3 (1 unresolved threads; 3 by other accounts, latest @Alice Developer 2024-01-15 12:00)
 - Changes by other accounts: history not fetched
 
@@ -876,9 +862,7 @@ stdout:
 ## Context
 
 - Assignee: Unassigned
-- Parent: none
-- Sub-issues: none
-- Relations: none
+- Parent / Sub-issues / Relations: none
 - Attachments: 0 | Comments: 3 (1 unresolved threads; 3 by other accounts, latest @Alice Developer 2024-01-15 12:00)
 - Changes by other accounts: history not fetched
 
