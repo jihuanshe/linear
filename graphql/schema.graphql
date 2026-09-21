@@ -1169,6 +1169,11 @@ type AiConversation implements Node {
   createdAt: DateTime!
 
   """
+  [Internal] The live diff that owns this conversation. Ownership moves to the review on promotion.
+  """
+  diff: Diff
+
+  """
   [Internal] The document this shared conversation is attached to. Null if the conversation is private.
   """
   document: Document
@@ -1593,6 +1598,7 @@ enum AiConversationEntityCardWidgetArgsAction {
 """[Internal] The entity type"""
 enum AiConversationEntityCardWidgetArgsType {
   AgentSession
+  AiConversation
   AiPrompt
   AiPromptRules
   CustomView
@@ -2196,9 +2202,17 @@ enum AiConversationPostChatMessageToolCallArgsPlatform {
 
 type AiConversationPostChatMessageToolCallResult {
   conversationUrl: String
+  destination: AiConversationPostChatMessageToolCallResultDestination
   error: String
   message: String
   posted: Boolean!
+}
+
+type AiConversationPostChatMessageToolCallResultDestination {
+  channelId: String!
+  integrationId: String!
+  messageId: String!
+  threadId: String!
 }
 
 type AiConversationPromptCodingSessionToolCall implements AiConversationBaseToolCall {
@@ -2526,6 +2540,34 @@ type AiConversationRetryPullRequestCheckToolCallArgs {
   checkName: String!
   entity: AiConversationSearchEntitiesToolCallResultEntities!
   workflowName: String
+}
+
+type AiConversationRunLoopToolCall implements AiConversationBaseToolCall {
+  """The arguments to the tool call."""
+  args: AiConversationRunLoopToolCallArgs
+  displayInfo: AiConversationToolDisplayInfo!
+
+  """The name of the tool that was called."""
+  name: AiConversationTool!
+
+  """The arguments of the tool call."""
+  rawArgs: JSON
+
+  """The result of the tool call."""
+  rawResult: JSON
+
+  """The result of the tool call."""
+  result: AiConversationRunLoopToolCallResult
+}
+
+type AiConversationRunLoopToolCallArgs {
+  workflowDefinitionId: String!
+}
+
+type AiConversationRunLoopToolCallResult {
+  conversationId: String!
+  createdEntities: [AiConversationCreateEntityToolCallResultCreatedEntities!]
+  url: String!
 }
 
 type AiConversationSandboxGitHistoryToolCall implements AiConversationBaseToolCall {
@@ -2878,6 +2920,7 @@ enum AiConversationTool {
   RestoreEntity
   RetrieveEntities
   RetryPullRequestCheck
+  RunLoop
   SandboxGitHistory
   SearchChatChannels
   SearchDocumentation
@@ -2897,7 +2940,7 @@ enum AiConversationTool {
 }
 
 """The tool call."""
-union AiConversationToolCall = AiConversationBashToolCall | AiConversationCodeIntelligenceToolCall | AiConversationCreateEntityToolCall | AiConversationCreateSandboxToolCall | AiConversationDeleteEntityToolCall | AiConversationGetMicrosoftTeamsConversationHistoryToolCall | AiConversationGetPullRequestCheckLogsToolCall | AiConversationGetPullRequestDiffToolCall | AiConversationGetPullRequestFileToolCall | AiConversationGetSlackConversationHistoryToolCall | AiConversationHandoffToCodingSessionToolCall | AiConversationInvokeMcpToolToolCall | AiConversationListCodingSessionsToolCall | AiConversationMemoryToolCall | AiConversationNavigateToPageToolCall | AiConversationNotifyUsersToolCall | AiConversationPatchSettingsToolCall | AiConversationPostChatMessageToolCall | AiConversationPromptCodingSessionToolCall | AiConversationQueryActivityToolCall | AiConversationQueryUpdatesToolCall | AiConversationQueryViewToolCall | AiConversationReadFileToolCall | AiConversationReadSandboxFileToolCall | AiConversationReadSettingToolCall | AiConversationRemoveSpendLimitToolCall | AiConversationResearchToolCall | AiConversationRestoreEntityToolCall | AiConversationRetrieveEntitiesToolCall | AiConversationRetryPullRequestCheckToolCall | AiConversationSandboxGitHistoryToolCall | AiConversationSearchChatChannelsToolCall | AiConversationSearchDocumentationToolCall | AiConversationSearchEntitiesToolCall | AiConversationSearchSettingsToolCall | AiConversationSetSpendLimitToolCall | AiConversationSpawnSubagentToolCall | AiConversationStartCodingSessionToolCall | AiConversationSubscribeToEventToolCall | AiConversationSuggestRepositoryToolCall | AiConversationSuggestValuesToolCall | AiConversationTranscribeMediaToolCall | AiConversationTranscribeVideoToolCall | AiConversationUnsubscribeFromEventToolCall | AiConversationUpdateEntityToolCall | AiConversationWebSearchToolCall
+union AiConversationToolCall = AiConversationBashToolCall | AiConversationCodeIntelligenceToolCall | AiConversationCreateEntityToolCall | AiConversationCreateSandboxToolCall | AiConversationDeleteEntityToolCall | AiConversationGetMicrosoftTeamsConversationHistoryToolCall | AiConversationGetPullRequestCheckLogsToolCall | AiConversationGetPullRequestDiffToolCall | AiConversationGetPullRequestFileToolCall | AiConversationGetSlackConversationHistoryToolCall | AiConversationHandoffToCodingSessionToolCall | AiConversationInvokeMcpToolToolCall | AiConversationListCodingSessionsToolCall | AiConversationMemoryToolCall | AiConversationNavigateToPageToolCall | AiConversationNotifyUsersToolCall | AiConversationPatchSettingsToolCall | AiConversationPostChatMessageToolCall | AiConversationPromptCodingSessionToolCall | AiConversationQueryActivityToolCall | AiConversationQueryUpdatesToolCall | AiConversationQueryViewToolCall | AiConversationReadFileToolCall | AiConversationReadSandboxFileToolCall | AiConversationReadSettingToolCall | AiConversationRemoveSpendLimitToolCall | AiConversationResearchToolCall | AiConversationRestoreEntityToolCall | AiConversationRetrieveEntitiesToolCall | AiConversationRetryPullRequestCheckToolCall | AiConversationRunLoopToolCall | AiConversationSandboxGitHistoryToolCall | AiConversationSearchChatChannelsToolCall | AiConversationSearchDocumentationToolCall | AiConversationSearchEntitiesToolCall | AiConversationSearchSettingsToolCall | AiConversationSetSpendLimitToolCall | AiConversationSpawnSubagentToolCall | AiConversationStartCodingSessionToolCall | AiConversationSubscribeToEventToolCall | AiConversationSuggestRepositoryToolCall | AiConversationSuggestValuesToolCall | AiConversationTranscribeMediaToolCall | AiConversationTranscribeVideoToolCall | AiConversationUnsubscribeFromEventToolCall | AiConversationUpdateEntityToolCall | AiConversationWebSearchToolCall
 
 """A tool call part in an AI conversation."""
 type AiConversationToolCallPart implements AiConversationBasePart {
@@ -11435,6 +11478,9 @@ input InitiativeCollectionFilter {
   """Comparator for the initiative priority."""
   priority: NullableNumberComparator
 
+  """Filters that the initiative projects must satisfy."""
+  projects: ProjectCollectionFilter
+
   """Comparator for the initiative slug ID."""
   slugId: StringComparator
 
@@ -11593,6 +11639,9 @@ input InitiativeFilter {
 
   """Comparator for the initiative priority."""
   priority: NullableNumberComparator
+
+  """Filters that the initiative projects must satisfy."""
+  projects: ProjectCollectionFilter
 
   """Comparator for the initiative slug ID."""
   slugId: StringComparator
@@ -12929,6 +12978,17 @@ input IntegrationCustomerDataAttributesRefreshInput {
   service: String!
 }
 
+"""A Datadog feature flag environment."""
+type IntegrationDatadogEnvironment {
+  id: String!
+  name: String!
+}
+
+"""Datadog environments available to connect."""
+type IntegrationDatadogEnvironmentsPayload {
+  environments: [IntegrationDatadogEnvironment!]!
+}
+
 type IntegrationEdge {
   """Used in `before` and `after` args"""
   cursor: String!
@@ -12986,6 +13046,7 @@ type IntegrationRequestPayload {
 enum IntegrationService {
   airbyte
   asksWeb
+  datadog
   discord
   email
   figma
@@ -13043,6 +13104,9 @@ input IntegrationSettingsInput {
   jira: JiraSettingsInput
   jiraPersonal: JiraPersonalSettingsInput
   launchDarkly: LaunchDarklySettingsInput
+
+  """Settings shared by personal and shared MCP server connections."""
+  mcpServer: McpServerIntegrationSettingsInput
   microsoftTeams: MicrosoftTeamsSettingsInput
   microsoftTeamsProjectPost: MicrosoftTeamsPostSettingsInput
   notion: NotionSettingsInput
@@ -13189,6 +13253,11 @@ type IntegrationsSettings implements Node {
   """Project which those settings apply to."""
   project: Project
 
+  """
+  Whether to send a Slack message when a top-level initiative comment is created. New settings default to true. Existing unset settings inherit the initiative update preference until first edited.
+  """
+  slackInitiativeCommentCreated: Boolean
+
   """Whether to send a Slack message when an initiative update is created."""
   slackInitiativeUpdateCreated: Boolean
 
@@ -13225,6 +13294,11 @@ type IntegrationsSettings implements Node {
   Whether to send a Slack message when any of the project or team's issues change to completed or canceled.
   """
   slackIssueStatusChangedDone: Boolean
+
+  """
+  Whether to send a Slack message when a top-level project comment is created. New settings default to true. Existing unset settings inherit the project update preference until first edited.
+  """
+  slackProjectCommentCreated: Boolean
 
   """Whether to send a Slack message when a project update is created."""
   slackProjectUpdateCreated: Boolean
@@ -13270,6 +13344,11 @@ input IntegrationsSettingsCreateInput {
   """The identifier of the project to create settings for."""
   projectId: String
 
+  """
+  Whether to send a Slack message when a top-level initiative comment is created.
+  """
+  slackInitiativeCommentCreated: Boolean
+
   """Whether to send a Slack message when an initiative update is created."""
   slackInitiativeUpdateCreated: Boolean
 
@@ -13304,6 +13383,11 @@ input IntegrationsSettingsCreateInput {
   Whether to send a Slack message when any of the project or team's issues change to completed or canceled.
   """
   slackIssueStatusChangedDone: Boolean
+
+  """
+  Whether to send a Slack message when a top-level project comment is created.
+  """
+  slackProjectCommentCreated: Boolean
 
   """Whether to send a Slack message when a project update is created."""
   slackProjectUpdateCreated: Boolean
@@ -13339,6 +13423,11 @@ input IntegrationsSettingsUpdateInput {
   """
   microsoftTeamsProjectUpdateCreated: Boolean
 
+  """
+  Whether to send a Slack message when a top-level initiative comment is created.
+  """
+  slackInitiativeCommentCreated: Boolean
+
   """Whether to send a Slack message when an initiative update is created."""
   slackInitiativeUpdateCreated: Boolean
 
@@ -13373,6 +13462,11 @@ input IntegrationsSettingsUpdateInput {
   Whether to send a Slack message when any of the project or team's issues change to completed or canceled.
   """
   slackIssueStatusChangedDone: Boolean
+
+  """
+  Whether to send a Slack message when a top-level project comment is created.
+  """
+  slackProjectCommentCreated: Boolean
 
   """Whether to send a Slack message when a project update is created."""
   slackProjectUpdateCreated: Boolean
@@ -15620,6 +15714,11 @@ type IssueLabel implements Node {
   """The label's description."""
   description: String
 
+  """
+  The selection mode of this label group. Null for regular labels. Groups without a type use single-select behavior.
+  """
+  groupType: LabelGroupType
+
   """The unique identifier of the entity."""
   id: ID!
 
@@ -15755,6 +15854,11 @@ input IssueLabelCreateInput {
   description: String
 
   """
+  The selection mode of the label group. Defaults to singleSelect for groups and null for regular labels.
+  """
+  groupType: LabelGroupType
+
+  """
   The identifier in UUID v4 format. If none is provided, the backend will generate one.
   """
   id: String
@@ -15841,6 +15945,11 @@ input IssueLabelUpdateInput {
 
   """The description of the label."""
   description: String
+
+  """
+  The selection mode of the label group. Omit to keep the current value. Null resets groups to singleSelect. Regular labels always use null.
+  """
+  groupType: LabelGroupType
 
   """Whether the label is a group."""
   isGroup: Boolean
@@ -17837,6 +17946,12 @@ input LabelGroupSort {
   order: PaginationSortOrder
 }
 
+"""The selection mode of an issue label group."""
+enum LabelGroupType {
+  multiSelect
+  singleSelect
+}
+
 """
 A notification subscription scoped to a specific issue label. The subscriber receives notifications for events related to issues with this label.
 """
@@ -17994,6 +18109,9 @@ type LoopExecution implements Node {
   """[Internal] The project that triggered this Loop execution."""
   project: Project
 
+  """[Internal] The release that triggered this Loop execution."""
+  release: Release
+
   """[Internal] The team that triggered this Loop execution."""
   team: Team
 
@@ -18025,6 +18143,11 @@ input McpServerCustomHeaderInput {
 
   """The HTTP header value."""
   value: String!
+}
+
+input McpServerIntegrationSettingsInput {
+  """The connection-specific display name."""
+  name: String
 }
 
 """
@@ -19432,6 +19555,33 @@ type Mutation {
     input: IntegrationCustomerDataAttributesRefreshInput!
   ): IntegrationPayload!
 
+  """[Internal] Connects Datadog feature flags to the workspace."""
+  integrationDatadogConnect(
+    """The Datadog API key."""
+    apiKey: String!
+
+    """The Datadog application key with feature flag read access."""
+    applicationKey: String!
+
+    """The Datadog environment ID."""
+    environmentId: String!
+
+    """The Datadog site domain."""
+    site: String!
+  ): IntegrationPayload!
+
+  """[Internal] Lists Datadog environments available to connect."""
+  integrationDatadogEnvironments(
+    """The Datadog API key."""
+    apiKey: String!
+
+    """The Datadog application key with feature flag read access."""
+    applicationKey: String!
+
+    """The Datadog site domain."""
+    site: String!
+  ): IntegrationDatadogEnvironmentsPayload!
+
   """Deletes an integration."""
   integrationDelete(
     """The identifier of the integration to delete."""
@@ -20009,6 +20159,11 @@ type Mutation {
     [INTERNAL] Bearer token that authenticates API requests instead of a Zendesk OAuth token. Requires `customApiUrl`; no OAuth exchange is performed.
     """
     accessToken: String
+
+    """
+    The Zendesk user ID to use as the author of internal notes instead of creating a bot user. Omit to keep the configured user on reconnect, or pass null to create a new bot user.
+    """
+    botUserId: String
 
     """The role to assign to the Linear bot user in Zendesk."""
     botUserRole: String
@@ -22860,6 +23015,9 @@ input NullableInitiativeFilter {
   """Comparator for the initiative priority."""
   priority: NullableNumberComparator
 
+  """Filters that the initiative projects must satisfy."""
+  projects: ProjectCollectionFilter
+
   """Comparator for the initiative slug ID."""
   slugId: StringComparator
 
@@ -25088,6 +25246,11 @@ input OrganizationSecuritySettingsInput {
   """The minimum role required to create personal API keys."""
   personalApiKeysRole: UserRoleType
 
+  """
+  The minimum role required to pin views to workspace pages and to change the views pinned there.
+  """
+  pinnedViewManagementRole: UserRoleType
+
   """The minimum role required to create teams."""
   teamCreationRole: UserRoleType
 
@@ -25519,6 +25682,7 @@ enum PartnerDiscountType {
 """The kind of partner program an offer belongs to."""
 enum PartnerOfferCategory {
   accelerator
+  creator
   investor
   startup_community
 }
@@ -26457,6 +26621,11 @@ type Project implements Node {
   """
   leadTeam: Team
 
+  """
+  [Internal] The ID of the team that leads the project, even when the viewer cannot access the team.
+  """
+  leadTeamId: String!
+
   """Users that are members of the project."""
   members(
     """A cursor to be used with first for forward pagination"""
@@ -27299,7 +27468,7 @@ type ProjectHistoryEdge {
 }
 
 """
-A label that can be applied to projects for categorization. Project labels are workspace-level and can be organized into groups with a parent-child hierarchy. Only child labels (not group labels) can be directly applied to projects.
+A label that can be applied to projects for categorization. Project labels can be workspace-level (available to all teams) or team-scoped, and can be organized into groups with a parent-child hierarchy. Only child labels (not group labels) can be directly applied to projects. Team-scoped labels may be inherited from parent teams to sub-teams.
 """
 type ProjectLabel implements Node {
   """
@@ -27355,7 +27524,7 @@ type ProjectLabel implements Node {
   id: ID!
 
   """
-  [Internal] The original workspace or parent-team label that this label was inherited from. Null if the label is not inherited.
+  The original workspace or parent-team label that this label was inherited from. Null if the label is not inherited.
   """
   inheritedFrom: ProjectLabel
 
@@ -27422,7 +27591,7 @@ type ProjectLabel implements Node {
   retiredBy: User
 
   """
-  [Internal] The team that the label is scoped to. If null, the label is a workspace-level label available to all teams in the workspace.
+  The team that the label is scoped to. If null, the label is a workspace-level label available to all teams in the workspace.
   """
   team: Team
 
@@ -27471,6 +27640,11 @@ input ProjectLabelCollectionFilter {
   """Filters that needs to be matched by some project labels."""
   some: ProjectLabelCollectionFilter
 
+  """
+  Filters that the project label's team must satisfy. Use `{ null: true }` to filter workspace-level labels.
+  """
+  team: NullableTeamFilter
+
   """Comparator for the updated at date."""
   updatedAt: DateComparator
 }
@@ -27511,7 +27685,7 @@ input ProjectLabelCreateInput {
   retiredAt: DateTime
 
   """
-  [Internal] The team associated with the label. If not given, the label will be associated with the entire workspace.
+  The identifier of the team to scope the label to. If not given, the label is a workspace-level label available to all teams.
   """
   teamId: String
 }
@@ -27547,6 +27721,11 @@ input ProjectLabelFilter {
 
   """Filters that the project label's parent label must satisfy."""
   parent: ProjectLabelFilter
+
+  """
+  Filters that the project label's team must satisfy. Use `{ null: true }` to filter workspace-level labels.
+  """
+  team: NullableTeamFilter
 
   """Comparator for the updated at date."""
   updatedAt: DateComparator
@@ -28771,6 +28950,11 @@ type ProjectSearchResult implements Node {
   """
   leadTeam: Team
 
+  """
+  [Internal] The ID of the team that leads the project, even when the viewer cannot access the team.
+  """
+  leadTeamId: String!
+
   """Users that are members of the project."""
   members(
     """A cursor to be used with first for forward pagination"""
@@ -29179,6 +29363,11 @@ type ProjectStatus implements Node {
   [Internal] The team that the status is scoped to. If null, the status is a workspace-level status.
   """
   team: Team
+
+  """
+  [Internal] The ID of the team that owns the status, even when the viewer cannot access the team. Null for workspace statuses.
+  """
+  teamId: String
 
   """
   The category type of the project status (e.g., backlog, planned, started, paused, completed, canceled). Determines the status's behavior and position in the project lifecycle.
@@ -31946,7 +32135,9 @@ type Query {
   """Returns a single project label by its identifier."""
   projectLabel(id: String!): ProjectLabel!
 
-  """Returns all project labels in the workspace, with optional filtering."""
+  """
+  All project labels. Returns a paginated list of labels visible to the authenticated user, including both workspace-level and team-scoped labels, with optional filtering.
+  """
   projectLabels(
     """A cursor to be used with first for forward pagination"""
     after: String
@@ -37670,6 +37861,11 @@ input TeamSecuritySettingsInput {
   """
   memberManagement: TeamRoleType
 
+  """
+  The minimum team role required to pin views to the team's pages and to change the views pinned there.
+  """
+  pinnedViewManagement: TeamRoleType
+
   """The minimum team role required to manage team settings."""
   teamManagement: TeamRoleType
 
@@ -38244,16 +38440,21 @@ type TimeScheduleEntry {
   """The end time of the schedule entry in ISO 8601 date-time format."""
   endsAt: DateTime!
 
+  """
+  [ALPHA] The user this entry replaced, set when the entry is an override.
+  """
+  overriddenUser: TimeScheduleUser
+
   """The start time of the schedule entry in ISO 8601 date-time format."""
   startsAt: DateTime!
 
   """
-  The email, name or reference to the user on schedule. This is used in case the external user could not be mapped to a Linear user id.
+  The external email, name or reference text for the user when the reference cannot be mapped to a Linear user id.
   """
   userEmail: String
 
   """
-  The Linear user id of the user on schedule. If the user cannot be mapped to a Linear user then `userEmail` can be used as a reference.
+  The Linear user id of the referenced user. If the reference cannot be mapped to a Linear user then `userEmail` can be used instead.
   """
   userId: String
 }
@@ -38262,16 +38463,21 @@ input TimeScheduleEntryInput {
   """The end time of the schedule entry in ISO 8601 date-time format."""
   endsAt: DateTime!
 
+  """
+  [ALPHA] The user this entry replaced, set when the entry is an override.
+  """
+  overriddenUser: TimeScheduleUserInput
+
   """The start time of the schedule entry in ISO 8601 date-time format."""
   startsAt: DateTime!
 
   """
-  The email, name or reference to the user on schedule. This is used in case the external user could not be mapped to a Linear user id.
+  The external email, name or reference text for the user when the reference cannot be mapped to a Linear user id.
   """
   userEmail: String
 
   """
-  The Linear user id of the user on schedule. If the user cannot be mapped to a Linear user then `userEmail` can be used as a reference.
+  The Linear user id of the referenced user. If the reference cannot be mapped to a Linear user then `userEmail` can be used instead.
   """
   userId: String
 }
@@ -38304,6 +38510,31 @@ input TimeScheduleUpdateInput {
 
   """The name of the schedule."""
   name: String
+}
+
+"""A reference to a user on a time schedule."""
+type TimeScheduleUser {
+  """
+  The external email, name or reference text for the user when the reference cannot be mapped to a Linear user id.
+  """
+  userEmail: String
+
+  """
+  The Linear user id of the referenced user. If the reference cannot be mapped to a Linear user then `userEmail` can be used instead.
+  """
+  userId: String
+}
+
+input TimeScheduleUserInput {
+  """
+  The external email, name or reference text for the user when the reference cannot be mapped to a Linear user id.
+  """
+  userEmail: String
+
+  """
+  The Linear user id of the referenced user. If the reference cannot be mapped to a Linear user then `userEmail` can be used instead.
+  """
+  userId: String
 }
 
 """
@@ -38983,14 +39214,16 @@ type User implements Node {
   inviteHash: String! @deprecated(reason: "This hash is not in use anymore, this value will always be empty.")
 
   """
-  Whether the user can be assigned to issues. Regular users are always assignable; app users are assignable only if they have the app:assignable scope. The Linear agent also requires coding sessions to be enabled.
+  Whether the user can be assigned to issues. Active app users require the assignments capability. The Linear agent also requires coding sessions to be enabled.
   """
   isAssignable: Boolean!
 
   """Whether the user is the currently authenticated user."""
   isMe: Boolean!
 
-  """Whether the user is mentionable."""
+  """
+  Whether the user can be mentioned. Active app users require the mentions capability.
+  """
   isMentionable: Boolean!
 
   """Issue drafts that the user has created but not yet submitted."""
@@ -39320,6 +39553,7 @@ enum UserFlagType {
   reviewsPromptToConnectGithubDismissed
   rewindBannerDismissed
   slackAgentPromoFromCreateNewIssueShown
+  slackAiFeedbackAcknowledgementShown
   slackBotWelcomeMessageShown
   slackCommentReactionTipShown
   slackProjectChannelsPromoDismissed
@@ -39907,8 +40141,14 @@ type ViewPreferencesValues {
   """Whether to show the run duration in Loop run history."""
   automationRunHistoryShowDuration: Boolean
 
+  """Whether to show the initiative identifier in Loop run history."""
+  automationRunHistoryShowInitiativeIdentifier: Boolean
+
   """Whether to show the issue identifier in Loop run history."""
   automationRunHistoryShowIssueIdentifier: Boolean
+
+  """Whether to show the project identifier in Loop run history."""
+  automationRunHistoryShowProjectIdentifier: Boolean
 
   """Whether to show sub-team loops."""
   automationShowDescendants: Boolean
@@ -40463,6 +40703,11 @@ type ViewPreferencesValues {
 
   """Whether to show the review repository field."""
   reviewFieldRepository: Boolean
+
+  """
+  Whether to show reviewer avatars on review list items. Null if the preference is unset.
+  """
+  reviewFieldReviewers: Boolean
 
   """
   Whether to show the most pressing SLA from connected issues on review list items. Null if the preference is unset.
