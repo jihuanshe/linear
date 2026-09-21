@@ -497,8 +497,10 @@ export function workflowStateNotFoundError(
 const issueDetailsWithCommentsQuery = gql(/* GraphQL */ `
   query GetIssueDetailsWithComments($id: String!) {
     organization { id urlKey }
+    viewer { id }
     issue(id: $id) {
       ...IssueFields
+      ...IssueHistoryPreview
       children(first: 250) {
         nodes {
           identifier
@@ -507,6 +509,9 @@ const issueDetailsWithCommentsQuery = gql(/* GraphQL */ `
             name
             color
           }
+        }
+        pageInfo {
+          hasNextPage
         }
       }
       comments(first: 50, orderBy: createdAt) {
@@ -525,6 +530,7 @@ const issueDetailsWithCommentsQuery = gql(/* GraphQL */ `
             displayName
           }
           user {
+            id
             name
             displayName
           }
@@ -604,8 +610,10 @@ const issueCommentsForUrlLookupQuery = gql(/* GraphQL */ `
 const issueDetailsQuery = gql(/* GraphQL */ `
   query GetIssueDetails($id: String!) {
     organization { id urlKey }
+    viewer { id }
     issue(id: $id) {
       ...IssueFields
+      ...IssueHistoryPreview
       children(first: 250) {
         nodes {
           identifier
@@ -614,6 +622,9 @@ const issueDetailsQuery = gql(/* GraphQL */ `
             name
             color
           }
+        }
+        pageInfo {
+          hasNextPage
         }
       }
       attachments(first: 50) {
@@ -683,7 +694,7 @@ const issueCommentsQuery = gql(/* GraphQL */ `
           resolvedAt
           resolvingCommentId
           resolvingUser { name displayName }
-          user { name displayName }
+          user { id name displayName }
           externalUser { name displayName }
           parent { id }
         }

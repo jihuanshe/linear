@@ -1977,3 +1977,204 @@ Deno.test("Issue Update Command - cannot add and remove the same label", async (
     true,
   )
 })
+
+// A closing state prints the Issue's context on stderr before the write and
+// never blocks it; other states do not read the context at all.
+const closingStates = {
+  data: {
+    team: {
+      states: {
+        nodes: [
+          { id: "s-todo", name: "Todo", type: "unstarted", position: 1 },
+          { id: "s-done", name: "Done", type: "completed", position: 2 },
+          { id: "s-canceled", name: "Canceled", type: "canceled", position: 3 },
+          { id: "s-dup", name: "Duplicate", type: "canceled", position: 4 },
+        ],
+      },
+    },
+  },
+}
+
+function closingContext(issueId: string) {
+  return {
+    viewer: { id: "user-self-123" },
+    issue: {
+      id: issueId,
+      identifier: "ENG-123",
+      assignee: { id: "user-other", name: "other", displayName: "Other" },
+      parent: null,
+      children: {
+        nodes: [{
+          identifier: "ENG-124",
+          title: "Child",
+          state: { name: "Todo" },
+        }],
+        pageInfo: { hasNextPage: false },
+      },
+      relations: { nodes: [], pageInfo: { hasNextPage: false } },
+      inverseRelations: { nodes: [], pageInfo: { hasNextPage: false } },
+      attachments: {
+        nodes: [],
+        pageInfo: { hasNextPage: false, endCursor: null },
+      },
+      comments: {
+        nodes: [{
+          id: "comment-1",
+          createdAt: "2026-09-02T09:00:00.000Z",
+          resolvedAt: null,
+          user: { id: "user-other", name: "other", displayName: "Other" },
+          externalUser: null,
+          parent: null,
+        }],
+        pageInfo: { hasNextPage: false, endCursor: null },
+      },
+      history: {
+        nodes: [{
+          id: "history-1",
+          createdAt: "2026-09-02T08:00:00.000Z",
+          actor: { id: "user-other", name: "other", displayName: "Other" },
+          botActor: null,
+          fromState: { name: "Triage" },
+          toState: { name: "Todo" },
+          fromAssignee: null,
+          toAssignee: null,
+          fromProject: null,
+          toProject: null,
+        }],
+        pageInfo: { hasNextPage: false, endCursor: "history-1" },
+      },
+    },
+  }
+}
+
+for (
+  const [state, context, expected] of [
+    ["Duplicate", closingContext(issueWriteId), [
+      "Moving ENG-123 to Duplicate. Context before closing:",
+      "- Assignee: @Other (not the current account)",
+      "- Sub-issues: 1 (Todo 1): ENG-124",
+      "latest @Other 2026-09-02 09:00",
+      "  - 2026-09-02 08:00 @Other: state Triage -> Todo",
+      "Traces to account for before closing: sub-issues, state or ownership changes by other accounts, comments by other accounts.",
+    ]],
+    ["canceled", { issue: null }, [
+      "Moving ENG-123 to Canceled. Context before closing:",
+      "Context unavailable: Issue not found",
+      "Read issue view ENG-123 before closing.",
+    ]],
+  ] as const
+) {
+  Deno.test(`Issue Update Command - closing state ${state} prints context without blocking`, async () => {
+    const { server, cleanup } = await setupMockLinearServer([
+      {
+        queryName: "GetTeamIdByKey",
+        variables: { team: "ENG" },
+        response: { data: { teams: { nodes: [{ id: teamWriteIds.ENG }] } } },
+      },
+      {
+        queryName: "GetWorkflowStates",
+        variables: { teamKey: teamWriteIds.ENG },
+        response: closingStates,
+      },
+      {
+        queryName: "GetIssueContext",
+        variables: { id: issueWriteId },
+        response: { data: context },
+      },
+      {
+        queryName: "UpdateIssue",
+        response: {
+          data: {
+            issueUpdate: {
+              success: true,
+              issue: {
+                id: issueWriteId,
+                identifier: "ENG-123",
+                url: "https://linear.app/test-team/issue/ENG-123",
+                title: "Before title",
+              },
+            },
+          },
+        },
+      },
+    ], { LINEAR_TEAM_KEY: "ENG" })
+    const errors: string[] = []
+    const errorStub = stub(
+      console,
+      "error",
+      (value: string) => errors.push(value),
+    )
+    const logStub = stub(console, "log", () => {})
+    try {
+      await updateCommand.parse(["--unprotected", "ENG-123", "--state", state])
+      const stderr = errors.join("\n")
+      for (const line of expected) assertStringIncludes(stderr, line)
+      const requests = server.graphqlRequests.map((request) =>
+        request.query.match(/(?:query|mutation)\s+(\w+)/)?.[1]
+      )
+      const contextIndex = requests.indexOf("GetIssueContext")
+      const writeIndex = requests.indexOf("UpdateIssue")
+      assertEquals(
+        requests.filter((name) => name === "GetIssueContext").length,
+        1,
+      )
+      assertEquals(contextIndex >= 0 && contextIndex < writeIndex, true)
+    } finally {
+      errorStub.restore()
+      logStub.restore()
+      await cleanup()
+    }
+  })
+}
+
+Deno.test("Issue Update Command - non-closing state does not read context", async () => {
+  const { server, cleanup } = await setupMockLinearServer([
+    {
+      queryName: "GetTeamIdByKey",
+      variables: { team: "ENG" },
+      response: { data: { teams: { nodes: [{ id: teamWriteIds.ENG }] } } },
+    },
+    {
+      queryName: "GetWorkflowStates",
+      variables: { teamKey: teamWriteIds.ENG },
+      response: closingStates,
+    },
+    {
+      queryName: "UpdateIssue",
+      response: {
+        data: {
+          issueUpdate: {
+            success: true,
+            issue: {
+              id: issueWriteId,
+              identifier: "ENG-123",
+              url: "https://linear.app/test-team/issue/ENG-123",
+              title: "Before title",
+            },
+          },
+        },
+      },
+    },
+  ], { LINEAR_TEAM_KEY: "ENG" })
+  const errors: string[] = []
+  const errorStub = stub(
+    console,
+    "error",
+    (value: string) => errors.push(value),
+  )
+  const logStub = stub(console, "log", () => {})
+  try {
+    await updateCommand.parse(["--unprotected", "ENG-123", "--state", "Done"])
+    assertEquals(errors, [])
+    assertEquals(
+      server.graphqlRequests.some((request) =>
+        request.query.includes("GetIssueContext")
+      ),
+      false,
+    )
+  } finally {
+    errorStub.restore()
+    logStub.restore()
+    await cleanup()
+  }
+})

@@ -139,6 +139,8 @@ jq '.nodes[] | {id, identifier, title, priority}' issues.json
 
 `issue view --json` 与 `issue export` 完整读取 `.issue.comments`、`.issue.attachments` 和 `.issue.labels`；`view --no-comments` 跳过评论。评论保留 `quotedText` 和 `documentContentId`，供识别行内引用；PR 等链接位于 `.issue.attachments.nodes`。`children`、`documents` 和详情中的 `relations` 等集合仍是有限预览；完整关系用 `issue relation list <issue> --json`，其他完整集合按 `linear guide graphql` 单独分页。完整分页不代表跨页数据库快照。
 
+`issue view --json` 还返回顶层 `viewer.id`（当前账号）、`.issue.history`（最近 50 条变更，新在前，`pageInfo.hasNextPage` 表示还有更早的）和派生的 `contextSummary`。后者已按当前账号区分 `viewerIsAssignee`、`comments.byOtherAccounts`、`comments.latestByOtherAccount` 与 `history.changesByOtherAccounts`，并给出 `subIssues`、`relations`、`attachments` 的数量与是否读全；批量取消或判重前直接读它，不必重新拼接。它是派生字段，不进入 `--base-file` 比较。
+
 单个 Initiative 或 Project 的短描述与长正文用 `initiative view <initiative> --json` 或 `project view <project> --json` 读取。Initiative 还返回关联 Project 的 `description` 和完整 `documents` 连接；关联文档的正文继续用 `document view` 读取。
 
 需要批量导出当前凭据可见的 Initiative 说明时，以下查询读到终页，保留 `{data: {organization, initiatives: {nodes, pageInfo}}}`，默认不含归档对象：

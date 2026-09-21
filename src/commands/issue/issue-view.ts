@@ -20,11 +20,15 @@ import {
 } from "../../utils/hyperlink.ts"
 import { createHyperlinkExtension } from "../../utils/charmd-hyperlink-extension.ts"
 import { handleError, ValidationError } from "../../utils/errors.ts"
+import {
+  formatIssueContextMarkdown,
+  summarizeIssueContext,
+} from "../../utils/issue-context.ts"
 
 export const viewCommand = new Command()
   .name("view")
   .description(
-    "View issue details with all comments and attachments, or open in browser/app. Accepts an issue UUID, identifier (e.g. ENG-123), number in the configured team, or Linear URL; omit to use the current Git or Jujutsu context. For project, assignee and state changes, use issue history.",
+    "View issue details with all comments and attachments, or open in browser/app. Accepts an issue UUID, identifier (e.g. ENG-123), number in the configured team, or Linear URL; omit to use the current Git or Jujutsu context.\n\nOutput starts with a Context section: assignee vs. the current account, parent, sub-issues, relations, attachment and comment counts, the latest comment by another account, and state, assignee or project changes by other accounts from the latest 50 history entries. Read it before cancelling, marking as duplicate or re-assigning; the full change log is issue history.",
   )
   .alias("v")
   .arguments("[issue:string]")
@@ -38,7 +42,7 @@ export const viewCommand = new Command()
   .option("--no-pager", "Disable automatic paging for long output")
   .option(
     "-j, --json",
-    "Output all fetched threads including resolved history; comments and attachments retain {nodes, pageInfo}",
+    "Output all fetched threads including resolved history; comments and attachments retain {nodes, pageInfo}. Adds viewer, issue.history (latest 50) and a derived contextSummary",
   )
   .action(async (options, issueArg) => {
     const { web, app, comments, showResolvedThreads, pager, json } = options
@@ -74,8 +78,9 @@ export const viewCommand = new Command()
       } finally {
         spinner?.stop()
       }
+      const contextSummary = summarizeIssueContext(readData)
       if (json) {
-        console.log(JSON.stringify(readData, null, 2))
+        console.log(JSON.stringify({ ...readData, contextSummary }, null, 2))
         return
       }
 
@@ -138,9 +143,9 @@ export const viewCommand = new Command()
         ? "\n\n" + metaParts.join(" | ")
         : ""
 
-      let markdown = `# ${identifier}: ${title}${metaLine}${
-        description ? "\n\n" + description : ""
-      }`
+      let markdown = `# ${identifier}: ${title}${metaLine}\n\n${
+        formatIssueContextMarkdown(contextSummary)
+      }${description ? "\n" + description : ""}`
 
       if (Deno.stdout.isTerminal()) {
         const { columns: terminalWidth } = Deno.consoleSize()
