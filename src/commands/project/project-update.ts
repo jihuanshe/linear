@@ -1,4 +1,5 @@
 import { Command } from "@cliffy/command"
+import { getCliWorkspace } from "../../config.ts"
 import { readTextSource } from "../../utils/text-source.ts"
 import { resolveProjectStatusId } from "./project-status.ts"
 import { withUsageMetadata } from "../usage.ts"
@@ -216,6 +217,11 @@ export const updateCommand = withUsageMetadata(new Command(), { writes: true })
           original,
           unprotected,
           expectFields: expectField,
+          readCommand: {
+            command: ["project"],
+            target: projectReference,
+            workspace: getCliWorkspace(),
+          },
         })
 
         spinner?.start()

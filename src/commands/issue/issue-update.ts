@@ -1,4 +1,5 @@
 import { requireProjectTeam } from "../../utils/project-teams.ts"
+import { getCliWorkspace } from "../../config.ts"
 import { Command } from "@cliffy/command"
 import { withUsageMetadata } from "../usage.ts"
 import { withMarkdownHint } from "../../utils/markdown-help.ts"
@@ -199,6 +200,11 @@ export async function prepareIssueUpdate(
       original,
       unprotected: options.unprotected,
       expectFields: options.expectField,
+      readCommand: {
+        command: ["issue"],
+        target: issueArg,
+        workspace: getCliWorkspace(),
+      },
     })
   }
   const replacesLabels = (labelReferences?.length ?? 0) > 0
@@ -763,7 +769,7 @@ export const updateCommand = withUsageMetadata(new Command(), { writes: true })
   )
   .option(
     "-j, --json",
-    "Output data.issue plus top-level verification and readBack after a write",
+    "Output a JSON write result {ok, effect, data}; the issue is in data.issue, with top-level verification and readBack after a write",
   )
   .action(async (options, issueArg) => {
     try {

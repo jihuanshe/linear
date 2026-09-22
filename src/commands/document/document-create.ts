@@ -27,7 +27,7 @@ export const createCommand = withUsageMetadata(new Command(), {
   .name("create")
   .option(
     "--json",
-    "Output a JSON write result; the created document is in data.document",
+    "Output {ok, effect, data}; the created document is in data.document, its UUID in data.document.id",
   )
   .description(withMarkdownHint("Create a new document"))
   .alias("c")

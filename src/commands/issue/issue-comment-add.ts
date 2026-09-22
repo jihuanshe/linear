@@ -28,7 +28,7 @@ export const commentAddCommand = withUsageMetadata(new Command(), {
   .name("add")
   .description(
     withMarkdownHint(
-      "Add a comment or reply; images uploaded with --attach render inline. Accepts an issue UUID, identifier (e.g. ENG-123), number in the configured team, or Linear URL.",
+      "Add a comment, or reply in an existing thread with --parent <commentId>. Images uploaded with --attach render inline. Accepts an issue UUID, identifier (e.g. ENG-123), number in the configured team, or Linear URL.",
     ),
   )
   .arguments("<issue:string>")
@@ -60,7 +60,10 @@ export const commentAddCommand = withUsageMetadata(new Command(), {
     "--public",
     "Upload attached images to a public, unauthenticated URL (default: private, workspace-members only)",
   )
-  .option("-j, --json", "Output a JSON write result with the comment")
+  .option(
+    "-j, --json",
+    "Output {ok, effect, data}; the created comment is in data.comment, its UUID in data.comment.id",
+  )
   .action(async (options, issueArg) => {
     const {
       body,

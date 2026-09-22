@@ -15,7 +15,10 @@ export const commentListCommand = new Command()
     "Maximum number of comments (use 0 for all pages)",
     { default: 50 },
   )
-  .option("-j, --json", "Output {nodes, pageInfo} as JSON")
+  .option(
+    "-j, --json",
+    "Output {nodes, pageInfo} without a write envelope; comment UUIDs are in nodes[].id",
+  )
   .action(async (options, issueArg) => {
     const { json, limit } = options
 

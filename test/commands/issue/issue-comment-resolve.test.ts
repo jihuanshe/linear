@@ -15,6 +15,122 @@ const comment = (id: string, parent: string | null = null) => ({
   resolvingUser: null,
 })
 
+Deno.test("comment add result can resolve the same thread without creating another root", async () => {
+  const root = comment("root")
+  const reply = { ...comment("new-reply", "root"), body: "Conclusion" }
+  const { server, cleanup } = await setupMockLinearServer([
+    {
+      queryName: "GetIssueId",
+      response: { data: { issue: { id: "issue-1" } } },
+    },
+    {
+      queryName: "AddComment",
+      response: { data: { commentCreate: { success: true, comment: reply } } },
+    },
+    {
+      queryName: "ReadThreadComment",
+      response: ({ variables }) => ({
+        data: { organization, comment: variables.id === "root" ? root : reply },
+      }),
+    },
+    {
+      queryName: "ResolveComment",
+      response: ({ variables }) => {
+        root.resolvedAt = "2026-09-22T09:00:00Z"
+        root.resolvingCommentId = String(variables.resolvingCommentId)
+        return { data: { commentResolve: { success: true, comment: root } } }
+      },
+    },
+  ])
+  const run = async (args: string[]) => {
+    const result = await new Deno.Command(Deno.execPath(), {
+      args: [
+        "run",
+        ...commonDenoArgs,
+        "src/main.ts",
+        "issue",
+        "comment",
+        ...args,
+        "--json",
+      ],
+      stdin: "null",
+      stdout: "piped",
+      stderr: "piped",
+    }).output()
+    const stdout = new TextDecoder().decode(result.stdout)
+    assertEquals(result.code, 0, stdout)
+    assertEquals(new TextDecoder().decode(result.stderr), "")
+    return JSON.parse(stdout)
+  }
+  try {
+    const added = await run([
+      "add",
+      "ENG-1",
+      "--parent",
+      "root",
+      "--body",
+      "Conclusion",
+    ])
+    assertEquals(added.ok, true)
+    assertEquals(added.effect, "applied")
+    assertEquals(added.data.comment.id, "new-reply")
+    assertEquals(added.data.comment.parent.id, "root")
+    const resolved = await run([
+      "resolve",
+      "root",
+      "--resolving-comment",
+      added.data.comment.id,
+    ])
+    assertEquals(resolved.ok, true)
+    assertEquals(resolved.effect, "applied")
+    assertEquals(resolved.data.comment.id, "root")
+    assertEquals(resolved.data.comment.resolvingCommentId, "new-reply")
+    assertEquals(resolved.data.comment.resolvedAt, "2026-09-22T09:00:00Z")
+    const writes = server.graphqlRequests.filter((request) =>
+      request.query.includes("mutation ")
+    )
+    assertEquals(writes.map((request) => request.variables), [
+      { input: { issueId: "issue-1", parentId: "root", body: "Conclusion" } },
+      { id: "root", resolvingCommentId: "new-reply" },
+    ])
+  } finally {
+    await cleanup()
+  }
+})
+
+for (const empty of ["", " \n"]) {
+  Deno.test(`comment resolution rejects an empty conclusion ID before transport: ${JSON.stringify(empty)}`, async () => {
+    const { server, cleanup } = await setupMockLinearServer([])
+    try {
+      const result = await new Deno.Command(Deno.execPath(), {
+        args: [
+          "run",
+          ...commonDenoArgs,
+          "src/main.ts",
+          "issue",
+          "comment",
+          "resolve",
+          "root",
+          "--resolving-comment",
+          empty,
+          "--json",
+        ],
+        stdin: "null",
+        stdout: "piped",
+        stderr: "piped",
+      }).output()
+      const output = JSON.parse(new TextDecoder().decode(result.stdout))
+      assertEquals(result.code, 1)
+      assertEquals(output.ok, false)
+      assertEquals(output.effect, "none")
+      assertStringIncludes(output.error.message, "Comment ID cannot be empty")
+      assertEquals(server.graphqlRequests, [])
+    } finally {
+      await cleanup()
+    }
+  })
+}
+
 for (
   const scenario of [
     "resolve-root",
@@ -184,6 +300,14 @@ for (
         )
         if (scenario === "readback-fails") {
           assertStringIncludes(output.error.details.reason, "read failed")
+        }
+        if (["wrong-reply", "root-as-reply"].includes(scenario)) {
+          assertStringIncludes(
+            output.error.suggestion,
+            "linear issue comment add issue-1 --parent root --body-file conclusion.md --json",
+          )
+          assertStringIncludes(output.error.suggestion, "data.comment.id")
+          assertStringIncludes(output.error.suggestion, "same --workspace")
         }
       }
     } finally {

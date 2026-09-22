@@ -23,6 +23,7 @@ commands:
   - initiative view
   - initiative update
   - document list
+  - document create
   - document view
   - document update
   - milestone view
@@ -54,6 +55,8 @@ test "$code" -eq 0
 
 其他字段可直接保存读取输出，不手抄旧字段。各入口的 JSON 根对象如下；`organization` 均包含稳定 `id` 和 `urlKey`。
 
+负责人、状态等字段替换也需要原始依据，不只正文需要。比如改派负责人，先用 `(set -C; linear issue view ENG-123 --json > original.json)` 在 POSIX shell 中保存读取；`set -C` 防止覆盖已有文件。读取成功后审阅当前负责人和上下文，确认仍要改派，再执行 `linear issue update ENG-123 --assignee <assignee> --base-file original.json --json`。使用 `--workspace` 时，两次命令保持相同选择。缺依据或冲突后都不能只补一次读取就自动重试。
+
 | 读取入口                                | 对象路径            | 对应更新入口           |
 | --------------------------------------- | ------------------- | ---------------------- |
 | `issue view <issue> --json`             | `.issue`            | `issue update`         |
@@ -81,21 +84,21 @@ CLI 会检查它能从本地读取和 Linear 返回值中确认的错误。它�
 - `issue apply` 用执行账本跳过已记录的完成项，`unknown` 阻止自动续跑。同机使用同一账本旁锁文件的执行者互斥；清单副本或其他机器不在保护范围内，部分成功不回滚。锁文件与移交边界见 `linear guide issue-delivery`。
 - `linear api` 的 mutation 只要求显式 `--unprotected`，保留原始 GraphQL 响应；它不提供专用命令的校验、回执或恢复，未知效果由调用者对账。
 
-因此，调用者应把 `--base-file` 当作写前原始值比较，把 `--unprotected` 当作无保护更新，把评论和附件创建当作可能重复的追加，把 `issue apply` 当作可恢复的顺序执行器，而不是事务系统。
-
 CLI 完成名称解析后，会按同一 UUID 最后读取并比较原始依据。当前值已等于目标值的字段不写；当前值仍等于原始值的字段可写；其余为冲突。一个字段冲突就拒绝整个更新。`--expect-field` 指定的额外依赖也要保持原值，即使目标字段已无需修改。引用按稳定 ID、明确的 ID 集合按集合比较，Markdown 则精确比较字符串。
 
 冲突后保留原始文件，读取当前对象并重新决定如何保留并发修改。重新讨论得到新意图时，保存新的依据与草稿；不要只更新依据文件来消除错误。最后读取之后仍可能发生竞争；该检查不提供服务器 CAS、事务、锁或 ABA 检测。
 
 确实要无保护覆盖时显式使用 `--unprotected`，并移除 `--base-file`；它只跳过旧值比较，身份、文件及领域校验继续执行。Document 的开放行内评论锚点保护需用 `document update --force` 显式绕过，不能用 `--unprotected` 代替。交互式编辑会在展示旧值前冻结依据；`--json` 不打开编辑器。
 
-创建、评论追加、侧栏关联和原生标签增删不要求不存在的旧值；Issue 的 `--add-label` / `--remove-label` 使用上游增量操作，不转换为完整集合覆盖。关系新增仍检查是否会替换已有关系。
+创建、评论追加、侧栏关联和原生标签增删不要求原始依据。关系新增仍检查是否会替换已有关系。
 
 给 Issue 加侧栏文件用 `issue attach`；新建带文件评论用 `issue comment add --attach`；给已有评论补文件时，先保存 `issue comment view --json`，再用 `issue comment update <commentId> --base-file comment-original.json --attach <path>`，其中 `comment-original.json` 是保存的原始读取。三种路径的完整示例与上传后冲突恢复见 `linear guide issue-authoring`。多项写入的执行进度与恢复见 `linear guide issue-delivery`。
 
 ## 机器输出与写入效果
 
 `--json`（`-j`）可放在命令路径前、中、后，含义相同，例如 `linear --json issue view ENG-123` 与 `linear issue view ENG-123 --json`。根和领域导航也支持 JSON；`usage --json` 的 `outputModes` 描述各命令是否提供机器结果。未支持的命令在执行前返回 `UnsupportedOutputError`，不输出人类文本或代为执行其他命令。
+
+读取成功时保留命令自己的对象或连接，专用业务写入返回下述写结果；读取失败也可能返回 `ok: false` 的错误结果。先检查进程退出码，再按目标命令的 `--json` 帮助提取字段。机器发现可用 `<domain> usage --json` 的 `subcommands[].options[]`，按 `name == "json"` 读取说明，按 `flags` 查找参数。
 
 JSON 不与浏览器／应用跳转、显式交互／编辑或原文／脚本输出组合。`--json --help`、`--json --version` 同样被拒绝；命令元数据用 `usage --json`，构建身份用 `version --json`。`schema --json --output <path>` 保存 JSON 文件，成功时 stdout 留空。
 
@@ -104,6 +107,8 @@ JSON 不与浏览器／应用跳转、显式交互／编辑或原文／脚本输
 专用业务写命令的 `--json` 在 stdout 输出一份 `{ok,effect,data,...}`，可附 `fields`、`verification` 或回执。失败使用 `ok: false` 和 `error`。退出码为零只表示本次调用完整成功；`effect` 单独说明写入效果。`linear api` 是例外：它保留原始 GraphQL 响应，规则见 `linear guide graphql`。
 
 创建单个实体时，`data` 下保留 GraphQL 资源字段，而不是把字段直接展开到 `data`；例如 Issue 编号在 `data.issue.identifier`，Document ID 在 `data.document.id`。具体路径见创建命令的 `--json` 帮助。删除、批量操作、上传与原生 API 各自保留其合同。
+
+提取下一步要用的 ID 时使用 `jq -er`，并检查类型和非空值，例如 `jq -er 'select(.ok == true) | .data.comment.id | strings | select(length > 0)' comment-result.json`。普通 `jq -r` 在路径不存在时会输出 `null` 并成功退出。先将 CLI 结果保存到文件并检查退出码，再解析；不要用默认只检查最后一段退出码的管道掩盖 CLI 失败。若写入已成功而提取失败，保留结果，修正解析路径，不要重复创建对象。
 
 | 写入效果 `effect` | 可据此决定的下一步                                                    |
 | ----------------- | --------------------------------------------------------------------- |
@@ -222,13 +227,14 @@ linear api 'query ProjectDocuments($id: String!, $after: String) {
 例如修改 Project 长正文，先读取并从同一份结果提取草稿，再编辑文件：
 
 ```bash
+set -euC
 linear project view <project> --json > project-original.json
 jq -j '.project.content // ""' project-original.json > project-content.md
 # 编辑 project-content.md 后提交
 linear project update <project> --content-file project-content.md --base-file project-original.json --json
 ```
 
-读取成功后才提取草稿；保留 `project-original.json` 原样，不把编辑后的内容写回依据。Markdown 往返的富文本限制同样适用，见 `linear guide markdown`。
+读取成功后才提取草稿；`set -C` 拒绝覆盖已有文件。保留 `project-original.json` 原样，只编辑 `project-content.md`。Markdown 往返的富文本限制同样适用，见 `linear guide markdown`。
 
 ### 评论与历史
 

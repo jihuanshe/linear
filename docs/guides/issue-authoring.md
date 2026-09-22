@@ -13,6 +13,7 @@ commands:
   - issue export
   - issue history
   - issue comment add
+  - issue comment list
   - issue comment view
   - issue comment update
   - issue comment resolve
@@ -85,7 +86,7 @@ CLI 保留说明原文，在后面用空行分隔生成的文件片段；图片�
 先从 `linear issue comment list <issue> --limit 0 --json` 的 `.nodes[].id` 确认目标评论 UUID，将它赋给 `COMMENT_ID`，保存原始评论后再补充文件；不要在准备提交时用新读取覆盖 `comment-base.json`：
 
 ```bash
-set -eu
+set -euC
 COMMENT_ID='替换为评论 UUID'
 linear issue comment view "$COMMENT_ID" --json > comment-base.json
 linear issue comment update "$COMMENT_ID" --base-file comment-base.json --attach screenshot.png --attach 'evidence]draft.txt' --json
@@ -104,6 +105,25 @@ linear issue comment update "$COMMENT_ID" --base-file comment-base.json --attach
 `issue view <issue>` 默认显示未解决根线程及数量；已解决历史用 `--show-resolved-threads` 读取。未解决线程不天然等于待办，也不要求关闭 Issue 前将评论清零。
 
 讨论形成结论后，更新正文中的问题理解、处理结果与剩余工作。属性变更保留在原生活动记录，评论补充会影响接手的原因、证据或未决问题。需要后续处理的工作有明确去向后，或问题已得到回答时，用 `issue comment resolve <commentId>` 收束，可用 `--resolving-comment <commentId>` 传入结论回复的 UUID。仍缺证据或决定时保持开放，判断改变后可以 `unresolve`。
+
+结论必须是同线程内的回复，另发一条根评论不能作为 `--resolving-comment`。先用 `issue comment list <issue> --limit 0 --json` 的 `.nodes[]` 找到目标根评论（`parent == null`）。已有结论回复时直接使用其 UUID，不重复创建；需要新回复时，准备 `conclusion.md`，在 Bash 中执行以下步骤。使用 `--workspace` 时给所有 Linear 命令传入相同值。
+
+```bash
+set -euo pipefail
+set -C
+ISSUE='ENG-123'
+ROOT_COMMENT_ID='替换为该 Issue 中的根评论 UUID'
+linear issue comment add "$ISSUE" --parent "$ROOT_COMMENT_ID" \
+  --body-file conclusion.md --json > reply-result.json
+REPLY_ID=$(jq -er 'select(.ok == true) | .data.comment.id | strings | select(length > 0)' reply-result.json)
+linear issue comment resolve "$ROOT_COMMENT_ID" \
+  --resolving-comment "$REPLY_ID" --json > resolution-result.json
+jq -e --arg reply "$REPLY_ID" \
+  '.ok == true and .data.comment.resolvedAt != null and .data.comment.resolvingCommentId == $reply' \
+  resolution-result.json
+```
+
+这些文件名用于新操作，`set -C` 拒绝覆盖已有回执。回复创建成功后即使解析或收束失败，也保留 `reply-result.json`，读取当前线程后从未完成的步骤继续，不重跑整段脚本。写入效果与失败对账见 `linear guide automation`。
 
 正文编辑从 `issue export <issue> --output <directory>` 开始，目标目录必须不存在；在导出的 `desired.md` 中保留有效内容并修改。提交使用同目录的原始依据，完整例子与冲突处理见 `linear guide automation`。成员提及和内联锚点的往返限制见 `linear guide markdown`。
 

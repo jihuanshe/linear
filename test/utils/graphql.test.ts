@@ -94,11 +94,19 @@ Deno.test("getResolvedApiKey - errors when LINEAR_API_KEY and --workspace both s
   setCliWorkspace("test-workspace")
 
   try {
-    await assertRejects(
+    const error = await assertRejects(
       () => getResolvedApiKey(),
-      Error,
+      AuthError,
       "Cannot use --workspace flag when LINEAR_API_KEY environment variable is set",
     )
+    assertStringIncludes(error.suggestion!, "remove --workspace")
+    assertStringIncludes(error.suggestion!, "linear auth whoami --json")
+    assertStringIncludes(error.suggestion!, "confirm organization.urlKey")
+    assertStringIncludes(error.suggestion!, "unset LINEAR_API_KEY")
+    assertStringIncludes(error.suggestion!, "remove it from any loaded .env")
+    assertStringIncludes(error.suggestion!, "retain --workspace")
+    assertEquals(error.suggestion!.includes("auth login"), false)
+    assertEquals(errorResult(error).effect, "none")
   } finally {
     // Cleanup
     Deno.env.delete("LINEAR_API_KEY")

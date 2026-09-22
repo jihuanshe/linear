@@ -179,6 +179,10 @@ Deno.test("leaf help shows a Related guides breadcrumb", async () => {
       "Related guides: automation, issue-authoring",
     )
   }
+
+  const create = await run(["document", "create", "--help"])
+  assertEquals(create.code, 0, create.stderr)
+  assertStringIncludes(create.stdout, "Related guides: automation, markdown")
 })
 
 Deno.test("usage JSON exposes guide metadata additively", async () => {
@@ -201,6 +205,16 @@ Deno.test("usage JSON exposes guide metadata additively", async () => {
   for (const field of ["name", "path", "writes", "outputModes"]) {
     assertEquals(field in update, true, `${field} missing from usage JSON`)
   }
+
+  const documents = await run(["document", "usage", "--json"])
+  assertEquals(documents.code, 0, documents.stderr)
+  const create = JSON.parse(documents.stdout).subcommands.find(
+    (command: { name: string }) => command.name === "create",
+  )
+  assertEquals(
+    create.guides.map((guide: { name: string }) => guide.name),
+    ["automation", "markdown"],
+  )
 })
 
 Deno.test("guide commands never write and stay network-free", () => {

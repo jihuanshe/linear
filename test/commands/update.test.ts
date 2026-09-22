@@ -124,6 +124,54 @@ Deno.test("update - never treats a likely mise install as standalone", async () 
   }
 })
 
+Deno.test("update - explains a stale mise executable selection", async () => {
+  const root = await Deno.makeTempDir()
+  try {
+    const installs = join(root, "mise", "installs")
+    const executable = join(installs, "linear", "1", "bin", "linear")
+    const selected = join(installs, "linear", "2", "bin", "linear")
+    const mise = join(root, "mise-bin")
+    await Deno.mkdir(join(installs, "linear", "1", "bin"), {
+      recursive: true,
+    })
+    await Deno.mkdir(join(installs, "linear", "2", "bin"), {
+      recursive: true,
+    })
+    await writeExecutable(executable, "stale")
+    await writeExecutable(selected, "selected")
+    await writeExecutable(
+      mise,
+      `#!/bin/sh\nprintf '%s\\n' '${selected}'\n`,
+    )
+
+    const error = await assertRejects(
+      () =>
+        isMiseManagedInstallation({
+          executablePath: executable,
+          miseExecutable: mise,
+          miseInstallRoots: [installs],
+        }),
+      CliError,
+      "different mise version is active",
+    )
+    assertStringIncludes(
+      error.suggestion ?? "",
+      `Current executable: ${executable}`,
+    )
+    assertStringIncludes(error.suggestion ?? "", `mise selection: ${selected}`)
+    assertStringIncludes(
+      error.suggestion ?? "",
+      "mise exec -- linear version --json",
+    )
+    assertStringIncludes(error.suggestion ?? "", "refresh PATH")
+    assertStringIncludes(error.suggestion ?? "", "type -a linear")
+    assertStringIncludes(error.suggestion ?? "", "cannot refresh the parent")
+    assertStringIncludes(error.suggestion ?? "", "mise exec -- linear ...")
+  } finally {
+    await Deno.remove(root, { recursive: true })
+  }
+})
+
 Deno.test("update - passes explicit bump intent to mise", async () => {
   if (Deno.build.os === "windows") return
   const root = await Deno.makeTempDir()
@@ -141,6 +189,38 @@ Deno.test("update - passes explicit bump intent to mise", async () => {
       "up\n--bump\ngithub:jihuanshe/linear\n",
     )
   } finally {
+    await Deno.remove(root, { recursive: true })
+  }
+})
+
+Deno.test("update - gives activation guidance after mise succeeds", async () => {
+  if (Deno.build.os === "windows") return
+  const root = await Deno.makeTempDir()
+  const output: string[] = []
+  const originalLog = console.log
+  try {
+    const mise = join(root, "mise")
+    const argsFile = join(root, "args")
+    await writeExecutable(
+      mise,
+      `#!/bin/sh\nprintf '%s\\n' "$@" > '${argsFile}'\n`,
+    )
+    console.log = (...args: unknown[]) => output.push(args.join(" "))
+
+    await updateWithMise(mise)
+
+    assertEquals(
+      await Deno.readTextFile(argsFile),
+      "up\ngithub:jihuanshe/linear\n",
+    )
+    const guidance = output.join("\n")
+    assertStringIncludes(guidance, "current shell may still resolve")
+    assertStringIncludes(guidance, "refresh PATH")
+    assertStringIncludes(guidance, "type -a linear")
+    assertStringIncludes(guidance, "mise exec -- linear ...")
+    assertStringIncludes(guidance, "mise exec -- linear version --json")
+  } finally {
+    console.log = originalLog
     await Deno.remove(root, { recursive: true })
   }
 })

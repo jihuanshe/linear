@@ -1,8 +1,18 @@
 import { assertEquals, assertRejects, assertStringIncludes } from "@std/assert"
-import { join } from "@std/path"
+import { fromFileUrl, join } from "@std/path"
+import { stub } from "@std/testing/mock"
 import { contentFrom, loadManifest } from "../../src/delivery/manifest.ts"
 import { ValidationError } from "../../src/utils/errors.ts"
-import { basis, create, issue, manifest, update, WORKSPACE } from "./fixture.ts"
+import {
+  basis,
+  connection,
+  create,
+  fixture,
+  issue,
+  manifest,
+  update,
+  WORKSPACE,
+} from "./fixture.ts"
 
 async function withManifest(
   value: unknown,
@@ -128,6 +138,171 @@ Deno.test("manifest v2 validates all local intent before any request", async (t)
     })
   }
 })
+
+Deno.test("manifest missing basis explains recovery for the specific entry and workspace", async () => {
+  const has = Deno.env.has.bind(Deno.env)
+  using _environment = stub(
+    Deno.env,
+    "has",
+    (key) => key === "LINEAR_API_KEY" ? false : has(key),
+  )
+  const original = issue(2048)
+  const entry = {
+    operation: "update",
+    identifier: original.identifier,
+    set: { title: "New" },
+  }
+  const value = manifest([
+    create(),
+    entry,
+  ], "delivery-workspace")
+  await withManifest(value, async (path, dir) => {
+    const error = await assertRejects(() => loadManifest(path), ValidationError)
+    const suggestion = error.suggestion!
+    assertStringIncludes(
+      suggestion,
+      "(set -C; linear --workspace 'delivery-workspace' issue view 'ENG-2048' --json > original.json)",
+    )
+    assertStringIncludes(suggestion, "Stop if the read fails")
+    assertStringIncludes(
+      suggestion,
+      'confirm organization.urlKey in the saved read is "delivery-workspace"; stop if it differs',
+    )
+    assertStringIncludes(suggestion, "reconfirm your intended change")
+    assertStringIncludes(suggestion, "issues[1].baseFile")
+    assertStringIncludes(suggestion, "absolute path")
+    assertStringIncludes(suggestion, "resolved from the manifest directory")
+    assertEquals(suggestion.includes("--base-file"), false)
+
+    const baseFile = join(dir, "original.json")
+    await Deno.writeTextFile(
+      baseFile,
+      JSON.stringify({
+        ...basis(original),
+        organization: { ...WORKSPACE, urlKey: "delivery-workspace" },
+      }),
+    )
+    value.issues[1] = { ...entry, baseFile }
+    await Deno.writeTextFile(path, JSON.stringify(value))
+    const loaded = await loadManifest(path)
+    assertEquals(loaded.originals.get(1)?.issue, original)
+  })
+})
+
+for (const credentialSource of ["environment", "dotenv"]) {
+  Deno.test({
+    name:
+      `manifest recovery executes its suggested read with ${credentialSource} credentials`,
+    ignore: Deno.build.os === "windows",
+    async fn() {
+      const original = issue(2048)
+      const f = await fixture({
+        issues: [original],
+        overrides: () => [{
+          queryName: "GetIssueDetailsWithComments",
+          response: {
+            data: {
+              organization: WORKSPACE,
+              issue: {
+                ...original,
+                comments: connection(),
+                attachments: connection(),
+                children: connection(),
+                documents: connection(),
+                relations: connection(),
+                inverseRelations: connection(),
+              },
+            },
+          },
+        }],
+      })
+      const run = (command: string) =>
+        new Deno.Command("sh", {
+          args: [
+            "-c",
+            `${credentialSource === "dotenv" ? "unset LINEAR_API_KEY;" : ""}
+linear() { "$DENO_BIN" run --allow-all --quiet --config="$DENO_CONFIG" "$CLI_MAIN" "$@"; }
+${command}`,
+          ],
+          cwd: f.dir,
+          env: {
+            LINEAR_API_KEY: "test-token",
+            LINEAR_GRAPHQL_ENDPOINT: f.server.getEndpoint(),
+            DENO_BIN: Deno.execPath(),
+            DENO_CONFIG: fromFileUrl(
+              new URL("../../deno.json", import.meta.url),
+            ),
+            CLI_MAIN: fromFileUrl(
+              new URL("../../src/main.ts", import.meta.url),
+            ),
+            NO_COLOR: "1",
+          },
+          stdin: "null",
+          stdout: "piped",
+          stderr: "piped",
+        }).output()
+      try {
+        if (credentialSource === "dotenv") {
+          await Deno.writeTextFile(
+            join(f.dir, ".env"),
+            "LINEAR_API_KEY=test-token\n",
+          )
+        }
+        const entry = {
+          operation: "update",
+          identifier: original.identifier,
+          set: { title: "Recovered title" },
+        }
+        const value = manifest([create(), entry])
+        await f.write(value)
+        const plan = await run("linear issue plan --file delivery.json --json")
+        assertEquals(plan.code, 1)
+        const error = JSON.parse(new TextDecoder().decode(plan.stdout))
+        assertEquals(error.effect, "none")
+        const suggestion = error.error.suggestion as string
+        assertEquals(suggestion.includes("--workspace"), false)
+        assertStringIncludes(
+          suggestion,
+          'organization.urlKey in the saved read is "testing"',
+        )
+        assertStringIncludes(suggestion, "issues[1].baseFile")
+        assertEquals(f.server.graphqlRequests, [])
+
+        const readCommand =
+          suggestion.match(/\(set -C; .*? > original\.json\)/)![0]
+        const read = await run(readCommand)
+        assertEquals(read.code, 0, new TextDecoder().decode(read.stderr))
+        const baseFile = join(f.dir, "original.json")
+        const saved = await Deno.readTextFile(baseFile)
+        const originalRead = JSON.parse(saved)
+        assertEquals(originalRead.organization.urlKey, "testing")
+        assertEquals(originalRead.issue.id, original.id)
+        value.issues[1] = { ...entry, baseFile }
+        await f.write(value)
+        assertEquals(
+          (await loadManifest(f.path)).originals.get(1)?.issue,
+          originalRead.issue,
+        )
+
+        const requestsBeforeRepeat = f.server.graphqlRequests.length
+        const repeated = await run(readCommand)
+        assertEquals(repeated.success, false)
+        assertEquals(await Deno.readTextFile(baseFile), saved)
+        assertEquals(f.server.graphqlRequests.length, requestsBeforeRepeat)
+        originalRead.organization.urlKey = "another-workspace"
+        await Deno.writeTextFile(baseFile, JSON.stringify(originalRead))
+        await assertRejects(
+          () => loadManifest(f.path),
+          ValidationError,
+          "manifest workspace",
+        )
+        assertEquals(f.mutations(), [])
+      } finally {
+        await f.cleanup()
+      }
+    },
+  })
+}
 
 Deno.test("manifest v2 accepts native null presence and independent original fields", async () => {
   const original = issue(1001, { description: null, assignee: null })

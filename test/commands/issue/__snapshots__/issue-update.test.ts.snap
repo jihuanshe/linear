@@ -45,7 +45,8 @@ Options:
   --base-file         <path>         - Saved view --json output from before editing; compare original values before writing                          
   --unprotected                      - Skip original-value comparison; domain checks still apply                                                     
   --expect-field      <field>        - Require this API field to match the saved original value (repeatable)                                         
-  -j, --json                         - Output data.issue plus top-level verification and readBack after a write                                      
+  -j, --json                         - Output a JSON write result {ok, effect, data}; the issue is in data.issue, with top-level verification and    
+                                       readBack after a write                                                                                        
 
 "
 stderr:

@@ -66,6 +66,10 @@ async function resolveApiKey(): Promise<string | undefined> {
     throw new AuthError(
       "Cannot use --workspace flag when LINEAR_API_KEY environment variable is set. " +
         "Either unset LINEAR_API_KEY or remove the --workspace flag.",
+      {
+        suggestion:
+          "To keep using the environment credential, remove --workspace and run linear auth whoami --json to confirm organization.urlKey before continuing. To use stored workspace credentials instead, unset LINEAR_API_KEY and remove it from any loaded .env, then retain --workspace.",
+      },
     )
   }
 
