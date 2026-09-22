@@ -24,6 +24,7 @@ export interface ReplacementReadCommand {
   command: string[]
   target: string
   workspace?: string
+  afterRead?: string
 }
 
 function shellWord(value: string): string | undefined {
@@ -45,7 +46,9 @@ function missingBasisSuggestion(read?: ReplacementReadCommand): string {
     target ?? "<target>",
     "--json",
   ].join(" ")
-  return `In a POSIX shell, save a new original read without overwriting an existing basis: (set -C; ${readCommand} > original.json). Stop if the read fails. Review its current values and reconfirm your intended change, then pass --base-file original.json to the original update command.`
+  const afterRead = read?.afterRead ??
+    "Pass --base-file original.json to the original update command."
+  return `In a POSIX shell, save a new original read without overwriting an existing basis: (set -C; ${readCommand} > original.json). Stop if the read fails. Review its current values and reconfirm your intended change. ${afterRead}`
 }
 
 export class ConflictError extends CliError {

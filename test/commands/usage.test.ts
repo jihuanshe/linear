@@ -278,7 +278,7 @@ Deno.test("nested command groups expose usage recursively", async () => {
   )
 })
 
-Deno.test("usage help distinguishes read and create envelopes and result paths", async () => {
+Deno.test("usage help distinguishes read and write envelopes and result paths", async () => {
   for (
     const [domain, name, shape, path] of [
       [
@@ -288,10 +288,12 @@ Deno.test("usage help distinguishes read and create envelopes and result paths",
         "issue",
       ],
       ["issue", "create", "{ok, effect, data}", "data.issue.identifier"],
+      ["issue", "update", "{ok, effect, data}", "data.issue"],
+      ["issue comment", "update", "{ok, effect, data}", "data.comment"],
       ["document", "create", "{ok, effect, data}", "data.document.id"],
     ]
   ) {
-    const result = await run([domain, "usage", "--json"])
+    const result = await run([...domain.split(" "), "usage", "--json"])
     assertEquals(result.code, 0, result.stderr)
     const document = JSON.parse(result.stdout) as UsageDocument
     const help = document.subcommands.find((command) => command.name === name)!

@@ -415,6 +415,13 @@ export async function loadManifest(
         original,
         unprotected: issue.unprotected,
         expectFields: issue.expectFields,
+        readCommand: {
+          command: ["issue"],
+          target: issue.identifier!,
+          workspace: manifest.workspace,
+          afterRead:
+            `Set issues[${index}].baseFile in the delivery manifest to the saved file's absolute path (relative paths are resolved from the manifest directory), then rerun the original plan/apply command.`,
+        },
       })
     }
     if (targets.has(identity)) {

@@ -1652,7 +1652,7 @@ Run \`linear guide markdown\` for mentions, collapsible sections and rewrite ris
         },
         {
           arguments: [],
-          description: "Output data.issue plus top-level verification and readBack after a write",
+          description: "Output a JSON write result {ok, effect, data}; the issue is in data.issue, with top-level verification and readBack after a write",
           flags: [
             "-j",
             "--json",

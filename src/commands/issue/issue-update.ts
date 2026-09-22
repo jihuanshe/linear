@@ -769,7 +769,7 @@ export const updateCommand = withUsageMetadata(new Command(), { writes: true })
   )
   .option(
     "-j, --json",
-    "Output data.issue plus top-level verification and readBack after a write",
+    "Output a JSON write result {ok, effect, data}; the issue is in data.issue, with top-level verification and readBack after a write",
   )
   .action(async (options, issueArg) => {
     try {

@@ -129,6 +129,46 @@ Deno.test("manifest v2 validates all local intent before any request", async (t)
   }
 })
 
+Deno.test("manifest missing basis explains recovery for the specific entry and workspace", async () => {
+  const original = issue(2048)
+  const entry = {
+    operation: "update",
+    identifier: original.identifier,
+    set: { title: "New" },
+  }
+  const value = manifest([
+    create(),
+    entry,
+  ], "delivery-workspace")
+  await withManifest(value, async (path, dir) => {
+    const error = await assertRejects(() => loadManifest(path), ValidationError)
+    const suggestion = error.suggestion!
+    assertStringIncludes(
+      suggestion,
+      "(set -C; linear --workspace 'delivery-workspace' issue view 'ENG-2048' --json > original.json)",
+    )
+    assertStringIncludes(suggestion, "Stop if the read fails")
+    assertStringIncludes(suggestion, "reconfirm your intended change")
+    assertStringIncludes(suggestion, "issues[1].baseFile")
+    assertStringIncludes(suggestion, "absolute path")
+    assertStringIncludes(suggestion, "resolved from the manifest directory")
+    assertEquals(suggestion.includes("--base-file"), false)
+
+    const baseFile = join(dir, "original.json")
+    await Deno.writeTextFile(
+      baseFile,
+      JSON.stringify({
+        ...basis(original),
+        organization: { ...WORKSPACE, urlKey: "delivery-workspace" },
+      }),
+    )
+    value.issues[1] = { ...entry, baseFile }
+    await Deno.writeTextFile(path, JSON.stringify(value))
+    const loaded = await loadManifest(path)
+    assertEquals(loaded.originals.get(1)?.issue, original)
+  })
+})
+
 Deno.test("manifest v2 accepts native null presence and independent original fields", async () => {
   const original = issue(1001, { description: null, assignee: null })
   await withManifest(

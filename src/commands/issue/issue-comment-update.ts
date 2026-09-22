@@ -57,7 +57,7 @@ export const commentUpdateCommand = withUsageMetadata(new Command(), {
   .option("--edit", "Open the current comment in an editor")
   .option(
     "-j, --json",
-    "Output a JSON write result; the comment is in data.comment",
+    "Output a JSON write result {ok, effect, data}; the comment is in data.comment",
   )
   .option(
     "--base-file <path:string>",
