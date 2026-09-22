@@ -86,7 +86,7 @@ CLI 保留说明原文，在后面用空行分隔生成的文件片段；图片�
 先从 `linear issue comment list <issue> --limit 0 --json` 的 `.nodes[].id` 确认目标评论 UUID，将它赋给 `COMMENT_ID`，保存原始评论后再补充文件；不要在准备提交时用新读取覆盖 `comment-base.json`：
 
 ```bash
-set -eu
+set -euC
 COMMENT_ID='替换为评论 UUID'
 linear issue comment view "$COMMENT_ID" --json > comment-base.json
 linear issue comment update "$COMMENT_ID" --base-file comment-base.json --attach screenshot.png --attach 'evidence]draft.txt' --json

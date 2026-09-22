@@ -13,11 +13,13 @@ commands:
 
 ## 保存清单
 
-先读取要修改的对象，再编写草稿和交付清单。文件路径相对交付清单所在目录：
+先读取要修改的对象。以下命令在当前目录保存原始依据，并拒绝覆盖已有文件：
 
 ```bash
-linear issue view ENG-123 --json >original.json
+(set -C; linear issue view ENG-123 --json >original.json)
 ```
+
+读取成功后，审阅当前内容，再在同一目录编写草稿和交付清单。清单中的文件路径相对清单所在目录。
 
 ```json
 {
