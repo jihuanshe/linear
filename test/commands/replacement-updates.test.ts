@@ -173,9 +173,15 @@ for (const example of cases) {
       assertEquals(result.json().effect, "none")
       assertStringIncludes(
         result.json().error.suggestion,
-        `linear --workspace 'team space' ${
-          example.command.join(" ")
-        } view '目标'"'"'s object' --json`,
+        `linear ${example.command.join(" ")} view '目标'"'"'s object' --json`,
+      )
+      assertEquals(
+        result.json().error.suggestion.includes("--workspace"),
+        false,
+      )
+      assertStringIncludes(
+        result.json().error.suggestion,
+        'confirm organization.urlKey in the saved read is "team space"; stop if it differs',
       )
       assertStringIncludes(result.json().error.suggestion, "set -C;")
       assertStringIncludes(

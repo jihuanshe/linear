@@ -35,7 +35,7 @@ function shellWord(value: string): string | undefined {
 
 function missingBasisSuggestion(read?: ReplacementReadCommand): string {
   const target = read == null ? undefined : shellWord(read.target)
-  const workspace = read?.workspace == null
+  const workspace = read?.workspace == null || Deno.env.has("LINEAR_API_KEY")
     ? []
     : ["--workspace", shellWord(read.workspace) ?? "<workspace>"]
   const readCommand = read == null ? "linear <view-command> <target> --json" : [
@@ -46,9 +46,14 @@ function missingBasisSuggestion(read?: ReplacementReadCommand): string {
     target ?? "<target>",
     "--json",
   ].join(" ")
+  const workspaceCheck = read?.workspace == null
+    ? ""
+    : ` Keep the same credentials and confirm organization.urlKey in the saved read is ${
+      JSON.stringify(read.workspace)
+    }; stop if it differs.`
   const afterRead = read?.afterRead ??
     "Pass --base-file original.json to the original update command."
-  return `In a POSIX shell, save a new original read without overwriting an existing basis: (set -C; ${readCommand} > original.json). Stop if the read fails. Review its current values and reconfirm your intended change. ${afterRead}`
+  return `In a POSIX shell, save a new original read without overwriting an existing basis: (set -C; ${readCommand} > original.json). Stop if the read fails.${workspaceCheck} Review its current values and reconfirm your intended change. ${afterRead}`
 }
 
 export class ConflictError extends CliError {
