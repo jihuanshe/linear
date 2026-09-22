@@ -1,4 +1,5 @@
 import { Command } from "@cliffy/command"
+import { getCliWorkspace } from "../../config.ts"
 import { withUsageMetadata } from "../usage.ts"
 import { gql } from "../../__codegen__/gql.ts"
 import type { ProjectMilestoneUpdateInput } from "../../__codegen__/graphql.ts"
@@ -130,6 +131,11 @@ export const updateCommand = withUsageMetadata(new Command(), { writes: true })
           original,
           unprotected,
           expectFields: expectField,
+          readCommand: {
+            command: ["milestone"],
+            target: id,
+            workspace: getCliWorkspace(),
+          },
         })
         const client = getGraphQLClient()
         const input: ProjectMilestoneUpdateInput = {}

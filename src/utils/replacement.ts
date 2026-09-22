@@ -20,6 +20,34 @@ export interface ReplacementFieldPlan {
   verdict: "write" | "idempotent" | "conflict"
 }
 
+export interface ReplacementReadCommand {
+  command: string[]
+  target: string
+  workspace?: string
+}
+
+function shellWord(value: string): string | undefined {
+  if (/^[^\p{Cc}]+$/u.test(value) && !value.startsWith("-")) {
+    return `'${value.replaceAll("'", `'"'"'`)}'`
+  }
+}
+
+function missingBasisSuggestion(read?: ReplacementReadCommand): string {
+  const target = read == null ? undefined : shellWord(read.target)
+  const workspace = read?.workspace == null
+    ? []
+    : ["--workspace", shellWord(read.workspace) ?? "<workspace>"]
+  const readCommand = read == null ? "linear <view-command> <target> --json" : [
+    "linear",
+    ...workspace,
+    ...read.command,
+    "view",
+    target ?? "<target>",
+    "--json",
+  ].join(" ")
+  return `In a POSIX shell, save a new original read without overwriting an existing basis: (set -C; ${readCommand} > original.json). Stop if the read fails. Review its current values and reconfirm your intended change, then pass --base-file original.json to the original update command.`
+}
+
 export class ConflictError extends CliError {
   readonly fields: ReplacementFieldPlan[]
   readonly dependencies: string[]
@@ -267,6 +295,7 @@ export function validateReplacementOptions(options: {
   original?: ReadBasis
   unprotected?: boolean
   expectFields?: string[]
+  readCommand?: ReplacementReadCommand
 }): void {
   if (options.expectFields?.some((field) => !field.trim())) {
     throw new ValidationError("--expect-field cannot be empty")
@@ -278,8 +307,7 @@ export function validateReplacementOptions(options: {
   }
   if (options.original == null && !options.unprotected) {
     throw new ValidationError("Replacement requires the original read", {
-      suggestion:
-        "Save a read before deciding the change and pass --base-file; use --unprotected only for an explicitly unconditional replacement.",
+      suggestion: missingBasisSuggestion(options.readCommand),
     })
   }
   if ((options.expectFields?.length ?? 0) > 0 && options.original == null) {

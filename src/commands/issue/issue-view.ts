@@ -42,7 +42,7 @@ export const viewCommand = new Command()
   .option("--no-pager", "Disable automatic paging for long output")
   .option(
     "-j, --json",
-    "Output all fetched threads including resolved history; comments and attachments retain {nodes, pageInfo}. Adds viewer, issue.history (latest 50) and a derived contextSummary",
+    "Output {organization, viewer, issue, contextSummary} without a write envelope; the issue is in issue. Includes all fetched threads (even resolved) and issue.history (latest 50); comments and attachments retain {nodes, pageInfo}",
   )
   .action(async (options, issueArg) => {
     const { web, app, comments, showResolvedThreads, pager, json } = options

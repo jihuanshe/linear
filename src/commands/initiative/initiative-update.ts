@@ -1,4 +1,5 @@
 import { Command } from "@cliffy/command"
+import { getCliWorkspace } from "../../config.ts"
 import { withUsageMetadata } from "../usage.ts"
 import { Input, Select } from "../../utils/prompt.ts"
 import { openEditor } from "../../utils/editor.ts"
@@ -201,6 +202,11 @@ export const updateCommand = withUsageMetadata(new Command(), {
             original,
             unprotected: options.unprotected,
             expectFields: options.expectField,
+            readCommand: {
+              command: ["initiative"],
+              target: initiativeReference,
+              workspace: getCliWorkspace(),
+            },
           })
         }
         if (options.expectField?.length) {
@@ -220,6 +226,11 @@ export const updateCommand = withUsageMetadata(new Command(), {
           original,
           unprotected: options.unprotected,
           expectFields: options.expectField,
+          readCommand: {
+            command: ["initiative"],
+            target: initiativeReference,
+            workspace: getCliWorkspace(),
+          },
         })
       }
       const client = getGraphQLClient()

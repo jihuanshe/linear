@@ -91,6 +91,12 @@ async function changeResolution(
     ) {
       throw new ValidationError(
         "Resolving comment must be a reply in this thread",
+        {
+          suggestion:
+            `Use an existing conclusion reply, or create one with 'linear issue comment add ${
+              root.issue!.id
+            } --parent ${root.id} --body-file conclusion.md --json' using the same --workspace selection. After a successful exit, use data.comment.id from that result as --resolving-comment; do not create another root comment.`,
+        },
       )
     }
   }
@@ -155,12 +161,12 @@ export const commentResolveCommand = withUsageMetadata(new Command(), {
   .arguments("<commentId:string>")
   .option(
     "--resolving-comment <commentId:string>",
-    "UUID of a reply in the same thread that records the resolution",
+    "UUID of a conclusion reply in this thread; create it with comment add <issue> --parent <rootCommentId>, then use data.comment.id from its JSON write result",
     { preserveEmpty: true },
   )
   .option(
     "--json",
-    "Output a JSON write result with the read-back in data.comment",
+    "Output {ok, effect, data}; the read-back root is in data.comment, the conclusion reply UUID in data.comment.resolvingCommentId",
   )
   .action(async ({ json, resolvingComment }, id) => {
     try {
@@ -186,7 +192,7 @@ export const commentUnresolveCommand = withUsageMetadata(new Command(), {
   .arguments("<commentId:string>")
   .option(
     "--json",
-    "Output a JSON write result with the read-back in data.comment",
+    "Output {ok, effect, data}; the read-back root is in data.comment",
   )
   .action(async ({ json }, id) => {
     try {

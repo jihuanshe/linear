@@ -666,7 +666,7 @@ Output starts with a Context section: assignee vs. the current account, parent, 
         },
         {
           arguments: [],
-          description: "Output all fetched threads including resolved history; comments and attachments retain {nodes, pageInfo}. Adds viewer, issue.history (latest 50) and a derived contextSummary",
+          description: "Output {organization, viewer, issue, contextSummary} without a write envelope; the issue is in issue. Includes all fetched threads (even resolved) and issue.history (latest 50); comments and attachments retain {nodes, pageInfo}",
           flags: [
             "-j",
             "--json",
@@ -1240,7 +1240,7 @@ Run \`linear guide markdown\` for mentions, collapsible sections and rewrite ris
         },
         {
           arguments: [],
-          description: "Output a JSON write result; the created issue is in data.issue (non-interactive only)",
+          description: "Output {ok, effect, data}; the created issue is in data.issue, its identifier in data.issue.identifier (non-interactive only)",
           flags: [
             "-j",
             "--json",

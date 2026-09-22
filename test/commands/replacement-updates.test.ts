@@ -128,9 +128,19 @@ const cases: ReplacementCase[] = [
   },
 ]
 
-async function cli(server: MockLinearServer, args: string[]) {
+async function cli(
+  server: MockLinearServer,
+  args: string[],
+  options: { json?: boolean } = {},
+) {
   const result = await new Deno.Command(Deno.execPath(), {
-    args: ["run", ...commonDenoArgs, "src/main.ts", ...args, "--json"],
+    args: [
+      "run",
+      ...commonDenoArgs,
+      "src/main.ts",
+      ...args,
+      ...(options.json === false ? [] : ["--json"]),
+    ],
     env: {
       LINEAR_GRAPHQL_ENDPOINT: server.getEndpoint(),
       LINEAR_API_KEY: "test-token",
@@ -146,6 +156,42 @@ async function cli(server: MockLinearServer, args: string[]) {
 }
 
 for (const example of cases) {
+  Deno.test(`${example.name} missing basis suggests its view command without transport`, async () => {
+    const server = new MockLinearServer([])
+    try {
+      await server.start()
+      const target = "目标's object"
+      const result = await cli(server, [
+        ...example.command,
+        "update",
+        target,
+        ...example.flags,
+        "--workspace",
+        "team space",
+      ])
+      assertEquals(result.code, 1)
+      assertEquals(result.json().effect, "none")
+      assertStringIncludes(
+        result.json().error.suggestion,
+        `linear --workspace 'team space' ${
+          example.command.join(" ")
+        } view '目标'"'"'s object' --json`,
+      )
+      assertStringIncludes(result.json().error.suggestion, "set -C;")
+      assertStringIncludes(
+        result.json().error.suggestion,
+        "Review its current values and reconfirm your intended change",
+      )
+      assertStringIncludes(
+        result.json().error.suggestion,
+        "--base-file original.json",
+      )
+      assertEquals(server.graphqlRequests, [])
+    } finally {
+      await server.stop()
+    }
+  })
+
   Deno.test(`${example.name} rejects empty dependency fields with a saved basis before transport`, async () => {
     const server = new MockLinearServer([])
     const path = await Deno.makeTempFile({ suffix: ".json" })
@@ -336,6 +382,29 @@ for (const example of cases) {
     }
   })
 }
+
+Deno.test("missing basis keeps the actionable suggestion in human output", async () => {
+  const server = new MockLinearServer([])
+  try {
+    await server.start()
+    const result = await cli(server, [
+      "project",
+      "update",
+      "Human project",
+      "--description",
+      "Desired",
+    ], { json: false })
+    assertEquals(result.code, 1)
+    assertStringIncludes(
+      result.stderr,
+      "linear project view 'Human project' --json",
+    )
+    assertStringIncludes(result.stderr, "--base-file original.json")
+    assertEquals(server.graphqlRequests, [])
+  } finally {
+    await server.stop()
+  }
+})
 
 for (const example of cases) {
   Deno.test(`${example.name} production update preserves unknown and acknowledged effects on invalid receipts`, async () => {

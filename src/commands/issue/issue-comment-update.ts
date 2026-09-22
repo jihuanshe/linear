@@ -1,4 +1,5 @@
 import { Command } from "@cliffy/command"
+import { getCliWorkspace } from "../../config.ts"
 import { withUsageMetadata } from "../usage.ts"
 import { withMarkdownHint } from "../../utils/markdown-help.ts"
 import { openEditor } from "../../utils/editor.ts"
@@ -110,6 +111,11 @@ export const commentUpdateCommand = withUsageMetadata(new Command(), {
           original,
           unprotected: options.unprotected,
           expectFields: options.expectField,
+          readCommand: {
+            command: ["issue", "comment"],
+            target: commentId,
+            workspace: getCliWorkspace(),
+          },
         })
       }
       const client = getGraphQLClient()

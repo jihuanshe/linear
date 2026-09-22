@@ -1,4 +1,5 @@
 import { Command } from "@cliffy/command"
+import { getCliWorkspace } from "../../config.ts"
 import { withUsageMetadata } from "../usage.ts"
 import { withMarkdownHint } from "../../utils/markdown-help.ts"
 import { gql } from "../../__codegen__/gql.ts"
@@ -198,6 +199,11 @@ export const updateCommand = withUsageMetadata(new Command(), {
             original,
             unprotected,
             expectFields: expectField,
+            readCommand: {
+              command: ["document"],
+              target: documentReference,
+              workspace: getCliWorkspace(),
+            },
           })
         }
         const client = getGraphQLClient()

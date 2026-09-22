@@ -21,7 +21,7 @@ Description:
 Options:
 
   -h, --help                     - Show this help.                                                                                                   
-  --json                         - Output a JSON write result; the created document is in data.document                                              
+  --json                         - Output {ok, effect, data}; the created document is in data.document, its UUID in data.document.id                 
   -t, --title         <title>    - Document title (required)                                                                                         
   -c, --content       <content>  - Markdown content (inline)                                                                                         
   -f, --content-file  <path>     - Read UTF-8 content from a file (- for stdin)                                                                      

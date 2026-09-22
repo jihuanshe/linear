@@ -342,8 +342,22 @@ Deno.test("issue protected update consumes a saved view and sends only the resol
 })
 
 Deno.test("issue replacement without an original read fails before the first request", async () => {
-  const result = await runScenario(["--title", "Desired"], { original: false })
+  const result = await runScenario(["--assignee", "someone@example.com"], {
+    original: false,
+  })
   assertNoWrite(result, "requires the original read")
+  assertStringIncludes(
+    result.result.error.suggestion,
+    "linear issue view 'ENG-123' --json",
+  )
+  assertStringIncludes(
+    result.result.error.suggestion,
+    "Review its current values and reconfirm your intended change",
+  )
+  assertStringIncludes(
+    result.result.error.suggestion,
+    "--base-file original.json",
+  )
   assertEquals(result.requests, [])
 })
 

@@ -250,6 +250,55 @@ Deno.test("nested command groups expose usage recursively", async () => {
     assertEquals(command.path, `linear issue comment ${command.name}`)
     assertEquals(command.details, `${command.path} --help`)
   }
+  const add = document.subcommands.find((command) => command.name === "add")!
+  assertEquals(
+    add.options.find((option) => option.name === "parent")?.flags,
+    ["-p", "--parent"],
+  )
+  assertStringIncludes(add.description, "--parent <commentId>")
+  for (
+    const [name, shape, path] of [
+      ["add", "{ok, effect, data}", "data.comment.id"],
+      ["list", "{nodes, pageInfo}", "nodes[].id"],
+      ["resolve", "{ok, effect, data}", "data.comment.resolvingCommentId"],
+    ]
+  ) {
+    const help = document.subcommands.find((command) => command.name === name)!
+      .options.find((option) => option.name === "json")!.description
+    assertStringIncludes(help, shape)
+    assertStringIncludes(help, path)
+  }
+  const resolve = document.subcommands.find((command) =>
+    command.name === "resolve"
+  )!
+  assertStringIncludes(
+    resolve.options.find((option) => option.name === "resolving-comment")!
+      .description,
+    "comment add <issue> --parent <rootCommentId>",
+  )
+})
+
+Deno.test("usage help distinguishes read and create envelopes and result paths", async () => {
+  for (
+    const [domain, name, shape, path] of [
+      [
+        "issue",
+        "view",
+        "{organization, viewer, issue, contextSummary}",
+        "issue",
+      ],
+      ["issue", "create", "{ok, effect, data}", "data.issue.identifier"],
+      ["document", "create", "{ok, effect, data}", "data.document.id"],
+    ]
+  ) {
+    const result = await run([domain, "usage", "--json"])
+    assertEquals(result.code, 0, result.stderr)
+    const document = JSON.parse(result.stdout) as UsageDocument
+    const help = document.subcommands.find((command) => command.name === name)!
+      .options.find((option) => option.name === "json")!.description
+    assertStringIncludes(help, shape)
+    assertStringIncludes(help, path)
+  }
 })
 
 Deno.test("Cliffy help keeps canonical human metadata labels", async () => {

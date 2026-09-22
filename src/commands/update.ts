@@ -152,7 +152,13 @@ export async function isMiseManagedInstallation(
   throw new CliError(
     "This Linear CLI belongs to mise, but a different mise version is active",
     {
-      suggestion: `Run \`mise up ${MISE_TOOL}\` directly.`,
+      suggestion: `Current executable: ${executablePath}\n` +
+        `mise selection: ${resolvedSelectedPath}\n` +
+        "Compare `mise exec -- linear version --json` with `linear version --json`. " +
+        "For automation, run subsequent commands with `mise exec -- linear ...`. " +
+        "In a mise-activated interactive shell, return to the prompt or restart the shell to refresh PATH; " +
+        "if the versions still differ, check `type -a linear` for aliases or PATH overrides. " +
+        "Repeating mise up cannot refresh the parent shell's PATH.",
     },
   )
 }
@@ -191,6 +197,19 @@ export async function updateWithMise(
       }${MISE_TOOL}\` directly for more details.`,
     })
   }
+
+  console.log(
+    "The current shell may still resolve the previous Linear CLI executable.",
+  )
+  console.log(
+    "In a mise-activated interactive shell, return to the prompt or restart the shell to refresh PATH.",
+  )
+  console.log(
+    "Automation: run subsequent commands with `mise exec -- linear ...`.",
+  )
+  console.log(
+    "Compare `mise exec -- linear version --json` with `linear version --json`; if they differ, check `type -a linear` for aliases or PATH overrides.",
+  )
 }
 
 export function getSelfUpdateAssetName(target: string): string {
@@ -448,7 +467,9 @@ export const updateCommand = withUsageMetadata(new Command(), { writes: true })
       const executablePath = Deno.execPath()
       if (await isMiseManagedInstallation({ executablePath })) {
         await updateWithMise("mise", bump)
-        console.log(success("✓ mise finished updating Linear CLI"))
+        console.log(
+          success("✓ mise finished updating its Linear CLI installation"),
+        )
         return
       }
 

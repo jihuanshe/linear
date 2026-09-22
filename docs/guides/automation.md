@@ -54,6 +54,8 @@ test "$code" -eq 0
 
 其他字段可直接保存读取输出，不手抄旧字段。各入口的 JSON 根对象如下；`organization` 均包含稳定 `id` 和 `urlKey`。
 
+负责人、状态等字段替换也需要原始依据，不只正文需要。比如改派负责人，先用 `(set -C; linear issue view ENG-123 --json > original.json)` 在 POSIX shell 中保存读取；`set -C` 防止覆盖已有文件。读取成功后审阅当前负责人和上下文，确认仍要改派，再执行 `linear issue update ENG-123 --assignee <assignee> --base-file original.json --json`。使用 `--workspace` 时，两次命令保持相同选择。缺依据或冲突后都不能只补一次读取就自动重试。
+
 | 读取入口                                | 对象路径            | 对应更新入口           |
 | --------------------------------------- | ------------------- | ---------------------- |
 | `issue view <issue> --json`             | `.issue`            | `issue update`         |
@@ -97,6 +99,8 @@ CLI 完成名称解析后，会按同一 UUID 最后读取并比较原始依据�
 
 `--json`（`-j`）可放在命令路径前、中、后，含义相同，例如 `linear --json issue view ENG-123` 与 `linear issue view ENG-123 --json`。根和领域导航也支持 JSON；`usage --json` 的 `outputModes` 描述各命令是否提供机器结果。未支持的命令在执行前返回 `UnsupportedOutputError`，不输出人类文本或代为执行其他命令。
 
+支持 JSON 不代表所有命令有同一种信封。读取成功时保留命令自己的对象或连接，专用业务写入返回下述写结果；读取失败也可能返回 `ok: false` 的错误结果。先检查进程退出码，再按目标命令的 `--json` 帮助提取字段，不根据另一条命令猜路径。机器发现可用 `<domain> usage --json` 的 `subcommands[].options[]`，按 `name == "json"` 读取说明，按 `flags` 查找参数；不要用行首正则过滤人类帮助，短选项会改变排版。
+
 JSON 不与浏览器／应用跳转、显式交互／编辑或原文／脚本输出组合。`--json --help`、`--json --version` 同样被拒绝；命令元数据用 `usage --json`，构建身份用 `version --json`。`schema --json --output <path>` 保存 JSON 文件，成功时 stdout 留空。
 
 `--no-pager` 仍是命令级选项。自动化显式传入目标编号或 UUID，并使用 `LINEAR_PROMPT_DISABLED=1` 禁用提示；JSON 不代替删除确认或写入授权。人类输出和 `NO_COLOR=1` 都不能代替机器协议。
@@ -104,6 +108,8 @@ JSON 不与浏览器／应用跳转、显式交互／编辑或原文／脚本输
 专用业务写命令的 `--json` 在 stdout 输出一份 `{ok,effect,data,...}`，可附 `fields`、`verification` 或回执。失败使用 `ok: false` 和 `error`。退出码为零只表示本次调用完整成功；`effect` 单独说明写入效果。`linear api` 是例外：它保留原始 GraphQL 响应，规则见 `linear guide graphql`。
 
 创建单个实体时，`data` 下保留 GraphQL 资源字段，而不是把字段直接展开到 `data`；例如 Issue 编号在 `data.issue.identifier`，Document ID 在 `data.document.id`。具体路径见创建命令的 `--json` 帮助。删除、批量操作、上传与原生 API 各自保留其合同。
+
+提取下一步要用的 ID 时使用 `jq -er`，并检查类型和非空值，例如 `jq -er 'select(.ok == true) | .data.comment.id | strings | select(length > 0)' comment-result.json`。普通 `jq -r` 在路径不存在时会输出 `null` 并成功退出。先将 CLI 结果保存到文件并检查退出码，再解析；不要用默认只检查最后一段退出码的管道掩盖 CLI 失败。若写入已成功而提取失败，保留结果，修正解析路径，不要重复创建对象。
 
 | 写入效果 `effect` | 可据此决定的下一步                                                    |
 | ----------------- | --------------------------------------------------------------------- |
