@@ -112,19 +112,6 @@ const originalProject = {
   }),
 }
 
-// Test help output
-await cliffySnapshotTest({
-  name: "Project Update Command - Help Text",
-  meta: import.meta,
-  colors: false,
-  args: ["--help"],
-  denoArgs: commonDenoArgs,
-  async fn() {
-    updateCommand.help({ colors: false })
-    await updateCommand.parse()
-  },
-})
-
 // Test project update - name only
 await cliffySnapshotTest({
   name: "Project Update Command - Update Name",

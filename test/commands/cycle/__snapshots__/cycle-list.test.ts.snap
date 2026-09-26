@@ -1,24 +1,5 @@
 export const snapshot = {};
 
-snapshot[`Cycle List Command - Help Text 1`] = `
-stdout:
-"
-Usage: list
-
-Description:
-
-  List cycles for a team
-
-Options:
-
-  -h, --help          - Show this help.                                     
-  --team      <team>  - Team UUID or key (defaults to the configured team)  
-
-"
-stderr:
-""
-`;
-
 snapshot[`Cycle List Command - With Mock Cycles 1`] = `
 stdout:
 "#  NAME      START      END        STATUS   

@@ -7,11 +7,9 @@ import {
 } from "@std/assert"
 import { encodeHex } from "@std/encoding/hex"
 import { fromFileUrl, join } from "@std/path"
-import { cli } from "../../src/cli.ts"
 import {
   getSelfUpdateAssetName,
   isMiseManagedInstallation,
-  updateCommand,
   updateStandaloneInstallation,
   updateWithMise,
 } from "../../src/commands/update.ts"
@@ -27,10 +25,6 @@ async function sha256(data: Uint8Array<ArrayBuffer>): Promise<string> {
     new Uint8Array(await crypto.subtle.digest("SHA-256", data)),
   )
 }
-
-Deno.test("cli - update command is registered", () => {
-  assertEquals(cli.getCommand("update"), updateCommand)
-})
 
 Deno.test("update - selects release asset for each supported target", () => {
   assertEquals(

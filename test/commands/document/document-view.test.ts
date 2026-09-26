@@ -3,19 +3,6 @@ import { viewCommand } from "../../../src/commands/document/document-view.ts"
 import { MockLinearServer } from "../../utils/mock_linear_server.ts"
 import { commonDenoArgs } from "../../utils/test-helpers.ts"
 
-// Test help output
-await snapshotTest({
-  name: "Document View Command - Help Text",
-  meta: import.meta,
-  colors: false,
-  args: ["--help"],
-  denoArgs: commonDenoArgs,
-  async fn() {
-    viewCommand.help({ colors: false })
-    await viewCommand.parse()
-  },
-})
-
 // Test viewing a document
 await snapshotTest({
   name: "Document View Command - View Document",

@@ -1,27 +1,5 @@
 export const snapshot = {};
 
-snapshot[`Milestone View Command - Help Text 1`] = `
-stdout:
-"
-Usage: view <milestone>
-
-Description:
-
-  View milestone details by UUID, or by name with --project. By default lists the first 10 attached issues from the first page of 50; use --all to
-  paginate the full set.                                                                                                                          
-
-Options:
-
-  -h, --help             - Show this help.                                                                   
-  --all                  - Fetch and list every issue attached to the milestone (paginates the Linear API).  
-  --project   <project>  - Project for resolving a milestone name (UUID, slug ID, or name)                   
-  -j, --json             - Output {organization, projectMilestone} for --base-file; --all completes issues   
-
-"
-stderr:
-""
-`;
-
 snapshot[`Milestone View Command - With Full Details 1`] = `
 stdout:
 "# Q1 Goals

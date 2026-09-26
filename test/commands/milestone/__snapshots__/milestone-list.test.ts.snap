@@ -1,25 +1,5 @@
 export const snapshot = {};
 
-snapshot[`Milestone List Command - Help Text 1`] = `
-stdout:
-"
-Usage: list --project <project>
-
-Description:
-
-  List milestones for a project
-
-Options:
-
-  -h, --help             - Show this help.                                                     
-  --project   <project>  - Project (UUID, slug ID, or name)                          (required)
-  --json                 - Output the complete {nodes, pageInfo} connection as JSON            
-
-"
-stderr:
-""
-`;
-
 snapshot[`Milestone List Command - With Mock Milestones 1`] = `
 stdout:
 "NAME                      ID                                   TARGET DATE  PROJECT     

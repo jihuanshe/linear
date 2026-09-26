@@ -4,18 +4,6 @@ import { commonDenoArgs } from "../../utils/test-helpers.ts"
 import { MockLinearServer } from "../../utils/mock_linear_server.ts"
 
 await snapshotTest({
-  name: "Cycle View Command - Help Text",
-  meta: import.meta,
-  colors: false,
-  args: ["--help"],
-  denoArgs: commonDenoArgs,
-  async fn() {
-    viewCommand.help({ colors: false })
-    await viewCommand.parse()
-  },
-})
-
-await snapshotTest({
   name: "Cycle View Command - Active Cycle With Issues",
   meta: import.meta,
   colors: false,

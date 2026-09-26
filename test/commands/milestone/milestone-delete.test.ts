@@ -3,19 +3,6 @@ import { deleteCommand } from "../../../src/commands/milestone/milestone-delete.
 import { commonDenoArgs } from "../../utils/test-helpers.ts"
 import { MockLinearServer } from "../../utils/mock_linear_server.ts"
 
-// Test help output
-await cliffySnapshotTest({
-  name: "Milestone Delete Command - Help Text",
-  meta: import.meta,
-  colors: false,
-  args: ["--help"],
-  denoArgs: commonDenoArgs,
-  async fn() {
-    deleteCommand.help({ colors: false })
-    await deleteCommand.parse()
-  },
-})
-
 // Test successful milestone deletion with --yes flag
 await cliffySnapshotTest({
   name: "Milestone Delete Command - With Yes Flag",

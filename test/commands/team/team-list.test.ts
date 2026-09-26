@@ -7,19 +7,6 @@ import { MockLinearServer } from "../../utils/mock_linear_server.ts"
 // Common Deno args for permissions
 const denoArgs = ["--allow-all", "--quiet"]
 
-// Test help output
-await cliffySnapshotTest({
-  name: "Team List Command - Help Text",
-  meta: import.meta,
-  colors: false,
-  args: ["--help"],
-  denoArgs,
-  async fn() {
-    listCommand.help({ colors: false })
-    await listCommand.parse()
-  },
-})
-
 // Test with mock server - Teams list
 await cliffySnapshotTest({
   name: "Team List Command - With Mock Teams",

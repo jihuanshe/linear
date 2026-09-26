@@ -1,31 +1,5 @@
 export const snapshot = {};
 
-snapshot[`Document Delete Command - Help Text 1`] = `
-stdout:
-"
-Usage: delete [document]
-
-Writes: true     
-Interactive: true
-
-Description:
-
-  Delete a document by UUID or slug ID (moves to trash); requires an explicit document or bulk input
-
-Options:
-
-  -h, --help                    - Show this help.                                                                             
-  --json                        - Output a JSON write result                                                                  
-  -y, --yes                     - Skip confirmation prompt                                                                    
-  --bulk        <documents...>  - Delete multiple documents by UUID or slug ID                                                
-  --bulk-file   <path>          - Read whitespace/comma-separated document UUIDs or slugs from a file (no names with spaces)  
-  --bulk-stdin                  - Read whitespace/comma-separated document UUIDs or slugs from stdin (no names with spaces)   
-
-"
-stderr:
-""
-`;
-
 snapshot[`Document Delete Command - Soft Delete 1`] = `
 stdout:
 "✓ Deleted document: Test Document

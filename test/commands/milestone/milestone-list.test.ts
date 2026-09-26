@@ -4,19 +4,6 @@ import { listCommand } from "../../../src/commands/milestone/milestone-list.ts"
 import { commonDenoArgs } from "../../utils/test-helpers.ts"
 import { MockLinearServer } from "../../utils/mock_linear_server.ts"
 
-// Test help output
-await cliffySnapshotTest({
-  name: "Milestone List Command - Help Text",
-  meta: import.meta,
-  colors: false,
-  args: ["--help"],
-  denoArgs: commonDenoArgs,
-  async fn() {
-    listCommand.help({ colors: false })
-    await listCommand.parse()
-  },
-})
-
 // Test with mock server - Milestones list
 await cliffySnapshotTest({
   name: "Milestone List Command - With Mock Milestones",

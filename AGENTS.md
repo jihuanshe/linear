@@ -69,7 +69,7 @@
 
 ## 开发与验证
 
-1. 使用 `mise.toml` 固定的 Deno `2.9.6` 及检查工具。非 Orb 环境按 [README 开发入口](README.md#开发)安装工具和 hook；Orb 只在工具链缺失或损坏时运行 `.agents/setup`，平时由 `.agents/resume` 维护源码包装脚本。
+1. 使用 `mise.toml` 固定的 Deno `2.9.7` 及检查工具。非 Orb 环境按 [README 开发入口](README.md#开发)安装工具和 hook；Orb 只在工具链缺失或损坏时运行 `.agents/setup`，平时由 `.agents/resume` 维护源码包装脚本。
 2. 修改前读取负责该行为的模块及其测试。命令测试通常镜像源码路径，例如 `src/commands/issue/issue-view.ts` 对应 `test/commands/issue/issue-view.test.ts`。
 3. 行为变化时修改对应层级测试。开发中运行最窄的相关 `deno task test --filter ...` 或测试文件；只在有意更新快照时运行 `deno task update-snapshots`。测试任务已固定 `TZ=UTC`。使用 Deno task、check 和 lint，不使用 `tsc` 或把 LSP 诊断当作验证结果。
 4. 修改 `graphql/schema.graphql` 或 `src/` 中的 `gql` document 后运行 `deno task generate-graphql-types`。生成文件被 ignore，不提交。
@@ -84,3 +84,9 @@
 pre-commit hook 只检查暂存文件的格式、Markdown 结构和中英文排版；`deno task verify-source` 负责 GraphQL codegen、format check、代码与 Markdown lint、AutoCorrect、type check 和所有非 Keyring 测试。`verify-release` 是源码门禁，也是 Pull Request 源码门禁，不包含编译产物、Linux 密钥环集成测试或五平台构建。后两者由滚动发布 workflow 执行。
 
 未经用户明确授权，不 push 或发布。用户要求发布 `main` 时，加载并遵循 `.agents/skills/releasing/SKILL.md`；不要手工修改版本、创建 tag 或另建发布流程。
+
+## 测试设计约束
+
+- 不要在写完生产代码之后才补单元测试。若隔离测试确有必要，先写下该系统可能失败的方式，再写实现和测试。
+- 高度优先使用 E2E 测试作为唯一测试机制；复杂功能用 E2E 验证完整行为。这里的 E2E 指经生产命令入口（`main.ts`、`cli` 或命令 action）对 `MockLinearServer` 或临时文件运行；测试结束时必须产出可验证、可重复的结果工件，例如提交的快照，或对 stdout、请求和写入文件的结构化断言。
+- 只有 E2E 无法有效覆盖的真实风险才允许保留隔离测试；不要只为实现细节、单独驱动的子命令注册关系或重复的帮助文本写测试。usage、指南和示例的机器可读元数据是契约，继续由测试覆盖。

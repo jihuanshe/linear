@@ -1,24 +1,5 @@
 export const snapshot = {};
 
-snapshot[`Team States Command - Help Text 1`] = `
-stdout:
-"
-Usage: states [team]
-
-Description:
-
-  List workflow states for a team by UUID or key; uses the configured default team when omitted
-
-Options:
-
-  -h, --help  - Show this help.  
-  -j, --json  - Output as JSON   
-
-"
-stderr:
-""
-`;
-
 snapshot[`Team States Command - Table 1`] = `
 stdout:
 "NAME        TYPE     

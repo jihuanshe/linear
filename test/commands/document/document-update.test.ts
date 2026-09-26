@@ -358,19 +358,6 @@ Deno.test("document update rejects empty paths and competing content sources wit
   }
 })
 
-// Test help output
-await snapshotTest({
-  name: "Document Update Command - Help Text",
-  meta: import.meta,
-  colors: false,
-  args: ["--help"],
-  denoArgs: commonDenoArgs,
-  async fn() {
-    updateCommand.help({ colors: false })
-    await updateCommand.parse()
-  },
-})
-
 // Test updating document title
 await snapshotTest({
   name: "Document Update Command - Update Title",

@@ -283,19 +283,6 @@ for (const kind of ["UUID", "name", "slug", "unknown"] as const) {
   })
 }
 
-// Test help output
-await snapshotTest({
-  name: "Document List Command - Help Text",
-  meta: import.meta,
-  colors: false,
-  args: ["--help"],
-  denoArgs: commonDenoArgs,
-  async fn() {
-    listCommand.help({ colors: false })
-    await listCommand.parse()
-  },
-})
-
 // NOTE: Tests for "List All Documents", "Filter By Project", and "Filter By Issue"
 // have been removed because they display relative timestamps (e.g., "3 days ago")
 // which are inherently non-deterministic. The fakeTime solution causes hangs with

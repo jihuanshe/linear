@@ -1,46 +1,5 @@
 export const snapshot = {};
 
-snapshot[`Document Update Command - Help Text 1`] = `
-stdout:
-"
-Usage: update <document>
-
-Writes: true     
-Interactive: true
-
-Description:
-
-  Update an existing document by UUID or slug ID                                             
-                                                                                             
-  Without --content, --content-file, or --edit, read piped Markdown through EOF.             
-  Nonempty stdin can be combined with metadata updates; empty stdin leaves content unchanged.
-                                                                                             
-  For API Markdown bodies, prefer a bare Linear URL for mentions.                            
-  Named profile links can also mention people; \`@name\` handling varies by body.              
-  Get a person's canonical \`url\` from                                                        
-  \`linear team members <TEAM> --json\` or \`linear user list --json\`.                          
-  Run \`linear guide markdown\` for mentions, collapsible sections and rewrite risks.          
-
-Options:
-
-  -h, --help                     - Show this help.                                                                       
-  -t, --title         <title>    - New title for the document; empty string clears it                                    
-  -c, --content       <content>  - New markdown content (inline; empty string clears it)                                 
-  -f, --content-file  <path>     - Read UTF-8 content from a file (- for stdin; empty input clears content)              
-  --icon              <icon>     - New icon (emoji)                                                                      
-  --project           <project>  - Attach to project (UUID, slug ID, or name)                                            
-  -e, --edit                     - Open current content in \$EDITOR for editing                                           
-  --force                        - Update content even when document comments may lose inline anchors                    
-  --json                         - Output the write result as JSON; never open an editor                                 
-  --base-file         <path>     - Saved view --json output from before editing; compare original values before writing  
-  --unprotected                  - Skip original-value comparison; inline-comment protection still requires --force      
-  --expect-field      <field>    - Require this API field to match the saved original value (repeatable)                 
-
-"
-stderr:
-""
-`;
-
 snapshot[`Document Update Command - Update Title 1`] = `
 stdout:
 "✓ Updated document: New Title
