@@ -1,7 +1,5 @@
 import { snapshotTest as cliffySnapshotTest } from "@cliffy/testing"
-import { assertEquals } from "@std/assert"
 import { listCommand } from "../../../src/commands/user/user-list.ts"
-import { userCommand } from "../../../src/commands/user/user.ts"
 import { MockLinearServer } from "../../utils/mock_linear_server.ts"
 
 const denoArgs = ["--allow-all", "--quiet"]
@@ -46,22 +44,6 @@ function usersResponse(
     data: { viewer: { organization: { users: { nodes, pageInfo } } } },
   }
 }
-
-Deno.test("user list - is registered on the user command", () => {
-  assertEquals(userCommand.getCommand("list"), listCommand)
-})
-
-await cliffySnapshotTest({
-  name: "User List Command - Help Text",
-  meta: import.meta,
-  colors: false,
-  args: ["--help"],
-  denoArgs,
-  async fn() {
-    listCommand.help({ colors: false })
-    await listCommand.parse()
-  },
-})
 
 // LINEAR_TEAM_KEY is deliberately empty: workspace listing must not resolve a
 // team key, and only a GetOrganizationMembers mock is configured, so any team

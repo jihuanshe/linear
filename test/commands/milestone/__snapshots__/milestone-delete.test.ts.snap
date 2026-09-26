@@ -1,28 +1,5 @@
 export const snapshot = {};
 
-snapshot[`Milestone Delete Command - Help Text 1`] = `
-stdout:
-"
-Usage: delete <milestoneId>
-
-Writes: true     
-Interactive: true
-
-Description:
-
-  Delete a project milestone by UUID
-
-Options:
-
-  -h, --help  - Show this help.             
-  --json      - Output a JSON write result  
-  -y, --yes   - Skip confirmation prompt    
-
-"
-stderr:
-""
-`;
-
 snapshot[`Milestone Delete Command - With Yes Flag 1`] = `
 stdout:
 "✓ Deleted milestone milestone-123

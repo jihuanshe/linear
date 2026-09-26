@@ -1,26 +1,5 @@
 export const snapshot = {};
 
-snapshot[`Document View Command - Help Text 1`] = `
-stdout:
-"
-Usage: view <document>
-
-Description:
-
-  View a document's content by UUID or slug ID
-
-Options:
-
-  -h, --help  - Show this help.                                         
-  --raw       - Output raw markdown without rendering                   
-  -w, --web   - Open document in browser                                
-  --json      - Output document JSON, including archivedAt and trashed  
-
-"
-stderr:
-""
-`;
-
 snapshot[`Document View Command - View Document 1`] = `
 stdout:
 "# Delegation System

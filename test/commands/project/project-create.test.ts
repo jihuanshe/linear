@@ -473,7 +473,6 @@ for (const json of [false, true]) {
   })
 }
 
-// Test help output
 for (const stdinTerminal of [false, true]) {
   Deno.test(`project JSON never implicitly prompts on terminal stdout: stdin=${stdinTerminal}`, async () => {
     const code = `
@@ -501,18 +500,6 @@ for (const stdinTerminal of [false, true]) {
     )
   })
 }
-
-await cliffySnapshotTest({
-  name: "Project Create Command - Help Text",
-  meta: import.meta,
-  colors: false,
-  args: ["--help"],
-  denoArgs: commonDenoArgs,
-  async fn() {
-    createCommand.help({ colors: false })
-    await createCommand.parse()
-  },
-})
 
 // Test project create reading description from --description-file
 await cliffySnapshotTest({

@@ -378,19 +378,6 @@ for (
   })
 }
 
-// Test help output
-await snapshotTest({
-  name: "Document Create Command - Help Text",
-  meta: import.meta,
-  colors: false,
-  args: ["--help"],
-  denoArgs: commonDenoArgs,
-  async fn() {
-    createCommand.help({ colors: false })
-    await createCommand.parse()
-  },
-})
-
 // Test creating a document with inline content
 await snapshotTest({
   name: "Document Create Command - With Inline Content",

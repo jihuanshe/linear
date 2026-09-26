@@ -3,19 +3,6 @@ import { deleteCommand } from "../../../src/commands/document/document-delete.ts
 import { MockLinearServer } from "../../utils/mock_linear_server.ts"
 import { commonDenoArgs } from "../../utils/test-helpers.ts"
 
-// Test help output
-await snapshotTest({
-  name: "Document Delete Command - Help Text",
-  meta: import.meta,
-  colors: false,
-  args: ["--help"],
-  denoArgs: commonDenoArgs,
-  async fn() {
-    deleteCommand.help({ colors: false })
-    await deleteCommand.parse()
-  },
-})
-
 // Test soft delete (trash)
 await snapshotTest({
   name: "Document Delete Command - Soft Delete",

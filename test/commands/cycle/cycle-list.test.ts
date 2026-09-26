@@ -5,18 +5,6 @@ import { commonDenoArgs } from "../../utils/test-helpers.ts"
 import { MockLinearServer } from "../../utils/mock_linear_server.ts"
 
 await cliffySnapshotTest({
-  name: "Cycle List Command - Help Text",
-  meta: import.meta,
-  colors: false,
-  args: ["--help"],
-  denoArgs: commonDenoArgs,
-  async fn() {
-    listCommand.help({ colors: false })
-    await listCommand.parse()
-  },
-})
-
-await cliffySnapshotTest({
   name: "Cycle List Command - With Mock Cycles",
   meta: import.meta,
   colors: false,

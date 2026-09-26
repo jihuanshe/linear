@@ -162,19 +162,6 @@ for (
   })
 }
 
-// Test help output
-await snapshotTest({
-  name: "Project View Command - Help Text",
-  meta: import.meta,
-  colors: false,
-  args: ["--help"],
-  denoArgs,
-  async fn() {
-    viewCommand.help({ colors: false })
-    await viewCommand.parse()
-  },
-})
-
 // Test with mock server - Project details
 await snapshotTest({
   name: "Project View Command - With Project Details",

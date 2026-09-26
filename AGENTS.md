@@ -81,6 +81,12 @@
    git diff --check
    ```
 
+## 测试设计约束
+
+- 不要在写完生产代码之后才补单元测试。若隔离测试确有必要，先写下该系统可能失败的方式，再写实现和测试。
+- 高度优先使用 E2E 测试作为唯一测试机制；复杂功能用 E2E 验证完整行为。E2E 测试结束时必须产出可验证、可重复的结果工件。
+- 只有 E2E 无法有效覆盖的真实风险才允许保留隔离测试；不要为实现细节、注册关系、静态元数据或重复的帮助文本写测试。
+
 pre-commit hook 只检查暂存文件的格式、Markdown 结构和中英文排版；`deno task verify-source` 负责 GraphQL codegen、format check、代码与 Markdown lint、AutoCorrect、type check 和所有非 Keyring 测试。`verify-release` 是源码门禁，也是 Pull Request 源码门禁，不包含编译产物、Linux 密钥环集成测试或五平台构建。后两者由滚动发布 workflow 执行。
 
 未经用户明确授权，不 push 或发布。用户要求发布 `main` 时，加载并遵循 `.agents/skills/releasing/SKILL.md`；不要手工修改版本、创建 tag 或另建发布流程。

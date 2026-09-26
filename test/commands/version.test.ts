@@ -1,7 +1,5 @@
 import { assertEquals, assertStringIncludes } from "@std/assert"
 import { fromFileUrl } from "@std/path"
-import { cli } from "../../src/cli.ts"
-import { versionCommand } from "../../src/commands/version.ts"
 
 const main = fromFileUrl(new URL("../../src/main.ts", import.meta.url))
 const configReadPaths = [
@@ -44,10 +42,6 @@ async function run(args: string[]) {
     stderr: decoder.decode(result.stderr),
   }
 }
-
-Deno.test("cli - version command is registered", () => {
-  assertEquals(cli.getCommand("version"), versionCommand)
-})
 
 Deno.test("version reports deterministic build identity offline without authentication", async () => {
   const result = await run(["version"])

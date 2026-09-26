@@ -4,19 +4,6 @@ import { keyCommand } from "../../../src/commands/team/team-key.ts"
 // Common Deno args for permissions
 const denoArgs = ["--allow-all", "--quiet"]
 
-// Test help output
-await cliffySnapshotTest({
-  name: "Team Key Command - Help Text",
-  meta: import.meta,
-  colors: false,
-  args: ["--help"],
-  denoArgs,
-  async fn() {
-    keyCommand.help({ colors: false })
-    await keyCommand.parse()
-  },
-})
-
 await cliffySnapshotTest({
   name: "Team Key Command - No Team Configured",
   meta: import.meta,

@@ -81,19 +81,6 @@ for (
   })
 }
 
-// Test help output
-await cliffySnapshotTest({
-  name: "Milestone Create Command - Help Text",
-  meta: import.meta,
-  colors: false,
-  args: ["--help"],
-  denoArgs: commonDenoArgs,
-  async fn() {
-    createCommand.help({ colors: false })
-    await createCommand.parse()
-  },
-})
-
 // Test successful milestone creation
 await cliffySnapshotTest({
   name: "Milestone Create Command - Success",

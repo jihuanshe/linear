@@ -3,19 +3,6 @@ import { deleteCommand } from "../../../src/commands/project/project-delete.ts"
 import { commonDenoArgs } from "../../utils/test-helpers.ts"
 import { MockLinearServer } from "../../utils/mock_linear_server.ts"
 
-// Test help output
-await cliffySnapshotTest({
-  name: "Project Delete Command - Help Text",
-  meta: import.meta,
-  colors: false,
-  args: ["--help"],
-  denoArgs: commonDenoArgs,
-  async fn() {
-    deleteCommand.help({ colors: false })
-    await deleteCommand.parse()
-  },
-})
-
 // Test successful project deletion with --yes flag
 await cliffySnapshotTest({
   name: "Project Delete Command - With Yes Flag",

@@ -1,28 +1,5 @@
 export const snapshot = {};
 
-snapshot[`Project Delete Command - Help Text 1`] = `
-stdout:
-"
-Usage: delete <project>
-
-Writes: true     
-Interactive: true
-
-Description:
-
-  Delete (trash) a Linear project by UUID, slug ID, or exact name
-
-Options:
-
-  -h, --help  - Show this help.             
-  --json      - Output a JSON write result  
-  -y, --yes   - Skip confirmation prompt    
-
-"
-stderr:
-""
-`;
-
 snapshot[`Project Delete Command - With Yes Flag 1`] = `
 stdout:
 "✓ Deleted project: Deleted Project

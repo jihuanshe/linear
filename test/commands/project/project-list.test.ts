@@ -5,19 +5,6 @@ import { listCommand } from "../../../src/commands/project/project-list.ts"
 import { commonDenoArgs } from "../../utils/test-helpers.ts"
 import { MockLinearServer } from "../../utils/mock_linear_server.ts"
 
-// Test help output
-await cliffySnapshotTest({
-  name: "Project List Command - Help Text",
-  meta: import.meta,
-  colors: false,
-  args: ["--help"],
-  denoArgs: commonDenoArgs,
-  async fn() {
-    listCommand.help({ colors: false })
-    await listCommand.parse()
-  },
-})
-
 // Test with mock server - Projects list
 await cliffySnapshotTest({
   name: "Project List Command - With Mock Projects",

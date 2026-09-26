@@ -1,7 +1,5 @@
 import { snapshotTest as cliffySnapshotTest } from "@cliffy/testing"
-import { assertEquals } from "@std/assert"
 import { membersCommand } from "../../../src/commands/team/team-members.ts"
-import { teamCommand } from "../../../src/commands/team/team.ts"
 import { MockLinearServer } from "../../utils/mock_linear_server.ts"
 
 const denoArgs = ["--allow-all", "--quiet"]
@@ -52,24 +50,6 @@ function membersResponse(
 ) {
   return { data: { team: { members: { nodes, pageInfo } } } }
 }
-
-// Wiring guard: the snapshot tests drive membersCommand directly, so they
-// cannot catch a missing registration on the parent command.
-Deno.test("team members - is registered on the team command", () => {
-  assertEquals(teamCommand.getCommand("members"), membersCommand)
-})
-
-await cliffySnapshotTest({
-  name: "Team Members Command - Help Text",
-  meta: import.meta,
-  colors: false,
-  args: ["--help"],
-  denoArgs,
-  async fn() {
-    membersCommand.help({ colors: false })
-    await membersCommand.parse()
-  },
-})
 
 // Default run: inactive members are excluded, and the new admin/owner/you
 // markers render. The mock pins includeDisabled to false, so this also proves

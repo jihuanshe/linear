@@ -1,25 +1,5 @@
 export const snapshot = {};
 
-snapshot[`User List Command - Help Text 1`] = `
-stdout:
-"
-Usage: list
-
-Description:
-
-  List members of the workspace
-
-Options:
-
-  -h, --help  - Show this help.                                              
-  -a, --all   - Include inactive members                                     
-  -j, --json  - Output as JSON; use each member's url for Markdown mentions  
-
-"
-stderr:
-""
-`;
-
 snapshot[`User List Command - Human Output 1`] = `
 stdout:
 "Workspace Members (2):

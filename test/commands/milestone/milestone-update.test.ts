@@ -274,19 +274,6 @@ for (
   })
 }
 
-// Test help output
-await cliffySnapshotTest({
-  name: "Milestone Update Command - Help Text",
-  meta: import.meta,
-  colors: false,
-  args: ["--help"],
-  denoArgs: commonDenoArgs,
-  async fn() {
-    updateCommand.help({ colors: false })
-    await updateCommand.parse()
-  },
-})
-
 // Test successful milestone update - name only
 await cliffySnapshotTest({
   name: "Milestone Update Command - Update Name",

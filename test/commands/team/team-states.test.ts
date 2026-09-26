@@ -1,7 +1,5 @@
 import { snapshotTest as cliffySnapshotTest } from "@cliffy/testing"
-import { assertEquals } from "@std/assert"
 import { statesCommand } from "../../../src/commands/team/team-states.ts"
-import { teamCommand } from "../../../src/commands/team/team.ts"
 import { MockLinearServer } from "../../utils/mock_linear_server.ts"
 
 // Common Deno args for permissions
@@ -27,26 +25,6 @@ const UNSORTED_STATES = {
     },
   },
 }
-
-// The states command is registered under `team` — a direct wiring guard so the
-// snapshot tests (which drive statesCommand directly) can't mask a missing
-// registration.
-Deno.test("team states - is registered on the team command", () => {
-  assertEquals(teamCommand.getCommand("states"), statesCommand)
-})
-
-// Help text
-await cliffySnapshotTest({
-  name: "Team States Command - Help Text",
-  meta: import.meta,
-  colors: false,
-  args: ["--help"],
-  denoArgs,
-  async fn() {
-    statesCommand.help({ colors: false })
-    await statesCommand.parse()
-  },
-})
 
 // Table output for an explicit team key, sorted by position
 await cliffySnapshotTest({

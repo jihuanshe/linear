@@ -1,30 +1,5 @@
 export const snapshot = {};
 
-snapshot[`Project List Command - Help Text 1`] = `
-stdout:
-"
-Usage: list
-
-Description:
-
-  List projects
-
-Options:
-
-  -h, --help              - Show this help.                                                       
-  --team         <key>    - Filter by team key                                                    
-  --all-teams             - Show projects from all teams                                          
-  --status-name  <name>   - Filter by exact status name                                           
-  -w, --web               - Open in web browser                                                   
-  -a, --app               - Open in Linear.app                                                    
-  -j, --json              - Output as JSON                                                        
-  --limit        <limit>  - Maximum results (non-negative integer; 0 or omitted means unlimited)  
-
-"
-stderr:
-""
-`;
-
 snapshot[`Project List Command - With Mock Projects 1`] = `
 stdout:
 "SLUG      NAME                   STATUS      PRIORITY HEALTH  LEAD TEAMS            DATE                

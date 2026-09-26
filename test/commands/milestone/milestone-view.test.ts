@@ -5,19 +5,6 @@ import { viewCommand } from "../../../src/commands/milestone/milestone-view.ts"
 import { commonDenoArgs } from "../../utils/test-helpers.ts"
 import { MockLinearServer } from "../../utils/mock_linear_server.ts"
 
-// Test help output
-await snapshotTest({
-  name: "Milestone View Command - Help Text",
-  meta: import.meta,
-  colors: false,
-  args: ["--help"],
-  denoArgs: commonDenoArgs,
-  async fn() {
-    viewCommand.help({ colors: false })
-    await viewCommand.parse()
-  },
-})
-
 // Test with full milestone details - use very old dates to get stable "long time ago" output
 await snapshotTest({
   name: "Milestone View Command - With Full Details",
