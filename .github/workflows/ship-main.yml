@@ -14,7 +14,7 @@ permissions:
   contents: read
 
 env:
-  DENO_VERSION: "2.9.6"
+  DENO_VERSION: "2.9.7"
   NO_COLOR: "1"
 
 jobs:
@@ -23,16 +23,16 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
-      - uses: denoland/setup-deno@v2
+      - uses: denoland/setup-deno@22d081ff2d3a40755e97629de92e3bcbfa7cf2ed # v2.0.5
         with:
           deno-version: ${{ env.DENO_VERSION }}
 
       - name: Cache Deno dependencies
-        uses: actions/cache@v6
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cache/deno
           key: deno-${{ runner.os }}-${{ env.DENO_VERSION }}-${{ hashFiles('deno.lock') }}
@@ -66,16 +66,16 @@ jobs:
           - x86_64-unknown-linux-gnu
           - x86_64-pc-windows-msvc
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
-      - uses: denoland/setup-deno@v2
+      - uses: denoland/setup-deno@22d081ff2d3a40755e97629de92e3bcbfa7cf2ed # v2.0.5
         with:
           deno-version: ${{ env.DENO_VERSION }}
 
       - name: Cache Deno dependencies
-        uses: actions/cache@v6
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cache/deno
           key: deno-${{ runner.os }}-${{ env.DENO_VERSION }}-${{ hashFiles('deno.lock') }}
@@ -227,7 +227,7 @@ jobs:
           echo "Built $TARGET in $((SECONDS - started_at))s"
 
       - name: Upload release assets
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: release-assets-${{ matrix.target }}
           path: release/
@@ -248,7 +248,7 @@ jobs:
     env:
       GH_TOKEN: ${{ github.token }}
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
 
@@ -260,7 +260,7 @@ jobs:
           echo "VERSION=$version" >> "$GITHUB_ENV"
 
       - name: Download release assets
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           pattern: release-assets-*
           merge-multiple: true
@@ -338,7 +338,7 @@ jobs:
 
       - name: Attest release assets
         if: steps.prepare.outputs.skip != 'true'
-        uses: actions/attest-build-provenance@v4
+        uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:
           subject-path: |
             artifacts/*.tar.xz
@@ -378,7 +378,7 @@ jobs:
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
           persist-credentials: false
@@ -396,7 +396,7 @@ jobs:
 
       - id: linear_release
         name: Record completed release in Linear
-        uses: linear/linear-release-action@53ad0f863963e7f8e270fba18426bbb55ef55384 # v0.17.2
+        uses: linear/linear-release-action@d4af10092984f9bc6d5efa075b242bdf01333463 # v0.18.0
         with:
           access_key: ${{ secrets.LINEAR_ACCESS_KEY }}
           version: ${{ steps.metadata.outputs.version }}

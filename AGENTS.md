@@ -69,7 +69,7 @@
 
 ## 开发与验证
 
-1. 使用 `mise.toml` 固定的 Deno `2.9.6` 及检查工具。非 Orb 环境按 [README 开发入口](README.md#开发)安装工具和 hook；Orb 只在工具链缺失或损坏时运行 `.agents/setup`，平时由 `.agents/resume` 维护源码包装脚本。
+1. 使用 `mise.toml` 固定的 Deno `2.9.7` 及检查工具。非 Orb 环境按 [README 开发入口](README.md#开发)安装工具和 hook；Orb 只在工具链缺失或损坏时运行 `.agents/setup`，平时由 `.agents/resume` 维护源码包装脚本。
 2. 修改前读取负责该行为的模块及其测试。命令测试通常镜像源码路径，例如 `src/commands/issue/issue-view.ts` 对应 `test/commands/issue/issue-view.test.ts`。
 3. 行为变化时修改对应层级测试。开发中运行最窄的相关 `deno task test --filter ...` 或测试文件；只在有意更新快照时运行 `deno task update-snapshots`。测试任务已固定 `TZ=UTC`。使用 Deno task、check 和 lint，不使用 `tsc` 或把 LSP 诊断当作验证结果。
 4. 修改 `graphql/schema.graphql` 或 `src/` 中的 `gql` document 后运行 `deno task generate-graphql-types`。生成文件被 ignore，不提交。
