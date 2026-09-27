@@ -685,7 +685,7 @@ for (const outcome of ["found", "missing", "error"] as const) {
       )
       assertEquals(
         server.graphqlRequests.some((request) =>
-          /query LookupUser\(/.test(request.query)
+          /query LookupUserCandidates\(/.test(request.query)
         ),
         false,
       )
@@ -848,12 +848,16 @@ await snapshotTest({
       },
       // Mock response for lookupProjectId()
       {
-        queryName: "GetProjectIdByName",
-        variables: { name: "My Project" },
+        queryName: "LookupProjectCandidates",
+        variables: { reference: "My Project" },
         response: {
           data: {
-            projects: {
+            byName: {
               nodes: [{ id: "project-123" }],
+            },
+            bySlugId: {
+              nodes: [],
+              pageInfo: { hasNextPage: false, endCursor: null },
             },
           },
         },
@@ -1354,12 +1358,16 @@ Deno.test("Issue Create Command - Explicit Project Still Uses Interactive Mode",
       },
     },
     {
-      queryName: "GetProjectIdByName",
-      variables: { name: "Dashboard" },
+      queryName: "LookupProjectCandidates",
+      variables: { reference: "Dashboard" },
       response: {
         data: {
-          projects: {
+          byName: {
             nodes: [{ id: "project-123" }],
+          },
+          bySlugId: {
+            nodes: [],
+            pageInfo: { hasNextPage: false, endCursor: null },
           },
         },
       },
@@ -1997,12 +2005,16 @@ Deno.test("Issue Create Command - Explicit Project Overrides Parent Project", as
       },
     },
     {
-      queryName: "GetProjectIdByName",
-      variables: { name: "Dashboard" },
+      queryName: "LookupProjectCandidates",
+      variables: { reference: "Dashboard" },
       response: {
         data: {
-          projects: {
+          byName: {
             nodes: [{ id: "project-dashboard" }],
+          },
+          bySlugId: {
+            nodes: [],
+            pageInfo: { hasNextPage: false, endCursor: null },
           },
         },
       },
@@ -2104,12 +2116,16 @@ Deno.test("Issue Create Command - Invalid Parent Project Combination Surfaces Ba
       },
     },
     {
-      queryName: "GetProjectIdByName",
-      variables: { name: "Dashboard" },
+      queryName: "LookupProjectCandidates",
+      variables: { reference: "Dashboard" },
       response: {
         data: {
-          projects: {
+          byName: {
             nodes: [{ id: "project-dashboard" }],
+          },
+          bySlugId: {
+            nodes: [],
+            pageInfo: { hasNextPage: false, endCursor: null },
           },
         },
       },
@@ -2398,24 +2414,29 @@ Deno.test("Issue Create Command - Explicit Assignee Overrides Config Self Assign
       },
     },
     {
-      queryName: "LookupUser",
-      variables: { filter: { email: { eqIgnoreCase: "Jane Developer" } } },
-      response: { data: { users: { nodes: [] } } },
-    },
-    {
-      queryName: "LookupUser",
-      variables: {
-        filter: { displayName: { eqIgnoreCase: "Jane Developer" } },
-      },
+      queryName: "LookupUserCandidates",
+      variables: { reference: "Jane Developer" },
       response: {
         data: {
-          users: {
+          byEmail: {
+            nodes: [],
+            pageInfo: { hasNextPage: false, endCursor: null },
+          },
+          byDisplayName: {
             nodes: [{
               id: "user-jane-456",
               displayName: "Jane Developer",
               email: "jane@example.com",
               name: "Jane Developer",
             }],
+          },
+          byName: {
+            nodes: [],
+            pageInfo: { hasNextPage: false, endCursor: null },
+          },
+          byNameContains: {
+            nodes: [],
+            pageInfo: { hasNextPage: false, endCursor: null },
           },
         },
       },

@@ -1,4 +1,5 @@
 import { completeIssueLabels } from "./issue-read.ts"
+import { completeRelationPreview } from "./issue-context.ts"
 import { gql } from "../__codegen__/gql.ts"
 import type {
   GetIssueDetailsQuery,
@@ -572,7 +573,7 @@ const issueDetailsWithCommentsQuery = gql(/* GraphQL */ `
         }
         pageInfo { hasNextPage endCursor }
       }
-      relations(first: 250) {
+      relations(first: 50) {
         nodes {
           id
           type
@@ -585,7 +586,7 @@ const issueDetailsWithCommentsQuery = gql(/* GraphQL */ `
           hasNextPage
         }
       }
-      inverseRelations(first: 250) {
+      inverseRelations(first: 50) {
         nodes {
           id
           type
@@ -656,7 +657,7 @@ const issueDetailsQuery = gql(/* GraphQL */ `
         }
         pageInfo { hasNextPage endCursor }
       }
-      relations(first: 250) {
+      relations(first: 50) {
         nodes {
           id
           type
@@ -669,7 +670,7 @@ const issueDetailsQuery = gql(/* GraphQL */ `
           hasNextPage
         }
       }
-      inverseRelations(first: 250) {
+      inverseRelations(first: 50) {
         nodes {
           id
           type
@@ -799,46 +800,27 @@ export async function fetchIssueDetailsRaw(
       id: issueReference,
     })
     if (data.issue == null) throw new NotFoundError("Issue", issueReference)
-    if (!complete) return data
+    const issue = await completeRelationPreview(data.issue)
+    if (!complete) return { ...data, issue }
     const [comments, attachments, labels] = await Promise.all([
-      fetchIssueComments(data.issue.id, 0, data.issue.comments),
-      completeIssueAttachments(data.issue.id, data.issue.attachments),
-      completeIssueLabels(data.issue.id, data.issue.labels),
+      fetchIssueComments(issue.id, 0, issue.comments),
+      completeIssueAttachments(issue.id, issue.attachments),
+      completeIssueLabels(issue.id, issue.labels),
     ])
-    return { ...data, issue: { ...data.issue, comments, attachments, labels } }
+    return { ...data, issue: { ...issue, comments, attachments, labels } }
   }
   const data = await client.request(issueDetailsQuery, { id: issueReference })
   if (data.issue == null) throw new NotFoundError("Issue", issueReference)
-  if (!complete) return data
+  const issue = await completeRelationPreview(data.issue)
+  if (!complete) return { ...data, issue }
   const [attachments, labels] = await Promise.all([
-    completeIssueAttachments(data.issue.id, data.issue.attachments),
-    completeIssueLabels(data.issue.id, data.issue.labels),
+    completeIssueAttachments(issue.id, issue.attachments),
+    completeIssueLabels(issue.id, issue.labels),
   ])
-  return { ...data, issue: { ...data.issue, attachments, labels } }
+  return { ...data, issue: { ...issue, attachments, labels } }
 }
 export type FetchedIssueComment =
   GetIssueDetailsWithCommentsQuery["issue"]["comments"]["nodes"][number]
-
-export async function fetchParentIssueTitle(
-  parentId: string,
-): Promise<string | null> {
-  try {
-    const query = gql(/* GraphQL */ `
-      query GetParentIssueTitle($id: String!) {
-        issue(id: $id) {
-          title
-          identifier
-        }
-      }
-    `)
-    const client = getGraphQLClient()
-    const data = await client.request(query, { id: parentId })
-    return `${data.issue.identifier}: ${data.issue.title}`
-  } catch {
-    // Silently fail for optional parent lookup - caller handles display
-    return null
-  }
-}
 
 export async function fetchParentIssueData(parentRef: string): Promise<
   {
@@ -880,6 +862,7 @@ const queryIssuesQuery = gql(/* GraphQL */ `
     $includeArchived: Boolean
     $includeDescription: Boolean!
     $includeComments: Boolean!
+    $includeLifecycle: Boolean = false
   ) {
     issues(
       filter: $filter
@@ -894,6 +877,8 @@ const queryIssuesQuery = gql(/* GraphQL */ `
         title
         url
         description @include(if: $includeDescription)
+        trashed @include(if: $includeLifecycle)
+        archivedAt @include(if: $includeLifecycle)
         comments(first: 100) @include(if: $includeComments) {
           nodes {
             body
@@ -1438,6 +1423,290 @@ export async function fetchIssuesForQuery(
   }
 }
 
+/** Identifiers per `issues(filter: {id: {in}})` request; one full page each. */
+export const ISSUE_IDENTIFIER_BATCH_SIZE = 100
+/** `issue(id:)` aliases per request when resolving leftover identifiers. */
+const ISSUE_ALIAS_BATCH_SIZE = 50
+const ISSUE_ALIAS_CONCURRENCY = 4
+
+export type IssueIdentifierReconciliation = {
+  requested: number
+  read: number
+  missing: number
+}
+
+export type FetchedIssuesByIdentifierPayload = {
+  nodes: QueryIssuesPayload["nodes"]
+  pageInfo: { hasNextPage: false; endCursor: null }
+  resolutions: IssueUrlResolution[]
+  reconciliation: IssueIdentifierReconciliation
+}
+
+type LifecycleFields = {
+  trashed?: boolean | null
+  archivedAt?: unknown
+}
+
+function lifecycleStatus(
+  issue: LifecycleFields,
+  requested: string,
+  identifier: string,
+): IssueUrlResolution["status"] {
+  return issue.trashed === true
+    ? "trashed"
+    : issue.archivedAt != null
+    ? "archived"
+    : identifier !== requested
+    ? "moved"
+    : "found"
+}
+
+async function fetchIssueNodesWithLifecycle(
+  filter: IssueFilter,
+): Promise<QueryIssuesPayload["nodes"]> {
+  const client = getGraphQLClient()
+  const fetchPage = async (after?: string, first = 100) =>
+    (await client.request(queryIssuesQuery, {
+      filter,
+      first,
+      after,
+      includeArchived: true,
+      includeDescription: false,
+      includeComments: false,
+      includeLifecycle: true,
+    })).issues
+  const { nodes } = await completeConnection(
+    await fetchPage(),
+    fetchPage,
+    "issue",
+  )
+  return nodes
+}
+
+type AliasedIssueReference = {
+  id: string
+  identifier: string
+  trashed?: boolean | null
+  archivedAt?: unknown
+}
+
+/**
+ * Resolve identifiers the `issues` filter did not return. Only `issue(id:)`
+ * accepts identifiers from before a team move, and its non-null result makes
+ * one unknown identifier null the whole aliased response; Linear reports one
+ * such alias per response (not necessarily the first), so each round drops the
+ * reported alias and rereads the rest.
+ */
+async function resolveIssueIdentifierAliases(
+  identifiers: readonly string[],
+): Promise<Map<string, AliasedIssueReference | null>> {
+  const resolved = new Map<string, AliasedIssueReference | null>()
+  let pending = [...identifiers]
+  while (pending.length > 0) {
+    const variables = Object.fromEntries(
+      pending.map((identifier, index) => [`i${index}`, identifier]),
+    )
+    const document = `query ResolveIssueIdentifiers(${
+      pending.map((_, index) => `$i${index}: String!`).join(", ")
+    }) {\n${
+      pending.map((_, index) =>
+        `  i${index}: issue(id: $i${index}) { id identifier trashed archivedAt }`
+      ).join("\n")
+    }\n}`
+    let data: Record<string, AliasedIssueReference | null | undefined>
+    try {
+      data = await getGraphQLClient().request(document, variables)
+    } catch (error) {
+      if (!isClientError(error)) throw error
+      const missing = new Set<string>()
+      for (const entry of error.response?.errors ?? []) {
+        const alias = entry.path?.[0]
+        const index = typeof alias === "string" && /^i\d+$/.test(alias)
+          ? Number(alias.slice(1))
+          : -1
+        const text = [
+          entry.message,
+          entry.extensions?.userPresentableMessage,
+        ].join(" ").toLowerCase()
+        if (
+          pending[index] == null ||
+          !(text.includes("not found") || text.includes("could not find"))
+        ) throw error
+        missing.add(pending[index])
+      }
+      if (missing.size === 0) throw error
+      for (const identifier of missing) resolved.set(identifier, null)
+      pending = pending.filter((identifier) => !missing.has(identifier))
+      continue
+    }
+    for (const [index, identifier] of pending.entries()) {
+      const issue = data?.[`i${index}`]
+      if (
+        issue == null || typeof issue.id !== "string" ||
+        typeof issue.identifier !== "string"
+      ) {
+        throw new CliError(
+          `Issue lookup for ${identifier} returned no issue identity`,
+        )
+      }
+      resolved.set(identifier, issue)
+    }
+    pending = []
+  }
+  return resolved
+}
+
+function chunk<T>(items: readonly T[], size: number): T[][] {
+  const chunks: T[][] = []
+  for (let start = 0; start < items.length; start += size) {
+    chunks.push(items.slice(start, start + size))
+  }
+  return chunks
+}
+
+/** Map items with at most `concurrency` in flight, keeping input order. */
+export async function mapWithConcurrency<T, R>(
+  items: readonly T[],
+  concurrency: number,
+  mapper: (item: T, index: number) => Promise<R>,
+): Promise<R[]> {
+  const results = new Array<R>(items.length)
+  let nextIndex = 0
+  const worker = async () => {
+    while (true) {
+      const index = nextIndex++
+      if (index >= items.length) return
+      results[index] = await mapper(items[index], index)
+    }
+  }
+  const workers = Array.from(
+    { length: Math.min(Math.max(1, concurrency), items.length) },
+    () => worker(),
+  )
+  await Promise.all(workers)
+  return results
+}
+
+/**
+ * Read issues by identifier across teams, including archived and trashed
+ * issues and identifiers from before a team move. Every requested identifier
+ * gets a resolution; `requested = read + missing` is checked before returning,
+ * and a mismatch is an error rather than a shorter result.
+ */
+export async function fetchIssuesByIdentifiers(
+  identifiers: readonly string[],
+): Promise<FetchedIssuesByIdentifierPayload> {
+  const requested = [...new Set(identifiers)]
+
+  // Current identifiers, including archived and trashed issues, come back
+  // from the ordinary filter with one full page per batch.
+  const byIdentifier = new Map<string, QueryIssuesPayload["nodes"][number]>()
+  for (const batch of chunk(requested, ISSUE_IDENTIFIER_BATCH_SIZE)) {
+    for (
+      const node of await fetchIssueNodesWithLifecycle({ id: { in: batch } })
+    ) {
+      byIdentifier.set(node.identifier, node)
+    }
+  }
+
+  const resolutions = new Map<string, IssueUrlResolution>()
+  for (const identifier of requested) {
+    const node = byIdentifier.get(identifier)
+    if (node == null) continue
+    resolutions.set(identifier, {
+      status: lifecycleStatus(node, identifier, node.identifier),
+      requested: identifier,
+      identifier: node.identifier,
+    })
+  }
+
+  // The rest are moved or absent; only issue(id:) can tell them apart.
+  const leftovers = requested.filter((identifier) =>
+    !resolutions.has(identifier)
+  )
+  const aliasResults = await mapWithConcurrency(
+    chunk(leftovers, ISSUE_ALIAS_BATCH_SIZE),
+    ISSUE_ALIAS_CONCURRENCY,
+    (batch) => resolveIssueIdentifierAliases(batch),
+  )
+  const movedIds = new Set<string>()
+  for (const result of aliasResults) {
+    for (const [identifier, issue] of result) {
+      if (issue == null) {
+        resolutions.set(identifier, {
+          status: "not_found",
+          requested: identifier,
+        })
+        continue
+      }
+      resolutions.set(identifier, {
+        status: lifecycleStatus(issue, identifier, issue.identifier),
+        requested: identifier,
+        identifier: issue.identifier,
+      })
+      if (!byIdentifier.has(issue.identifier)) movedIds.add(issue.id)
+    }
+  }
+  for (const batch of chunk([...movedIds], ISSUE_IDENTIFIER_BATCH_SIZE)) {
+    for (
+      const node of await fetchIssueNodesWithLifecycle({ id: { in: batch } })
+    ) {
+      byIdentifier.set(node.identifier, node)
+    }
+  }
+
+  // One node per distinct issue, in the order it was first requested.
+  const nodes: QueryIssuesPayload["nodes"] = []
+  const listed = new Set<string>()
+  const unread: string[] = []
+  let read = 0
+  let missing = 0
+  const ordered = requested.map((identifier) => resolutions.get(identifier))
+  for (const [index, resolution] of ordered.entries()) {
+    if (resolution == null) {
+      unread.push(requested[index])
+      continue
+    }
+    if (resolution.status === "not_found") {
+      missing++
+      continue
+    }
+    const node = byIdentifier.get(resolution.identifier!)
+    if (node == null) {
+      unread.push(requested[index])
+      continue
+    }
+    read++
+    if (!listed.has(node.id)) {
+      listed.add(node.id)
+      nodes.push(node)
+    }
+  }
+
+  const reconciliation = { requested: requested.length, read, missing }
+  if (read + missing !== requested.length) {
+    throw new CliError(
+      `Issue read reconciliation failed: ${requested.length} requested, ${read} read + ${missing} missing`,
+      {
+        suggestion:
+          "Rerun the same identifiers; if the mismatch persists, read the unread identifiers with `linear issue view`.",
+        details: {
+          reconciliation,
+          unread,
+          resolutions: ordered.filter((resolution) => resolution != null),
+        },
+      },
+    )
+  }
+
+  return {
+    nodes,
+    pageInfo: { hasNextPage: false, endCursor: null },
+    resolutions: ordered as IssueUrlResolution[],
+    reconciliation,
+  }
+}
+
 const searchIssuesQuery = gql(/* GraphQL */ `
   query SearchIssues(
     $term: String!
@@ -1613,16 +1882,25 @@ export async function lookupProjectId(
 ): Promise<string | undefined> {
   if (isLinearUuid(input)) return input.toLowerCase()
 
-  const client = getGraphQLClient()
-
-  const nameQuery = gql(/* GraphQL */ `
-    query GetProjectIdByName(
-      $name: String!
+  // Both candidates travel in one request; name keeps precedence over slug ID.
+  const query = gql(/* GraphQL */ `
+    query LookupProjectCandidates(
+      $reference: String!
       $includeArchived: Boolean = false
     ) {
-      projects(
+      byName: projects(
         first: 2
-        filter: { name: { eq: $name } }
+        filter: { name: { eq: $reference } }
+        includeArchived: $includeArchived
+      ) {
+        nodes {
+          id
+        }
+        pageInfo { hasNextPage endCursor }
+      }
+      bySlugId: projects(
+        first: 2
+        filter: { slugId: { eq: $reference } }
         includeArchived: $includeArchived
       ) {
         nodes {
@@ -1632,35 +1910,12 @@ export async function lookupProjectId(
       }
     }
   `)
-  const nameData = await client.request(nameQuery, {
-    name: input,
+  const data = await getGraphQLClient().request(query, {
+    reference: input,
     ...(includeArchived === undefined ? {} : { includeArchived }),
   })
-  const nameMatch = uniqueLookupId(nameData?.projects, input, "Project")
-  if (nameMatch) return nameMatch
-
-  const slugQuery = gql(/* GraphQL */ `
-    query GetProjectIdBySlugId(
-      $slugId: String!
-      $includeArchived: Boolean = false
-    ) {
-      projects(
-        first: 2
-        filter: { slugId: { eq: $slugId } }
-        includeArchived: $includeArchived
-      ) {
-        nodes {
-          id
-        }
-        pageInfo { hasNextPage endCursor }
-      }
-    }
-  `)
-  const slugData = await client.request(slugQuery, {
-    slugId: input,
-    ...(includeArchived === undefined ? {} : { includeArchived }),
-  })
-  return uniqueLookupId(slugData?.projects, input, "Project")
+  return uniqueLookupId(data?.byName, input, "Project") ??
+    uniqueLookupId(data?.bySlugId, input, "Project")
 }
 
 function uniqueLookupId(
@@ -1825,24 +2080,44 @@ export async function lookupUserId(
     }
     return id
   }
+  // Precedence tiers travel in one request and are evaluated in order: an
+  // ambiguous earlier tier still fails before a later tier can match.
   const query = gql(`
-    query LookupUser($filter: UserFilter!) {
-      users(first: 2, filter: $filter) {
+    query LookupUserCandidates($reference: String!) {
+      byEmail: users(first: 2, filter: { email: { eqIgnoreCase: $reference } }) {
+        nodes { id }
+        pageInfo { hasNextPage endCursor }
+      }
+      byDisplayName: users(
+        first: 2
+        filter: { displayName: { eqIgnoreCase: $reference } }
+      ) {
+        nodes { id }
+        pageInfo { hasNextPage endCursor }
+      }
+      byName: users(first: 2, filter: { name: { eqIgnoreCase: $reference } }) {
+        nodes { id }
+        pageInfo { hasNextPage endCursor }
+      }
+      byNameContains: users(
+        first: 2
+        filter: { name: { containsIgnoreCaseAndAccent: $reference } }
+      ) {
         nodes { id }
         pageInfo { hasNextPage endCursor }
       }
     }
   `)
+  const data = await client.request(query, { reference: input })
   for (
-    const filter of [
-      { email: { eqIgnoreCase: input } },
-      { displayName: { eqIgnoreCase: input } },
-      { name: { eqIgnoreCase: input } },
-      { name: { containsIgnoreCaseAndAccent: input } },
+    const tier of [
+      data?.byEmail,
+      data?.byDisplayName,
+      data?.byName,
+      data?.byNameContains,
     ]
   ) {
-    const data = await client.request(query, { filter })
-    const id = uniqueLookupId(data?.users, input, "User")
+    const id = uniqueLookupId(tier, input, "User")
     if (id != null) return id
   }
   return undefined
@@ -2219,15 +2494,6 @@ export async function getOrganizationMembers(
   )
 
   return { nodes, pageInfo }
-}
-
-export async function getIssueTeam(issueIdentifier: string) {
-  const query = gql(`query GetIssueTeam($id: String!) {
-    issue(id: $id) { team { id key } }
-  }`)
-  const data = await getGraphQLClient().request(query, { id: issueIdentifier })
-  if (data.issue == null) throw new NotFoundError("Issue", issueIdentifier)
-  return data.issue.team
 }
 
 /**
