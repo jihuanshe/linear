@@ -2,6 +2,7 @@ import { snapshotTest as cliffySnapshotTest } from "@cliffy/testing"
 import { assertEquals } from "@std/assert"
 import { stubDate } from "../../utils/stub-date.ts"
 import { listCommand } from "../../../src/commands/team/team-list.ts"
+import { fromFileUrl } from "@std/path"
 import { MockLinearServer } from "../../utils/mock_linear_server.ts"
 
 // Common Deno args for permissions
@@ -360,4 +361,94 @@ await cliffySnapshotTest({
       Deno.env.delete("LINEAR_API_KEY")
     }
   },
+})
+
+Deno.test("team list --limit selects the same teams for human and JSON output", async () => {
+  const team = (id: string, name: string, key: string) => ({
+    id,
+    name,
+    key,
+    description: null,
+    icon: null,
+    color: null,
+    cyclesEnabled: false,
+    createdAt: "2024-01-01T00:00:00Z",
+    updatedAt: "2024-01-01T00:00:00Z",
+    archivedAt: null,
+    organization: { id: "org-1", name: "Acme" },
+  })
+  const pageInfo = { hasNextPage: true, endCursor: "cursor-1" }
+  // Only the bounded first page is mocked: reading every page and slicing
+  // after the sort would request first: 100 and fail against this server.
+  const server = new MockLinearServer([{
+    queryName: "GetTeams",
+    variables: { filter: undefined, first: 2, after: undefined },
+    response: {
+      data: {
+        teams: {
+          nodes: [team("team-z", "Zulu", "Z"), team("team-a", "Alpha", "A")],
+          pageInfo,
+        },
+      },
+    },
+  }])
+  await server.start()
+  try {
+    const run = async (extra: string[]) => {
+      const output = await new Deno.Command(Deno.execPath(), {
+        args: [
+          "run",
+          "--allow-all",
+          "--quiet",
+          fromFileUrl(new URL("../../../src/main.ts", import.meta.url)),
+          "team",
+          "list",
+          "--limit",
+          "2",
+          ...extra,
+        ],
+        env: {
+          NO_COLOR: "1",
+          LINEAR_GRAPHQL_ENDPOINT: server.getEndpoint(),
+          LINEAR_API_KEY: "Bearer test-token",
+        },
+        stdout: "piped",
+        stderr: "piped",
+      }).output()
+      const decoder = new TextDecoder()
+      return {
+        code: output.code,
+        stdout: decoder.decode(output.stdout),
+        stderr: decoder.decode(output.stderr),
+      }
+    }
+    const json = await run(["--json"])
+    assertEquals(json.code, 0, json.stdout + json.stderr)
+    assertEquals(json.stderr, "")
+    const parsed = JSON.parse(json.stdout)
+    assertEquals(
+      parsed.nodes.map((node: { key: string }) => node.key),
+      ["A", "Z"],
+    )
+    assertEquals(parsed.pageInfo, pageInfo)
+
+    const human = await run([])
+    assertEquals(human.code, 0, human.stdout + human.stderr)
+    assertEquals(
+      human.stdout.trimEnd().split("\n").slice(1).map((line) =>
+        line.split(" ")[0]
+      ),
+      ["A", "Z"],
+    )
+    assertEquals(
+      human.stderr,
+      "Showing the first 2 teams; more exist. Use --limit 0 to fetch all pages.\n",
+    )
+    assertEquals(
+      server.graphqlRequests.map(({ variables }) => variables.first),
+      [2, 2],
+    )
+  } finally {
+    await server.stop()
+  }
 })

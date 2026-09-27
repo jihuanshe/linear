@@ -3,6 +3,7 @@ import { assertEquals } from "@std/assert"
 import { stubDate } from "../../utils/stub-date.ts"
 import { listCommand } from "../../../src/commands/project/project-list.ts"
 import { commonDenoArgs } from "../../utils/test-helpers.ts"
+import { fromFileUrl } from "@std/path"
 import { MockLinearServer } from "../../utils/mock_linear_server.ts"
 
 // Test with mock server - Projects list
@@ -559,4 +560,104 @@ await cliffySnapshotTest({
       Deno.env.delete("LINEAR_API_KEY")
     }
   },
+})
+
+async function runMain(server: MockLinearServer, args: string[]) {
+  const output = await new Deno.Command(Deno.execPath(), {
+    args: [
+      "run",
+      "--allow-all",
+      "--quiet",
+      fromFileUrl(new URL("../../../src/main.ts", import.meta.url)),
+      ...args,
+    ],
+    env: {
+      NO_COLOR: "1",
+      LINEAR_PROMPT_DISABLED: "1",
+      LINEAR_GRAPHQL_ENDPOINT: server.getEndpoint(),
+      LINEAR_API_KEY: "Bearer test-token",
+    },
+    stdout: "piped",
+    stderr: "piped",
+  }).output()
+  const decoder = new TextDecoder()
+  return {
+    code: output.code,
+    stdout: decoder.decode(output.stdout),
+    stderr: decoder.decode(output.stderr),
+  }
+}
+
+Deno.test("project list --limit selects the same projects for human and JSON output", async () => {
+  const project = (slugId: string, name: string, type: string) => ({
+    id: `project-${slugId}`,
+    name,
+    description: "",
+    slugId,
+    icon: null,
+    color: "#3b82f6",
+    status: { id: `status-${type}`, name: type, color: "#f59e0b", type },
+    lead: null,
+    priority: 0,
+    health: null,
+    startDate: null,
+    targetDate: null,
+    startedAt: null,
+    completedAt: null,
+    canceledAt: null,
+    createdAt: "2024-01-10T10:00:00Z",
+    updatedAt: "2024-01-20T15:30:00Z",
+    url: `https://linear.app/test/project/${slugId}`,
+    teams: { nodes: [{ key: "ENG" }] },
+  })
+  const pageInfo = { hasNextPage: true, endCursor: "cursor-1" }
+  // Only the bounded first page is mocked: reading every page and slicing
+  // after the sort would request first: 100 and fail against this server.
+  const server = new MockLinearServer([{
+    queryName: "GetProjects",
+    variables: { filter: undefined, first: 2, after: undefined },
+    response: {
+      data: {
+        projects: {
+          nodes: [
+            project("plan-b", "Beta", "planned"),
+            project("start-a", "Alpha", "started"),
+          ],
+          pageInfo,
+        },
+      },
+    },
+  }])
+  await server.start()
+  try {
+    const args = ["project", "list", "--all-teams", "--limit", "2"]
+    const json = await runMain(server, [...args, "--json"])
+    assertEquals(json.code, 0, json.stdout + json.stderr)
+    assertEquals(json.stderr, "")
+    const parsed = JSON.parse(json.stdout)
+    assertEquals(
+      parsed.nodes.map((node: { slugId: string }) => node.slugId),
+      ["start-a", "plan-b"],
+    )
+    assertEquals(parsed.pageInfo, pageInfo)
+
+    const human = await runMain(server, args)
+    assertEquals(human.code, 0, human.stdout + human.stderr)
+    assertEquals(
+      human.stdout.trimEnd().split("\n").slice(1).map((line) =>
+        line.split(" ")[0]
+      ),
+      ["start-a", "plan-b"],
+    )
+    assertEquals(
+      human.stderr,
+      "Showing the first 2 projects; more exist. Use --limit 0 to fetch all pages.\n",
+    )
+    assertEquals(
+      server.graphqlRequests.map(({ variables }) => variables.first),
+      [2, 2],
+    )
+  } finally {
+    await server.stop()
+  }
 })

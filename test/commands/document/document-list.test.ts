@@ -1,5 +1,7 @@
 import { snapshotTest } from "@cliffy/testing"
 import { assertEquals, assertStringIncludes } from "@std/assert"
+import { unicodeWidth } from "@std/cli"
+import { fromFileUrl } from "@std/path"
 import { stub } from "@std/testing/mock"
 import { listCommand } from "../../../src/commands/document/document-list.ts"
 import { MockLinearServer } from "../../utils/mock_linear_server.ts"
@@ -494,3 +496,66 @@ for (const mode of ["limited", "limited-json", "all"] as const) {
     }
   })
 }
+
+Deno.test("document list aligns columns by display width for CJK titles", async () => {
+  const doc = (slugId: string, title: string, project: string) => ({
+    id: `doc-${slugId}`,
+    title,
+    slugId,
+    url: `https://linear.app/test/document/${slugId}`,
+    updatedAt: new Date().toISOString(),
+    project: { name: project, slugId: `p-${slugId}` },
+    issue: null,
+    creator: null,
+  })
+  const server = new MockLinearServer([{
+    queryName: "ListDocuments",
+    response: {
+      data: {
+        documents: {
+          nodes: [
+            doc("aaaaaaaaaaaa", "[埋点契约] business-riftbound", "符文战场"),
+            doc("bbbbbbbbbbbb", "Short title", "Latin"),
+          ],
+          pageInfo: { hasNextPage: false, endCursor: null },
+        },
+      },
+    },
+  }])
+  await server.start()
+  try {
+    const output = await new Deno.Command(Deno.execPath(), {
+      args: [
+        "run",
+        "--allow-all",
+        "--quiet",
+        fromFileUrl(new URL("../../../src/main.ts", import.meta.url)),
+        "document",
+        "list",
+      ],
+      env: {
+        NO_COLOR: "1",
+        LINEAR_GRAPHQL_ENDPOINT: server.getEndpoint(),
+        LINEAR_API_KEY: "Bearer test-token",
+      },
+      stdout: "piped",
+      stderr: "piped",
+    }).output()
+    const stdout = new TextDecoder().decode(output.stdout)
+    assertEquals(output.code, 0, stdout)
+    const lines = stdout.trimEnd().split("\n")
+    const column = (line: string, text: string) =>
+      unicodeWidth(line.slice(0, line.indexOf(text)))
+    // ATTACHMENT starts at the same terminal column in the header and rows.
+    assertEquals(
+      [
+        column(lines[0], "ATTACHMENT"),
+        column(lines[1], "符文战场"),
+        column(lines[2], "Latin"),
+      ],
+      Array(3).fill(column(lines[0], "ATTACHMENT")),
+    )
+  } finally {
+    await server.stop()
+  }
+})
