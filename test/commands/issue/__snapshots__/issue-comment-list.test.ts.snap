@@ -51,3 +51,14 @@ stdout:
 stderr:
 ""
 `;
+
+snapshot[`Issue Comment List Command - Reports Truncation 1`] = `
+stdout:
+"@Test User commented 1/15/2024 [comment-uuid-456]
+The only comment on this page
+
+"
+stderr:
+"Showing the first 1 comment; more exist. Use --limit 0 to fetch all pages.
+"
+`;

@@ -7,7 +7,8 @@
  */
 import { gql } from "../__codegen__/gql.ts"
 import { getGraphQLClient } from "./graphql.ts"
-import { NotFoundError } from "./errors.ts"
+import { CliError, NotFoundError, ValidationError } from "./errors.ts"
+import type { GetIssueRelationsPreviewQuery } from "../__codegen__/graphql.ts"
 
 /** Recent history with the actor and the state / ownership transitions. */
 export const issueHistoryPreviewFragment = gql(`
@@ -42,11 +43,11 @@ const issueContextQuery = gql(`
         nodes { identifier title state { name } }
         pageInfo { hasNextPage }
       }
-      relations(first: 250) {
+      relations(first: 50) {
         nodes { id type relatedIssue { identifier title } }
         pageInfo { hasNextPage }
       }
-      inverseRelations(first: 250) {
+      inverseRelations(first: 50) {
         nodes { id type issue { identifier title } }
         pageInfo { hasNextPage }
       }
@@ -511,6 +512,69 @@ export function formatIssueContextMarkdown(
   return `## Context\n\n${formatIssueContextLines(summary).join("\n")}\n`
 }
 
+// Linear prices a relation connection by its requested page size rather than
+// by the rows returned: 250 outgoing plus 250 incoming relations cost about
+// 1,200 complexity points even when the Issue has none. Reads ask for a small
+// first page and repeat the 250-row preview only when an Issue has more.
+const issueRelationsPreviewQuery = gql(`
+  query GetIssueRelationsPreview($id: String!) {
+    issue(id: $id) {
+      id
+      relations(first: 250) {
+        nodes { id type relatedIssue { identifier title } }
+        pageInfo { hasNextPage }
+      }
+      inverseRelations(first: 250) {
+        nodes { id type issue { identifier title } }
+        pageInfo { hasNextPage }
+      }
+    }
+  }
+`)
+
+type RelationPreview = NonNullable<
+  GetIssueRelationsPreviewQuery["issue"]
+>
+
+/**
+ * Keep the relation preview at 250 rows in each direction. An Issue whose
+ * first page is complete needs no further request.
+ */
+export async function completeRelationPreview<
+  T extends {
+    id: string
+    relations: RelationPreview["relations"]
+    inverseRelations: RelationPreview["inverseRelations"]
+  },
+>(issue: T): Promise<T> {
+  // Partial reads leave a collection absent; summaries report it unfetched.
+  if (
+    issue.relations?.pageInfo?.hasNextPage !== true &&
+    issue.inverseRelations?.pageInfo?.hasNextPage !== true
+  ) return issue
+  const data = await getGraphQLClient().request(issueRelationsPreviewQuery, {
+    id: issue.id,
+  })
+  if (data.issue == null) throw new NotFoundError("Issue", issue.id)
+  if (data.issue.id !== issue.id) {
+    throw new ValidationError("Issue relations resolved to a different Issue")
+  }
+  const { relations, inverseRelations } = data.issue
+  // The first page is replaced, so a partial second read must not reach output
+  // as an apparently complete, shorter preview.
+  for (const connection of [relations, inverseRelations]) {
+    if (
+      connection == null || !Array.isArray(connection.nodes) ||
+      typeof connection.pageInfo?.hasNextPage !== "boolean"
+    ) {
+      throw new CliError(
+        "Issue relation preview returned an incomplete connection",
+      )
+    }
+  }
+  return { ...issue, relations, inverseRelations }
+}
+
 /** One read for callers that do not already hold `issue view` data. */
 export async function fetchIssueContext(
   issueReference: string,
@@ -519,5 +583,8 @@ export async function fetchIssueContext(
     id: issueReference,
   })
   if (data.issue == null) throw new NotFoundError("Issue", issueReference)
-  return summarizeIssueContext(data)
+  return summarizeIssueContext({
+    ...data,
+    issue: await completeRelationPreview(data.issue),
+  })
 }

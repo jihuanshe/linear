@@ -724,7 +724,8 @@ export const queryCommand = withUsageMetadata(new Command(), {
           isMultiTeam,
           showAssignee,
         )
-        outputPaged(outputLines, pager !== false)
+        await outputPaged(outputLines, pager !== false)
+        warnIfTruncated(result)
       } else {
         // --- Filter mode: use issues() backend ---
         const result = await fetchIssuesForQuery({
@@ -756,13 +757,26 @@ export const queryCommand = withUsageMetadata(new Command(), {
           isMultiTeam,
           showAssignee,
         )
-        outputPaged(outputLines, pager !== false)
+        await outputPaged(outputLines, pager !== false)
+        warnIfTruncated(result)
       }
     } catch (error) {
       spinner?.stop()
       handleError(error, "Failed to query issues")
     }
   })
+
+/** Human output hides pageInfo, so say on stderr when --limit cut it short. */
+function warnIfTruncated(
+  result: { nodes: unknown[]; pageInfo: { hasNextPage: boolean } },
+): void {
+  if (!result.pageInfo.hasNextPage) return
+  console.error(
+    `Showing the first ${result.nodes.length} ${
+      result.nodes.length === 1 ? "issue" : "issues"
+    }; more match. Use --limit 0 to fetch all pages, or narrow the filters.`,
+  )
+}
 
 /** One human line for a Linear Issue URL that did not resolve plainly. */
 function describeResolution(

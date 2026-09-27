@@ -3,8 +3,6 @@ name: automation
 description: 保存原始依据、比较原始值并解释 JSON 写入效果与分页
 commands:
   - api
-  - auth whoami
-  - auth key
   - issue view
   - issue export
   - issue history
@@ -108,7 +106,7 @@ JSON 不与浏览器／应用跳转、显式交互／编辑或原文／脚本输
 
 创建单个实体时，`data` 下保留 GraphQL 资源字段，而不是把字段直接展开到 `data`；例如 Issue 编号在 `data.issue.identifier`，Document ID 在 `data.document.id`。具体路径见创建命令的 `--json` 帮助。删除、批量操作、上传与原生 API 各自保留其合同。
 
-提取下一步要用的 ID 时使用 `jq -er`，并检查类型和非空值，例如 `jq -er 'select(.ok == true) | .data.comment.id | strings | select(length > 0)' comment-result.json`。普通 `jq -r` 在路径不存在时会输出 `null` 并成功退出。先将 CLI 结果保存到文件并检查退出码，再解析；不要用默认只检查最后一段退出码的管道掩盖 CLI 失败。若写入已成功而提取失败，保留结果，修正解析路径，不要重复创建对象。
+提取下一步要用的 ID 时使用 `jq -er`，并检查类型和非空值，例如 `jq -er 'select(.ok == true) | .data.comment.id | strings | select(length > 0)' comment-result.json`。普通 `jq -r` 在路径不存在时会输出 `null` 并成功退出。stdout 只有这一份 JSON，进度与提示（如上传时的 `✓ Uploaded <file>`）写到 stderr；分别重定向 stdout 和 stderr，不要用 `2>&1` 合并后解析。先将 CLI 结果保存到文件并检查退出码，再解析；不要用默认只检查最后一段退出码的管道掩盖 CLI 失败。解析失败不说明写入失败：保留结果，修正解析路径，不要重复创建对象。
 
 | 写入效果 `effect` | 可据此决定的下一步                                                    |
 | ----------------- | --------------------------------------------------------------------- |
@@ -118,7 +116,7 @@ JSON 不与浏览器／应用跳转、显式交互／编辑或原文／脚本输
 
 `success: false`、GraphQL 部分错误和不可读结果都不自动证明零效果。复合写入保留已经确认的上传或对象回执；批量删除在 `unknown` 后停止，`unattempted` 列出未执行的对象。
 
-多行 Markdown 用文件参数；`document view --raw` 只输出正文，不能替代带身份的原始读取。原生 `linear api` 保留 GraphQL 响应，属于 `linear guide graphql` 中的明确例外。
+多行 Markdown 用文件参数；`document view --raw` 只输出正文，不能替代带身份的原始读取。
 
 `issue update` 在 mutation 确认后读取相同 Issue 和工作区，核对请求的字段及标签增删结果；仅在读到不同值时重读，最多读取 3 次，总时限 10 秒。身份、权限、结构等导致的不可用结果直接报告。正文沿用 `issue apply` 的 Markdown 结构比较，写前原始依据仍精确比较。成功结果的 `verification.status` 为 `verified`，`readBack` 保存 `{organization,issue}`；无需写入时沿用提交前的读取，不另做写后核验。
 

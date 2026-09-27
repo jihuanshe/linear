@@ -65,10 +65,6 @@ snapshot[`usage JSON describes command metadata 1`] = `
         name: "issue-delivery",
       },
       {
-        description: "解释只读健康检查的候选，保留判断依据并复查结果",
-        name: "doctor",
-      },
-      {
         description: "通过 API 编写 Linear 提及与可折叠正文，查找真实成员 URL",
         name: "markdown",
       },
@@ -152,12 +148,12 @@ snapshot[`usage JSON describes command metadata 1`] = `
       details: "linear issue query --help",
       guides: [
         {
-          description: "保存原始依据、比较原始值并解释 JSON 写入效果与分页",
-          name: "automation",
+          description: "选择命令、核对工作区、确定查询范围与写入授权",
+          name: "core",
         },
         {
-          description: "解释只读健康检查的候选，保留判断依据并复查结果",
-          name: "doctor",
+          description: "保存原始依据、比较原始值并解释 JSON 写入效果与分页",
+          name: "automation",
         },
       ],
       hasSubcommands: false,

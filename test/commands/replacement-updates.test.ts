@@ -858,11 +858,15 @@ Deno.test("Project basis completes teams and labels, then final scalar read catc
 Deno.test("Project update refuses duplicate names before any mutation", async () => {
   const server = new MockLinearServer([
     {
-      queryName: "GetProjectIdByName",
+      queryName: "LookupProjectCandidates",
       response: {
         data: {
-          projects: {
+          byName: {
             nodes: [{ id: "first" }, { id: "second" }],
+            pageInfo: { hasNextPage: false, endCursor: null },
+          },
+          bySlugId: {
+            nodes: [],
             pageInfo: { hasNextPage: false, endCursor: null },
           },
         },
