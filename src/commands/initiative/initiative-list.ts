@@ -18,10 +18,13 @@ const GetInitiatives = gql(`
     $includeArchived: Boolean
     $after: String
   ) {
+    # 25 initiatives per page: Linear prices the nested projects page by its
+    # size: 50 initiatives x 50 projects cost 9,120 of the 10,000 single-query
+    # limit, 25 cost 4,560 (x-complexity, measured 2026-09-27).
     initiatives(
       filter: $filter
       includeArchived: $includeArchived
-      first: 50
+      first: 25
       after: $after
     ) {
       nodes {
