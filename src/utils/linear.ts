@@ -471,6 +471,20 @@ export function resolveWorkflowState(
   return states.find((s) => s.type === nameOrType.toLowerCase())
 }
 
+/** Team settings that decide where an issue lands without an explicit state. */
+export async function getTeamStateDefaults(teamId: string) {
+  const query = gql(/* GraphQL */ `
+    query GetTeamStateDefaults($id: String!) {
+      team(id: $id) {
+        triageEnabled
+        defaultIssueState { id name type }
+      }
+    }
+  `)
+  const result = await getGraphQLClient().request(query, { id: teamId })
+  return result.team
+}
+
 /**
  * Build the error thrown when a requested workflow state can't be resolved for
  * a team. Shared by `issue create` and `issue update` so both surface the same

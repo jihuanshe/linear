@@ -37,14 +37,16 @@ Options:
   --team                     <team>         - Team UUID or key (uses the configured default team when omitted)                                        
   --project                  <project>      - Project for the issue (UUID, slug ID, or name); choose it after reading the candidate Project and       
                                               Initiative content                                                                                      
-  -s, --state                <state>        - Workflow state for the issue (UUID, name, or type)                                                      
+  -s, --state                <state>        - Workflow state (UUID, name, or type). Omit it, or pass 'default', for the team's default state;         
+                                              'triage' only works on teams with triage enabled.                                                       
   --milestone                <milestone>    - Project milestone (UUID, or name when --project is set)                                                 
   --cycle                    <cycle>        - Cycle name, number, 'active'/'now', 'next', 'previous', or a relative offset like +1 (use --cycle=-1    
                                               for negatives)                                                                                          
   --no-use-default-template                 - Do not use default template for the issue                                                               
   --no-interactive                          - Disable interactive prompts                                                                             
   -t, --title                <title>        - Title of the issue                                                                                      
-  -j, --json                                - Output {ok, effect, data}; the created issue is in data.issue, its identifier in data.issue.identifier  
+  -j, --json                                - Output {ok, effect, data}; the created issue is in data.issue, its identifier in                        
+                                              data.issue.identifier; the receipt also carries url, state, assignee, project, parent and labels        
                                               (non-interactive only)                                                                                  
 
 "
