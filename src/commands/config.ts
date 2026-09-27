@@ -4,6 +4,7 @@ import { prompt, Select } from "../utils/prompt.ts"
 import { stringify } from "@std/toml"
 import { gql } from "../__codegen__/gql.ts"
 import { getGraphQLClient } from "../utils/graphql.ts"
+import { getAllTeams } from "../utils/linear.ts"
 import { getDefaultWorkspace, getWorkspaces } from "../credentials.ts"
 import {
   getCliWorkspace,
@@ -24,13 +25,6 @@ const configQuery = gql(`
     viewer {
       organization {
         urlKey
-      }
-    }
-    teams {
-      nodes {
-        id
-        key
-        name
       }
     }
   }
@@ -96,13 +90,12 @@ export const configCommand = withUsageMetadata(new Command(), {
       }
 
       const client = getGraphQLClient()
-      const result = await client.request(configQuery)
+      const [result, teams] = await Promise.all([
+        client.request(configQuery),
+        // Every team is offered, sorted by name (case insensitive).
+        getAllTeams(),
+      ])
       const workspace = result.viewer.organization.urlKey
-      const teams = result.teams.nodes
-      // Sort teams alphabetically by name (case insensitive)
-      teams.sort((a, b) =>
-        a.name.toLowerCase().localeCompare(b.name.toLowerCase())
-      )
 
       const selectedTeamId = await Select.prompt({
         message: "Select a team:",

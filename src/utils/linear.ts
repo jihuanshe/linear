@@ -607,6 +607,7 @@ const issueDetailsWithCommentsQuery = gql(/* GraphQL */ `
           createdAt
           updatedAt
         }
+        pageInfo { hasNextPage endCursor }
       }
     }
   }
@@ -690,6 +691,7 @@ const issueDetailsQuery = gql(/* GraphQL */ `
           createdAt
           updatedAt
         }
+        pageInfo { hasNextPage endCursor }
       }
     }
   }
@@ -1977,22 +1979,31 @@ export async function getIssueLabelOptionsByNameForTeam(
     query GetIssueLabelIdOptionsByNameForTeam(
       $name: String!
       $teamKey: String!
+      $after: String
     ) {
       issueLabels(
         filter: {
           name: { containsIgnoreCase: $name }
           or: [{ team: { key: { eq: $teamKey } } }, { team: { null: true } }]
         }
+        first: 100
+        after: $after
       ) {
         nodes {
           id
           name
         }
+        pageInfo { hasNextPage endCursor }
       }
     }
   `)
-  const data = await client.request(query, { name, teamKey })
-  const qResults = data.issueLabels?.nodes || []
+  const fetchPage = async (after?: string) =>
+    (await client.request(query, { name, teamKey, after })).issueLabels
+  const { nodes: qResults } = await completeConnection(
+    await fetchPage(),
+    fetchPage,
+    `label options for ${name}`,
+  )
   const sortedResults = qResults.sort((a, b) =>
     a.name.toLowerCase().localeCompare(b.name.toLowerCase())
   )
@@ -2039,21 +2050,30 @@ export async function getLabelsForTeam(
 ): Promise<Array<{ id: string; name: string; color: string }>> {
   const client = getGraphQLClient()
   const query = gql(/* GraphQL */ `
-    query GetLabelsForTeam($teamKey: String!) {
+    query GetLabelsForTeam($teamKey: String!, $after: String) {
       team(id: $teamKey) {
-        labels {
+        labels(first: 100, after: $after) {
           nodes {
             id
             name
             color
           }
+          pageInfo { hasNextPage endCursor }
         }
       }
     }
   `)
 
-  const result = await client.request(query, { teamKey })
-  const labels = result.team?.labels?.nodes || []
+  const fetchPage = async (after?: string) => {
+    const result = await client.request(query, { teamKey, after })
+    if (result.team == null) throw new NotFoundError("Team", teamKey)
+    return result.team.labels
+  }
+  const { nodes: labels } = await completeConnection(
+    await fetchPage(),
+    fetchPage,
+    `labels for team ${teamKey}`,
+  )
 
   return labels.sort((a, b) =>
     a.name.toLowerCase().localeCompare(b.name.toLowerCase())
