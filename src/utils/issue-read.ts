@@ -120,7 +120,13 @@ export async function readIssueBasis(
 
 const IssueHeader = gql(`
   query GetIssueHeader($id: String!) {
-    issue(id: $id) { id identifier title url }
+    issue(id: $id) {
+      id
+      identifier
+      title
+      url
+      favorite { id type parent { id folderName } }
+    }
   }
 `)
 

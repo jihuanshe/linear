@@ -1871,6 +1871,23 @@ Run \`linear guide markdown\` for mentions, collapsible sections and rewrite ris
     {
       aliases: [],
       arguments: [],
+      description: "Manage the authenticated user's favorited issues",
+      details: "linear issue favorite usage",
+      hasSubcommands: true,
+      interactive: false,
+      name: "favorite",
+      options: [],
+      outputModes: [
+        "human",
+        "json",
+      ],
+      path: "linear issue favorite",
+      usage: "linear issue favorite",
+      writes: false,
+    },
+    {
+      aliases: [],
+      arguments: [],
       description: "Preview an Issue delivery using the same preparation as apply; no remote writes or checkpoint writes",
       details: "linear issue plan --help",
       guides: [
