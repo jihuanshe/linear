@@ -35,6 +35,8 @@ commands:
 
 负责人、状态、优先级和项目归属使用原生属性，正文解释问题和范围。团队、项目和标签依据已有归属、用户决定或工作区约定；归属不明时保留具体疑问，不猜测负责人。
 
+创建时通常省略 `--state`，让 Issue 进入团队默认状态；批量清单需要写明时用 `"state": "default"`，不要按某个团队的习惯写死 `triage`。只有开启 Triage 的团队接受 `--state triage`，其他团队会返回 `TriageDisabledError` 并在 `details.defaultState` 给出默认状态。`issue create --json` 的 `data.issue` 已包含状态、负责人、项目、父 Issue 和标签，不必再读一次确认。
+
 用户未指定项目时，定归属前至少按顺序读完：
 
 1. `linear project list --all-teams --limit 0 --json`：当前凭据可见的项目目录，只有名称和短简介 `description`。

@@ -198,6 +198,63 @@ function mutationWasAcknowledged(error: ClientError): boolean {
   }
 }
 
+/** Quota snapshot from Linear's `x-ratelimit-*` headers; reset is epoch ms. */
+function rateLimitDetails(error: ClientError) {
+  const errors = error.response.errors
+  if (
+    !Array.isArray(errors) || errors.length === 0 ||
+    !errors.every((entry) => entry.extensions?.code === "RATELIMITED")
+  ) return undefined
+  const header = (name: string) => {
+    const value = error.response.headers?.get(`x-ratelimit-${name}`)?.trim()
+    if (value == null || !/^\d+$/.test(value)) return undefined
+    const parsed = Number(value)
+    return Number.isSafeInteger(parsed) ? parsed : undefined
+  }
+  const resetAt = (name: string) => {
+    const reset = header(`${name}-reset`)
+    if (
+      reset == null || reset <= Date.now() ||
+      reset > 8_640_000_000_000_000
+    ) return undefined
+    return new Date(reset).toISOString()
+  }
+  const requestsRemaining = header("requests-remaining")
+  const complexityRemaining = header("complexity-remaining")
+  const requestsResetAt = resetAt("requests")
+  const complexityResetAt = resetAt("complexity")
+  const endpointRequestsRemaining = header("endpoint-requests-remaining")
+  const endpointRequestsResetAt = resetAt("endpoint-requests")
+  // A retry is safe only after every exhausted budget has reset.
+  const retryAfter = [
+    endpointRequestsRemaining === 0 ? endpointRequestsResetAt : undefined,
+    requestsRemaining === 0 ? requestsResetAt : undefined,
+    complexityRemaining === 0 ? complexityResetAt : undefined,
+  ].filter((value): value is string => value != null).sort().at(-1)
+  const details = {
+    ...(requestsRemaining == null ? {} : { requestsRemaining }),
+    ...(requestsResetAt == null ? {} : { requestsResetAt }),
+    ...(complexityRemaining == null ? {} : { complexityRemaining }),
+    ...(complexityResetAt == null ? {} : { complexityResetAt }),
+    ...(endpointRequestsRemaining == null ? {} : { endpointRequestsRemaining }),
+    ...(endpointRequestsResetAt == null ? {} : { endpointRequestsResetAt }),
+    ...(retryAfter == null ? {} : { retryAfter }),
+  }
+  return Object.keys(details).length === 0 ? undefined : details
+}
+
+function rateLimitSuggestion(
+  rateLimit: { retryAfter?: string },
+  effect: WriteEffect,
+): string {
+  const when = rateLimit.retryAfter == null
+    ? "after the rate limit window resets"
+    : `after ${rateLimit.retryAfter}`
+  return effect === "none"
+    ? `Linear rate limit exhausted; retry this read ${when}. Concurrent processes using the same API key share the quota.`
+    : `Linear rejected this write as RATELIMITED, which does not prove it had no effect; reconcile the remote outcome, then retry ${when}.`
+}
+
 export function errorResult(error: unknown, context?: string) {
   const message = error instanceof CliError
     ? error.userMessage
@@ -211,6 +268,7 @@ export function errorResult(error: unknown, context?: string) {
     : isClientError(error) && requestWasMutation(error)
     ? mutationWasAcknowledged(error) ? "applied" : "unknown"
     : "none"
+  const rateLimit = isClientError(error) ? rateLimitDetails(error) : undefined
   return {
     ok: false as const,
     effect,
@@ -224,10 +282,16 @@ export function errorResult(error: unknown, context?: string) {
       ? { receipts: error.receipts }
       : {}),
     error: {
-      code: error instanceof Error ? error.name : "Error",
+      code: rateLimit != null
+        ? "RateLimited"
+        : error instanceof Error
+        ? error.name
+        : "Error",
       message: context == null ? message : `${context}: ${message}`,
       ...(error instanceof CliError && error.suggestion != null
         ? { suggestion: error.suggestion }
+        : rateLimit != null
+        ? { suggestion: rateLimitSuggestion(rateLimit, effect) }
         : effect === "unknown"
         ? {
           suggestion:
@@ -237,7 +301,12 @@ export function errorResult(error: unknown, context?: string) {
       ...(error instanceof CliError && error.details !== undefined
         ? { details: error.details }
         : isClientError(error)
-        ? { details: { errors: error.response.errors } }
+        ? {
+          details: {
+            errors: error.response.errors,
+            ...(rateLimit == null ? {} : { rateLimit }),
+          },
+        }
         : {}),
     },
   }
@@ -311,6 +380,24 @@ export class ValidationError extends CliError {
   }
 }
 
+/** A Triage state was requested for a team that has triage turned off. */
+export class TriageDisabledError extends CliError {
+  constructor(
+    teamKey: string,
+    defaultState: { id: string; name: string; type: string } | null,
+  ) {
+    super(`Team ${teamKey} has triage disabled`, {
+      suggestion: defaultState == null
+        ? `Omit --state (or pass --state default), or run \`linear team states ${teamKey}\` and pass one of its states.`
+        : `Omit --state (or pass --state default) to use the team default ${
+          JSON.stringify(defaultState.name)
+        } (${defaultState.type}); run \`linear team states ${teamKey}\` for other states.`,
+      details: { team: teamKey, triageEnabled: false, defaultState },
+    })
+    this.name = "TriageDisabledError"
+  }
+}
+
 /** The command has no machine-readable success contract. */
 export class UnsupportedOutputError extends CliError {
   constructor(path: string) {
@@ -364,8 +451,19 @@ export function extractGraphQLMessage(error: ClientError): string {
  * Check if a GraphQL error indicates an entity was not found.
  */
 export function isNotFoundError(error: ClientError): boolean {
-  const message = extractGraphQLMessage(error).toLowerCase()
-  return message.includes("not found") || message.includes("entity not found")
+  // Linear pairs the raw message ("Entity not found: Issue") with a user-facing
+  // one ("Could not find referenced Issue."); extractGraphQLMessage prefers the
+  // latter, so both have to be checked.
+  const firstError = error.response?.errors?.[0]
+  const texts = [
+    firstError?.message,
+    firstError?.extensions?.userPresentableMessage as string | undefined,
+    error.message,
+  ]
+  return texts.some((text) => {
+    const lower = text?.toLowerCase() ?? ""
+    return lower.includes("not found") || lower.includes("could not find")
+  })
 }
 
 /**
@@ -433,6 +531,13 @@ function printGraphQLError(error: ClientError, context?: string): void {
     console.error(red(`✗ ${prefix}${message}`))
   } else {
     console.error(red(`✗ ${prefix}${message}`))
+  }
+
+  const rateLimit = rateLimitDetails(error)
+  if (rateLimit != null) {
+    console.error(
+      gray(`  ${rateLimitSuggestion(rateLimit, errorResult(error).effect)}`),
+    )
   }
 
   if (isDebugMode()) {
