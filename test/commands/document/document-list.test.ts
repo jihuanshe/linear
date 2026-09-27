@@ -424,10 +424,94 @@ await snapshotTest({
   name: "Document List Command - Rejects Invalid Limit",
   meta: import.meta,
   colors: false,
-  args: ["--limit", "0"],
+  args: ["--limit", "-1"],
   denoArgs: commonDenoArgs,
   canFail: true,
   async fn() {
     await listCommand.parse()
   },
 })
+
+for (const mode of ["limited", "limited-json", "all"] as const) {
+  Deno.test(`Document List Command - pagination and truncation hint (${mode})`, async () => {
+    const doc = (i: number) => ({
+      id: `doc-${i}`,
+      title: `Doc ${i}`,
+      slugId: `slug-${i}`,
+      url: `https://linear.app/test/document/doc-${i}`,
+      updatedAt: "2026-01-18T10:30:00Z",
+      project: null,
+      issue: null,
+      creator: null,
+    })
+    const { server, cleanup } = await setupMockLinearServer([
+      {
+        queryName: "ListDocuments",
+        variables: { first: 100, after: "docs-2" },
+        response: {
+          data: {
+            documents: {
+              nodes: [doc(3)],
+              pageInfo: { hasNextPage: false, endCursor: "docs-3" },
+            },
+          },
+        },
+      },
+      {
+        queryName: "ListDocuments",
+        response: {
+          data: {
+            documents: {
+              nodes: [doc(1), doc(2)],
+              pageInfo: { hasNextPage: true, endCursor: "docs-2" },
+            },
+          },
+        },
+      },
+    ], { NO_COLOR: "1" })
+    const stdout: string[] = []
+    const stderr: string[] = []
+    const log = stub(console, "log", (...args: unknown[]) => {
+      stdout.push(args.map(String).join(" "))
+    })
+    const error = stub(console, "error", (...args: unknown[]) => {
+      stderr.push(args.map(String).join(" "))
+    })
+    try {
+      await listCommand.parse([
+        "--limit",
+        mode === "all" ? "0" : "2",
+        ...(mode === "limited-json" ? ["--json"] : []),
+      ])
+    } finally {
+      error.restore()
+      log.restore()
+      await cleanup()
+    }
+    assertEquals(
+      server.graphqlRequests.map(({ variables }) => [
+        variables.first,
+        variables.after ?? null,
+      ]),
+      mode === "all" ? [[100, null], [100, "docs-2"]] : [[2, null]],
+    )
+    if (mode === "limited-json") {
+      assertEquals(JSON.parse(stdout.join("\n")).pageInfo, {
+        hasNextPage: true,
+        endCursor: "docs-2",
+      })
+      assertEquals(stderr, [])
+    } else {
+      assertEquals(
+        stdout.filter((line) => line.startsWith("slug-")).length,
+        mode === "all" ? 3 : 2,
+      )
+      assertEquals(
+        stderr,
+        mode === "all" ? [] : [
+          "Showing the first 2 documents; more exist. Use --limit 0 to fetch all pages.",
+        ],
+      )
+    }
+  })
+}
