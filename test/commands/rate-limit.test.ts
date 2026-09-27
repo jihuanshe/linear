@@ -95,3 +95,43 @@ Deno.test("rate-limited write stays unknown and asks for reconciliation", async 
     await cleanup()
   }
 })
+
+Deno.test("malformed reset headers cannot erase an unknown mutation effect", async () => {
+  const { server, cleanup } = await setupIssueWriteServer([
+    {
+      queryName: "GetTeamIdByKey",
+      variables: { team: "ENG" },
+      response: { data: { teams: { nodes: [{ id: teamWriteIds.ENG }] } } },
+    },
+    {
+      ...rateLimited,
+      queryName: "CreateIssue",
+      headers: {
+        ...rateLimited.headers,
+        "x-ratelimit-requests-reset": "9".repeat(30),
+      },
+    },
+  ], { LINEAR_ISSUE_CREATE_ASSIGN_SELF: "never" })
+  try {
+    const { code, body } = await run([
+      "issue",
+      "create",
+      "--title",
+      "Feedback",
+      "--team",
+      "ENG",
+    ])
+    assertEquals(code, 1)
+    assertEquals(
+      server.graphqlRequests.filter((request) =>
+        request.query.includes("mutation CreateIssue")
+      ).length,
+      1,
+    )
+    assertEquals(body.effect, "unknown")
+    assertEquals(body.error.code, "RateLimited")
+    assertEquals(body.error.details.rateLimit.requestsResetAt, undefined)
+  } finally {
+    await cleanup()
+  }
+})

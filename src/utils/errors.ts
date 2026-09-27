@@ -207,30 +207,42 @@ function rateLimitDetails(error: ClientError) {
   ) return undefined
   const header = (name: string) => {
     const value = error.response.headers?.get(`x-ratelimit-${name}`)?.trim()
-    return value != null && /^\d+$/.test(value) ? Number(value) : undefined
+    if (value == null || !/^\d+$/.test(value)) return undefined
+    const parsed = Number(value)
+    return Number.isSafeInteger(parsed) ? parsed : undefined
   }
   const resetAt = (name: string) => {
     const reset = header(`${name}-reset`)
-    return reset == null ? undefined : new Date(reset).toISOString()
+    if (reset == null || reset > 8_640_000_000_000_000) return undefined
+    return new Date(reset).toISOString()
   }
   const requestsRemaining = header("requests-remaining")
   const complexityRemaining = header("complexity-remaining")
   const requestsResetAt = resetAt("requests")
   const complexityResetAt = resetAt("complexity")
+  const endpointRequestsRemaining = header("endpoint-requests-remaining")
+  const endpointRequestsResetAt = resetAt("endpoint-requests")
   // The exhausted budget decides when a retry can succeed.
-  const retryAfter = requestsRemaining === 0
+  const retryAfter = endpointRequestsRemaining === 0
+    ? endpointRequestsResetAt
+    : requestsRemaining === 0
     ? requestsResetAt
     : complexityRemaining === 0
     ? complexityResetAt
-    : [requestsResetAt, complexityResetAt].filter((value) => value != null)
+    : [requestsResetAt, complexityResetAt, endpointRequestsResetAt].filter((
+      value,
+    ) => value != null)
       .sort().at(-1)
-  return {
+  const details = {
     ...(requestsRemaining == null ? {} : { requestsRemaining }),
     ...(requestsResetAt == null ? {} : { requestsResetAt }),
     ...(complexityRemaining == null ? {} : { complexityRemaining }),
     ...(complexityResetAt == null ? {} : { complexityResetAt }),
+    ...(endpointRequestsRemaining == null ? {} : { endpointRequestsRemaining }),
+    ...(endpointRequestsResetAt == null ? {} : { endpointRequestsResetAt }),
     ...(retryAfter == null ? {} : { retryAfter }),
   }
+  return Object.keys(details).length === 0 ? undefined : details
 }
 
 function rateLimitSuggestion(
