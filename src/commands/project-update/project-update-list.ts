@@ -5,12 +5,12 @@ import { getGraphQLClient } from "../../utils/graphql.ts"
 import { getTimeAgo, padDisplay, truncateText } from "../../utils/display.ts"
 import { resolveProjectId } from "../../utils/linear.ts"
 import { shouldShowSpinner } from "../../utils/hyperlink.ts"
-import { completeConnection, warnIfTruncated } from "../../utils/pagination.ts"
 import {
-  handleError,
-  NotFoundError,
-  ValidationError,
-} from "../../utils/errors.ts"
+  completeConnection,
+  limitType,
+  warnIfTruncated,
+} from "../../utils/pagination.ts"
+import { handleError, NotFoundError } from "../../utils/errors.ts"
 
 const ListProjectUpdatesQuery = gql(`
   query ListProjectUpdates($id: String!, $first: Int, $after: String) {
@@ -49,8 +49,9 @@ export const listCommand = new Command()
     "--json",
     "Output {name, slugId, projectUpdates: {nodes, pageInfo}}; pageInfo.hasNextPage is true when --limit left more updates",
   )
+  .type("limit", limitType)
   .option(
-    "--limit <limit:number>",
+    "--limit <limit:limit>",
     "Maximum number of updates (use 0 for all pages)",
     { default: 10 },
   )
@@ -61,10 +62,6 @@ export const listCommand = new Command()
     spinner?.start()
 
     try {
-      if (!Number.isSafeInteger(limit) || limit < 0) {
-        throw new ValidationError("--limit must be a non-negative integer")
-      }
-
       // Resolve project ID
       const resolvedProjectId = await resolveProjectId(projectReference)
 

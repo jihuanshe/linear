@@ -50,7 +50,15 @@ async function run(server: MockLinearServer, args: string[]) {
   }
 }
 
-for (const { args } of commands) {
+// These three read their target first, so only the parse-time rejection is
+// exercised here; their paging is covered by their own command tests.
+const parseOnlyCommands = [
+  { args: ["document", "list"] },
+  { args: ["project-update", "list", "project-1"] },
+  { args: ["initiative-update", "list", "initiative-1"] },
+]
+
+for (const { args } of [...commands, ...parseOnlyCommands]) {
   const name = args.slice(0, args[1] === "comment" ? 3 : 2).join(" ")
   Deno.test(`${name} rejects non-integer and unsafe --limit before querying`, async (t) => {
     const server = new MockLinearServer()

@@ -6,14 +6,14 @@ import {
   padDisplay,
   truncateText,
 } from "../../utils/display.ts"
-import {
-  handleError,
-  NotFoundError,
-  ValidationError,
-} from "../../utils/errors.ts"
+import { handleError, NotFoundError } from "../../utils/errors.ts"
 import { getGraphQLClient } from "../../utils/graphql.ts"
 import { shouldShowSpinner } from "../../utils/hyperlink.ts"
-import { completeConnection, warnIfTruncated } from "../../utils/pagination.ts"
+import {
+  completeConnection,
+  limitType,
+  warnIfTruncated,
+} from "../../utils/pagination.ts"
 import { resolveInitiativeId } from "../initiative/initiative-resolve.ts"
 
 // Health display colors
@@ -40,8 +40,9 @@ export const listCommand = new Command()
     "-j, --json",
     "Output {name, slugId, initiativeUpdates: {nodes, pageInfo}}; pageInfo.hasNextPage is true when --limit left more updates",
   )
+  .type("limit", limitType)
   .option(
-    "--limit <limit:number>",
+    "--limit <limit:limit>",
     "Maximum number of updates (use 0 for all pages)",
     { default: 10 },
   )
@@ -52,10 +53,6 @@ export const listCommand = new Command()
     spinner?.start()
 
     try {
-      if (!Number.isSafeInteger(limit) || limit < 0) {
-        throw new ValidationError("--limit must be a non-negative integer")
-      }
-
       const client = getGraphQLClient()
 
       // Resolve initiative ID

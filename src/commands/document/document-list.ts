@@ -10,7 +10,11 @@ import {
   resolveProjectId,
 } from "../../utils/linear.ts"
 import { shouldShowSpinner } from "../../utils/hyperlink.ts"
-import { completeConnection, warnIfTruncated } from "../../utils/pagination.ts"
+import {
+  completeConnection,
+  limitType,
+  warnIfTruncated,
+} from "../../utils/pagination.ts"
 import {
   handleError,
   NotFoundError,
@@ -63,8 +67,9 @@ export const listCommand = new Command()
     "--json",
     "Output {nodes, pageInfo}; pageInfo.hasNextPage is true when --limit left more documents",
   )
+  .type("limit", limitType)
   .option(
-    "--limit <limit:number>",
+    "--limit <limit:limit>",
     "Maximum number of documents (use 0 for all pages)",
     { default: 50 },
   )
@@ -75,10 +80,6 @@ export const listCommand = new Command()
     spinner?.start()
 
     try {
-      if (!Number.isSafeInteger(limit) || limit < 0) {
-        throw new ValidationError("--limit must be a non-negative integer")
-      }
-
       // Build filter based on options
       let filter:
         | NonNullable<ListDocumentsQueryVariables["filter"]>
