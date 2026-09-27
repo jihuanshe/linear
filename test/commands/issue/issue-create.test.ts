@@ -67,7 +67,16 @@ for (const outcome of ["missing", "ambiguous", "unauthorized", "unavailable"]) {
       {
         queryName: "GetLabelsForTeam",
         variables: { teamKey: "OPS" },
-        response: { data: { team: { labels: { nodes: [] } } } },
+        response: {
+          data: {
+            team: {
+              labels: {
+                nodes: [],
+                pageInfo: { hasNextPage: false, endCursor: null },
+              },
+            },
+          },
+        },
       },
       {
         queryName: "CreateIssue",
@@ -211,12 +220,30 @@ for (
           },
         },
       },
+      // The chosen label is on the second page of team labels.
+      {
+        queryName: "GetLabelsForTeam",
+        variables: { after: "labels-1" },
+        response: {
+          data: {
+            team: {
+              labels: {
+                nodes: [{ id: "label", name: "Bug", color: "red" }],
+                pageInfo: { hasNextPage: false, endCursor: "labels-2" },
+              },
+            },
+          },
+        },
+      },
       {
         queryName: "GetLabelsForTeam",
         response: {
           data: {
             team: {
-              labels: { nodes: [{ id: "label", name: "Bug", color: "red" }] },
+              labels: {
+                nodes: [{ id: "other", name: "Chore", color: "blue" }],
+                pageInfo: { hasNextPage: true, endCursor: "labels-1" },
+              },
             },
           },
         },
@@ -297,15 +324,21 @@ for (
           throw new Error(`Unexpected prompt: ${options.message}`)
       }
     })
+    const labelOptions: unknown[] = []
     const checkbox = stub(
       Checkbox,
       "prompt",
-      (options: { message: string }) =>
-        Promise.resolve(
-          options.message === "Select additional fields to configure"
-            ? selection
-            : ["label"],
-        ),
+      (options: { message: string; options?: unknown[] }) => {
+        if (options.message === "Select additional fields to configure") {
+          return Promise.resolve(selection)
+        }
+        labelOptions.push(
+          ...(options.options ?? []).map((o) =>
+            (o as { value: unknown }).value
+          ),
+        )
+        return Promise.resolve(["label"])
+      },
     )
     const log = stub(console, "log", () => {})
     try {
@@ -328,6 +361,10 @@ for (
         ...(selection.includes("priority") ? { priority: 0 } : {}),
         useDefaultTemplate: true,
       })
+      assertEquals(
+        labelOptions,
+        selection.includes("labels") ? ["label", "other"] : [],
+      )
       assertEquals(
         server.graphqlRequests.filter((request) =>
           request.query.includes("query GetViewerId")
@@ -658,7 +695,7 @@ for (const outcome of ["found", "missing", "error"] as const) {
       )
       assertEquals(
         server.graphqlRequests.some((request) =>
-          /query LookupUser\(/.test(request.query)
+          /query LookupUserCandidates\(/.test(request.query)
         ),
         false,
       )
@@ -821,12 +858,16 @@ await snapshotTest({
       },
       // Mock response for lookupProjectId()
       {
-        queryName: "GetProjectIdByName",
-        variables: { name: "My Project" },
+        queryName: "LookupProjectCandidates",
+        variables: { reference: "My Project" },
         response: {
           data: {
-            projects: {
+            byName: {
               nodes: [{ id: "project-123" }],
+            },
+            bySlugId: {
+              nodes: [],
+              pageInfo: { hasNextPage: false, endCursor: null },
             },
           },
         },
@@ -1156,7 +1197,16 @@ for (const ownership of ["none", "project", "parent"] as const) {
       },
       {
         queryName: "GetLabelsForTeam",
-        response: { data: { team: { labels: { nodes: [] } } } },
+        response: {
+          data: {
+            team: {
+              labels: {
+                nodes: [],
+                pageInfo: { hasNextPage: false, endCursor: null },
+              },
+            },
+          },
+        },
       },
       {
         queryName: "GetProjectsForTeam",
@@ -1327,12 +1377,16 @@ Deno.test("Issue Create Command - Explicit Project Still Uses Interactive Mode",
       },
     },
     {
-      queryName: "GetProjectIdByName",
-      variables: { name: "Dashboard" },
+      queryName: "LookupProjectCandidates",
+      variables: { reference: "Dashboard" },
       response: {
         data: {
-          projects: {
+          byName: {
             nodes: [{ id: "project-123" }],
+          },
+          bySlugId: {
+            nodes: [],
+            pageInfo: { hasNextPage: false, endCursor: null },
           },
         },
       },
@@ -1369,6 +1423,7 @@ Deno.test("Issue Create Command - Explicit Project Still Uses Interactive Mode",
           team: {
             labels: {
               nodes: [],
+              pageInfo: { hasNextPage: false, endCursor: null },
             },
           },
         },
@@ -1523,6 +1578,7 @@ Deno.test("Issue Create Command - Interactive Project Prompt Uses Team Projects"
           team: {
             labels: {
               nodes: [],
+              pageInfo: { hasNextPage: false, endCursor: null },
             },
           },
         },
@@ -1675,6 +1731,7 @@ Deno.test("Issue Create Command - Additional Fields Can Set Project", async () =
           team: {
             labels: {
               nodes: [],
+              pageInfo: { hasNextPage: false, endCursor: null },
             },
           },
         },
@@ -1970,12 +2027,16 @@ Deno.test("Issue Create Command - Explicit Project Overrides Parent Project", as
       },
     },
     {
-      queryName: "GetProjectIdByName",
-      variables: { name: "Dashboard" },
+      queryName: "LookupProjectCandidates",
+      variables: { reference: "Dashboard" },
       response: {
         data: {
-          projects: {
+          byName: {
             nodes: [{ id: "project-dashboard" }],
+          },
+          bySlugId: {
+            nodes: [],
+            pageInfo: { hasNextPage: false, endCursor: null },
           },
         },
       },
@@ -2077,12 +2138,16 @@ Deno.test("Issue Create Command - Invalid Parent Project Combination Surfaces Ba
       },
     },
     {
-      queryName: "GetProjectIdByName",
-      variables: { name: "Dashboard" },
+      queryName: "LookupProjectCandidates",
+      variables: { reference: "Dashboard" },
       response: {
         data: {
-          projects: {
+          byName: {
             nodes: [{ id: "project-dashboard" }],
+          },
+          bySlugId: {
+            nodes: [],
+            pageInfo: { hasNextPage: false, endCursor: null },
           },
         },
       },
@@ -2264,6 +2329,7 @@ Deno.test("Issue Create Command - Auto Assign Mode Respects Linear User Setting 
           team: {
             labels: {
               nodes: [],
+              pageInfo: { hasNextPage: false, endCursor: null },
             },
           },
         },
@@ -2371,24 +2437,29 @@ Deno.test("Issue Create Command - Explicit Assignee Overrides Config Self Assign
       },
     },
     {
-      queryName: "LookupUser",
-      variables: { filter: { email: { eqIgnoreCase: "Jane Developer" } } },
-      response: { data: { users: { nodes: [] } } },
-    },
-    {
-      queryName: "LookupUser",
-      variables: {
-        filter: { displayName: { eqIgnoreCase: "Jane Developer" } },
-      },
+      queryName: "LookupUserCandidates",
+      variables: { reference: "Jane Developer" },
       response: {
         data: {
-          users: {
+          byEmail: {
+            nodes: [],
+            pageInfo: { hasNextPage: false, endCursor: null },
+          },
+          byDisplayName: {
             nodes: [{
               id: "user-jane-456",
               displayName: "Jane Developer",
               email: "jane@example.com",
               name: "Jane Developer",
             }],
+          },
+          byName: {
+            nodes: [],
+            pageInfo: { hasNextPage: false, endCursor: null },
+          },
+          byNameContains: {
+            nodes: [],
+            pageInfo: { hasNextPage: false, endCursor: null },
           },
         },
       },
@@ -2475,6 +2546,7 @@ Deno.test("Issue Create Command - Interactive Assignee Can Override Config Self 
           team: {
             labels: {
               nodes: [],
+              pageInfo: { hasNextPage: false, endCursor: null },
             },
           },
         },

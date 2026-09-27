@@ -14,12 +14,16 @@ for (const flag of ["--web", "--app"]) {
     const url = "https://linear.app/actual/project/release-project/overview"
     const { server, cleanup } = await setupMockLinearServer([
       {
-        queryName: "GetProjectIdByName",
-        variables: { name: "Release Project" },
+        queryName: "LookupProjectCandidates",
+        variables: { reference: "Release Project" },
         response: {
           data: {
-            projects: {
+            byName: {
               nodes: [{ id }],
+              pageInfo: { hasNextPage: false, endCursor: null },
+            },
+            bySlugId: {
+              nodes: [],
               pageInfo: { hasNextPage: false, endCursor: null },
             },
           },
@@ -77,12 +81,12 @@ for (
     const pageInfo = { hasNextPage: false, endCursor: null }
     const server = new MockLinearServer([
       {
-        queryName: "GetProjectIdByName",
+        queryName: "LookupProjectCandidates",
         response: scenario === "read-failure"
           ? { errors: [{ message: "Project lookup unavailable" }] }
           : {
             data: {
-              projects: {
+              byName: {
                 nodes: scenario === "name"
                   ? [{ id }]
                   : scenario === "ambiguous"
@@ -90,16 +94,12 @@ for (
                   : [],
                 pageInfo,
               },
+              bySlugId: {
+                nodes: scenario === "slug" ? [{ id }] : [],
+                pageInfo,
+              },
             },
           },
-      },
-      {
-        queryName: "GetProjectIdBySlugId",
-        response: {
-          data: {
-            projects: { nodes: scenario === "slug" ? [{ id }] : [], pageInfo },
-          },
-        },
       },
       {
         queryName: "GetProjectDetails",
@@ -111,6 +111,7 @@ for (
               name: "Release",
               teams: { nodes: [], pageInfo },
               labels: { nodes: [], pageInfo },
+              issues: { nodes: [], pageInfo },
             },
           },
         },
@@ -155,6 +156,13 @@ for (
             : "Project lookup unavailable",
         )
       }
+      // A UUID needs no lookup; names and slug IDs share one lookup request.
+      assertEquals(
+        server.graphqlRequests.filter((request) =>
+          request.query.includes("query LookupProjectCandidates")
+        ).length,
+        scenario === "UUID" ? 0 : 1,
+      )
       if (scenario === "UUID") assertEquals(server.graphqlRequests.length, 1)
     } finally {
       await server.stop()
@@ -172,12 +180,16 @@ await snapshotTest({
   async fn() {
     const server = new MockLinearServer([
       {
-        queryName: "GetProjectIdByName",
-        variables: { name: "project-123" },
+        queryName: "LookupProjectCandidates",
+        variables: { reference: "project-123" },
         response: {
           data: {
-            projects: {
+            byName: {
               nodes: [{ id: "project-123" }],
+              pageInfo: { hasNextPage: false, endCursor: null },
+            },
+            bySlugId: {
+              nodes: [],
               pageInfo: { hasNextPage: false, endCursor: null },
             },
           },
@@ -280,6 +292,7 @@ await snapshotTest({
                     },
                   },
                 ],
+                pageInfo: { hasNextPage: false, endCursor: null },
               },
               lastUpdate: {
                 id: "update-1",
@@ -322,12 +335,16 @@ await snapshotTest({
   async fn() {
     const server = new MockLinearServer([
       {
-        queryName: "GetProjectIdByName",
-        variables: { name: "minimal-project" },
+        queryName: "LookupProjectCandidates",
+        variables: { reference: "minimal-project" },
         response: {
           data: {
-            projects: {
+            byName: {
               nodes: [{ id: "minimal-project" }],
+              pageInfo: { hasNextPage: false, endCursor: null },
+            },
+            bySlugId: {
+              nodes: [],
               pageInfo: { hasNextPage: false, endCursor: null },
             },
           },
@@ -374,6 +391,7 @@ await snapshotTest({
               },
               issues: {
                 nodes: [],
+                pageInfo: { hasNextPage: false, endCursor: null },
               },
               lastUpdate: null,
             },
@@ -399,12 +417,16 @@ await snapshotTest({
 Deno.test("Project View includes full content by default", async () => {
   const server = new MockLinearServer([
     {
-      queryName: "GetProjectIdByName",
-      variables: { name: "project-with-content" },
+      queryName: "LookupProjectCandidates",
+      variables: { reference: "project-with-content" },
       response: {
         data: {
-          projects: {
+          byName: {
             nodes: [{ id: "project-with-content" }],
+            pageInfo: { hasNextPage: false, endCursor: null },
+          },
+          bySlugId: {
+            nodes: [],
             pageInfo: { hasNextPage: false, endCursor: null },
           },
         },
@@ -445,7 +467,10 @@ Deno.test("Project View includes full content by default", async () => {
               nodes: [],
               pageInfo: { hasNextPage: false, endCursor: null },
             },
-            issues: { nodes: [] },
+            issues: {
+              nodes: [],
+              pageInfo: { hasNextPage: false, endCursor: null },
+            },
             lastUpdate: null,
           },
         },
@@ -476,3 +501,103 @@ Deno.test("Project View includes full content by default", async () => {
     Deno.env.delete("LINEAR_API_KEY")
   }
 })
+
+for (const json of [false, true]) {
+  Deno.test(`Project View reads every page of issues (json ${json})`, async () => {
+    const id = "fedcba98-7654-4321-8fed-cba987654321"
+    const pageInfo = { hasNextPage: false, endCursor: null }
+    const issue = (i: number) => ({
+      id: `issue-${i}`,
+      identifier: `ENG-${i}`,
+      title: `Task ${i}`,
+      state: i < 30 || i >= 100
+        ? { name: "Done", type: "completed" }
+        : { name: "Todo", type: "unstarted" },
+    })
+    const { server, cleanup } = await setupMockLinearServer([
+      {
+        queryName: "GetProjectDetails",
+        response: {
+          data: {
+            organization: { id: "workspace-1", urlKey: "test" },
+            project: {
+              id,
+              name: "Large",
+              description: "",
+              content: "",
+              slugId: "large",
+              icon: null,
+              color: "#64748b",
+              status: { id: "started", name: "Started", color: "#22c55e" },
+              creator: null,
+              lead: null,
+              priority: 0,
+              health: null,
+              startDate: null,
+              targetDate: null,
+              startedAt: null,
+              completedAt: null,
+              canceledAt: null,
+              updatedAt: "2024-01-20T12:00:00Z",
+              archivedAt: null,
+              trashed: null,
+              createdAt: "2024-01-20T12:00:00Z",
+              url: "https://linear.app/acme/project/large",
+              teams: { nodes: [], pageInfo },
+              labels: { nodes: [], pageInfo },
+              issues: {
+                nodes: Array.from({ length: 100 }, (_, i) => issue(i)),
+                pageInfo: { hasNextPage: true, endCursor: "issues-100" },
+              },
+              lastUpdate: null,
+            },
+          },
+        },
+      },
+      {
+        queryName: "GetProjectIssues",
+        variables: { id, first: 100, after: "issues-100" },
+        response: {
+          data: {
+            project: {
+              id,
+              issues: {
+                nodes: Array.from({ length: 20 }, (_, i) => issue(100 + i)),
+                pageInfo: { hasNextPage: false, endCursor: "issues-120" },
+              },
+            },
+          },
+        },
+      },
+    ], { NO_COLOR: "1" })
+    const logs: string[] = []
+    const log = stub(console, "log", (...args: unknown[]) => {
+      logs.push(args.map(String).join(" "))
+    })
+    try {
+      await viewCommand.parse([id, ...(json ? ["--json"] : [])])
+    } finally {
+      log.restore()
+      await cleanup()
+    }
+    if (json) {
+      const { issues } = JSON.parse(logs.join("\n")).project
+      assertEquals(issues.nodes.length, 120)
+      assertEquals(issues.pageInfo, {
+        hasNextPage: false,
+        endCursor: "issues-120",
+      })
+    } else {
+      const output = logs.join("\n")
+      assertStringIncludes(output, "**Total Issues:** 120")
+      assertStringIncludes(output, "**Completed:** 50")
+      assertStringIncludes(output, "**To Do:** 70")
+    }
+    assertEquals(
+      server.graphqlRequests
+        .filter((request) => request.query.includes("query GetProjectIssues"))
+        .length,
+      1,
+    )
+  })
+}

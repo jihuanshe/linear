@@ -29,10 +29,3 @@ stderr:
 ""
 `;
 
-snapshot[`Initiative Update List Command - Rejects Invalid Limit 1`] = `
-stdout:
-""
-stderr:
-"✗ Failed to fetch initiative updates: --limit must be a positive integer
-"
-`;

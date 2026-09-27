@@ -8,7 +8,8 @@ import { getGraphQLClient } from "../../utils/graphql.ts"
 import { getTimeAgo, padDisplay } from "../../utils/display.ts"
 import { getWorkspaceUrl } from "../../utils/actions.ts"
 import { shouldShowSpinner } from "../../utils/hyperlink.ts"
-import { handleError, ValidationError } from "../../utils/errors.ts"
+import { handleError } from "../../utils/errors.ts"
+import { limitType } from "../../utils/pagination.ts"
 
 const GetTeams = gql(`
   query GetTeams($filter: TeamFilter, $first: Int, $after: String) {
@@ -43,8 +44,9 @@ export const listCommand = new Command()
   .option("-w, --web", "Open in web browser")
   .option("-a, --app", "Open in Linear.app")
   .option("-j, --json", "Output as JSON")
+  .type("limit", limitType)
   .option(
-    "--limit <limit:number>",
+    "--limit <limit:limit>",
     "Maximum results (non-negative integer; 0 or omitted means unlimited)",
   )
   .action(async ({ web, app, json, limit }) => {
@@ -59,10 +61,6 @@ export const listCommand = new Command()
         console.log(`Opening ${url} in ${destination}`)
         await open(url, app ? { app: { name: "Linear" } } : undefined)
         return
-      }
-
-      if (limit != null && (!Number.isSafeInteger(limit) || limit < 0)) {
-        throw new ValidationError("--limit must be a non-negative integer")
       }
 
       spinner?.start()

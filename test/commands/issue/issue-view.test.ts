@@ -47,6 +47,7 @@ const emptyIssueFields = {
   },
   documents: {
     nodes: [],
+    pageInfo: { hasNextPage: false, endCursor: null },
   },
 }
 
@@ -135,7 +136,10 @@ for (const comments of [true, false]) {
               activeCycle: null,
             },
             children: { nodes: [] },
-            documents: { nodes: [] },
+            documents: {
+              nodes: [],
+              pageInfo: { hasNextPage: false, endCursor: null },
+            },
             relations: { nodes: [], pageInfo: { hasNextPage: false } },
             inverseRelations: { nodes: [], pageInfo: { hasNextPage: false } },
             labels: {
@@ -177,6 +181,89 @@ for (const comments of [true, false]) {
       logStub.restore()
       await cleanup()
     }
+  })
+}
+
+for (const json of [false, true]) {
+  Deno.test(`Issue View Command - reads every page of documents (json ${json})`, async () => {
+    const id = "11111111-1111-4111-8111-000000000125"
+    const document = (i: number) => ({
+      id: `document-${i}`,
+      title: `Doc ${i}`,
+      slugId: `doc-${i}`,
+      url: `https://linear.app/test-team/document/doc-${i}`,
+      createdAt: "2024-01-15T09:00:00Z",
+      updatedAt: "2024-01-15T09:00:00Z",
+    })
+    const { server, cleanup } = await setupMockLinearServer([{
+      queryName: "GetIssueDetails",
+      variables: { id: "ENG-125" },
+      response: {
+        data: {
+          organization: { id: "org", urlKey: "test-team" },
+          issue: {
+            ...emptyIssueFields,
+            id,
+            identifier: "ENG-125",
+            title: "Many documents",
+            description: null,
+            url: "https://linear.app/test-team/issue/ENG-125",
+            branchName: "eng-125",
+            state: { id: "s", name: "Todo", type: "unstarted", color: "#000" },
+            team: { id: "t", key: "ENG", activeCycle: null },
+            attachments: {
+              nodes: [],
+              pageInfo: { hasNextPage: false, endCursor: null },
+            },
+            documents: {
+              nodes: Array.from({ length: 50 }, (_, i) => document(i)),
+              pageInfo: { hasNextPage: true, endCursor: "documents-50" },
+            },
+          },
+        },
+      },
+    }, {
+      queryName: "GetIssueDocuments",
+      variables: { id, first: 100, after: "documents-50" },
+      response: {
+        data: {
+          issue: {
+            id,
+            documents: {
+              nodes: [document(50)],
+              pageInfo: { hasNextPage: false, endCursor: "documents-51" },
+            },
+          },
+        },
+      },
+    }], { NO_COLOR: "true" })
+    const output: string[] = []
+    const logStub = stub(console, "log", (value: string) => output.push(value))
+    try {
+      await viewCommand.parse([
+        "ENG-125",
+        "--no-comments",
+        "--no-pager",
+        ...(json ? ["--json"] : []),
+      ])
+    } finally {
+      logStub.restore()
+      await cleanup()
+    }
+    if (json) {
+      assertEquals(JSON.parse(output.join("\n")).issue.documents, {
+        nodes: Array.from({ length: 51 }, (_, i) => document(i)),
+        pageInfo: { hasNextPage: false, endCursor: "documents-51" },
+      })
+    } else {
+      assertMatch(output.join("\n"), /\*\*Doc 50\*\*: https:/)
+    }
+    assertEquals(
+      server.graphqlRequests.filter((request) =>
+        request.query.includes("query GetIssueDocuments")
+      ).length,
+      1,
+    )
   })
 }
 
@@ -527,7 +614,7 @@ await snapshotTest({
     const server = new MockLinearServer([
       {
         queryName: "GetIssueDetails",
-        queryIncludes: "relations(first: 250)",
+        queryIncludes: "relations(first: 50)",
         variables: { id: "TEST-246" },
         response: {
           data: {
@@ -607,6 +694,7 @@ await snapshotTest({
                     updatedAt: "2024-01-15T09:15:00Z",
                   },
                 ],
+                pageInfo: { hasNextPage: false, endCursor: null },
               },
               identifier: "TEST-246",
               title: "Audit issue resource output",
@@ -986,7 +1074,7 @@ await snapshotTest({
     const server = new MockLinearServer([
       {
         queryName: "GetIssueDetails",
-        queryIncludes: "relations(first: 250)",
+        queryIncludes: "relations(first: 50)",
         variables: { id: "TEST-246" },
         response: {
           data: {
@@ -1066,6 +1154,7 @@ await snapshotTest({
                     updatedAt: "2024-01-15T09:15:00Z",
                   },
                 ],
+                pageInfo: { hasNextPage: false, endCursor: null },
               },
               identifier: "TEST-246",
               title: "Audit issue resource output",
@@ -2210,3 +2299,120 @@ Deno.test("Issue View Command - JSON adds a derived contextSummary", async () =>
     await cleanup()
   }
 })
+
+for (const moreRelations of [false, true]) {
+  Deno.test(`Issue View Command - relation preview with more than one page ${moreRelations}`, async () => {
+    // Linear prices relation connections by the requested page size, so the
+    // view asks for 50 rows and repeats the 250-row preview only when needed.
+    const read = contextIssueRead()
+    read.issue.inverseRelations = {
+      nodes: [],
+      pageInfo: { hasNextPage: moreRelations },
+    }
+    const preview = {
+      id: read.issue.id,
+      relations: {
+        nodes: [read.issue.relations.nodes[0], {
+          id: "relation-2",
+          type: "related",
+          relatedIssue: { identifier: "TEST-201", title: "Nearby" },
+        }],
+        pageInfo: { hasNextPage: false },
+      },
+      inverseRelations: {
+        nodes: [{
+          id: "relation-3",
+          type: "blocks",
+          issue: { identifier: "TEST-202", title: "Blocker" },
+        }],
+        pageInfo: { hasNextPage: true },
+      },
+    }
+    const { server, cleanup } = await setupMockLinearServer([{
+      queryName: "GetIssueDetailsWithComments",
+      variables: { id: "TEST-321" },
+      response: { data: read },
+    }, {
+      queryName: "GetIssueRelationsPreview",
+      variables: { id: read.issue.id },
+      response: { data: { issue: preview } },
+    }])
+    const output: string[] = []
+    const logStub = stub(console, "log", (value: string) => output.push(value))
+    try {
+      await viewCommand.parse(["TEST-321", "--json"])
+      const body = JSON.parse(output.join("\n"))
+      const [details, ...rest] = server.graphqlRequests
+      assertMatch(details.query, /\brelations\(first: 50\)/)
+      assertMatch(details.query, /inverseRelations\(first: 50\)/)
+      assertEquals(
+        rest.map((request) => request.variables),
+        moreRelations ? [{ id: read.issue.id }] : [],
+      )
+      if (moreRelations) {
+        assertMatch(rest[0].query, /\brelations\(first: 250\)/)
+        assertMatch(rest[0].query, /inverseRelations\(first: 250\)/)
+      }
+      const expected = moreRelations ? preview : read.issue
+      assertEquals(body.issue.relations, expected.relations)
+      assertEquals(body.issue.inverseRelations, expected.inverseRelations)
+      assertEquals(body.contextSummary.relations.complete, !moreRelations)
+      assertEquals(
+        body.contextSummary.relations.items.length,
+        moreRelations ? 3 : 1,
+      )
+    } finally {
+      logStub.restore()
+      await cleanup()
+    }
+  })
+}
+
+for (const broken of ["relations", "inverseRelations"] as const) {
+  Deno.test(`Issue View Command - incomplete relation second page (${broken}) fails closed`, async () => {
+    const read = contextIssueRead()
+    read.issue.inverseRelations = { nodes: [], pageInfo: { hasNextPage: true } }
+    const preview: Record<string, unknown> = {
+      id: read.issue.id,
+      relations: { nodes: [], pageInfo: { hasNextPage: false } },
+      inverseRelations: { nodes: [], pageInfo: { hasNextPage: false } },
+    }
+    preview[broken] = null
+    const { cleanup } = await setupMockLinearServer([{
+      queryName: "GetIssueDetailsWithComments",
+      variables: { id: "TEST-321" },
+      response: { data: read },
+    }, {
+      queryName: "GetIssueRelationsPreview",
+      variables: { id: read.issue.id },
+      response: { data: { issue: preview } },
+    }])
+    const stdout: string[] = []
+    const stderr: string[] = []
+    const exit = new Error("exit")
+    let code: number | undefined
+    using _log = stub(console, "log", (...v: unknown[]) => {
+      stdout.push(v.join(" "))
+    })
+    using _error = stub(console, "error", (...v: unknown[]) => {
+      stderr.push(v.join(" "))
+    })
+    using _exit = stub(Deno, "exit", (value?: number): never => {
+      code = value ?? 0
+      throw exit
+    })
+    try {
+      try {
+        await viewCommand.parse(["TEST-321", "--json"])
+      } catch (error) {
+        if (error !== exit) throw error
+      }
+      // No partial preview reaches stdout; the command fails instead.
+      assertEquals(code, 1)
+      assertEquals(stdout, [])
+      assertMatch(stderr.join("\n"), /incomplete connection/)
+    } finally {
+      await cleanup()
+    }
+  })
+}

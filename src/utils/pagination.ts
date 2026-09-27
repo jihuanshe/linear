@@ -1,4 +1,24 @@
-import { CliError } from "./errors.ts"
+import type { ArgumentValue } from "@cliffy/command"
+import { CliError, ValidationError } from "./errors.ts"
+
+/**
+ * Cliffy type for `--limit` options where 0 reads every page. Only plain
+ * decimal digits within the safe integer range are accepted, so `1.5`, `1e3`,
+ * `0x10` and `abc` fail as ValidationError during parsing, before any request.
+ * Callers page with at most 100 nodes per request, so large limits never reach
+ * Linear's 250-node `first` bound.
+ */
+export function limitType({ name, value }: ArgumentValue): number {
+  const limit = /^\d+$/.test(value) ? Number(value) : NaN
+  if (Number.isSafeInteger(limit)) return limit
+  throw new ValidationError(
+    `${name} must be a non-negative integer (got ${JSON.stringify(value)})`,
+    {
+      suggestion:
+        `Use a whole number from 0 (all pages) to ${Number.MAX_SAFE_INTEGER}.`,
+    },
+  )
+}
 
 export interface Connection<T> {
   nodes: T[]
@@ -42,4 +62,22 @@ export async function completeConnection<T>(
       limit > 0 ? Math.min(100, limit - nodes.length) : 100,
     )
   }
+}
+
+/**
+ * Human output hides pageInfo, so say on stderr when --limit left more pages.
+ * stdout stays unchanged; JSON callers keep pageInfo instead.
+ */
+export function warnIfTruncated(
+  connection: { nodes: unknown[]; pageInfo: { hasNextPage: boolean } },
+  singular: string,
+  plural: string,
+): void {
+  if (!connection.pageInfo.hasNextPage) return
+  const count = connection.nodes.length
+  console.error(
+    `Showing the first ${count} ${
+      count === 1 ? singular : plural
+    }; more exist. Use --limit 0 to fetch all pages.`,
+  )
 }

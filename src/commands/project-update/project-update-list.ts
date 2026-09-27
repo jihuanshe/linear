@@ -6,17 +6,18 @@ import { getTimeAgo, padDisplay, truncateText } from "../../utils/display.ts"
 import { resolveProjectId } from "../../utils/linear.ts"
 import { shouldShowSpinner } from "../../utils/hyperlink.ts"
 import {
-  handleError,
-  NotFoundError,
-  ValidationError,
-} from "../../utils/errors.ts"
+  completeConnection,
+  limitType,
+  warnIfTruncated,
+} from "../../utils/pagination.ts"
+import { handleError, NotFoundError } from "../../utils/errors.ts"
 
 const ListProjectUpdatesQuery = gql(`
-  query ListProjectUpdates($id: String!, $first: Int) {
+  query ListProjectUpdates($id: String!, $first: Int, $after: String) {
     project(id: $id) {
       name
       slugId
-      projectUpdates(first: $first) {
+      projectUpdates(first: $first, after: $after) {
         nodes {
           id
           body
@@ -44,10 +45,16 @@ export const listCommand = new Command()
   )
   .alias("l")
   .arguments("<project:string>")
-  .option("--json", "Output as JSON")
-  .option("--limit <limit:number>", "Maximum results (positive integer)", {
-    default: 10,
-  })
+  .option(
+    "--json",
+    "Output {name, slugId, projectUpdates: {nodes, pageInfo}}; pageInfo.hasNextPage is true when --limit left more updates",
+  )
+  .type("limit", limitType)
+  .option(
+    "--limit <limit:limit>",
+    "Maximum number of updates (use 0 for all pages)",
+    { default: 10 },
+  )
   .action(async ({ json, limit }, projectReference) => {
     const { Spinner } = await import("@std/cli/unstable-spinner")
     const showSpinner = shouldShowSpinner() && !json
@@ -55,26 +62,35 @@ export const listCommand = new Command()
     spinner?.start()
 
     try {
-      if (!Number.isSafeInteger(limit) || limit < 1) {
-        throw new ValidationError("--limit must be a positive integer")
-      }
-
       // Resolve project ID
       const resolvedProjectId = await resolveProjectId(projectReference)
 
       const client = getGraphQLClient()
-      const result = await client.request(ListProjectUpdatesQuery, {
-        id: resolvedProjectId,
-        first: limit,
-      })
+      const fetchProject = async (
+        after?: string,
+        first = limit > 0 ? Math.min(100, limit) : 100,
+      ) => {
+        const result = await client.request(ListProjectUpdatesQuery, {
+          id: resolvedProjectId,
+          first,
+          after,
+        })
+        if (!result.project) {
+          throw new NotFoundError("Project", projectReference)
+        }
+        return result.project
+      }
+      const project = await fetchProject()
+      project.projectUpdates = await completeConnection(
+        project.projectUpdates,
+        async (after, first) =>
+          (await fetchProject(after, first)).projectUpdates,
+        `updates for project ${resolvedProjectId}`,
+        limit,
+      )
       spinner?.stop()
 
-      const project = result.project
-      if (!project) {
-        throw new NotFoundError("Project", projectReference)
-      }
-
-      const updates = project.projectUpdates?.nodes || []
+      const updates = project.projectUpdates.nodes
 
       if (json) {
         console.log(JSON.stringify(project, null, 2))
@@ -161,6 +177,7 @@ export const listCommand = new Command()
           console.log(rgb24(`   ${truncatedBody}`, 0x808080))
         }
       }
+      warnIfTruncated(project.projectUpdates, "update", "updates")
     } catch (error) {
       spinner?.stop()
       handleError(error, "Failed to fetch project updates")

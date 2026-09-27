@@ -13,6 +13,7 @@ import { getWorkspaceUrl } from "../../utils/actions.ts"
 import { getTeamKey } from "../../utils/linear.ts"
 import { shouldShowSpinner } from "../../utils/hyperlink.ts"
 import { handleError, ValidationError } from "../../utils/errors.ts"
+import { limitType } from "../../utils/pagination.ts"
 
 const GetProjects = gql(`
   query GetProjects($filter: ProjectFilter, $first: Int, $after: String) {
@@ -68,8 +69,9 @@ export const listCommand = new Command()
   .option("-w, --web", "Open in web browser")
   .option("-a, --app", "Open in Linear.app")
   .option("-j, --json", "Output as JSON")
+  .type("limit", limitType)
   .option(
-    "--limit <limit:number>",
+    "--limit <limit:limit>",
     "Maximum results (non-negative integer; 0 or omitted means unlimited)",
   )
   .action(async ({ team, allTeams, statusName, web, app, json, limit }) => {
@@ -92,10 +94,6 @@ export const listCommand = new Command()
     spinner?.start()
 
     try {
-      if (limit != null && (!Number.isSafeInteger(limit) || limit < 0)) {
-        throw new ValidationError("--limit must be a non-negative integer")
-      }
-
       // Validate conflicting flags
       if (team && allTeams) {
         throw new ValidationError(

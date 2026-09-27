@@ -3,8 +3,6 @@ name: automation
 description: 保存原始依据、比较原始值并解释 JSON 写入效果与分页
 commands:
   - api
-  - auth whoami
-  - auth key
   - issue view
   - issue export
   - issue history
@@ -108,7 +106,7 @@ JSON 不与浏览器／应用跳转、显式交互／编辑或原文／脚本输
 
 创建单个实体时，`data` 下保留 GraphQL 资源字段，而不是把字段直接展开到 `data`；例如 Issue 编号在 `data.issue.identifier`，Document ID 在 `data.document.id`。具体路径见创建命令的 `--json` 帮助。删除、批量操作、上传与原生 API 各自保留其合同。
 
-提取下一步要用的 ID 时使用 `jq -er`，并检查类型和非空值，例如 `jq -er 'select(.ok == true) | .data.comment.id | strings | select(length > 0)' comment-result.json`。普通 `jq -r` 在路径不存在时会输出 `null` 并成功退出。先将 CLI 结果保存到文件并检查退出码，再解析；不要用默认只检查最后一段退出码的管道掩盖 CLI 失败。若写入已成功而提取失败，保留结果，修正解析路径，不要重复创建对象。
+提取下一步要用的 ID 时使用 `jq -er`，并检查类型和非空值，例如 `jq -er 'select(.ok == true) | .data.comment.id | strings | select(length > 0)' comment-result.json`。普通 `jq -r` 在路径不存在时会输出 `null` 并成功退出。stdout 只有这一份 JSON，进度与提示（如上传时的 `✓ Uploaded <file>`）写到 stderr；分别重定向 stdout 和 stderr，不要用 `2>&1` 合并后解析。先将 CLI 结果保存到文件并检查退出码，再解析；不要用默认只检查最后一段退出码的管道掩盖 CLI 失败。解析失败不说明写入失败：保留结果，修正解析路径，不要重复创建对象。
 
 | 写入效果 `effect` | 可据此决定的下一步                                                    |
 | ----------------- | --------------------------------------------------------------------- |
@@ -118,7 +116,7 @@ JSON 不与浏览器／应用跳转、显式交互／编辑或原文／脚本输
 
 `success: false`、GraphQL 部分错误和不可读结果都不自动证明零效果。复合写入保留已经确认的上传或对象回执；批量删除在 `unknown` 后停止，`unattempted` 列出未执行的对象。
 
-多行 Markdown 用文件参数；`document view --raw` 只输出正文，不能替代带身份的原始读取。原生 `linear api` 保留 GraphQL 响应，属于 `linear guide graphql` 中的明确例外。
+多行 Markdown 用文件参数；`document view --raw` 只输出正文，不能替代带身份的原始读取。
 
 `issue update` 在 mutation 确认后读取相同 Issue 和工作区，核对请求的字段及标签增删结果；仅在读到不同值时重读，最多读取 3 次，总时限 10 秒。身份、权限、结构等导致的不可用结果直接报告。正文沿用 `issue apply` 的 Markdown 结构比较，写前原始依据仍精确比较。成功结果的 `verification.status` 为 `verified`，`readBack` 保存 `{organization,issue}`；无需写入时沿用提交前的读取，不另做写后核验。
 
@@ -126,7 +124,7 @@ JSON 不与浏览器／应用跳转、显式交互／编辑或原文／脚本输
 
 ## 网络等待与查询重试
 
-Linear 按 API 密钥计算小时额度：2,500 个请求和 3,000,000 复杂度，窗口约 1 小时后补满。每条命令至少消耗 1 个请求：`issue view` 通常 1 个，`issue query --url-file` 每个 URL 至少 1 个，分页每页 1 个。同一密钥的并发子 Agent 和脚本共享额度，批处理前先估算请求数，查剩余额度用只读查询 `linear api 'query { rateLimitStatus { kind limits { type allowedAmount remainingAmount reset } } }'`（`reset` 是毫秒时间戳），不要靠固定等待猜测。
+Linear 按 API 密钥计算小时额度：2,500 个请求和 3,000,000 复杂度，窗口约 1 小时后补满。每条命令至少消耗 1 个请求：`issue view` 通常 1 个，`issue query --url-file` 每个 URL 至少 1 个，`issue query --id-file` 每 100 个编号约 1 个（见「按编号批量读取 Issue」），分页每页 1 个。同一密钥的并发子 Agent 和脚本共享额度，批处理前先估算请求数，查剩余额度用只读查询 `linear api 'query { rateLimitStatus { kind limits { type allowedAmount remainingAmount reset } } }'`（`reset` 是毫秒时间戳），不要靠固定等待猜测。
 
 专用命令与 `linear api` 共用 GraphQL 请求规则：每个逻辑请求最多 60 秒，包含响应正文读取和重试等待，query 最多尝试 3 次。分页的每一页分别计时，不是整个命令或整批 `apply` 的总时限；写后核验等调用方更短的取消期限仍然有效。此规则不涵盖文件 PUT、下载或其他非 GraphQL 网络操作。
 
@@ -145,6 +143,20 @@ linear issue query --all-teams --assignee self --limit 0 --json >issues.json
 jq -e '.pageInfo.hasNextPage == false and (.nodes | type == "array")' issues.json >/dev/null
 jq '.nodes[] | {id, identifier, title, priority}' issues.json
 ```
+
+### 按编号批量读取 Issue
+
+已知一批编号（可跨团队，可能已迁移、归档或进回收站）时，用 `issue query --id` 或 `--id-file` 读取，不手写 `issue(id:)` 别名查询。文件每行一个编号，空行和 `#` 开头的行被忽略，重复编号只读一次。该模式不接受团队、状态等筛选条件、`--search` 或 `--url`；需要筛选时先读全，再处理 JSON。
+
+```bash
+linear issue query --id-file ids.txt --json >issues.json
+jq -e '.reconciliation as $r | $r.requested == $r.read + $r.missing' issues.json >/dev/null
+jq -r '.resolutions[] | select(.status == "not_found") | .requested' issues.json
+```
+
+`nodes` 按首次请求的顺序给出每个 Issue 一次，节点带 `trashed` 与 `archivedAt`；`pageInfo.hasNextPage` 恒为 `false`。`resolutions` 按请求顺序逐项给出 `{requested, status, identifier}`：`found` 表示当前编号，`moved` 表示团队迁移或改名前的编号并给出现编号，`trashed`／`archived` 的 Issue 也读取到 `nodes`，`not_found` 表示工作区中不存在或当前凭据不可见。团队 key 超过 7 位或编号大于 999,999,999 的输入会让 Linear 拒绝整批请求，CLI 在发请求前拒绝，并在一条错误中列出全部不合法的输入。`reconciliation` 按请求编号计数，`requested = read + missing`；两个编号解析到同一 Issue 时 `read` 计两次，`nodes` 只有一个。CLI 在输出前核对这个等式，不成立时非零退出，`error.details` 给出 `unread` 编号，不输出较短的结果。
+
+请求数：每 100 个编号 1 个请求；未按当前编号读到的编号再用 `issue(id:)` 分批解析，每批约 1 个请求，每个不存在的编号额外 1 个，因为 Linear 在一个编号不存在时让整批返回空数据，且每次只报告其中一个；已迁移的 Issue 再合计 1 个请求读取完整节点。这些都是 query，遵守上文「网络等待与查询重试」的规则。
 
 `issue view --json` 与 `issue export` 完整读取 `.issue.comments`、`.issue.attachments` 和 `.issue.labels`；`view --no-comments` 跳过评论。评论保留 `quotedText` 和 `documentContentId`，供识别行内引用；PR 等链接位于 `.issue.attachments.nodes`。`children`、`documents` 和详情中的 `relations` 等集合仍是有限预览；完整关系用 `issue relation list <issue> --json`，其他完整集合按 `linear guide graphql` 单独分页。完整分页不代表跨页数据库快照。
 

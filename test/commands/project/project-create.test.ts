@@ -673,11 +673,11 @@ await cliffySnapshotTest({
         },
       },
       {
-        queryName: "LookupUser",
-        variables: { filter: { email: { eqIgnoreCase: "lead@example.com" } } },
+        queryName: "LookupUserCandidates",
+        variables: { reference: "lead@example.com" },
         response: {
           data: {
-            users: {
+            byEmail: {
               pageInfo: { hasNextPage: false, endCursor: null },
               nodes: [{
                 id: "user-lead-123",
@@ -685,6 +685,18 @@ await cliffySnapshotTest({
                 displayName: "Project Lead",
                 name: "lead",
               }],
+            },
+            byDisplayName: {
+              nodes: [],
+              pageInfo: { hasNextPage: false, endCursor: null },
+            },
+            byName: {
+              nodes: [],
+              pageInfo: { hasNextPage: false, endCursor: null },
+            },
+            byNameContains: {
+              nodes: [],
+              pageInfo: { hasNextPage: false, endCursor: null },
             },
           },
         },
@@ -714,11 +726,11 @@ await cliffySnapshotTest({
         },
       },
       {
-        queryName: "LookupUser",
-        variables: { filter: { email: { eqIgnoreCase: "jane@example.com" } } },
+        queryName: "LookupUserCandidates",
+        variables: { reference: "jane@example.com" },
         response: {
           data: {
-            users: {
+            byEmail: {
               pageInfo: { hasNextPage: false, endCursor: null },
               nodes: [{
                 id: "user-jane-123",
@@ -726,6 +738,18 @@ await cliffySnapshotTest({
                 displayName: "Jane Developer",
                 name: "jane",
               }],
+            },
+            byDisplayName: {
+              nodes: [],
+              pageInfo: { hasNextPage: false, endCursor: null },
+            },
+            byName: {
+              nodes: [],
+              pageInfo: { hasNextPage: false, endCursor: null },
+            },
+            byNameContains: {
+              nodes: [],
+              pageInfo: { hasNextPage: false, endCursor: null },
             },
           },
         },
@@ -990,12 +1014,24 @@ Deno.test("Project Create Command - rejects an unknown member", async () => {
       },
     },
     {
-      queryName: "LookupUser",
+      queryName: "LookupUserCandidates",
       response: {
         data: {
-          users: {
-            pageInfo: { hasNextPage: false, endCursor: null },
+          byEmail: {
             nodes: [],
+            pageInfo: { hasNextPage: false, endCursor: null },
+          },
+          byDisplayName: {
+            nodes: [],
+            pageInfo: { hasNextPage: false, endCursor: null },
+          },
+          byName: {
+            nodes: [],
+            pageInfo: { hasNextPage: false, endCursor: null },
+          },
+          byNameContains: {
+            nodes: [],
+            pageInfo: { hasNextPage: false, endCursor: null },
           },
         },
       },

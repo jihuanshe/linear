@@ -670,26 +670,44 @@ Deno.test("initiative delete requires affirmative confirmation and exact name", 
 })
 
 Deno.test("initiative list distinguishes archived and trashed without removing nodes or pageInfo", async () => {
+  const projects = { nodes: [], pageInfo }
   const nodes = [
     {
       ...initiative,
+      projects,
       name: "Archived",
       archivedAt: "2026-01-01T00:00:00Z",
       trashed: false,
     },
     {
       ...initiative,
+      projects,
       name: "Trashed",
       archivedAt: "2026-01-01T00:00:00Z",
       trashed: true,
     },
   ]
-  const pageInfo = { hasNextPage: true, endCursor: "next" }
+  // Each initiative is on its own page; the output keeps the last pageInfo.
+  const lastPageInfo = { hasNextPage: false, endCursor: "last" }
   const server = new MockLinearServer([{
     queryName: "GetInitiatives",
     queryIncludes: "trashed",
+    variables: { includeArchived: true, after: "next" },
+    response: {
+      data: { initiatives: { nodes: [nodes[1]], pageInfo: lastPageInfo } },
+    },
+  }, {
+    queryName: "GetInitiatives",
+    queryIncludes: "trashed",
     variables: { includeArchived: true },
-    response: { data: { initiatives: { nodes, pageInfo } } },
+    response: {
+      data: {
+        initiatives: {
+          nodes: [nodes[0]],
+          pageInfo: { hasNextPage: true, endCursor: "next" },
+        },
+      },
+    },
   }])
   await server.start()
   try {
@@ -700,7 +718,7 @@ Deno.test("initiative list distinguishes archived and trashed without removing n
       "--json",
     ])
     assertEquals(result.code, 0, result.stderr)
-    assertEquals(JSON.parse(result.stdout), { nodes, pageInfo })
+    assertEquals(JSON.parse(result.stdout), { nodes, pageInfo: lastPageInfo })
     const human = await runCli(server, ["list", "--all-statuses", "--archived"])
     assertEquals(human.code, 0, human.stderr)
     assertMatch(human.stdout, /Archived\s+Active \(archived\)/)

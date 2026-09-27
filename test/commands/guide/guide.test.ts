@@ -242,3 +242,80 @@ Deno.test("Markdown authoring help links to the embedded guide", async () => {
     assertStringIncludes(result.stdout, "linear guide markdown")
   }
 })
+
+type CommandNode = {
+  getCommand(name: string): CommandNode | undefined
+  getCommands(): unknown[]
+  getOptions(hidden?: boolean): { flags: string[] }[]
+}
+
+/** Shell snippets from inline code spans and code block lines. */
+function guideSnippets(body: string): string[] {
+  const snippets: string[] = []
+  for (const block of body.matchAll(/```[a-z]*\n([\s\S]*?)```/g)) {
+    snippets.push(...block[1].replaceAll("\\\n", " ").split("\n"))
+  }
+  const prose = body.replace(/```[\s\S]*?```/g, "")
+  for (const span of prose.matchAll(/`([^`\n]+)`/g)) snippets.push(span[1])
+  return snippets
+}
+
+Deno.test("guide bodies reference existing commands, options and guides", () => {
+  const guideNames = new Set(listGuides().map((guide) => guide.metadata.name))
+  const problems: string[] = []
+  for (const guide of listGuides()) {
+    for (const snippet of guideSnippets(guide.body)) {
+      for (const segment of snippet.split(/\|\||&&|[|;(]/)) {
+        const tokens = segment.replace(/(^|\s)#.*$/, "").trim().split(/\s+/)
+        const start = tokens.indexOf("linear")
+        if (start === -1) continue
+        const args = tokens.slice(start + 1)
+        let command = cli as unknown as CommandNode
+        const path: string[] = []
+        for (const token of args) {
+          if (token.startsWith("-")) continue
+          const next = command.getCommand(token)
+          if (next == null) break
+          command = next
+          path.push(token)
+        }
+        const words = args.filter((token) => !token.startsWith("-"))
+        const first = words[0]
+        if (first != null && !first.startsWith("<") && path.length === 0) {
+          problems.push(`${guide.metadata.name}: unknown command in ${snippet}`)
+          continue
+        }
+        const next = words[path.length]
+        if (
+          command.getCommands().length > 0 && next != null &&
+          !next.startsWith("<")
+        ) {
+          problems.push(`${guide.metadata.name}: unknown command in ${snippet}`)
+          continue
+        }
+        const target = words[1]?.replace(/['"]/g, "")
+        if (
+          path.length === 1 && path[0] === "guide" && target != null &&
+          !target.startsWith("<") && !guideNames.has(target)
+        ) {
+          problems.push(`${guide.metadata.name}: unknown guide in ${snippet}`)
+        }
+        const flags = new Set([
+          "--help",
+          ...command.getOptions(true).flatMap((option) =>
+            option.flags.map((flag) => flag.split(/[ =]/)[0])
+          ),
+        ])
+        for (const token of args) {
+          const flag = token.split("=")[0].replace(/['"`),]/g, "")
+          if (/^--?[A-Za-z]/.test(flag) && !flags.has(flag)) {
+            problems.push(
+              `${guide.metadata.name}: ${path.join(" ")} has no ${flag}`,
+            )
+          }
+        }
+      }
+    }
+  }
+  assertEquals(problems, [])
+})

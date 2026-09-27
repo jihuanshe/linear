@@ -6,13 +6,14 @@ import {
   padDisplay,
   truncateText,
 } from "../../utils/display.ts"
-import {
-  handleError,
-  NotFoundError,
-  ValidationError,
-} from "../../utils/errors.ts"
+import { handleError, NotFoundError } from "../../utils/errors.ts"
 import { getGraphQLClient } from "../../utils/graphql.ts"
 import { shouldShowSpinner } from "../../utils/hyperlink.ts"
+import {
+  completeConnection,
+  limitType,
+  warnIfTruncated,
+} from "../../utils/pagination.ts"
 import { resolveInitiativeId } from "../initiative/initiative-resolve.ts"
 
 // Health display colors
@@ -35,10 +36,16 @@ export const listCommand = new Command()
   )
   .alias("l")
   .arguments("<initiative:string>")
-  .option("-j, --json", "Output as JSON")
-  .option("--limit <limit:number>", "Maximum results (positive integer)", {
-    default: 10,
-  })
+  .option(
+    "-j, --json",
+    "Output {name, slugId, initiativeUpdates: {nodes, pageInfo}}; pageInfo.hasNextPage is true when --limit left more updates",
+  )
+  .type("limit", limitType)
+  .option(
+    "--limit <limit:limit>",
+    "Maximum number of updates (use 0 for all pages)",
+    { default: 10 },
+  )
   .action(async ({ json, limit }, initiativeReference) => {
     const { Spinner } = await import("@std/cli/unstable-spinner")
     const showSpinner = shouldShowSpinner() && !json
@@ -46,21 +53,17 @@ export const listCommand = new Command()
     spinner?.start()
 
     try {
-      if (!Number.isSafeInteger(limit) || limit < 1) {
-        throw new ValidationError("--limit must be a positive integer")
-      }
-
       const client = getGraphQLClient()
 
       // Resolve initiative ID
       const resolvedId = await resolveInitiativeId(client, initiativeReference)
 
       const listQuery = gql(`
-        query ListInitiativeUpdates($id: String!, $first: Int) {
+        query ListInitiativeUpdates($id: String!, $first: Int, $after: String) {
           initiative(id: $id) {
             name
             slugId
-            initiativeUpdates(first: $first) {
+            initiativeUpdates(first: $first, after: $after) {
               nodes {
                 id
                 body
@@ -80,19 +83,31 @@ export const listCommand = new Command()
         }
       `)
 
-      const result = await client.request(listQuery, {
-        id: resolvedId,
-        first: limit,
-      })
-
+      const fetchInitiative = async (
+        after?: string,
+        first = limit > 0 ? Math.min(100, limit) : 100,
+      ) => {
+        const result = await client.request(listQuery, {
+          id: resolvedId,
+          first,
+          after,
+        })
+        if (!result.initiative) {
+          throw new NotFoundError("Initiative", initiativeReference)
+        }
+        return result.initiative
+      }
+      const initiative = await fetchInitiative()
+      initiative.initiativeUpdates = await completeConnection(
+        initiative.initiativeUpdates,
+        async (after, first) =>
+          (await fetchInitiative(after, first)).initiativeUpdates,
+        `updates for initiative ${resolvedId}`,
+        limit,
+      )
       spinner?.stop()
 
-      const initiative = result.initiative
-      if (!initiative) {
-        throw new NotFoundError("Initiative", initiativeReference)
-      }
-
-      const updates = initiative.initiativeUpdates?.nodes || []
+      const updates = initiative.initiativeUpdates.nodes
 
       if (json) {
         console.log(JSON.stringify(initiative, null, 2))
@@ -187,6 +202,7 @@ export const listCommand = new Command()
           console.log(`  ${rgb24(bodyPreview, 0x808080)}`)
         }
       }
+      warnIfTruncated(initiative.initiativeUpdates, "update", "updates")
     } catch (error) {
       spinner?.stop()
       handleError(error, "Failed to fetch initiative updates")

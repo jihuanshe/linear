@@ -118,7 +118,11 @@ stdout:
       }
     },
     "issues": {
-      "nodes": []
+      "nodes": [],
+      "pageInfo": {
+        "hasNextPage": false,
+        "endCursor": null
+      }
     },
     "lastUpdate": null
   }

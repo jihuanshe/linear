@@ -47,7 +47,16 @@ Deno.test({
       },
       {
         queryName: "GetLabelsForTeam",
-        response: { data: { team: { labels: { nodes: [] } } } },
+        response: {
+          data: {
+            team: {
+              labels: {
+                nodes: [],
+                pageInfo: { hasNextPage: false, endCursor: null },
+              },
+            },
+          },
+        },
       },
       {
         queryName: "CreateIssue",

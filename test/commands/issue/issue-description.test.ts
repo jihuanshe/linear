@@ -220,7 +220,16 @@ for (
         },
         {
           queryName: "GetLabelsForTeam",
-          response: { data: { team: { labels: { nodes: [] } } } },
+          response: {
+            data: {
+              team: {
+                labels: {
+                  nodes: [],
+                  pageInfo: { hasNextPage: false, endCursor: null },
+                },
+              },
+            },
+          },
         },
       ], {
         LINEAR_TEAM_KEY: "ENG",

@@ -1,7 +1,12 @@
 import { snapshotTest } from "@cliffy/testing"
 import { viewCommand } from "../../../src/commands/cycle/cycle-view.ts"
-import { commonDenoArgs } from "../../utils/test-helpers.ts"
+import {
+  commonDenoArgs,
+  setupMockLinearServer,
+} from "../../utils/test-helpers.ts"
 import { MockLinearServer } from "../../utils/mock_linear_server.ts"
+import { assertEquals, assertStringIncludes } from "@std/assert"
+import { stub } from "@std/testing/mock"
 
 await snapshotTest({
   name: "Cycle View Command - Active Cycle With Issues",
@@ -99,6 +104,7 @@ await snapshotTest({
                     state: { name: "Done", type: "completed" },
                   },
                 ],
+                pageInfo: { hasNextPage: false, endCursor: null },
               },
             },
           },
@@ -187,6 +193,7 @@ await snapshotTest({
               },
               issues: {
                 nodes: [],
+                pageInfo: { hasNextPage: false, endCursor: null },
               },
             },
           },
@@ -287,6 +294,7 @@ await snapshotTest({
                       : "unstarted",
                   },
                 })),
+                pageInfo: { hasNextPage: false, endCursor: null },
               },
             },
           },
@@ -306,4 +314,113 @@ await snapshotTest({
       Deno.env.delete("LINEAR_API_KEY")
     }
   },
+})
+
+Deno.test("Cycle View Command - progress counts every page of issues", async () => {
+  const issue = (i: number) => ({
+    id: `issue-${i}`,
+    identifier: `ENG-${i}`,
+    title: `Task ${i}`,
+    // 90 of 150 are completed; only 40 of them are on the first page.
+    state: i < 40 || i >= 100
+      ? { name: "Done", type: "completed" }
+      : { name: "Todo", type: "unstarted" },
+  })
+  const { server, cleanup } = await setupMockLinearServer([
+    {
+      queryName: "GetWriteTeamByKey",
+      response: {
+        data: {
+          teams: {
+            nodes: [{ id: "team-eng-id", key: "ENG" }],
+            pageInfo: { hasNextPage: false, endCursor: null },
+          },
+        },
+      },
+    },
+    {
+      queryName: "GetTeamCyclesForLookup",
+      response: {
+        data: {
+          team: {
+            key: "ENG",
+            cyclesEnabled: true,
+            cycles: {
+              nodes: [{
+                id: "cycle-1",
+                number: 12,
+                startsAt: "2026-07-27T07:00:00.000Z",
+                name: "Sprint 12",
+              }],
+              pageInfo: { hasNextPage: false, endCursor: null },
+            },
+            activeCycle: null,
+          },
+        },
+      },
+    },
+    {
+      queryName: "GetCycleDetails",
+      variables: { id: "cycle-1" },
+      response: {
+        data: {
+          cycle: {
+            id: "cycle-1",
+            number: 12,
+            name: "Sprint 12",
+            description: null,
+            startsAt: "2026-02-10T00:00:00.000Z",
+            endsAt: "2026-02-24T00:00:00.000Z",
+            completedAt: null,
+            isActive: true,
+            isFuture: false,
+            isPast: false,
+            createdAt: "2020-01-01T10:00:00Z",
+            updatedAt: "2020-01-20T16:45:00Z",
+            team: { id: "team-eng-id", key: "ENG", name: "Engineering" },
+            issues: {
+              nodes: Array.from({ length: 100 }, (_, i) => issue(i)),
+              pageInfo: { hasNextPage: true, endCursor: "issues-100" },
+            },
+          },
+        },
+      },
+    },
+    {
+      queryName: "GetCycleIssues",
+      variables: { id: "cycle-1", first: 100, after: "issues-100" },
+      response: {
+        data: {
+          cycle: {
+            id: "cycle-1",
+            issues: {
+              nodes: Array.from({ length: 50 }, (_, i) => issue(100 + i)),
+              pageInfo: { hasNextPage: false, endCursor: "issues-150" },
+            },
+          },
+        },
+      },
+    },
+  ], { NO_COLOR: "1" })
+  const stdout: string[] = []
+  const log = stub(console, "log", (...args: unknown[]) => {
+    stdout.push(args.map(String).join(" "))
+  })
+  try {
+    await viewCommand.parse(["12", "--team", "ENG"])
+  } finally {
+    log.restore()
+    await cleanup()
+  }
+  const output = stdout.join("\n")
+  assertStringIncludes(output, "**Progress:** 90/150 (60%)")
+  assertStringIncludes(output, "**Total Issues:** 150")
+  assertStringIncludes(output, "**To Do:** 60")
+  assertStringIncludes(output, "_...and 140 more issues_")
+  assertEquals(
+    server.graphqlRequests
+      .filter((request) => request.query.includes("query GetCycleIssues"))
+      .length,
+    1,
+  )
 })
