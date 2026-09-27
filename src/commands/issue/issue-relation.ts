@@ -281,10 +281,10 @@ const addRelationCommand = withUsageMetadata(new Command(), { writes: true })
 const deleteRelationCommand = withUsageMetadata(new Command(), { writes: true })
   .name("delete")
   .description(
-    "Delete the specified relation between two issues (UUIDs, identifiers, or Linear Issue URLs)",
+    "Delete the specified relation between two issues (UUIDs, identifiers, or Linear Issue URLs). An absent relation is a no-op.",
   )
   .arguments("<issue:string> <type:string> <relatedIssue:string>")
-  .option("--json", "Output the confirmed deletion as JSON")
+  .option("--json", "Output the confirmed deletion or no-op as JSON")
   .action(async ({ json }, issueRef, typeArg, relatedRef) => {
     try {
       const { issue, relatedIssue, type, relation } = await relationContext(
@@ -292,11 +292,22 @@ const deleteRelationCommand = withUsageMetadata(new Command(), { writes: true })
         parseType(typeArg),
         relatedRef,
       )
-      if (!relation?.id) {
-        throw new NotFoundError(
-          "Relation",
-          `${type} between ${issue.identifier} and ${relatedIssue.identifier}`,
-        )
+      if (relation == null) {
+        // Like favorite remove and initiative remove-project, the requested
+        // absence already holds; a rerun after an unknown effect can confirm it.
+        if (json) {
+          printWriteResult({ issue, relatedIssue, type, relation: null }, {
+            effect: "none",
+          })
+        } else {
+          console.log(
+            `✓ Relation already absent: ${issue.identifier} ${type} ${relatedIssue.identifier}`,
+          )
+        }
+        return
+      }
+      if (!relation.id) {
+        throw new CliError("Existing relation has no stable identity")
       }
       const data = await getGraphQLClient().request(DeleteRelation, {
         id: relation.id,
