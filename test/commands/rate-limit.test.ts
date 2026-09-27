@@ -5,7 +5,7 @@ import {
 } from "../utils/issue-write-fixtures.ts"
 import { commonDenoArgs, setupMockLinearServer } from "../utils/test-helpers.ts"
 
-const reset = Date.UTC(2026, 8, 27, 6, 11, 29)
+const reset = Date.now() + 5 * 60_000
 const rateLimited = {
   status: 400,
   headers: {
@@ -26,10 +26,10 @@ const rateLimited = {
 }
 const rateLimit = {
   requestsRemaining: 0,
-  requestsResetAt: "2026-09-27T06:11:29.000Z",
+  requestsResetAt: new Date(reset).toISOString(),
   complexityRemaining: 2999000,
-  complexityResetAt: "2026-09-27T06:10:29.000Z",
-  retryAfter: "2026-09-27T06:11:29.000Z",
+  complexityResetAt: new Date(reset - 60_000).toISOString(),
+  retryAfter: new Date(reset).toISOString(),
 }
 
 async function run(args: string[]) {
@@ -131,6 +131,55 @@ Deno.test("malformed reset headers cannot erase an unknown mutation effect", asy
     assertEquals(body.effect, "unknown")
     assertEquals(body.error.code, "RateLimited")
     assertEquals(body.error.details.rateLimit.requestsResetAt, undefined)
+  } finally {
+    await cleanup()
+  }
+})
+
+Deno.test("rate-limited errors wait for the latest exhausted quota", async () => {
+  const endpointReset = Date.now() + 60_000
+  const complexityReset = Date.now() + 120_000
+  const requestsReset = Date.now() + 180_000
+  const { cleanup } = await setupMockLinearServer([{
+    queryName: "GetIssueDetailsWithComments",
+    ...rateLimited,
+    headers: {
+      ...rateLimited.headers,
+      "x-ratelimit-endpoint-requests-remaining": "0",
+      "x-ratelimit-endpoint-requests-reset": String(endpointReset),
+      "x-ratelimit-complexity-remaining": "0",
+      "x-ratelimit-complexity-reset": String(complexityReset),
+      "x-ratelimit-requests-reset": String(requestsReset),
+    },
+  }])
+  try {
+    const { body } = await run(["issue", "view", "ENG-1"])
+    assertEquals(
+      body.error.details.rateLimit.retryAfter,
+      new Date(requestsReset).toISOString(),
+    )
+  } finally {
+    await cleanup()
+  }
+})
+
+Deno.test("past reset headers are not actionable retry guidance", async () => {
+  const { cleanup } = await setupMockLinearServer([{
+    queryName: "GetIssueDetailsWithComments",
+    ...rateLimited,
+    headers: {
+      ...rateLimited.headers,
+      "x-ratelimit-requests-reset": "0",
+    },
+  }])
+  try {
+    const { body } = await run(["issue", "view", "ENG-1"])
+    assertEquals(body.error.details.rateLimit.requestsResetAt, undefined)
+    assertEquals(body.error.details.rateLimit.retryAfter, undefined)
+    assertStringIncludes(
+      body.error.suggestion,
+      "after the rate limit window resets",
+    )
   } finally {
     await cleanup()
   }

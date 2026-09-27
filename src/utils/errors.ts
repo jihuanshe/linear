@@ -213,7 +213,10 @@ function rateLimitDetails(error: ClientError) {
   }
   const resetAt = (name: string) => {
     const reset = header(`${name}-reset`)
-    if (reset == null || reset > 8_640_000_000_000_000) return undefined
+    if (
+      reset == null || reset <= Date.now() ||
+      reset > 8_640_000_000_000_000
+    ) return undefined
     return new Date(reset).toISOString()
   }
   const requestsRemaining = header("requests-remaining")
@@ -222,17 +225,12 @@ function rateLimitDetails(error: ClientError) {
   const complexityResetAt = resetAt("complexity")
   const endpointRequestsRemaining = header("endpoint-requests-remaining")
   const endpointRequestsResetAt = resetAt("endpoint-requests")
-  // The exhausted budget decides when a retry can succeed.
-  const retryAfter = endpointRequestsRemaining === 0
-    ? endpointRequestsResetAt
-    : requestsRemaining === 0
-    ? requestsResetAt
-    : complexityRemaining === 0
-    ? complexityResetAt
-    : [requestsResetAt, complexityResetAt, endpointRequestsResetAt].filter((
-      value,
-    ) => value != null)
-      .sort().at(-1)
+  // A retry is safe only after every exhausted budget has reset.
+  const retryAfter = [
+    endpointRequestsRemaining === 0 ? endpointRequestsResetAt : undefined,
+    requestsRemaining === 0 ? requestsResetAt : undefined,
+    complexityRemaining === 0 ? complexityResetAt : undefined,
+  ].filter((value): value is string => value != null).sort().at(-1)
   const details = {
     ...(requestsRemaining == null ? {} : { requestsRemaining }),
     ...(requestsResetAt == null ? {} : { requestsResetAt }),
