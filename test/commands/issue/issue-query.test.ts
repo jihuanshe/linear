@@ -1192,6 +1192,60 @@ Deno.test("Issue Query Command - URL file prints unresolved Linear issue URLs", 
   assertStringIncludes(output, "ENG-999 does not exist in this workspace")
 })
 
+Deno.test("Issue Query Command - explains filters that exclude a resolved URL", async () => {
+  const { cleanup } = await setupMockLinearServer([
+    {
+      queryName: "ResolveIssueUrlReference",
+      response: {
+        data: {
+          issue: {
+            id: mockIssueNode.id,
+            identifier: mockIssueNode.identifier,
+            url: mockIssueNode.url,
+            trashed: false,
+            archivedAt: null,
+          },
+        },
+      },
+    },
+    {
+      queryName: "GetIssuesForQuery",
+      response: {
+        data: {
+          issues: {
+            nodes: [],
+            pageInfo: { hasNextPage: false, endCursor: null },
+          },
+        },
+      },
+    },
+  ], { NO_COLOR: "true" })
+  const logs: string[] = []
+  const logStub = stub(console, "log", (...args: unknown[]) => {
+    logs.push(args.map(String).join(" "))
+  })
+
+  try {
+    await queryCommand.parse([
+      "--team",
+      "JHS",
+      "--url",
+      "https://linear.app/test/issue/ENG-101",
+      "--no-pager",
+    ])
+  } finally {
+    logStub.restore()
+    await cleanup()
+  }
+
+  const output = logs.join("\n")
+  assertStringIncludes(
+    output,
+    "ENG-101 resolved, but the selected filters excluded it; try --all-teams or adjust the filters",
+  )
+  assertStringIncludes(output, "No issues found.")
+})
+
 Deno.test("Issue Query Command - URL file preserves lookup order", async () => {
   const firstUrl = "https://example.com/objects/1"
   const secondUrl = "https://example.com/objects/2"

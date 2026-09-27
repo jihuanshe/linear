@@ -630,11 +630,13 @@ function describeResolution(
   switch (status) {
     case "found":
       return filteredOut
-        ? `${requested} resolved, but no issue matched the selected filters`
+        ? `${requested} resolved, but the selected filters excluded it; try --all-teams or adjust the filters`
         : undefined
     case "moved":
       return `${requested} moved to ${identifier}` +
-        (filteredOut ? "; no issue matched the selected filters" : "")
+        (filteredOut
+          ? "; the selected filters excluded it; try --all-teams or adjust the filters"
+          : "")
     case "not_found":
       return `${requested} does not exist in this workspace`
     case "trashed":
