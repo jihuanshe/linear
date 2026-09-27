@@ -433,7 +433,7 @@ snapshot[`usage JSON describes command metadata 1`] = `
             {
               name: "limit",
               required: true,
-              type: "number",
+              type: "limit",
               variadic: false,
             },
           ],
@@ -784,7 +784,7 @@ Creates original.json and desired.md in a new directory. Read the saved discussi
             {
               name: "limit",
               required: true,
-              type: "number",
+              type: "limit",
               variadic: false,
             },
           ],

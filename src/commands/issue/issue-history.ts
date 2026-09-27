@@ -2,7 +2,7 @@ import { Command } from "@cliffy/command"
 import { gql } from "../../__codegen__/gql.ts"
 import { getGraphQLClient } from "../../utils/graphql.ts"
 import { getIssueReference } from "../../utils/linear.ts"
-import { completeConnection } from "../../utils/pagination.ts"
+import { completeConnection, limitType } from "../../utils/pagination.ts"
 import {
   handleError,
   NotFoundError,
@@ -127,17 +127,15 @@ export const historyCommand = new Command()
     "Show upstream issue history (all pages by default). Accepts an issue UUID, identifier (e.g. ENG-123), number in the configured team, or Linear URL; omit to use the current Git or Jujutsu context. Not every write produces a separate entry; use view for current state and write receipts for reconciliation.",
   )
   .arguments("[issue:string]")
+  .type("limit", limitType)
   .option(
-    "--limit <limit:number>",
+    "--limit <limit:limit>",
     "Maximum history entries (0 for all pages)",
     { default: 0 },
   )
   .option("-j, --json", "Output history as a JSON connection")
   .action(async ({ json, limit }, issueArg) => {
     try {
-      if (!Number.isSafeInteger(limit) || limit < 0) {
-        throw new ValidationError("--limit must be a non-negative integer")
-      }
       const issueReference = await getIssueReference(issueArg)
       if (!issueReference) {
         throw new ValidationError(
