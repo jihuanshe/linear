@@ -1,4 +1,5 @@
 import { completeIssueLabels } from "./issue-read.ts"
+import { completeRelationPreview } from "./issue-context.ts"
 import { gql } from "../__codegen__/gql.ts"
 import type {
   GetIssueDetailsQuery,
@@ -572,7 +573,7 @@ const issueDetailsWithCommentsQuery = gql(/* GraphQL */ `
         }
         pageInfo { hasNextPage endCursor }
       }
-      relations(first: 250) {
+      relations(first: 50) {
         nodes {
           id
           type
@@ -585,7 +586,7 @@ const issueDetailsWithCommentsQuery = gql(/* GraphQL */ `
           hasNextPage
         }
       }
-      inverseRelations(first: 250) {
+      inverseRelations(first: 50) {
         nodes {
           id
           type
@@ -655,7 +656,7 @@ const issueDetailsQuery = gql(/* GraphQL */ `
         }
         pageInfo { hasNextPage endCursor }
       }
-      relations(first: 250) {
+      relations(first: 50) {
         nodes {
           id
           type
@@ -668,7 +669,7 @@ const issueDetailsQuery = gql(/* GraphQL */ `
           hasNextPage
         }
       }
-      inverseRelations(first: 250) {
+      inverseRelations(first: 50) {
         nodes {
           id
           type
@@ -797,22 +798,24 @@ export async function fetchIssueDetailsRaw(
       id: issueReference,
     })
     if (data.issue == null) throw new NotFoundError("Issue", issueReference)
-    if (!complete) return data
+    const issue = await completeRelationPreview(data.issue)
+    if (!complete) return { ...data, issue }
     const [comments, attachments, labels] = await Promise.all([
-      fetchIssueComments(data.issue.id, 0, data.issue.comments),
-      completeIssueAttachments(data.issue.id, data.issue.attachments),
-      completeIssueLabels(data.issue.id, data.issue.labels),
+      fetchIssueComments(issue.id, 0, issue.comments),
+      completeIssueAttachments(issue.id, issue.attachments),
+      completeIssueLabels(issue.id, issue.labels),
     ])
-    return { ...data, issue: { ...data.issue, comments, attachments, labels } }
+    return { ...data, issue: { ...issue, comments, attachments, labels } }
   }
   const data = await client.request(issueDetailsQuery, { id: issueReference })
   if (data.issue == null) throw new NotFoundError("Issue", issueReference)
-  if (!complete) return data
+  const issue = await completeRelationPreview(data.issue)
+  if (!complete) return { ...data, issue }
   const [attachments, labels] = await Promise.all([
-    completeIssueAttachments(data.issue.id, data.issue.attachments),
-    completeIssueLabels(data.issue.id, data.issue.labels),
+    completeIssueAttachments(issue.id, issue.attachments),
+    completeIssueLabels(issue.id, issue.labels),
   ])
-  return { ...data, issue: { ...data.issue, attachments, labels } }
+  return { ...data, issue: { ...issue, attachments, labels } }
 }
 export type FetchedIssueComment =
   GetIssueDetailsWithCommentsQuery["issue"]["comments"]["nodes"][number]
