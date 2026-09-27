@@ -122,10 +122,12 @@ export const queryCommand = withUsageMetadata(new Command(), {
   .option(
     "--url <url:string>",
     "Find an issue by Linear URL, or by an exact URL occurrence in its description or comments (URL mode returns all exact matches; --limit is ignored). A Linear Issue URL also resolves identifiers from before a team move and adds resolution {status: found|moved|trashed|archived|not_found, requested, identifier}; trashed and archived issues need --include-archived to appear in nodes",
+    { preserveEmpty: true },
   )
   .option(
     "--url-file <path:string>",
     "Find issues for one URL per line (blank lines and lines starting with # are ignored); JSON returns {lookups: [{url, nodes, pageInfo, resolution?}]} in input order, with resolution as in --url for Linear Issue URLs; --limit is ignored",
+    { preserveEmpty: true },
   )
   .option(
     "--search-comments",
@@ -537,7 +539,7 @@ export const queryCommand = withUsageMetadata(new Command(), {
           const note = describeResolution(
             result.resolution,
             includeArchived,
-            false,
+            result.nodes.length === 0,
           )
           if (note != null) outputLines.push(note)
           if (result.nodes.length === 0) {

@@ -1246,6 +1246,25 @@ Deno.test("Issue Query Command - explains filters that exclude a resolved URL", 
   assertStringIncludes(output, "No issues found.")
 })
 
+Deno.test("Issue Query Command - rejects an explicitly empty URL", async () => {
+  const { cleanup } = await setupMockLinearServer([])
+  const errors: string[] = []
+  const errorStub = stub(console, "error", (...args: unknown[]) => {
+    errors.push(args.map(String).join(" "))
+  })
+  const exitStub = stub(Deno, "exit", () => undefined as never)
+
+  try {
+    await queryCommand.parse(["--all-teams", "--url", "", "--no-pager"])
+  } finally {
+    exitStub.restore()
+    errorStub.restore()
+    await cleanup()
+  }
+
+  assertStringIncludes(errors.join("\n"), "--url cannot be empty")
+})
+
 Deno.test("Issue Query Command - URL file preserves lookup order", async () => {
   const firstUrl = "https://example.com/objects/1"
   const secondUrl = "https://example.com/objects/2"
