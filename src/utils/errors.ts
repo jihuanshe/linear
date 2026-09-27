@@ -380,6 +380,24 @@ export class ValidationError extends CliError {
   }
 }
 
+/** A Triage state was requested for a team that has triage turned off. */
+export class TriageDisabledError extends CliError {
+  constructor(
+    teamKey: string,
+    defaultState: { id: string; name: string; type: string } | null,
+  ) {
+    super(`Team ${teamKey} has triage disabled`, {
+      suggestion: defaultState == null
+        ? `Omit --state (or pass --state default), or run \`linear team states ${teamKey}\` and pass one of its states.`
+        : `Omit --state (or pass --state default) to use the team default ${
+          JSON.stringify(defaultState.name)
+        } (${defaultState.type}); run \`linear team states ${teamKey}\` for other states.`,
+      details: { team: teamKey, triageEnabled: false, defaultState },
+    })
+    this.name = "TriageDisabledError"
+  }
+}
+
 /** The command has no machine-readable success contract. */
 export class UnsupportedOutputError extends CliError {
   constructor(path: string) {
@@ -433,8 +451,19 @@ export function extractGraphQLMessage(error: ClientError): string {
  * Check if a GraphQL error indicates an entity was not found.
  */
 export function isNotFoundError(error: ClientError): boolean {
-  const message = extractGraphQLMessage(error).toLowerCase()
-  return message.includes("not found") || message.includes("entity not found")
+  // Linear pairs the raw message ("Entity not found: Issue") with a user-facing
+  // one ("Could not find referenced Issue."); extractGraphQLMessage prefers the
+  // latter, so both have to be checked.
+  const firstError = error.response?.errors?.[0]
+  const texts = [
+    firstError?.message,
+    firstError?.extensions?.userPresentableMessage as string | undefined,
+    error.message,
+  ]
+  return texts.some((text) => {
+    const lower = text?.toLowerCase() ?? ""
+    return lower.includes("not found") || lower.includes("could not find")
+  })
 }
 
 /**

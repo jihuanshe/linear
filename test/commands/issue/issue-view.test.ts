@@ -50,6 +50,46 @@ const emptyIssueFields = {
   },
 }
 
+for (const trashed of [true, false]) {
+  Deno.test(`Issue View Command - human output marks trashed ${trashed}`, async () => {
+    const { cleanup } = await setupMockLinearServer([{
+      queryName: "GetIssueDetails",
+      variables: { id: "ENG-124" },
+      response: {
+        data: {
+          organization: { id: "org", urlKey: "test-team" },
+          issue: {
+            ...emptyIssueFields,
+            id: "11111111-1111-4111-8111-000000000124",
+            identifier: "ENG-124",
+            title: "Deleted feedback",
+            description: null,
+            url: "https://linear.app/test-team/issue/ENG-124",
+            branchName: "eng-124",
+            archivedAt: trashed ? "2026-09-24T00:00:00.000Z" : null,
+            trashed,
+            state: { id: "s", name: "Triage", type: "triage", color: "#000" },
+            team: { id: "t", key: "ENG", activeCycle: null },
+            attachments: {
+              nodes: [],
+              pageInfo: { hasNextPage: false, endCursor: null },
+            },
+          },
+        },
+      },
+    }], { NO_COLOR: "true" })
+    const output: string[] = []
+    const logStub = stub(console, "log", (value: string) => output.push(value))
+    try {
+      await viewCommand.parse(["ENG-124", "--no-comments", "--no-pager"])
+      assertEquals(output.join("\n").includes("Trashed"), trashed)
+    } finally {
+      logStub.restore()
+      await cleanup()
+    }
+  })
+}
+
 for (const comments of [true, false]) {
   Deno.test(`Issue View Command - JSON includes assignee ID with comments ${comments}`, async () => {
     const assignee = {

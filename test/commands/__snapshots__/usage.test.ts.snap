@@ -190,7 +190,7 @@ snapshot[`usage JSON describes command metadata 1`] = `
               variadic: false,
             },
           ],
-          description: "Find an issue by Linear URL, or by an exact URL occurrence in its description or comments (URL mode returns all exact matches; --limit is ignored)",
+          description: "Find an issue by Linear URL, or by an exact URL occurrence in its description or comments (URL mode returns all exact matches; --limit is ignored). A Linear Issue URL also resolves identifiers from before a team move and adds resolution {status: found|moved|trashed|archived|not_found, requested, identifier}; trashed and archived issues need --include-archived to appear in nodes",
           flags: [
             "--url",
           ],
@@ -207,7 +207,7 @@ snapshot[`usage JSON describes command metadata 1`] = `
               variadic: false,
             },
           ],
-          description: "Find issues for one URL per line (blank lines and lines starting with # are ignored); JSON returns {lookups: [{url, nodes, pageInfo}]} in input order; --limit is ignored",
+          description: "Find issues for one URL per line (blank lines and lines starting with # are ignored); JSON returns {lookups: [{url, nodes, pageInfo, resolution?}]} in input order, with resolution as in --url for Linear Issue URLs; --limit is ignored",
           flags: [
             "--url-file",
           ],
@@ -1157,7 +1157,7 @@ Run \`linear guide markdown\` for mentions, collapsible sections and rewrite ris
               variadic: false,
             },
           ],
-          description: "Workflow state for the issue (UUID, name, or type)",
+          description: "Workflow state (UUID, name, or type). Omit it, or pass 'default', for the team's default state; 'triage' only works on teams with triage enabled.",
           flags: [
             "-s",
             "--state",
@@ -1240,7 +1240,7 @@ Run \`linear guide markdown\` for mentions, collapsible sections and rewrite ris
         },
         {
           arguments: [],
-          description: "Output {ok, effect, data}; the created issue is in data.issue, its identifier in data.issue.identifier (non-interactive only)",
+          description: "Output {ok, effect, data}; the created issue is in data.issue, its identifier in data.issue.identifier; the receipt also carries url, state, assignee, project, parent and labels (non-interactive only)",
           flags: [
             "-j",
             "--json",
