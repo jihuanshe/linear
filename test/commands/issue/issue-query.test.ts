@@ -158,7 +158,10 @@ const mockIssueNode = {
     ],
     pageInfo: { hasNextPage: false, endCursor: null },
   },
-  inverseRelations: { nodes: [] },
+  inverseRelations: {
+    nodes: [],
+    pageInfo: { hasNextPage: false, endCursor: null },
+  },
 }
 
 // Test JSON output with filter mode (issues() backend)
@@ -1749,6 +1752,7 @@ Deno.test("Issue Query Command - Shows Blocked Indicator", async () => {
                       state: { type: "started" },
                     },
                   }],
+                  pageInfo: { hasNextPage: false, endCursor: null },
                 },
               },
               {
@@ -1766,6 +1770,7 @@ Deno.test("Issue Query Command - Shows Blocked Indicator", async () => {
                       state: { type: "canceled" },
                     },
                   }],
+                  pageInfo: { hasNextPage: false, endCursor: null },
                 },
               },
             ],

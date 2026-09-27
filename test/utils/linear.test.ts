@@ -482,7 +482,10 @@ Deno.test("searchIssuesByTerm - without limit fetches a single page", async () =
                   nodes: [],
                   pageInfo: { hasNextPage: false, endCursor: null },
                 },
-                inverseRelations: { nodes: [] },
+                inverseRelations: {
+                  nodes: [],
+                  pageInfo: { hasNextPage: false, endCursor: null },
+                },
                 metadata: {},
               },
             ],
@@ -535,7 +538,10 @@ Deno.test("searchIssuesByTerm - without limit fetches a single page", async () =
             nodes: [],
             pageInfo: { hasNextPage: false, endCursor: null },
           },
-          inverseRelations: { nodes: [] },
+          inverseRelations: {
+            nodes: [],
+            pageInfo: { hasNextPage: false, endCursor: null },
+          },
           metadata: {},
         },
       ],

@@ -24,7 +24,7 @@ import {
   ValidationError,
 } from "./errors.ts"
 import { getGraphQLClient } from "./graphql.ts"
-import { completeConnection } from "./pagination.ts"
+import { completeConnection, type Connection } from "./pagination.ts"
 import { normalizeIssueIdentifier } from "./issue-identifier.ts"
 import { getCurrentIssueFromVcs } from "./vcs.ts"
 import { unified } from "unified"
@@ -968,7 +968,7 @@ const queryIssuesQuery = gql(/* GraphQL */ `
             endCursor
           }
         }
-        inverseRelations(first: 100) {
+        inverseRelations(first: 10) {
           nodes {
             id
             type
@@ -979,6 +979,10 @@ const queryIssuesQuery = gql(/* GraphQL */ `
                 type
               }
             }
+          }
+          pageInfo {
+            hasNextPage
+            endCursor
           }
         }
       }
@@ -1347,20 +1351,72 @@ async function buildIssueFilter(
   return filter
 }
 
+const queryIssueInverseRelationsQuery = gql(/* GraphQL */ `
+  query GetQueryIssueInverseRelations(
+    $id: String!
+    $first: Int!
+    $after: String
+  ) {
+    issue(id: $id) {
+      inverseRelations(first: $first, after: $after) {
+        nodes {
+          id
+          type
+          issue {
+            id
+            identifier
+            state {
+              type
+            }
+          }
+        }
+        pageInfo {
+          hasNextPage
+          endCursor
+        }
+      }
+    }
+  }
+`)
+
+type QueryIssueConnections = {
+  id: string
+  labels: Parameters<typeof completeIssueLabels>[1]
+  inverseRelations: Connection<unknown>
+}
+
 /**
- * Query rows embed Linear's default first page of 50 labels. Only rows whose
- * label page is still open are read further, so ordinary pages cost nothing.
+ * Query rows embed Linear's default first page of 50 labels and the first 10
+ * incoming relations. Linear prices nested connections by the requested
+ * `first` on every row, so only rows whose page is still open are read further.
  */
-async function completeQueryIssueLabels<
-  T extends { id: string; labels: Parameters<typeof completeIssueLabels>[1] },
->(nodes: T[]): Promise<T[]> {
+async function completeQueryIssueConnections<T extends QueryIssueConnections>(
+  nodes: T[],
+): Promise<T[]> {
   const completed: T[] = []
   for (const node of nodes) {
-    completed.push(
-      node.labels.pageInfo.hasNextPage
-        ? { ...node, labels: await completeIssueLabels(node.id, node.labels) }
-        : node,
-    )
+    let row = node
+    if (row.labels.pageInfo.hasNextPage) {
+      row = { ...row, labels: await completeIssueLabels(row.id, row.labels) }
+    }
+    if (row.inverseRelations.pageInfo.hasNextPage) {
+      row = {
+        ...row,
+        inverseRelations: await completeConnection(
+          row.inverseRelations,
+          async (after, first) => {
+            const result = await getGraphQLClient().request(
+              queryIssueInverseRelationsQuery,
+              { id: node.id, first, after },
+            )
+            if (result.issue == null) throw new NotFoundError("Issue", node.id)
+            return result.issue.inverseRelations
+          },
+          `incoming relations for ${node.id}`,
+        ),
+      }
+    }
+    completed.push(row)
   }
   return completed
 }
@@ -1454,7 +1510,7 @@ export async function fetchIssuesForQuery(
       exactIssueId,
     )
 
-  const nodes = await completeQueryIssueLabels(
+  const nodes = await completeQueryIssueConnections(
     options.exactUrl == null
       ? (fetchAll ? matchedNodes : matchedNodes.slice(0, limit))
       : matchedNodes,
@@ -1551,7 +1607,7 @@ const searchIssuesQuery = gql(/* GraphQL */ `
             endCursor
           }
         }
-        inverseRelations(first: 100) {
+        inverseRelations(first: 10) {
           nodes {
             id
             type
@@ -1562,6 +1618,10 @@ const searchIssuesQuery = gql(/* GraphQL */ `
                 type
               }
             }
+          }
+          pageInfo {
+            hasNextPage
+            endCursor
           }
         }
         metadata
@@ -1627,7 +1687,7 @@ export async function searchIssuesByTerm(
     options.limit,
   )
   return {
-    nodes: await completeQueryIssueLabels(connection.nodes),
+    nodes: await completeQueryIssueConnections(connection.nodes),
     pageInfo: connection.pageInfo,
     totalCount,
   }

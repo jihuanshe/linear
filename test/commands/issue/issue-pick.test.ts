@@ -88,6 +88,10 @@ Deno.test("Issue Pick Command - selection prints one identifier and performs no 
                 nodes: [],
                 pageInfo: { hasNextPage: false, endCursor: null },
               },
+              inverseRelations: {
+                nodes: [],
+                pageInfo: { hasNextPage: false, endCursor: null },
+              },
             }],
             pageInfo: { hasNextPage: false, endCursor: null },
           },

@@ -109,7 +109,11 @@ stdout:
         }
       },
       "inverseRelations": {
-        "nodes": []
+        "nodes": [],
+        "pageInfo": {
+          "hasNextPage": false,
+          "endCursor": null
+        }
       }
     }
   ],
@@ -176,7 +180,11 @@ stdout:
         }
       },
       "inverseRelations": {
-        "nodes": []
+        "nodes": [],
+        "pageInfo": {
+          "hasNextPage": false,
+          "endCursor": null
+        }
       },
       "metadata": {
         "context": {},
