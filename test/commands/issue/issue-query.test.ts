@@ -187,7 +187,7 @@ await snapshotTest({
             state: { type: { in: ["started"] } },
           },
           sort: [
-            { workflowState: { order: "Descending" } },
+            { workflowState: { order: "Ascending" } },
             { priority: { nulls: "last", order: "Descending" } },
             { manual: { nulls: "last", order: "Ascending" } },
           ],
@@ -222,7 +222,7 @@ Deno.test("Issue Query Command - filters by exact workflow state name", async ()
           state: { name: { eqIgnoreCase: "Merged" } },
         },
         sort: [
-          { workflowState: { order: "Descending" } },
+          { workflowState: { order: "Ascending" } },
           { priority: { nulls: "last", order: "Descending" } },
           { manual: { nulls: "last", order: "Ascending" } },
         ],
@@ -265,7 +265,7 @@ Deno.test("Issue Query Command - Project scope does not require a default team",
       variables: {
         filter: { project: { id: { eq: projectId } } },
         sort: [
-          { workflowState: { order: "Descending" } },
+          { workflowState: { order: "Ascending" } },
           { priority: { nulls: "last", order: "Descending" } },
           { manual: { nulls: "last", order: "Ascending" } },
         ],
@@ -337,7 +337,7 @@ Deno.test("Issue Query Command - Explicit team narrows project scope", async () 
           project: { id: { eq: projectId } },
         },
         sort: [
-          { workflowState: { order: "Descending" } },
+          { workflowState: { order: "Ascending" } },
           { priority: { nulls: "last", order: "Descending" } },
           { manual: { nulls: "last", order: "Ascending" } },
         ],
@@ -1558,7 +1558,7 @@ Deno.test("Issue Query Command - Uses configured default team without project", 
       variables: {
         filter: { team: { key: { eq: "ENG" } } },
         sort: [
-          { workflowState: { order: "Descending" } },
+          { workflowState: { order: "Ascending" } },
           { priority: { nulls: "last", order: "Descending" } },
           { manual: { nulls: "last", order: "Ascending" } },
         ],
@@ -1663,7 +1663,7 @@ Deno.test("Issue Query Command - All Teams shows TEAM column", async () => {
       queryName: "GetIssuesForQuery",
       variables: {
         sort: [
-          { workflowState: { order: "Descending" } },
+          { workflowState: { order: "Ascending" } },
           { priority: { nulls: "last", order: "Descending" } },
           { manual: { nulls: "last", order: "Ascending" } },
         ],
