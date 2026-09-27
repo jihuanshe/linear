@@ -1,4 +1,5 @@
 import { completeIssueLabels } from "./issue-read.ts"
+import { completeRelationPreview } from "./issue-context.ts"
 import { gql } from "../__codegen__/gql.ts"
 import type {
   GetIssueDetailsQuery,
@@ -572,7 +573,7 @@ const issueDetailsWithCommentsQuery = gql(/* GraphQL */ `
         }
         pageInfo { hasNextPage endCursor }
       }
-      relations(first: 250) {
+      relations(first: 50) {
         nodes {
           id
           type
@@ -585,7 +586,7 @@ const issueDetailsWithCommentsQuery = gql(/* GraphQL */ `
           hasNextPage
         }
       }
-      inverseRelations(first: 250) {
+      inverseRelations(first: 50) {
         nodes {
           id
           type
@@ -655,7 +656,7 @@ const issueDetailsQuery = gql(/* GraphQL */ `
         }
         pageInfo { hasNextPage endCursor }
       }
-      relations(first: 250) {
+      relations(first: 50) {
         nodes {
           id
           type
@@ -668,7 +669,7 @@ const issueDetailsQuery = gql(/* GraphQL */ `
           hasNextPage
         }
       }
-      inverseRelations(first: 250) {
+      inverseRelations(first: 50) {
         nodes {
           id
           type
@@ -797,22 +798,24 @@ export async function fetchIssueDetailsRaw(
       id: issueReference,
     })
     if (data.issue == null) throw new NotFoundError("Issue", issueReference)
-    if (!complete) return data
+    const issue = await completeRelationPreview(data.issue)
+    if (!complete) return { ...data, issue }
     const [comments, attachments, labels] = await Promise.all([
-      fetchIssueComments(data.issue.id, 0, data.issue.comments),
-      completeIssueAttachments(data.issue.id, data.issue.attachments),
-      completeIssueLabels(data.issue.id, data.issue.labels),
+      fetchIssueComments(issue.id, 0, issue.comments),
+      completeIssueAttachments(issue.id, issue.attachments),
+      completeIssueLabels(issue.id, issue.labels),
     ])
-    return { ...data, issue: { ...data.issue, comments, attachments, labels } }
+    return { ...data, issue: { ...issue, comments, attachments, labels } }
   }
   const data = await client.request(issueDetailsQuery, { id: issueReference })
   if (data.issue == null) throw new NotFoundError("Issue", issueReference)
-  if (!complete) return data
+  const issue = await completeRelationPreview(data.issue)
+  if (!complete) return { ...data, issue }
   const [attachments, labels] = await Promise.all([
-    completeIssueAttachments(data.issue.id, data.issue.attachments),
-    completeIssueLabels(data.issue.id, data.issue.labels),
+    completeIssueAttachments(issue.id, issue.attachments),
+    completeIssueLabels(issue.id, issue.labels),
   ])
-  return { ...data, issue: { ...data.issue, attachments, labels } }
+  return { ...data, issue: { ...issue, attachments, labels } }
 }
 export type FetchedIssueComment =
   GetIssueDetailsWithCommentsQuery["issue"]["comments"]["nodes"][number]
@@ -1590,16 +1593,25 @@ export async function lookupProjectId(
 ): Promise<string | undefined> {
   if (isLinearUuid(input)) return input.toLowerCase()
 
-  const client = getGraphQLClient()
-
-  const nameQuery = gql(/* GraphQL */ `
-    query GetProjectIdByName(
-      $name: String!
+  // Both candidates travel in one request; name keeps precedence over slug ID.
+  const query = gql(/* GraphQL */ `
+    query LookupProjectCandidates(
+      $reference: String!
       $includeArchived: Boolean = false
     ) {
-      projects(
+      byName: projects(
         first: 2
-        filter: { name: { eq: $name } }
+        filter: { name: { eq: $reference } }
+        includeArchived: $includeArchived
+      ) {
+        nodes {
+          id
+        }
+        pageInfo { hasNextPage endCursor }
+      }
+      bySlugId: projects(
+        first: 2
+        filter: { slugId: { eq: $reference } }
         includeArchived: $includeArchived
       ) {
         nodes {
@@ -1609,35 +1621,12 @@ export async function lookupProjectId(
       }
     }
   `)
-  const nameData = await client.request(nameQuery, {
-    name: input,
+  const data = await getGraphQLClient().request(query, {
+    reference: input,
     ...(includeArchived === undefined ? {} : { includeArchived }),
   })
-  const nameMatch = uniqueLookupId(nameData?.projects, input, "Project")
-  if (nameMatch) return nameMatch
-
-  const slugQuery = gql(/* GraphQL */ `
-    query GetProjectIdBySlugId(
-      $slugId: String!
-      $includeArchived: Boolean = false
-    ) {
-      projects(
-        first: 2
-        filter: { slugId: { eq: $slugId } }
-        includeArchived: $includeArchived
-      ) {
-        nodes {
-          id
-        }
-        pageInfo { hasNextPage endCursor }
-      }
-    }
-  `)
-  const slugData = await client.request(slugQuery, {
-    slugId: input,
-    ...(includeArchived === undefined ? {} : { includeArchived }),
-  })
-  return uniqueLookupId(slugData?.projects, input, "Project")
+  return uniqueLookupId(data?.byName, input, "Project") ??
+    uniqueLookupId(data?.bySlugId, input, "Project")
 }
 
 function uniqueLookupId(
@@ -1802,24 +1791,44 @@ export async function lookupUserId(
     }
     return id
   }
+  // Precedence tiers travel in one request and are evaluated in order: an
+  // ambiguous earlier tier still fails before a later tier can match.
   const query = gql(`
-    query LookupUser($filter: UserFilter!) {
-      users(first: 2, filter: $filter) {
+    query LookupUserCandidates($reference: String!) {
+      byEmail: users(first: 2, filter: { email: { eqIgnoreCase: $reference } }) {
+        nodes { id }
+        pageInfo { hasNextPage endCursor }
+      }
+      byDisplayName: users(
+        first: 2
+        filter: { displayName: { eqIgnoreCase: $reference } }
+      ) {
+        nodes { id }
+        pageInfo { hasNextPage endCursor }
+      }
+      byName: users(first: 2, filter: { name: { eqIgnoreCase: $reference } }) {
+        nodes { id }
+        pageInfo { hasNextPage endCursor }
+      }
+      byNameContains: users(
+        first: 2
+        filter: { name: { containsIgnoreCaseAndAccent: $reference } }
+      ) {
         nodes { id }
         pageInfo { hasNextPage endCursor }
       }
     }
   `)
+  const data = await client.request(query, { reference: input })
   for (
-    const filter of [
-      { email: { eqIgnoreCase: input } },
-      { displayName: { eqIgnoreCase: input } },
-      { name: { eqIgnoreCase: input } },
-      { name: { containsIgnoreCaseAndAccent: input } },
+    const tier of [
+      data?.byEmail,
+      data?.byDisplayName,
+      data?.byName,
+      data?.byNameContains,
     ]
   ) {
-    const data = await client.request(query, { filter })
-    const id = uniqueLookupId(data?.users, input, "User")
+    const id = uniqueLookupId(tier, input, "User")
     if (id != null) return id
   }
   return undefined
