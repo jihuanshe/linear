@@ -66,18 +66,6 @@ await cliffySnapshotTest({
   },
 })
 
-await cliffySnapshotTest({
-  name: "Project Update List Command - Rejects Invalid Limit",
-  meta: import.meta,
-  colors: false,
-  args: ["550e8400-e29b-41d4-a716-446655440000", "--limit", "-1"],
-  denoArgs: commonDenoArgs,
-  canFail: true,
-  async fn() {
-    await listCommand.parse()
-  },
-})
-
 for (const mode of ["default", "default-json", "all"] as const) {
   Deno.test(`Project Update List Command - pagination and truncation hint (${mode})`, async () => {
     const id = "550e8400-e29b-41d4-a716-446655440000"

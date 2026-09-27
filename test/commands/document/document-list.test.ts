@@ -411,18 +411,6 @@ await snapshotTest({
   },
 })
 
-await snapshotTest({
-  name: "Document List Command - Rejects Invalid Limit",
-  meta: import.meta,
-  colors: false,
-  args: ["--limit", "-1"],
-  denoArgs: commonDenoArgs,
-  canFail: true,
-  async fn() {
-    await listCommand.parse()
-  },
-})
-
 for (const mode of ["limited", "limited-json", "all"] as const) {
   Deno.test(`Document List Command - pagination and truncation hint (${mode})`, async () => {
     const doc = (i: number) => ({

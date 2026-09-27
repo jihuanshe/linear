@@ -38,6 +38,7 @@ import {
   NotFoundError,
   ValidationError,
 } from "../../utils/errors.ts"
+import { limitType } from "../../utils/pagination.ts"
 
 const SortType = new EnumType(["manual", "priority"])
 const StateType = new EnumType([
@@ -265,8 +266,9 @@ export const queryCommand = withUsageMetadata(new Command(), {
     "Filter by label name (can be repeated for multiple labels)",
     { collect: true },
   )
+  .type("limit", limitType)
   .option(
-    "--limit <limit:number>",
+    "--limit <limit:limit>",
     "Maximum number of issues to fetch (default: 50, use 0 for unlimited)",
     { default: 50 },
   )
@@ -527,10 +529,6 @@ export const queryCommand = withUsageMetadata(new Command(), {
               "Search results use relevance ordering. Remove --sort when using --search.",
           },
         )
-      }
-
-      if (limit < 0) {
-        throw new ValidationError("--limit must be 0 or greater")
       }
 
       // --- Team scope resolution ---

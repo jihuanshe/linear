@@ -3,6 +3,7 @@ import { fetchIssueComments, getIssueReference } from "../../utils/linear.ts"
 import { formatRelativeTime } from "../../utils/display.ts"
 import { bold } from "@std/fmt/colors"
 import { handleError, ValidationError } from "../../utils/errors.ts"
+import { limitType } from "../../utils/pagination.ts"
 
 export const commentListCommand = new Command()
   .name("list")
@@ -10,8 +11,9 @@ export const commentListCommand = new Command()
     "List comments for an issue by UUID, identifier (e.g. ENG-123), number in the configured team, or Linear URL; omit to use the current Git or Jujutsu context",
   )
   .arguments("[issue:string]")
+  .type("limit", limitType)
   .option(
-    "--limit <limit:number>",
+    "--limit <limit:limit>",
     "Maximum number of comments (use 0 for all pages)",
     { default: 50 },
   )
@@ -23,9 +25,6 @@ export const commentListCommand = new Command()
     const { json, limit } = options
 
     try {
-      if (!Number.isSafeInteger(limit) || limit < 0) {
-        throw new ValidationError("--limit must be a non-negative integer")
-      }
       const issueReference = await getIssueReference(issueArg)
       if (!issueReference) {
         throw new ValidationError(
