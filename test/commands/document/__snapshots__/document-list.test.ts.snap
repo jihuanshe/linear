@@ -56,6 +56,6 @@ snapshot[`Document List Command - Rejects Invalid Limit 1`] = `
 stdout:
 ""
 stderr:
-"✗ Failed to list documents: --limit must be a positive integer
+"✗ Failed to list documents: --limit must be a non-negative integer
 "
 `;

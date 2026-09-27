@@ -43,3 +43,21 @@ export async function completeConnection<T>(
     )
   }
 }
+
+/**
+ * Human output hides pageInfo, so say on stderr when --limit left more pages.
+ * stdout stays unchanged; JSON callers keep pageInfo instead.
+ */
+export function warnIfTruncated(
+  connection: { nodes: unknown[]; pageInfo: { hasNextPage: boolean } },
+  singular: string,
+  plural: string,
+): void {
+  if (!connection.pageInfo.hasNextPage) return
+  const count = connection.nodes.length
+  console.error(
+    `Showing the first ${count} ${
+      count === 1 ? singular : plural
+    }; more exist. Use --limit 0 to fetch all pages.`,
+  )
+}

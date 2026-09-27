@@ -10,6 +10,7 @@ import {
   resolveProjectId,
 } from "../../utils/linear.ts"
 import { shouldShowSpinner } from "../../utils/hyperlink.ts"
+import { completeConnection, warnIfTruncated } from "../../utils/pagination.ts"
 import {
   handleError,
   NotFoundError,
@@ -17,8 +18,8 @@ import {
 } from "../../utils/errors.ts"
 
 const ListDocuments = gql(`
-  query ListDocuments($filter: DocumentFilter, $first: Int) {
-    documents(filter: $filter, first: $first) {
+  query ListDocuments($filter: DocumentFilter, $first: Int, $after: String) {
+    documents(filter: $filter, first: $first, after: $after) {
       nodes {
         id
         title
@@ -58,10 +59,15 @@ export const listCommand = new Command()
     "Filter by issue (UUID, identifier, number in the configured team, or Linear URL)",
     { preserveEmpty: true },
   )
-  .option("--json", "Output as JSON")
-  .option("--limit <limit:number>", "Maximum results (positive integer)", {
-    default: 50,
-  })
+  .option(
+    "--json",
+    "Output {nodes, pageInfo}; pageInfo.hasNextPage is true when --limit left more documents",
+  )
+  .option(
+    "--limit <limit:number>",
+    "Maximum number of documents (use 0 for all pages)",
+    { default: 50 },
+  )
   .action(async ({ project, issue, json, limit }) => {
     const { Spinner } = await import("@std/cli/unstable-spinner")
     const showSpinner = shouldShowSpinner() && !json
@@ -69,8 +75,8 @@ export const listCommand = new Command()
     spinner?.start()
 
     try {
-      if (!Number.isSafeInteger(limit) || limit < 1) {
-        throw new ValidationError("--limit must be a positive integer")
+      if (!Number.isSafeInteger(limit) || limit < 0) {
+        throw new ValidationError("--limit must be a non-negative integer")
       }
 
       // Build filter based on options
@@ -101,19 +107,19 @@ export const listCommand = new Command()
       }
 
       const client = getGraphQLClient()
-      const result = await client.request(ListDocuments, {
-        filter,
-        first: limit,
-      })
+      const fetchPage = async (
+        after?: string,
+        first = limit > 0 ? Math.min(100, limit) : 100,
+      ) =>
+        (await client.request(ListDocuments, { filter, first, after }))
+          .documents
+      const documentsConnection = await completeConnection(
+        await fetchPage(),
+        fetchPage,
+        "documents",
+        limit,
+      )
       spinner?.stop()
-
-      const documentsConnection = result.documents ?? {
-        nodes: [],
-        pageInfo: {
-          hasNextPage: false,
-          endCursor: null,
-        },
-      }
       const documents = documentsConnection.nodes
 
       if (json) {
@@ -187,6 +193,7 @@ export const listCommand = new Command()
           } ${rgb24(padDisplay(updated, UPDATED_WIDTH), 0x808080)}`,
         )
       }
+      warnIfTruncated(documentsConnection, "document", "documents")
     } catch (error) {
       spinner?.stop()
       handleError(error, "Failed to list documents")
