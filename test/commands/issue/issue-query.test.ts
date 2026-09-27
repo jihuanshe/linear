@@ -1058,7 +1058,21 @@ for (const testCase of linearUrlCases) {
         queryName: "ResolveIssueUrlReference",
         variables: { id: testCase.resolution.requested },
         response: testCase.issue == null
-          ? { errors: [{ message: "Entity not found: Issue" }] }
+          ? {
+            // Real Linear response shape for an unknown identifier (HTTP 400).
+            errors: [{
+              message: "Entity not found: Issue",
+              path: ["issue"],
+              extensions: {
+                type: "invalid input",
+                code: "INPUT_ERROR",
+                statusCode: 400,
+                userError: true,
+                userPresentableMessage: "Could not find referenced Issue.",
+              },
+            }],
+            data: null,
+          }
           : {
             data: {
               issue: {

@@ -364,8 +364,19 @@ export function extractGraphQLMessage(error: ClientError): string {
  * Check if a GraphQL error indicates an entity was not found.
  */
 export function isNotFoundError(error: ClientError): boolean {
-  const message = extractGraphQLMessage(error).toLowerCase()
-  return message.includes("not found") || message.includes("entity not found")
+  // Linear pairs the raw message ("Entity not found: Issue") with a user-facing
+  // one ("Could not find referenced Issue."); extractGraphQLMessage prefers the
+  // latter, so both have to be checked.
+  const firstError = error.response?.errors?.[0]
+  const texts = [
+    firstError?.message,
+    firstError?.extensions?.userPresentableMessage as string | undefined,
+    error.message,
+  ]
+  return texts.some((text) => {
+    const lower = text?.toLowerCase() ?? ""
+    return lower.includes("not found") || lower.includes("could not find")
+  })
 }
 
 /**
