@@ -83,16 +83,36 @@ export async function addIssueFavorite(
   const issue = await resolveIssue(reference)
   const existing = issue.favorite
   if (existing != null) {
+    if (
+      folderName != null && existing.parent?.folderName !== folderName
+    ) {
+      const current = existing.parent?.folderName == null
+        ? "the root favorites list"
+        : `folder ${JSON.stringify(existing.parent.folderName)}`
+      throw new ValidationError(
+        `Issue ${issue.identifier} is already favorited in ${current}; cannot place it in folder ${
+          JSON.stringify(folderName)
+        } without removing it first`,
+      )
+    }
     return writeResult({ issue, favorite: existing }, { effect: "none" })
   }
   let parentId: string | undefined
   if (folderName != null) {
-    const folder = (await listFavorites()).nodes.find((favorite) =>
+    const folders = (await listFavorites()).nodes.filter((favorite) =>
       favorite.type === "folder" && favorite.folderName === folderName
     )
-    if (folder == null) {
+    if (folders.length === 0) {
       throw new ValidationError(`Favorite folder not found: ${folderName}`)
     }
+    if (folders.length > 1) {
+      throw new ValidationError(
+        `Favorite folder name is ambiguous: ${
+          JSON.stringify(folderName)
+        } matches ${folders.length} folders`,
+      )
+    }
+    const folder = folders[0]
     parentId = folder.id
   }
   const data = await getGraphQLClient().request(CreateFavorite, {

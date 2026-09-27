@@ -1,4 +1,4 @@
-import { assertEquals } from "@std/assert"
+import { assertEquals, assertStringIncludes } from "@std/assert"
 import { stub } from "@std/testing/mock"
 import { favoriteCommand } from "../../../src/commands/issue/issue-favorite.ts"
 import { setupMockLinearServer } from "../../utils/test-helpers.ts"
@@ -38,12 +38,29 @@ const favorites = (nodes: unknown[]) => ({
 async function run(args: string[]) {
   const output: string[] = []
   const log = stub(console, "log", (value: string) => output.push(value))
+  const exit = stub(Deno, "exit", () => undefined as never)
   try {
     await favoriteCommand.parse([...args, "--json"])
   } finally {
+    exit.restore()
     log.restore()
   }
   return JSON.parse(output.join("\n"))
+}
+
+async function runError(args: string[]) {
+  const errors: string[] = []
+  const error = stub(console, "error", (...values: unknown[]) => {
+    errors.push(values.map(String).join(" "))
+  })
+  const exit = stub(Deno, "exit", () => undefined as never)
+  try {
+    await favoriteCommand.parse([...args, "--json"])
+  } finally {
+    exit.restore()
+    error.restore()
+  }
+  return errors.join("\n")
 }
 
 function mutations(
@@ -153,6 +170,43 @@ Deno.test("favorite add places an issue under an existing folder", async () => {
       mutations(server).map((request) => request.variables),
       [{ input: { issueId: issue.id, parentId: folder.id } }],
     )
+  } finally {
+    await cleanup()
+  }
+})
+
+Deno.test("favorite add rejects a conflicting folder for an existing favorite", async () => {
+  const { server, cleanup } = await setupMockLinearServer([
+    headerWithFavorite,
+  ])
+  try {
+    const result = await runError(["add", "ENG-123", "--folder", "Inbox"])
+    assertStringIncludes(result, "already favorited")
+    assertStringIncludes(result, "cannot place it in folder")
+    assertEquals(mutations(server).length, 0)
+  } finally {
+    await cleanup()
+  }
+})
+
+Deno.test("favorite add rejects ambiguous folder names", async () => {
+  const folder = {
+    id: "folder-1",
+    type: "folder",
+    title: "Inbox",
+    url: null,
+    folderName: "Inbox",
+    parent: null,
+    issue: null,
+  }
+  const { server, cleanup } = await setupMockLinearServer([
+    header,
+    favorites([folder, { ...folder, id: "folder-2" }]),
+  ])
+  try {
+    const result = await runError(["add", "ENG-123", "--folder", "Inbox"])
+    assertStringIncludes(result, "ambiguous")
+    assertEquals(mutations(server).length, 0)
   } finally {
     await cleanup()
   }
