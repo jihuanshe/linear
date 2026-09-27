@@ -128,7 +128,7 @@ mise run hooks:install
 mise exec -- deno task verify-release
 ```
 
-pre-commit hook 只检查暂存文件的 Deno 格式、Markdown 结构和中英文排版，不自动改文件。手动全量检查用 `mise exec -- prek run --all-files`；单独检查结构用 `mise exec -- deno task lint:markdown`，排版用 `mise exec -- deno task lint:copy`。Markdown 格式由 Deno 负责，markdownlint 关闭与 `proseWrap: "never"` 冲突的行长规则；AutoCorrect 检查 Markdown 文案，代码块保留原样。
+pre-commit hook 只检查暂存文件的 Deno 格式、Markdown 结构和中英文排版，不自动改文件。hook 脚本记录安装时 prek 的绝对路径，`mise.toml` 升级 prek 后需重新运行 `mise run hooks:install`，否则 hook 仍调用旧版本。手动全量检查用 `mise exec -- prek run --all-files`；单独检查结构用 `mise exec -- deno task lint:markdown`，排版用 `mise exec -- deno task lint:copy`。Markdown 格式由 Deno 负责，markdownlint 关闭与 `proseWrap: "never"` 冲突的行长规则；AutoCorrect 检查 Markdown 文案，代码块保留原样。
 
 `deno task verify-release` 是本地完整门禁，也是 Pull Request 的源码门禁。它会生成 GraphQL 类型、检查格式、代码 lint、Markdown 结构与文案排版、执行类型检查，并运行除 Linux 密钥环集成测试外的测试。具体模块、指南、真实 API 实验和发布约束见 [`AGENTS.md`](AGENTS.md)；`main` 的滚动发布只按[发布 Skill](.agents/skills/releasing/SKILL.md)执行。
 

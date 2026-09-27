@@ -8,6 +8,7 @@ import { openProjectPage } from "../../utils/actions.ts"
 import { shouldShowSpinner } from "../../utils/hyperlink.ts"
 import { handleError, NotFoundError } from "../../utils/errors.ts"
 import { completeProjectCollections } from "./project-read.ts"
+import { completeConnection } from "../../utils/pagination.ts"
 import { resolveProjectId } from "../../utils/linear.ts"
 
 const GetProjectDetails = gql(`
@@ -59,17 +60,8 @@ const GetProjectDetails = gql(`
         nodes { id name }
         pageInfo { hasNextPage endCursor }
       }
-      issues {
-        nodes {
-          id
-          identifier
-          title
-          state {
-            name
-            type
-          }
-        }
-        pageInfo { hasNextPage endCursor }
+      issues(first: 100) {
+        ...ProjectIssuePage
       }
       lastUpdate {
         id
@@ -80,6 +72,30 @@ const GetProjectDetails = gql(`
           name
           displayName
         }
+      }
+    }
+  }
+  fragment ProjectIssuePage on IssueConnection {
+    nodes {
+      id
+      identifier
+      title
+      state {
+        name
+        type
+      }
+    }
+    pageInfo { hasNextPage endCursor }
+  }
+`)
+
+// The issue summary counts every Issue, so the connection is read to the end.
+const GetProjectIssues = gql(`
+  query GetProjectIssues($id: String!, $first: Int!, $after: String!) {
+    project(id: $id) {
+      id
+      issues(first: $first, after: $after) {
+        ...ProjectIssuePage
       }
     }
   }
@@ -94,7 +110,10 @@ export const viewCommand = new Command()
   .arguments("<project:string>")
   .option("-w, --web", "Open in web browser")
   .option("-a, --app", "Open in Linear.app")
-  .option("-j, --json", "Output JSON, including archivedAt and trashed")
+  .option(
+    "-j, --json",
+    "Output JSON, including archivedAt and trashed; teams, labels and issues keep {nodes, pageInfo} with every page read",
+  )
   .option("--include-content", "Include the project's content", {
     default: true,
   })
@@ -118,12 +137,28 @@ export const viewCommand = new Command()
         id: resolvedId,
         includeContent: includeContent === true,
       })
-      spinner?.stop()
 
       const project = result.project
       if (!project) {
+        spinner?.stop()
         throw new NotFoundError("Project", projectReference)
       }
+      project.issues = await completeConnection(
+        project.issues,
+        async (after, first) => {
+          const next = await client.request(GetProjectIssues, {
+            id: project.id,
+            first,
+            after,
+          })
+          if (next.project?.id !== project.id) {
+            throw new NotFoundError("Project", project.id)
+          }
+          return next.project.issues
+        },
+        `issues for project ${project.id}`,
+      )
+      spinner?.stop()
 
       if (json) {
         await completeProjectCollections(client, project)
@@ -275,11 +310,7 @@ export const viewCommand = new Command()
         const backlog = issuesByState.backlog || 0
         const triage = issuesByState.triage || 0
 
-        lines.push(
-          project.issues.pageInfo?.hasNextPage
-            ? `**Issues in this page:** ${total} (more available)`
-            : `**Total Issues:** ${total}`,
-        )
+        lines.push(`**Total Issues:** ${total}`)
         if (completed > 0) lines.push(`**Completed:** ${completed}`)
         if (started > 0) lines.push(`**In Progress:** ${started}`)
         if (unstarted > 0) lines.push(`**To Do:** ${unstarted}`)

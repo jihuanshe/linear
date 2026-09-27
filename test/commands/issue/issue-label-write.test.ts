@@ -649,9 +649,29 @@ Deno.test("interactive create retains sequential label candidate prompts", async
         data: { issueLabels: { nodes: [], pageInfo: terminalPage } },
       },
     },
+    // Candidates beyond Linear's first page must still be offered.
     {
       queryName: "GetIssueLabelIdOptionsByNameForTeam",
-      response: { data: { issueLabels: { nodes: labels.slice(0, 2) } } },
+      variables: { after: "options-1" },
+      response: {
+        data: {
+          issueLabels: {
+            nodes: labels.slice(1, 2),
+            pageInfo: { hasNextPage: false, endCursor: "options-2" },
+          },
+        },
+      },
+    },
+    {
+      queryName: "GetIssueLabelIdOptionsByNameForTeam",
+      response: {
+        data: {
+          issueLabels: {
+            nodes: labels.slice(0, 1),
+            pageInfo: { hasNextPage: true, endCursor: "options-1" },
+          },
+        },
+      },
     },
   ])
   using prompt = stub(Select, "prompt", () => Promise.resolve(backendId))
@@ -670,9 +690,22 @@ Deno.test("interactive create retains sequential label candidate prompts", async
       [
         "GetIssueLabelIdByNameForTeam",
         "GetIssueLabelIdOptionsByNameForTeam",
+        "GetIssueLabelIdOptionsByNameForTeam",
         "GetIssueLabelIdByNameForTeam",
         "GetIssueLabelIdOptionsByNameForTeam",
+        "GetIssueLabelIdOptionsByNameForTeam",
       ],
+    )
+    assertEquals(
+      server.graphqlRequests.filter((r) =>
+        r.query.includes("query GetIssueLabelIdOptionsByNameForTeam")
+      ).map((r) => r.variables.after ?? null),
+      [null, "options-1", null, "options-1"],
+    )
+    assertEquals(
+      (prompt.calls[0].args[0] as { options: { value: unknown }[] }).options
+        .map((option) => option.value).slice(0, 2),
+      [backendId, frontendId], // sorted by name
     )
     assertEquals(
       (writes(server.graphqlRequests)[0].variables.input as Record<

@@ -65,10 +65,6 @@ snapshot[`usage JSON describes command metadata 1`] = `
         name: "issue-delivery",
       },
       {
-        description: "解释只读健康检查的候选，保留判断依据并复查结果",
-        name: "doctor",
-      },
-      {
         description: "通过 API 编写 Linear 提及与可折叠正文，查找真实成员 URL",
         name: "markdown",
       },
@@ -152,12 +148,12 @@ snapshot[`usage JSON describes command metadata 1`] = `
       details: "linear issue query --help",
       guides: [
         {
-          description: "保存原始依据、比较原始值并解释 JSON 写入效果与分页",
-          name: "automation",
+          description: "选择命令、核对工作区、确定查询范围与写入授权",
+          name: "core",
         },
         {
-          description: "解释只读健康检查的候选，保留判断依据并复查结果",
-          name: "doctor",
+          description: "保存原始依据、比较原始值并解释 JSON 写入效果与分页",
+          name: "automation",
         },
       ],
       hasSubcommands: false,
@@ -212,6 +208,40 @@ snapshot[`usage JSON describes command metadata 1`] = `
             "--url-file",
           ],
           name: "url-file",
+          repeatable: false,
+          staticallyRequired: false,
+        },
+        {
+          arguments: [
+            {
+              name: "identifier",
+              required: true,
+              type: "string",
+              variadic: false,
+            },
+          ],
+          description: "Read issues by identifier across all teams (repeatable; duplicates are read once). Identifiers from before a team move resolve to the current issue, and archived and trashed issues are included. JSON returns {nodes, pageInfo, resolutions: [{requested, status: found|moved|trashed|archived|not_found, identifier?}], reconciliation: {requested, read, missing}}: nodes holds each distinct issue once in request order, pageInfo.hasNextPage is always false, and requested = read + missing is checked (a mismatch fails with a non-zero exit). Cannot be combined with filters, --search, or --url; --limit is ignored",
+          flags: [
+            "--id",
+          ],
+          name: "id",
+          repeatable: true,
+          staticallyRequired: false,
+        },
+        {
+          arguments: [
+            {
+              name: "path",
+              required: true,
+              type: "string",
+              variadic: false,
+            },
+          ],
+          description: "Read issues for one identifier per line (blank lines and lines starting with # are ignored); same result and reconciliation as --id",
+          flags: [
+            "--id-file",
+          ],
+          name: "id-file",
           repeatable: false,
           staticallyRequired: false,
         },
@@ -666,7 +696,7 @@ Output starts with a Context section: assignee vs. the current account, parent, 
         },
         {
           arguments: [],
-          description: "Output {organization, viewer, issue, contextSummary} without a write envelope; the issue is in issue. Includes all fetched threads (even resolved) and issue.history (latest 50); comments and attachments retain {nodes, pageInfo}",
+          description: "Output {organization, viewer, issue, contextSummary} without a write envelope; the issue is in issue. Includes all fetched threads (even resolved) and issue.history (latest 50); comments, attachments and documents retain {nodes, pageInfo} with every page read",
           flags: [
             "-j",
             "--json",

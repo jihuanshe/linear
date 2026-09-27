@@ -10,10 +10,23 @@ import { getWorkspaceUrl } from "../../utils/actions.ts"
 import { shouldShowSpinner } from "../../utils/hyperlink.ts"
 import { handleError, NotFoundError } from "../../utils/errors.ts"
 import { parseInitiativeStatus } from "./initiative-status.ts"
+import { completeConnection } from "../../utils/pagination.ts"
 
+// 25 initiatives per page: Linear prices the nested projects page by its size,
+// so 50 initiatives x 50 projects cost 9,120 of the 10,000 single-query limit
+// and 25 cost 4,560 (x-complexity, measured 2026-09-27).
 const GetInitiatives = gql(`
-  query GetInitiatives($filter: InitiativeFilter, $includeArchived: Boolean) {
-    initiatives(filter: $filter, includeArchived: $includeArchived) {
+  query GetInitiatives(
+    $filter: InitiativeFilter
+    $includeArchived: Boolean
+    $after: String
+  ) {
+    initiatives(
+      filter: $filter
+      includeArchived: $includeArchived
+      first: 25
+      after: $after
+    ) {
       nodes {
         id
         slugId
@@ -32,19 +45,35 @@ const GetInitiatives = gql(`
           displayName
           initials
         }
-        projects {
-          nodes {
-            id
-            name
-            status {
-              name
-            }
-          }
+        projects(first: 50) {
+          ...InitiativeProjectPage
         }
       }
       pageInfo {
         hasNextPage
         endCursor
+      }
+    }
+  }
+  fragment InitiativeProjectPage on ProjectConnection {
+    nodes {
+      id
+      name
+      status {
+        name
+      }
+    }
+    pageInfo { hasNextPage endCursor }
+  }
+`)
+
+// Only initiatives with more than one page of projects need this follow-up.
+const GetInitiativeProjects = gql(`
+  query GetInitiativeProjects($id: String!, $first: Int!, $after: String!) {
+    initiative(id: $id) {
+      id
+      projects(first: $first, after: $after) {
+        ...InitiativeProjectPage
       }
     }
   }
@@ -113,19 +142,36 @@ export const listCommand = new Command()
       }
 
       const client = getGraphQLClient()
-      const result = await client.request(GetInitiatives, {
-        filter: Object.keys(filter).length > 0 ? filter : undefined,
-        includeArchived: archived || false,
-      })
-      spinner?.stop()
-
-      const initiativesConnection = result.initiatives ?? {
-        nodes: [],
-        pageInfo: {
-          hasNextPage: false,
-          endCursor: null,
-        },
+      const readPage = async (after?: string) =>
+        (await client.request(GetInitiatives, {
+          filter: Object.keys(filter).length > 0 ? filter : undefined,
+          includeArchived: archived || false,
+          after,
+        })).initiatives
+      const initiativesConnection = await completeConnection(
+        await readPage(),
+        readPage,
+        "initiatives",
+      )
+      // The PROJ column counts every project, so nested pages are read too.
+      for (const initiative of initiativesConnection.nodes) {
+        initiative.projects = await completeConnection(
+          initiative.projects,
+          async (after, first) => {
+            const next = await client.request(GetInitiativeProjects, {
+              id: initiative.id,
+              first,
+              after,
+            })
+            if (next.initiative?.id !== initiative.id) {
+              throw new NotFoundError("Initiative", initiative.id)
+            }
+            return next.initiative.projects
+          },
+          `projects for initiative ${initiative.id}`,
+        )
       }
+      spinner?.stop()
 
       let initiatives = initiativesConnection.nodes
 

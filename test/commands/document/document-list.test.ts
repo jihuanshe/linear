@@ -191,23 +191,15 @@ for (const kind of ["UUID", "name", "slug", "unknown"] as const) {
       : "Tech Debt"
     const server = new MockLinearServer([
       {
-        queryName: "GetProjectIdByName",
-        variables: { name: project },
+        queryName: "LookupProjectCandidates",
+        variables: { reference: project },
         response: {
           data: {
-            projects: {
+            byName: {
               nodes: kind === "name" ? [{ id }] : [],
               pageInfo: { hasNextPage: false, endCursor: null },
             },
-          },
-        },
-      },
-      {
-        queryName: "GetProjectIdBySlugId",
-        variables: { slugId: project },
-        response: {
-          data: {
-            projects: {
+            bySlugId: {
               nodes: kind === "slug" ? [{ id }] : [],
               pageInfo: { hasNextPage: false, endCursor: null },
             },
@@ -256,13 +248,12 @@ for (const kind of ["UUID", "name", "slug", "unknown"] as const) {
         server.graphqlRequests.map((request) =>
           request.query.match(/(?:query|mutation)\s+(\w+)/)?.[1]
         ),
+        // Name and slug ID candidates are resolved by one lookup request.
         kind === "UUID"
           ? ["ListDocuments"]
-          : kind === "name"
-          ? ["GetProjectIdByName", "ListDocuments"]
-          : kind === "slug"
-          ? ["GetProjectIdByName", "GetProjectIdBySlugId", "ListDocuments"]
-          : ["GetProjectIdByName", "GetProjectIdBySlugId"],
+          : kind === "unknown"
+          ? ["LookupProjectCandidates"]
+          : ["LookupProjectCandidates", "ListDocuments"],
       )
       if (kind === "unknown") {
         const error = JSON.parse(stdout)

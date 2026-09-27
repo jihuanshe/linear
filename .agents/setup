@@ -4,6 +4,7 @@ set -euo pipefail
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
 tool_root="$HOME/.local/share/amp/jihuanshe-linear"
 bin_dir="$tool_root/bin"
+path_bin_dir="$HOME/.local/bin"
 
 if [[ "${AMP_ORB-}" != "1" ]]; then
   echo "This lifecycle script is supported only inside an Amp Orb" >&2
@@ -16,9 +17,17 @@ if [[ "$repo_root" != "$expected_repo_root" ]]; then
   exit 1
 fi
 
+# .agents/resume resolves mise, deno and linear through PATH, and the mise
+# installer writes to this directory. Fail before downloading anything instead
+# of finishing the install and then reporting mise as missing.
+if [[ ":$PATH:" != *":$path_bin_dir:"* ]]; then
+  echo "$path_bin_dir is not on PATH; add it before rerunning .agents/setup" >&2
+  exit 1
+fi
+
 mise_bin="$(command -v mise || true)"
 if [[ -z "$mise_bin" ]]; then
-  mise_bin="$HOME/.local/bin/mise"
+  mise_bin="$path_bin_dir/mise"
   if [[ ! -e "$mise_bin" && ! -L "$mise_bin" ]]; then
     curl -fsSL https://mise.run | sh
   fi
@@ -35,5 +44,4 @@ cd "$repo_root"
 echo "Generating GraphQL types"
 "$bin_dir/deno" task generate-graphql-types
 
-"$mise_bin" -C "$repo_root" run hooks:install
 echo "The pinned toolchain, pre-commit checks and linear source wrapper are ready"

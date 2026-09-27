@@ -17,12 +17,36 @@ Deno.test("config wizard selects a team UUID but writes only its team_key", asyn
     key: "ENG",
     name: "Engineering",
   }
+  // The selected team sits on the second page of teams.
+  const other = {
+    id: "33333333-3333-4333-8333-333333333333",
+    key: "ADM",
+    name: "Admin",
+  }
   const server = new MockLinearServer([{
     queryName: "Config",
     response: {
+      data: { viewer: { organization: { urlKey: "fixture-workspace" } } },
+    },
+  }, {
+    queryName: "GetAllTeams",
+    variables: { after: "teams-1" },
+    response: {
       data: {
-        viewer: { organization: { urlKey: "fixture-workspace" } },
-        teams: { nodes: [team] },
+        teams: {
+          nodes: [team],
+          pageInfo: { hasNextPage: false, endCursor: "teams-2" },
+        },
+      },
+    },
+  }, {
+    queryName: "GetAllTeams",
+    response: {
+      data: {
+        teams: {
+          nodes: [other],
+          pageInfo: { hasNextPage: true, endCursor: "teams-1" },
+        },
       },
     },
   }])
@@ -48,9 +72,12 @@ Deno.test("config wizard selects a team UUID but writes only its team_key", asyn
           Select.prompt = (options) => {
             messages.push(options.message);
             if (options.message === "Select a team:") {
-              assertEquals(options.options, [{ name: "Engineering (ENG)", value: ${
+              assertEquals(options.options, [
+                { name: "Admin (ADM)", value: ${JSON.stringify(other.id)} },
+                { name: "Engineering (ENG)", value: ${
           JSON.stringify(team.id)
-        } }]);
+        } },
+              ]);
               return Promise.resolve(${JSON.stringify(team.id)});
             }
             assertEquals(options.message, "Select sort order:");
@@ -84,7 +111,10 @@ Deno.test("config wizard selects a team UUID but writes only its team_key", asyn
       team_key: team.key,
       issue_sort: "priority",
     })
-    assertEquals(server.graphqlRequests.length, 1)
+    assertEquals(
+      server.graphqlRequests.map((request) => request.variables.after ?? null),
+      [null, null, "teams-1"],
+    )
   } finally {
     await server.stop()
     await Deno.remove(root, { recursive: true })
