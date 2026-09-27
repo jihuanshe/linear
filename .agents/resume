@@ -122,3 +122,8 @@ assert_resolution deno
 assert_resolution linear
 
 "$path_bin_dir/deno" --version >/dev/null
+
+# prek install records the absolute path of the prek binary that wrote the
+# hook. Reinstall on every resume so a checkout that moved to another pinned
+# prek version does not keep calling the previous one.
+"$mise_bin" -C "$repo_root" run --quiet hooks:install >/dev/null
