@@ -150,7 +150,9 @@ export class MockLinearServer {
           )
           : mockResponse.response
         return new Response(
-          JSON.stringify(response),
+          JSON.stringify(
+            withExistingFilterReferences(response, variables ?? {}),
+          ),
           {
             status: mockResponse.status ?? 200,
             headers: { ...headers, ...mockResponse.headers },
@@ -243,4 +245,76 @@ export class MockLinearServer {
   clearResponses(): void {
     this.mockResponses = []
   }
+}
+
+/** Alias, flag variable, filter variable and node field of each check. */
+const FILTER_REFERENCE_CHECKS = [
+  ["referenceTeams", "checkTeamReferences", "teamReferenceFilter", "key"],
+  [
+    "referenceWorkflowStates",
+    "checkWorkflowStateReferences",
+    "workflowStateReferenceFilter",
+    "name",
+  ],
+  [
+    "referenceIssueLabels",
+    "checkIssueLabelReferences",
+    "issueLabelReferenceFilter",
+    "name",
+  ],
+  [
+    "referenceProjectLabels",
+    "checkProjectLabelReferences",
+    "projectLabelReferenceFilter",
+    "name",
+  ],
+  [
+    "referenceProjects",
+    "checkProjectReferences",
+    "projectReferenceFilter",
+    "id",
+  ],
+  [
+    "referenceMilestones",
+    "checkMilestoneReferences",
+    "milestoneReferenceFilter",
+    "id",
+  ],
+] as const
+
+function filterValues(filter: unknown, field: string): string[] {
+  if (filter == null || typeof filter !== "object") return []
+  const record = filter as Record<string, unknown>
+  if (Array.isArray(record.or)) {
+    return record.or.flatMap((clause) => filterValues(clause, field))
+  }
+  const comparator = record[field] as Record<string, unknown> | undefined
+  if (comparator == null) return []
+  if (Array.isArray(comparator.in)) return comparator.in as string[]
+  const value = comparator.eqIgnoreCase ?? comparator.eq
+  return typeof value === "string" ? [value] : []
+}
+
+/**
+ * Like Linear, answer the filter reference checks a request asked for. Unless
+ * a mock sets the alias itself, every requested value exists, so only tests
+ * about missing values have to describe the checks.
+ */
+function withExistingFilterReferences(
+  response: Record<string, unknown>,
+  variables: Record<string, unknown>,
+): Record<string, unknown> {
+  const data = response.data
+  if (data == null || typeof data !== "object") return response
+  const filled: Record<string, unknown> = { ...data }
+  for (const [alias, flag, filter, field] of FILTER_REFERENCE_CHECKS) {
+    if (variables[flag] !== true || alias in filled) continue
+    filled[alias] = {
+      nodes: filterValues(variables[filter], field).map((value) => ({
+        [field]: value,
+      })),
+      pageInfo: { hasNextPage: false },
+    }
+  }
+  return { ...response, data: filled }
 }

@@ -174,9 +174,18 @@ for (
       nodes: [],
       pageInfo: { hasNextPage: false, endCursor: null },
     }
+    // project list checks --status-name against the workspace statuses.
+    const statuses = queryName === "GetProjects"
+      ? {
+        projectStatuses: {
+          nodes: values.map((name) => ({ name })),
+          pageInfo: { hasNextPage: false },
+        },
+      }
+      : {}
     const { server, cleanup } = await setupMockLinearServer([{
       queryName,
-      response: { data: { [field]: connection } },
+      response: { data: { [field]: connection, ...statuses } },
     }])
     const env = {
       LINEAR_API_KEY: "test-token",

@@ -11,9 +11,21 @@ import { padDisplay } from "../../utils/display.ts"
 import { getTeamKey } from "../../utils/linear.ts"
 import { shouldShowSpinner } from "../../utils/hyperlink.ts"
 import { handleError, ValidationError } from "../../utils/errors.ts"
+import {
+  assertFilterReferences,
+  type FilterReference,
+  filterReferenceVariables,
+} from "../../utils/filter-references.ts"
 
 const GetIssueLabels = gql(`
-  query GetIssueLabels($filter: IssueLabelFilter, $first: Int, $after: String) {
+  query GetIssueLabels(
+    $filter: IssueLabelFilter
+    $first: Int
+    $after: String
+    $checkTeamReferences: Boolean = false
+    $teamReferenceFilter: TeamFilter
+  ) {
+    ...TeamReferenceCheck
     issueLabels(filter: $filter, first: $first, after: $after) {
       nodes {
         id
@@ -73,11 +85,18 @@ export const listCommand = new Command()
 
       // Build filter based on options
       let filter: NonNullable<GetIssueLabelsQueryVariables["filter"]> = {}
+      // A misspelled team key would otherwise leave only workspace labels.
+      const references: FilterReference[] = []
 
       if (workspaceLabels) {
         // Only workspace labels (no team)
         filter = { team: { null: true } }
       } else if (teamKey) {
+        references.push({
+          kind: "team",
+          option: "--team",
+          values: [teamKey.toUpperCase()],
+        })
         // Labels available to a specific team include workspace labels.
         filter = {
           or: [
@@ -89,6 +108,11 @@ export const listCommand = new Command()
         // Default: use configured team if available, otherwise show all
         const defaultTeam = getTeamKey()
         if (defaultTeam) {
+          references.push({
+            kind: "team",
+            option: "configured team_key",
+            values: [defaultTeam],
+          })
           filter = {
             or: [
               { team: { key: { eq: defaultTeam } } },
@@ -110,6 +134,8 @@ export const listCommand = new Command()
         endCursor: null,
       }
 
+      let checks: Record<string, unknown> | undefined =
+        filterReferenceVariables(references)
       while (hasNextPage) {
         const result: GetIssueLabelsQuery = await client.request(
           GetIssueLabels,
@@ -117,8 +143,13 @@ export const listCommand = new Command()
             filter: Object.keys(filter).length > 0 ? filter : undefined,
             first: 100,
             after,
+            ...checks,
           },
         )
+        if (checks != null) {
+          checks = undefined
+          await assertFilterReferences(references, result)
+        }
 
         const labelsConnection = result.issueLabels
         const labels = labelsConnection?.nodes || []

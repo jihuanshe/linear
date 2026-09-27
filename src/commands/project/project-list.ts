@@ -11,12 +11,30 @@ import { getGraphQLClient } from "../../utils/graphql.ts"
 import { getTimeAgo, padDisplay } from "../../utils/display.ts"
 import { getWorkspaceUrl } from "../../utils/actions.ts"
 import { getTeamKey } from "../../utils/linear.ts"
+import {
+  assertFilterReferences,
+  type FilterReference,
+  filterReferenceVariables,
+} from "../../utils/filter-references.ts"
+import { assertProjectStatusName } from "./project-status.ts"
 import { shouldShowSpinner } from "../../utils/hyperlink.ts"
 import { handleError, ValidationError } from "../../utils/errors.ts"
 import { limitType } from "../../utils/pagination.ts"
 
 const GetProjects = gql(`
-  query GetProjects($filter: ProjectFilter, $first: Int, $after: String) {
+  query GetProjects(
+    $filter: ProjectFilter
+    $first: Int
+    $after: String
+    $checkTeamReferences: Boolean = false
+    $teamReferenceFilter: TeamFilter
+    $includeStatuses: Boolean = false
+  ) {
+    ...TeamReferenceCheck
+    projectStatuses(first: 250) @include(if: $includeStatuses) {
+      nodes { name }
+      pageInfo { hasNextPage }
+    }
     projects(filter: $filter, first: $first, after: $after) {
       nodes {
         id
@@ -115,6 +133,18 @@ export const listCommand = new Command()
         filter = { ...filter, status: { name: { eq: statusName } } }
       }
 
+      // The first page also checks that the team and status exist; Linear
+      // would otherwise return no projects for a misspelled value.
+      const references: FilterReference[] = [{
+        kind: "team",
+        option: team ? "--team" : "configured team_key",
+        values: teamKey ? [teamKey] : [],
+      }]
+      let checks: Record<string, unknown> | undefined = {
+        ...filterReferenceVariables(references),
+        includeStatuses: statusName != null,
+      }
+
       const client = getGraphQLClient()
       const boundedJson = json && limit != null && limit > 0
 
@@ -135,7 +165,15 @@ export const listCommand = new Command()
           filter: Object.keys(filter).length > 0 ? filter : undefined,
           first,
           after,
+          ...checks,
         })
+        if (checks != null) {
+          checks = undefined
+          await assertFilterReferences(references, result)
+          if (statusName != null) {
+            await assertProjectStatusName(statusName, result.projectStatuses)
+          }
+        }
 
         const projectsConnection = result.projects
         const projects = projectsConnection?.nodes || []
