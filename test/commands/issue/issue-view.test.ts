@@ -2278,3 +2278,52 @@ for (const moreRelations of [false, true]) {
     }
   })
 }
+
+for (const broken of ["relations", "inverseRelations"] as const) {
+  Deno.test(`Issue View Command - incomplete relation second page (${broken}) fails closed`, async () => {
+    const read = contextIssueRead()
+    read.issue.inverseRelations = { nodes: [], pageInfo: { hasNextPage: true } }
+    const preview: Record<string, unknown> = {
+      id: read.issue.id,
+      relations: { nodes: [], pageInfo: { hasNextPage: false } },
+      inverseRelations: { nodes: [], pageInfo: { hasNextPage: false } },
+    }
+    preview[broken] = null
+    const { cleanup } = await setupMockLinearServer([{
+      queryName: "GetIssueDetailsWithComments",
+      variables: { id: "TEST-321" },
+      response: { data: read },
+    }, {
+      queryName: "GetIssueRelationsPreview",
+      variables: { id: read.issue.id },
+      response: { data: { issue: preview } },
+    }])
+    const stdout: string[] = []
+    const stderr: string[] = []
+    const exit = new Error("exit")
+    let code: number | undefined
+    using _log = stub(console, "log", (...v: unknown[]) => {
+      stdout.push(v.join(" "))
+    })
+    using _error = stub(console, "error", (...v: unknown[]) => {
+      stderr.push(v.join(" "))
+    })
+    using _exit = stub(Deno, "exit", (value?: number): never => {
+      code = value ?? 0
+      throw exit
+    })
+    try {
+      try {
+        await viewCommand.parse(["TEST-321", "--json"])
+      } catch (error) {
+        if (error !== exit) throw error
+      }
+      // No partial preview reaches stdout; the command fails instead.
+      assertEquals(code, 1)
+      assertEquals(stdout, [])
+      assertMatch(stderr.join("\n"), /incomplete connection/)
+    } finally {
+      await cleanup()
+    }
+  })
+}

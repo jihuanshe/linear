@@ -7,7 +7,7 @@
  */
 import { gql } from "../__codegen__/gql.ts"
 import { getGraphQLClient } from "./graphql.ts"
-import { NotFoundError, ValidationError } from "./errors.ts"
+import { CliError, NotFoundError, ValidationError } from "./errors.ts"
 import type { GetIssueRelationsPreviewQuery } from "../__codegen__/graphql.ts"
 
 /** Recent history with the actor and the state / ownership transitions. */
@@ -560,6 +560,18 @@ export async function completeRelationPreview<
     throw new ValidationError("Issue relations resolved to a different Issue")
   }
   const { relations, inverseRelations } = data.issue
+  // The first page is replaced, so a partial second read must not reach output
+  // as an apparently complete, shorter preview.
+  for (const connection of [relations, inverseRelations]) {
+    if (
+      connection == null || !Array.isArray(connection.nodes) ||
+      typeof connection.pageInfo?.hasNextPage !== "boolean"
+    ) {
+      throw new CliError(
+        "Issue relation preview returned an incomplete connection",
+      )
+    }
+  }
   return { ...issue, relations, inverseRelations }
 }
 
