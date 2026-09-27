@@ -22,6 +22,7 @@ const ListFavorites = gql(`
         title
         url
         folderName
+        parent { id folderName }
         issue { id identifier }
       }
       pageInfo { hasNextPage endCursor }
@@ -33,7 +34,15 @@ const CreateFavorite = gql(`
   mutation CreateFavorite($input: FavoriteCreateInput!) {
     favoriteCreate(input: $input) {
       success
-      favorite { id type title url folderName issue { id identifier } }
+      favorite {
+        id
+        type
+        title
+        url
+        folderName
+        parent { id folderName }
+        issue { id identifier }
+      }
     }
   }
 `)
@@ -44,7 +53,7 @@ const DeleteFavorite = gql(`
   }
 `)
 
-/** The authenticated user's complete favorites; the API has no target filter. */
+/** The authenticated user's complete favorites, used for list and folder lookup. */
 export async function listFavorites() {
   const client = getGraphQLClient()
   const first = await client.request(ListFavorites, { first: 100 })
@@ -62,8 +71,8 @@ async function resolveIssue(reference: string) {
   if (resolved == null) {
     throw new ValidationError(`Could not resolve issue reference: ${reference}`)
   }
-  const { id, identifier } = await readIssueHeader(resolved)
-  return { id, identifier }
+  const { id, identifier, favorite } = await readIssueHeader(resolved)
+  return { id, identifier, favorite }
 }
 
 /** Favorite an issue unless the viewer already has it; returns the favorite. */
@@ -72,14 +81,22 @@ export async function addIssueFavorite(
   folderName?: string,
 ) {
   const issue = await resolveIssue(reference)
-  const existing = (await listFavorites()).nodes.find((favorite) =>
-    favorite.issue?.id === issue.id
-  )
+  const existing = issue.favorite
   if (existing != null) {
     return writeResult({ issue, favorite: existing }, { effect: "none" })
   }
+  let parentId: string | undefined
+  if (folderName != null) {
+    const folder = (await listFavorites()).nodes.find((favorite) =>
+      favorite.type === "folder" && favorite.folderName === folderName
+    )
+    if (folder == null) {
+      throw new ValidationError(`Favorite folder not found: ${folderName}`)
+    }
+    parentId = folder.id
+  }
   const data = await getGraphQLClient().request(CreateFavorite, {
-    input: { issueId: issue.id, folderName },
+    input: { issueId: issue.id, ...(parentId == null ? {} : { parentId }) },
   })
   assertMutationSuccess(data.favoriteCreate, data)
   const favorite = data.favoriteCreate.favorite
@@ -90,9 +107,7 @@ export async function addIssueFavorite(
 /** Remove the viewer's favorite of an issue; a missing favorite is a no-op. */
 export async function removeIssueFavorite(reference: string) {
   const issue = await resolveIssue(reference)
-  const existing = (await listFavorites()).nodes.find((favorite) =>
-    favorite.issue?.id === issue.id
-  )
+  const existing = issue.favorite
   if (existing == null) {
     return writeResult({ issue, favorite: null }, { effect: "none" })
   }
@@ -126,9 +141,9 @@ const listCommand = new Command()
         return
       }
       for (const favorite of favorites.nodes) {
-        const folder = favorite.folderName == null
+        const folder = favorite.parent?.folderName == null
           ? ""
-          : ` [${favorite.folderName}]`
+          : ` [${favorite.parent.folderName}]`
         console.log(`${favorite.issue?.identifier}\t${favorite.title}${folder}`)
       }
     } catch (error) {
@@ -142,7 +157,7 @@ const addCommand = withUsageMetadata(new Command(), { writes: true })
     "Favorite an issue (UUID, identifier, or Linear Issue URL) for the authenticated user; an existing favorite is a no-op",
   )
   .arguments("<issue:string>")
-  .option("--folder <name:string>", "Favorites folder name")
+  .option("--folder <name:string>", "Existing favorites folder name")
   .option("-j, --json", "Output {ok, effect, data: {issue, favorite}}")
   .action(async ({ folder, json }, issue) => {
     try {

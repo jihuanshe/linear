@@ -22,6 +22,10 @@ const favorite = {
   folderName: null,
   issue: { id: issue.id, identifier: issue.identifier },
 }
+const headerWithFavorite = {
+  ...header,
+  response: { data: { issue: { ...issue, favorite } } },
+}
 const favorites = (nodes: unknown[]) => ({
   queryName: "ListFavorites",
   response: {
@@ -42,7 +46,9 @@ async function run(args: string[]) {
   return JSON.parse(output.join("\n"))
 }
 
-function mutations(server: { graphqlRequests: { query: string }[] }) {
+function mutations(
+  server: { graphqlRequests: { query: string; variables?: unknown }[] },
+) {
   return server.graphqlRequests.filter((request) =>
     request.query.includes("mutation")
   )
@@ -51,7 +57,7 @@ function mutations(server: { graphqlRequests: { query: string }[] }) {
 for (const existing of [false, true]) {
   Deno.test(`favorite add writes only when the issue is not favorited (existing ${existing})`, async () => {
     const { server, cleanup } = await setupMockLinearServer([
-      header,
+      existing ? headerWithFavorite : header,
       favorites(existing ? [favorite] : []),
       {
         queryName: "CreateFavorite",
@@ -73,7 +79,7 @@ for (const existing of [false, true]) {
 
   Deno.test(`favorite remove deletes only an existing favorite (existing ${existing})`, async () => {
     const { server, cleanup } = await setupMockLinearServer([
-      header,
+      existing ? headerWithFavorite : header,
       favorites(existing ? [favorite] : []),
       {
         queryName: "DeleteFavorite",
@@ -106,6 +112,47 @@ Deno.test("favorite list keeps only issue favorites", async () => {
     const result = await run(["list"])
     assertEquals(result.nodes, [favorite])
     assertEquals(result.pageInfo, { hasNextPage: false, endCursor: null })
+  } finally {
+    await cleanup()
+  }
+})
+
+Deno.test("favorite add places an issue under an existing folder", async () => {
+  const folder = {
+    id: "folder-1",
+    type: "folder",
+    title: "Inbox",
+    url: null,
+    folderName: "Inbox",
+    parent: null,
+    issue: null,
+  }
+  const { server, cleanup } = await setupMockLinearServer([
+    header,
+    favorites([folder]),
+    {
+      queryName: "CreateFavorite",
+      variables: { input: { issueId: issue.id, parentId: folder.id } },
+      response: {
+        data: {
+          favoriteCreate: {
+            success: true,
+            favorite: {
+              ...favorite,
+              parent: { id: folder.id, folderName: "Inbox" },
+            },
+          },
+        },
+      },
+    },
+  ])
+  try {
+    const result = await run(["add", "ENG-123", "--folder", "Inbox"])
+    assertEquals(result.effect, "applied")
+    assertEquals(
+      mutations(server).map((request) => request.variables),
+      [{ input: { issueId: issue.id, parentId: folder.id } }],
+    )
   } finally {
     await cleanup()
   }
