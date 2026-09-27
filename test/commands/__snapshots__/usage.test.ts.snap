@@ -216,6 +216,40 @@ snapshot[`usage JSON describes command metadata 1`] = `
           staticallyRequired: false,
         },
         {
+          arguments: [
+            {
+              name: "identifier",
+              required: true,
+              type: "string",
+              variadic: false,
+            },
+          ],
+          description: "Read issues by identifier across all teams (repeatable; duplicates are read once). Identifiers from before a team move resolve to the current issue, and archived and trashed issues are included. JSON returns {nodes, pageInfo, resolutions: [{requested, status: found|moved|trashed|archived|not_found, identifier?}], reconciliation: {requested, read, missing}}: nodes holds each distinct issue once in request order, pageInfo.hasNextPage is always false, and requested = read + missing is checked (a mismatch fails with a non-zero exit). Cannot be combined with filters, --search, or --url; --limit is ignored",
+          flags: [
+            "--id",
+          ],
+          name: "id",
+          repeatable: true,
+          staticallyRequired: false,
+        },
+        {
+          arguments: [
+            {
+              name: "path",
+              required: true,
+              type: "string",
+              variadic: false,
+            },
+          ],
+          description: "Read issues for one identifier per line (blank lines and lines starting with # are ignored); same result and reconciliation as --id",
+          flags: [
+            "--id-file",
+          ],
+          name: "id-file",
+          repeatable: false,
+          staticallyRequired: false,
+        },
+        {
           arguments: [],
           description: "Also search inside issue comments (requires --search)",
           flags: [

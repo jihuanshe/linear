@@ -126,7 +126,7 @@ JSON 不与浏览器／应用跳转、显式交互／编辑或原文／脚本输
 
 ## 网络等待与查询重试
 
-Linear 按 API 密钥计算小时额度：2,500 个请求和 3,000,000 复杂度，窗口约 1 小时后补满。每条命令至少消耗 1 个请求：`issue view` 通常 1 个，`issue query --url-file` 每个 URL 至少 1 个，分页每页 1 个。同一密钥的并发子 Agent 和脚本共享额度，批处理前先估算请求数，查剩余额度用只读查询 `linear api 'query { rateLimitStatus { kind limits { type allowedAmount remainingAmount reset } } }'`（`reset` 是毫秒时间戳），不要靠固定等待猜测。
+Linear 按 API 密钥计算小时额度：2,500 个请求和 3,000,000 复杂度，窗口约 1 小时后补满。每条命令至少消耗 1 个请求：`issue view` 通常 1 个，`issue query --url-file` 每个 URL 至少 1 个，`issue query --id-file` 每 100 个编号约 1 个（见「按编号批量读取 Issue」），分页每页 1 个。同一密钥的并发子 Agent 和脚本共享额度，批处理前先估算请求数，查剩余额度用只读查询 `linear api 'query { rateLimitStatus { kind limits { type allowedAmount remainingAmount reset } } }'`（`reset` 是毫秒时间戳），不要靠固定等待猜测。
 
 专用命令与 `linear api` 共用 GraphQL 请求规则：每个逻辑请求最多 60 秒，包含响应正文读取和重试等待，query 最多尝试 3 次。分页的每一页分别计时，不是整个命令或整批 `apply` 的总时限；写后核验等调用方更短的取消期限仍然有效。此规则不涵盖文件 PUT、下载或其他非 GraphQL 网络操作。
 
@@ -145,6 +145,20 @@ linear issue query --all-teams --assignee self --limit 0 --json >issues.json
 jq -e '.pageInfo.hasNextPage == false and (.nodes | type == "array")' issues.json >/dev/null
 jq '.nodes[] | {id, identifier, title, priority}' issues.json
 ```
+
+### 按编号批量读取 Issue
+
+已知一批编号（可跨团队，可能已迁移、归档或进回收站）时，用 `issue query --id` 或 `--id-file` 读取，不手写 `issue(id:)` 别名查询。文件每行一个编号，空行和 `#` 开头的行被忽略，重复编号只读一次。该模式不接受团队、状态等筛选条件、`--search` 或 `--url`；需要筛选时先读全，再处理 JSON。
+
+```bash
+linear issue query --id-file ids.txt --json >issues.json
+jq -e '.reconciliation as $r | $r.requested == $r.read + $r.missing' issues.json >/dev/null
+jq -r '.resolutions[] | select(.status == "not_found") | .requested' issues.json
+```
+
+`nodes` 按首次请求的顺序给出每个 Issue 一次，节点带 `trashed` 与 `archivedAt`；`pageInfo.hasNextPage` 恒为 `false`。`resolutions` 按请求顺序逐项给出 `{requested, status, identifier}`：`found` 表示当前编号，`moved` 表示团队迁移前的编号并给出现编号，`trashed`／`archived` 的 Issue 也读取到 `nodes`，`not_found` 表示工作区中不存在或当前凭据不可见。`reconciliation` 按请求编号计数，`requested = read + missing`；两个编号解析到同一 Issue 时 `read` 计两次，`nodes` 只有一个。CLI 在输出前核对这个等式，不成立时非零退出，`error.details` 给出 `unread` 编号，不输出较短的结果。
+
+请求数：每 100 个编号 1 个请求；未按当前编号读到的编号再用 `issue(id:)` 分批解析，每批约 1 个请求，每个不存在的编号额外 1 个，因为 Linear 在一个编号不存在时让整批返回空数据，且只报告第一个；已迁移的 Issue 再合计 1 个请求读取完整节点。这些都是 query，遵守上文「网络等待与查询重试」的规则。
 
 `issue view --json` 与 `issue export` 完整读取 `.issue.comments`、`.issue.attachments` 和 `.issue.labels`；`view --no-comments` 跳过评论。评论保留 `quotedText` 和 `documentContentId`，供识别行内引用；PR 等链接位于 `.issue.attachments.nodes`。`children`、`documents` 和详情中的 `relations` 等集合仍是有限预览；完整关系用 `issue relation list <issue> --json`，其他完整集合按 `linear guide graphql` 单独分页。完整分页不代表跨页数据库快照。
 
