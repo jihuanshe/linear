@@ -2114,3 +2114,49 @@ Deno.test("Issue Query Command - Hides Cycle Column When Cycles Disabled", async
     await cleanup()
   }
 })
+
+for (const connection of ["labels", "inverseRelations"] as const) {
+  Deno.test(`Issue Query Command - fails when ${connection} has no pageInfo`, async () => {
+    const { nodes } = mockIssueNode[connection]
+    const { cleanup } = await setupMockLinearServer([{
+      queryName: "GetIssuesForQuery",
+      response: {
+        data: {
+          issues: {
+            nodes: [{ ...mockIssueNode, [connection]: { nodes } }],
+            pageInfo: { hasNextPage: false, endCursor: null },
+          },
+        },
+      },
+    }], { NO_COLOR: "true" })
+    const stdout: string[] = []
+    const stderr: string[] = []
+    let code: number | undefined
+    const logStub = stub(console, "log", (...args: unknown[]) => {
+      stdout.push(args.map(String).join(" "))
+    })
+    const errorStub = stub(console, "error", (...args: unknown[]) => {
+      stderr.push(args.map(String).join(" "))
+    })
+    const exitStub = stub(Deno, "exit", (value?: number): never => {
+      code = value ?? 0
+      throw new Error("EXIT")
+    })
+    try {
+      await queryCommand.parse(["--team", "ENG", "--json"])
+    } catch (error) {
+      if (!(error instanceof Error) || error.message !== "EXIT") throw error
+    } finally {
+      logStub.restore()
+      errorStub.restore()
+      exitStub.restore()
+      await cleanup()
+    }
+    assertEquals(code, 1)
+    assertEquals(stdout, [])
+    assertEquals(
+      stderr.some((line) => line.includes("Issue query returned incomplete")),
+      true,
+    )
+  })
+}

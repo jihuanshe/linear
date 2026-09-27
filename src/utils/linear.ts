@@ -1396,6 +1396,23 @@ async function completeQueryIssueConnections<T extends QueryIssueConnections>(
   const completed: T[] = []
   for (const node of nodes) {
     let row = node
+    // Fail with a clear error, not a TypeError, when a connection arrives
+    // without the pageInfo this completion depends on.
+    for (
+      const [label, connection] of [
+        ["labels", row.labels],
+        ["incoming relations", row.inverseRelations],
+      ] as const
+    ) {
+      if (
+        connection == null || !Array.isArray(connection.nodes) ||
+        typeof connection.pageInfo?.hasNextPage !== "boolean"
+      ) {
+        throw new CliError(
+          `Issue query returned incomplete ${label} for ${node.id}`,
+        )
+      }
+    }
     if (row.labels.pageInfo.hasNextPage) {
       row = { ...row, labels: await completeIssueLabels(row.id, row.labels) }
     }
