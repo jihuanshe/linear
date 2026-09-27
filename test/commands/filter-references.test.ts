@@ -425,3 +425,62 @@ Deno.test("label list fails for a team key that names nothing instead of showing
     await cleanup()
   }
 })
+
+Deno.test("document list fails for a project UUID that names nothing", async () => {
+  const projectId = "00000000-0000-4000-8000-000000000000"
+  const documents = empty([{
+    id: "document-1",
+    title: "Plan",
+    slugId: "plan",
+    url: "https://linear.app/doc/plan",
+    updatedAt: "2026-09-06T00:00:00Z",
+    project: { name: "Launch", slugId: "launch" },
+    issue: null,
+    creator: { name: "Alex" },
+  }])
+  const { server, cleanup } = await setupMockLinearServer([{
+    queryName: "ListDocuments",
+    response: (request) => ({
+      data: {
+        documents: empty(),
+        ...(JSON.stringify(request.variables.projectReferenceFilter ?? null)
+            .includes(projectId)
+          ? { referenceProjects: empty() }
+          : {}),
+      },
+    }),
+  }])
+  try {
+    await expectNotFound(server, ["document", "list", "--project", projectId], {
+      message: `Project not found: "${projectId}" (--project)`,
+      suggestion: "`linear project list`",
+      details: { option: "--project", values: [projectId] },
+      requests: 1,
+    })
+  } finally {
+    await cleanup()
+  }
+
+  // An existing project keeps its filter and its single request.
+  const existing = "11111111-1111-4111-8111-111111111111"
+  const { server: found, cleanup: cleanupFound } = await setupMockLinearServer([
+    { queryName: "ListDocuments", response: { data: { documents } } },
+  ])
+  try {
+    const result = await run(found, [
+      "document",
+      "list",
+      "--project",
+      existing,
+      "--json",
+    ])
+    assertEquals(result.code, 0, result.stdout + result.stderr)
+    assertEquals(JSON.parse(result.stdout), documents)
+    assertEquals(found.graphqlRequests.length, 1)
+    const { variables } = found.graphqlRequests[0]
+    assertEquals(variables.filter, { project: { id: { eq: existing } } })
+    assertEquals(variables.projectReferenceFilter, { id: { in: [existing] } })
+  } finally {
+    await cleanupFound()
+  }
+})

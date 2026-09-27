@@ -7,8 +7,14 @@ import { getTimeAgo, padDisplay } from "../../utils/display.ts"
 import {
   getIssueId,
   getIssueReference,
+  isLinearUuid,
   resolveProjectId,
 } from "../../utils/linear.ts"
+import {
+  assertFilterReferences,
+  type FilterReference,
+  filterReferenceVariables,
+} from "../../utils/filter-references.ts"
 import { shouldShowSpinner } from "../../utils/hyperlink.ts"
 import {
   completeConnection,
@@ -22,7 +28,14 @@ import {
 } from "../../utils/errors.ts"
 
 const ListDocuments = gql(`
-  query ListDocuments($filter: DocumentFilter, $first: Int, $after: String) {
+  query ListDocuments(
+    $filter: DocumentFilter
+    $first: Int
+    $after: String
+    $checkProjectReferences: Boolean = false
+    $projectReferenceFilter: ProjectFilter
+  ) {
+    ...ProjectReferenceCheck
     documents(filter: $filter, first: $first, after: $after) {
       nodes {
         id
@@ -85,10 +98,21 @@ export const listCommand = new Command()
         | NonNullable<ListDocumentsQueryVariables["filter"]>
         | undefined = undefined
 
+      // A project UUID is used as given, so an unknown one would otherwise
+      // list no documents; names and slug IDs already fail when resolved.
+      const references: FilterReference[] = []
       if (project) {
+        const projectId = await resolveProjectId(project)
+        if (isLinearUuid(project)) {
+          references.push({
+            kind: "project",
+            option: "--project",
+            values: [projectId],
+          })
+        }
         filter = {
           ...(filter ?? {}),
-          project: { id: { eq: await resolveProjectId(project) } },
+          project: { id: { eq: projectId } },
         }
       }
 
@@ -108,14 +132,19 @@ export const listCommand = new Command()
       }
 
       const client = getGraphQLClient()
-      const fetchPage = async (
-        after?: string,
-        first = limit > 0 ? Math.min(100, limit) : 100,
-      ) =>
+      const pageSize = limit > 0 ? Math.min(100, limit) : 100
+      const fetchPage = async (after?: string, first = pageSize) =>
         (await client.request(ListDocuments, { filter, first, after }))
           .documents
+      // The first page also carries the filter reference checks.
+      const firstPage = await client.request(ListDocuments, {
+        filter,
+        first: pageSize,
+        ...filterReferenceVariables(references),
+      })
+      await assertFilterReferences(references, firstPage)
       const documentsConnection = await completeConnection(
-        await fetchPage(),
+        firstPage.documents,
         fetchPage,
         "documents",
         limit,
