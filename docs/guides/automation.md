@@ -252,6 +252,6 @@ linear issue query --all-teams --url-file object-urls.txt --json >url-lookups.js
 jq '.lookups[] | {url, identifiers: [.nodes[].identifier]}' url-lookups.json
 ```
 
-Linear Issue URL 按 Issue 编号和工作区定位；其他 URL 核对候选正文或评论中的完整 URL 边界，不搜索侧栏附件（Attachment）。URL 模式完整读取候选并返回全部精确命中，不受 `--limit` 截断；空 `nodes` 只证明当前凭据可见且所选筛选范围内没有命中。`--url-file` 忽略空行与 `#` 注释，去重后按首次出现顺序返回 `lookups`。
+Linear Issue URL 先用 `issue(id:)` 按编号解析（团队迁移前的旧编号也能命中）并核对工作区，结果带 `resolution.status`：`found`、`moved`（`identifier` 为现编号）、`trashed`、`archived` 或 `not_found`；`trashed`／`archived` 的 Issue 只有加 `--include-archived` 才进入 `nodes`。其他 URL 核对候选正文或评论中的完整 URL 边界，不搜索侧栏附件（Attachment）。URL 模式完整读取候选并返回全部精确命中，不受 `--limit` 截断；空 `nodes` 只证明当前凭据可见且所选筛选范围内没有命中。`--url-file` 忽略空行与 `#` 注释，去重后按首次出现顺序返回 `lookups`。
 
 比较查询集合时，保存相同范围的前后读取，按 ID 和目标字段核对；新增对象不自动进入原写入范围。按组织规则检查缺项或异常候选时，使用 `linear recipe doctor`，结果解释见 `linear guide doctor`。

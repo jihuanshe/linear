@@ -18,6 +18,8 @@ import { getOption } from "../config.ts"
 import {
   CliError,
   handleNotFound,
+  isClientError,
+  isNotFoundError,
   NotFoundError,
   ValidationError,
 } from "./errors.ts"
@@ -976,9 +978,22 @@ type QueryIssuesPayload = GetIssuesForQueryQuery["issues"]
 
 export type FetchedQueryIssueResult = QueryIssuesPayload["nodes"][number]
 
+/**
+ * How a Linear Issue URL resolved, independent of the query filters. Moved
+ * issues are found by their previous identifier; trashed and archived issues
+ * stay out of `nodes` unless `--include-archived` is set.
+ */
+export type IssueUrlResolution = {
+  status: "found" | "moved" | "trashed" | "archived" | "not_found"
+  requested: string
+  identifier?: string
+}
+
 export type FetchedQueryIssuePayload = {
   nodes: QueryIssuesPayload["nodes"]
   pageInfo: QueryIssuesPayload["pageInfo"]
+  /** Present only when the looked-up URL is a Linear Issue URL. */
+  resolution?: IssueUrlResolution
 }
 
 function buildWorkflowStateFilter(
@@ -1146,24 +1161,67 @@ function containsProseUrl(text: string, target: string): boolean {
   return false
 }
 
+const resolveIssueUrlReferenceQuery = gql(/* GraphQL */ `
+  query ResolveIssueUrlReference($id: String!) {
+    issue(id: $id) {
+      id
+      identifier
+      url
+      trashed
+      archivedAt
+    }
+  }
+`)
+
+/**
+ * Resolve a Linear Issue URL through `issue(id:)`, which also accepts an
+ * identifier from before the issue moved teams. An `issues` filter on the
+ * identifier cannot see those previous identifiers.
+ */
+async function resolveIssueUrlReference(
+  reference: LinearIssueUrlReference,
+): Promise<{ id?: string; resolution: IssueUrlResolution }> {
+  const requested = reference.identifier
+  let issue
+  try {
+    const result = await getGraphQLClient().request(
+      resolveIssueUrlReferenceQuery,
+      { id: requested },
+    )
+    issue = result.issue
+  } catch (error) {
+    if (!isClientError(error) || !isNotFoundError(error)) throw error
+  }
+  const workspace = issue == null
+    ? undefined
+    : parseLinearIssueUrl(issue.url)?.workspace
+  if (
+    issue == null ||
+    (reference.workspace != null &&
+      workspace?.toLowerCase() !== reference.workspace.toLowerCase())
+  ) return { resolution: { status: "not_found", requested } }
+  const status = issue.trashed
+    ? "trashed"
+    : issue.archivedAt != null
+    ? "archived"
+    : issue.identifier !== requested
+    ? "moved"
+    : "found"
+  return {
+    id: issue.id,
+    resolution: { status, requested, identifier: issue.identifier },
+  }
+}
+
 async function filterIssuesByExactUrl(
   issues: QueryIssuesPayload["nodes"],
   target: string,
-  exactIssueReference: LinearIssueUrlReference | undefined,
+  exactIssueId: string | undefined,
 ): Promise<QueryIssuesPayload["nodes"]> {
   const matched: QueryIssuesPayload["nodes"] = []
   for (const issue of issues) {
-    if (exactIssueReference != null) {
-      if (issue.identifier !== exactIssueReference.identifier) continue
-      if (exactIssueReference.workspace == null) {
-        matched.push(issue)
-        continue
-      }
-      const issueReference = parseLinearIssueUrl(issue.url)
-      if (
-        issueReference?.workspace?.toLowerCase() ===
-          exactIssueReference.workspace.toLowerCase()
-      ) matched.push(issue)
+    if (exactIssueId != null) {
+      if (issue.id === exactIssueId) matched.push(issue)
       continue
     }
 
@@ -1281,9 +1339,21 @@ export async function fetchIssuesForQuery(
     ? undefined
     : parseLinearIssueUrl(options.exactUrl)
 
+  let exactIssueId: string | undefined
+  let resolution: IssueUrlResolution | undefined
   if (options.exactUrl != null) {
     if (exactIssueReference != null) {
-      filter.id = { eq: exactIssueReference.identifier }
+      ;({ id: exactIssueId, resolution } = await resolveIssueUrlReference(
+        exactIssueReference,
+      ))
+      if (exactIssueId == null) {
+        return {
+          nodes: [],
+          pageInfo: { hasNextPage: false, endCursor: null },
+          resolution,
+        }
+      }
+      filter.id = { eq: exactIssueId }
     } else {
       // Both candidate paths are needed before exact local matching.
       filter.or = [
@@ -1347,7 +1417,7 @@ export async function fetchIssuesForQuery(
     : await filterIssuesByExactUrl(
       allNodes,
       options.exactUrl,
-      exactIssueReference,
+      exactIssueId,
     )
 
   const nodes = options.exactUrl == null
@@ -1362,6 +1432,7 @@ export async function fetchIssuesForQuery(
     pageInfo: options.exactUrl == null
       ? lastPageInfo
       : { hasNextPage: false, endCursor: null },
+    ...(resolution == null ? {} : { resolution }),
   }
 }
 

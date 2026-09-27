@@ -19,6 +19,7 @@ import {
   getTeamKey,
   isIssueBlocked,
   isLinearUuid,
+  type IssueUrlResolution,
   lookupProjectId,
   lookupUserId,
   resolveMilestoneId,
@@ -120,11 +121,13 @@ export const queryCommand = withUsageMetadata(new Command(), {
   )
   .option(
     "--url <url:string>",
-    "Find an issue by Linear URL, or by an exact URL occurrence in its description or comments (URL mode returns all exact matches; --limit is ignored)",
+    "Find an issue by Linear URL, or by an exact URL occurrence in its description or comments (URL mode returns all exact matches; --limit is ignored). A Linear Issue URL also resolves identifiers from before a team move and adds resolution {status: found|moved|trashed|archived|not_found, requested, identifier}; trashed and archived issues need --include-archived to appear in nodes",
+    { preserveEmpty: true },
   )
   .option(
     "--url-file <path:string>",
-    "Find issues for one URL per line (blank lines and lines starting with # are ignored); JSON returns {lookups: [{url, nodes, pageInfo}]} in input order; --limit is ignored",
+    "Find issues for one URL per line (blank lines and lines starting with # are ignored); JSON returns {lookups: [{url, nodes, pageInfo, resolution?}]} in input order, with resolution as in --url for Linear Issue URLs; --limit is ignored",
+    { preserveEmpty: true },
   )
   .option(
     "--search-comments",
@@ -533,6 +536,12 @@ export const queryCommand = withUsageMetadata(new Command(), {
         const outputLines: string[] = []
         for (const [index, result] of results.entries()) {
           outputLines.push("", exactUrls[index])
+          const note = describeResolution(
+            result.resolution,
+            includeArchived,
+            result.nodes.length === 0,
+          )
+          if (note != null) outputLines.push(note)
           if (result.nodes.length === 0) {
             outputLines.push("No issues found.")
             continue
@@ -587,6 +596,12 @@ export const queryCommand = withUsageMetadata(new Command(), {
           return
         }
 
+        const note = describeResolution(
+          result.resolution,
+          includeArchived,
+          result.nodes.length === 0,
+        )
+        if (note != null) console.log(note)
         if (result.nodes.length === 0) {
           console.log("No issues found.")
           return
@@ -605,6 +620,36 @@ export const queryCommand = withUsageMetadata(new Command(), {
       handleError(error, "Failed to query issues")
     }
   })
+
+/** One human line for a Linear Issue URL that did not resolve plainly. */
+function describeResolution(
+  resolution: IssueUrlResolution | undefined,
+  includeArchived: boolean | undefined,
+  filteredOut: boolean,
+): string | undefined {
+  if (resolution == null) return undefined
+  const { status, requested, identifier } = resolution
+  switch (status) {
+    case "found":
+      return filteredOut
+        ? `${requested} resolved, but the selected filters excluded it; try --all-teams or adjust the filters`
+        : undefined
+    case "moved":
+      return `${requested} moved to ${identifier}` +
+        (filteredOut
+          ? "; the selected filters excluded it; try --all-teams or adjust the filters"
+          : "")
+    case "not_found":
+      return `${requested} does not exist in this workspace`
+    case "trashed":
+    case "archived":
+      return `${
+        requested === identifier ? "" : `${requested} moved to ${identifier}; `
+      }` +
+        `${identifier} is ${status}` +
+        (includeArchived ? "" : "; add --include-archived to list it")
+  }
+}
 
 async function outputPaged(
   outputLines: string[],
