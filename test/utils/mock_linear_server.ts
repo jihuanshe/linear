@@ -27,6 +27,8 @@ interface MockResponse {
       history: readonly MockGraphQLRequest[],
     ) => Record<string, unknown> | Promise<Record<string, unknown>>)
   status?: number
+  /** Extra response headers, e.g. Linear's `x-ratelimit-*`. */
+  headers?: Record<string, string>
 }
 
 export interface UploadRequest {
@@ -149,7 +151,10 @@ export class MockLinearServer {
           : mockResponse.response
         return new Response(
           JSON.stringify(response),
-          { status: mockResponse.status ?? 200, headers },
+          {
+            status: mockResponse.status ?? 200,
+            headers: { ...headers, ...mockResponse.headers },
+          },
         )
       }
 

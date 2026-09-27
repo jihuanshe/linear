@@ -130,6 +130,8 @@ JSON 不与浏览器／应用跳转、显式交互／编辑或原文／脚本输
 
 只有明确选中的 query 会对 HTTP 429／502／503／504，以及 HTTP 200／400 中单纯的 `RATELIMITED` 错误重试。无完整响应的连接错误、已有部分数据、认证、权限和校验错误不重试。等待使用有界退避，并遵守 `Retry-After` 的秒数或 HTTP 日期；剩余时间不足以遵守服务器要求时，返回原始失败，不缩短等待后强行重试。
 
+专用命令最终仍被 `RATELIMITED` 拒绝时，JSON 错误的 `error.code` 为 `RateLimited`，`error.details.rateLimit` 给出响应头中的剩余请求数、剩余复杂度和各自的重置时间，`retryAfter` 是耗尽的那项额度恢复的时间。query 的 `effect` 为 `none`，到 `retryAfter` 之后原样重试即可；mutation 仍为 `unknown`，Linear 没有文档保证被限流的写入零效果，先对账再重试。原生 `linear api` 保留原始 GraphQL 响应，不加这一层。
+
 mutation 不自动重发。派发后的超时、连接或响应读取失败仍可能已经写入，按 `effect` 与回执对账，不把超时理解为撤销。
 
 ## 分页与详情
