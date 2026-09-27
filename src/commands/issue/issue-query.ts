@@ -534,7 +534,11 @@ export const queryCommand = withUsageMetadata(new Command(), {
         const outputLines: string[] = []
         for (const [index, result] of results.entries()) {
           outputLines.push("", exactUrls[index])
-          const note = describeResolution(result.resolution, includeArchived)
+          const note = describeResolution(
+            result.resolution,
+            includeArchived,
+            false,
+          )
           if (note != null) outputLines.push(note)
           if (result.nodes.length === 0) {
             outputLines.push("No issues found.")
@@ -590,7 +594,11 @@ export const queryCommand = withUsageMetadata(new Command(), {
           return
         }
 
-        const note = describeResolution(result.resolution, includeArchived)
+        const note = describeResolution(
+          result.resolution,
+          includeArchived,
+          result.nodes.length === 0,
+        )
         if (note != null) console.log(note)
         if (result.nodes.length === 0) {
           console.log("No issues found.")
@@ -615,19 +623,26 @@ export const queryCommand = withUsageMetadata(new Command(), {
 function describeResolution(
   resolution: IssueUrlResolution | undefined,
   includeArchived: boolean | undefined,
+  filteredOut: boolean,
 ): string | undefined {
   if (resolution == null) return undefined
   const { status, requested, identifier } = resolution
   switch (status) {
     case "found":
-      return undefined
+      return filteredOut
+        ? `${requested} resolved, but no issue matched the selected filters`
+        : undefined
     case "moved":
-      return `${requested} moved to ${identifier}`
+      return `${requested} moved to ${identifier}` +
+        (filteredOut ? "; no issue matched the selected filters" : "")
     case "not_found":
       return `${requested} does not exist in this workspace`
     case "trashed":
     case "archived":
-      return `${identifier} is ${status}` +
+      return `${
+        requested === identifier ? "" : `${requested} moved to ${identifier}; `
+      }` +
+        `${identifier} is ${status}` +
         (includeArchived ? "" : "; add --include-archived to list it")
   }
 }
