@@ -161,62 +161,52 @@ for (
     {
       title: "email wins over display and fuzzy",
       counts: [1, 1, 1, 3],
-      calls: 1,
       id: "tier-0-0",
     },
     {
       title: "unique display survives three fuzzy matches",
       counts: [0, 1, 0, 3],
-      calls: 2,
       id: "tier-1-0",
     },
     {
       title: "exact name wins over fuzzy",
       counts: [0, 0, 1, 3],
-      calls: 3,
       id: "tier-2-0",
     },
     {
       title: "unique fuzzy without exact",
       counts: [0, 0, 0, 1],
-      calls: 4,
       id: "tier-3-0",
     },
-    { title: "missing user", counts: [0, 0, 0, 0], calls: 4, id: undefined },
+    { title: "missing user", counts: [0, 0, 0, 0], id: undefined },
     {
       title: "ambiguous email stops before display",
       counts: [2, 1, 0, 0],
-      calls: 1,
       ambiguous: true,
     },
     {
       title: "ambiguous display stops before exact name",
       counts: [0, 2, 1, 0],
-      calls: 2,
       ambiguous: true,
     },
     {
       title: "ambiguous exact name",
       counts: [0, 0, 2, 1],
-      calls: 3,
       ambiguous: true,
     },
     {
       title: "ambiguous fuzzy first page",
       counts: [0, 0, 0, 2],
-      calls: 4,
       ambiguous: true,
     },
     {
       title: "fuzzy next page cannot select first result",
       counts: [0, 0, 0, 3],
-      calls: 4,
       ambiguous: true,
     },
     {
       title: "display next page cannot select first result",
       counts: [0, 3, 1, 1],
-      calls: 2,
       ambiguous: true,
     },
   ]
@@ -224,32 +214,23 @@ for (
   Deno.test(`lookupUserId ${scenario.title}`, async () => {
     // Preserve significant whitespace and casing in every server-side filter.
     const input = " Ann "
-    const filters = [
-      { email: { eqIgnoreCase: input } },
-      { displayName: { eqIgnoreCase: input } },
-      { name: { eqIgnoreCase: input } },
-      { name: { containsIgnoreCaseAndAccent: input } },
-    ]
-    const { server, cleanup } = await setupMockLinearServer(
-      filters.map((filter, tier) => ({
-        queryName: "LookupUser",
-        variables: { filter },
-        response: {
-          data: {
-            users: {
-              // A partial page with one row must still reject hasNextPage.
-              nodes: Array.from({
-                length: scenario.counts[tier] === 3 ? 1 : scenario.counts[tier],
-              }, (_, index) => ({ id: `tier-${tier}-${index}` })),
-              pageInfo: {
-                hasNextPage: scenario.counts[tier] > 2,
-                endCursor: null,
-              },
-            },
+    const tiers = ["byEmail", "byDisplayName", "byName", "byNameContains"]
+    const { server, cleanup } = await setupMockLinearServer([{
+      queryName: "LookupUserCandidates",
+      variables: { reference: input },
+      response: {
+        data: Object.fromEntries(tiers.map((alias, tier) => [alias, {
+          // A partial page with one row must still reject hasNextPage.
+          nodes: Array.from({
+            length: scenario.counts[tier] === 3 ? 1 : scenario.counts[tier],
+          }, (_, index) => ({ id: `tier-${tier}-${index}` })),
+          pageInfo: {
+            hasNextPage: scenario.counts[tier] > 2,
+            endCursor: null,
           },
-        },
-      })),
-    )
+        }])),
+      },
+    }])
     try {
       if (scenario.ambiguous) {
         await assertRejects(
@@ -260,13 +241,21 @@ for (
       } else {
         assertEquals(await lookupUserId(input), scenario.id)
       }
+      // Every precedence tier is resolved by one request, not one per tier.
       assertEquals(
         server.graphqlRequests.map((request) => request.variables),
-        filters.slice(0, scenario.calls).map((filter) => ({ filter })),
+        [{ reference: input }],
       )
-      for (const request of server.graphqlRequests) {
-        assertStringIncludes(request.query, "first: 2")
-      }
+      const [{ query }] = server.graphqlRequests
+      for (
+        const filter of [
+          "email: { eqIgnoreCase: $reference }",
+          "displayName: { eqIgnoreCase: $reference }",
+          "name: { eqIgnoreCase: $reference }",
+          "name: { containsIgnoreCaseAndAccent: $reference }",
+        ]
+      ) assertStringIncludes(query, filter)
+      assertEquals(query.match(/first: 2/g)?.length, 4)
     } finally {
       await cleanup()
     }
@@ -662,13 +651,17 @@ Deno.test("resolveProjectId - accepts a UUID without an API call", async () => {
 Deno.test("resolveProjectId - resolves by exact name", async () => {
   const { cleanup } = await setupMockLinearServer([
     {
-      queryName: "GetProjectIdByName",
-      variables: { name: "Tech Debt" },
+      queryName: "LookupProjectCandidates",
+      variables: { reference: "Tech Debt" },
       response: {
         data: {
-          projects: {
+          byName: {
             pageInfo: { hasNextPage: false, endCursor: null },
             nodes: [{ id: "proj-name-uuid" }],
+          },
+          bySlugId: {
+            nodes: [],
+            pageInfo: { hasNextPage: false, endCursor: null },
           },
         },
       },
@@ -685,23 +678,15 @@ Deno.test("resolveProjectId - resolves by exact name", async () => {
 Deno.test("resolveProjectId - falls back to slug ID when name does not match", async () => {
   const { cleanup } = await setupMockLinearServer([
     {
-      queryName: "GetProjectIdByName",
-      variables: { name: "f-foo" },
+      queryName: "LookupProjectCandidates",
+      variables: { reference: "f-foo" },
       response: {
         data: {
-          projects: {
+          byName: {
             pageInfo: { hasNextPage: false, endCursor: null },
             nodes: [],
           },
-        },
-      },
-    },
-    {
-      queryName: "GetProjectIdBySlugId",
-      variables: { slugId: "f-foo" },
-      response: {
-        data: {
-          projects: {
+          bySlugId: {
             pageInfo: { hasNextPage: false, endCursor: null },
             nodes: [{ id: "proj-slug-uuid" }],
           },
@@ -720,21 +705,14 @@ Deno.test("resolveProjectId - falls back to slug ID when name does not match", a
 Deno.test("resolveProjectId - throws NotFoundError when nothing matches", async () => {
   const { cleanup } = await setupMockLinearServer([
     {
-      queryName: "GetProjectIdByName",
+      queryName: "LookupProjectCandidates",
       response: {
         data: {
-          projects: {
+          byName: {
             pageInfo: { hasNextPage: false, endCursor: null },
             nodes: [],
           },
-        },
-      },
-    },
-    {
-      queryName: "GetProjectIdBySlugId",
-      response: {
-        data: {
-          projects: {
+          bySlugId: {
             pageInfo: { hasNextPage: false, endCursor: null },
             nodes: [],
           },

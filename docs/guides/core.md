@@ -6,7 +6,9 @@ commands:
   - version
   - auth login
   - auth whoami
+  - auth list
   - auth default
+  - issue query
   - issue update
   - issue attach
   - issue comment add

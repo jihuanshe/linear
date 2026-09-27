@@ -2108,3 +2108,53 @@ Deno.test("Issue Query Command - Hides Cycle Column When Cycles Disabled", async
     await cleanup()
   }
 })
+
+for (const search of [false, true]) {
+  for (const hasNextPage of [true, false]) {
+    Deno.test(`Issue Query Command - human output reports truncation (search ${search}, more pages ${hasNextPage})`, async () => {
+      const { cleanup } = await setupMockLinearServer([{
+        queryName: search ? "SearchIssues" : "GetIssuesForQuery",
+        response: {
+          data: {
+            [search ? "searchIssues" : "issues"]: {
+              nodes: [mockIssueNode],
+              pageInfo: { hasNextPage, endCursor: "cursor-1" },
+              ...(search ? { totalCount: 2 } : {}),
+            },
+          },
+        },
+      }], { NO_COLOR: "true" })
+      const stdout: string[] = []
+      const stderr: string[] = []
+      const log = stub(console, "log", (...args: unknown[]) => {
+        stdout.push(args.map(String).join(" "))
+      })
+      const error = stub(console, "error", (...args: unknown[]) => {
+        stderr.push(args.map(String).join(" "))
+      })
+      try {
+        await queryCommand.parse([
+          "--team",
+          "ENG",
+          "--limit",
+          "1",
+          "--no-pager",
+          ...(search ? ["--search", "login"] : []),
+        ])
+      } finally {
+        error.restore()
+        log.restore()
+        await cleanup()
+      }
+      assertStringIncludes(stdout.join("\n"), "ENG-101")
+      assertEquals(
+        stderr,
+        hasNextPage
+          ? [
+            "Showing the first 1 issue; more match. Use --limit 0 to fetch all pages, or narrow the filters.",
+          ]
+          : [],
+      )
+    })
+  }
+}
