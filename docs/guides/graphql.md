@@ -20,7 +20,7 @@ linear schema -o "${TMPDIR:-/tmp}/linear-schema.graphql"
 rg -A 30 '^type Issue ' "${TMPDIR:-/tmp}/linear-schema.graphql"
 ```
 
-API 输入是 GraphQL document，可以包含 query 或 mutation 操作。含 `$` 或多行 GraphQL document 使用单引号 heredoc，避免 shell 展开。用 `-` 显式读取 stdin 到 EOF，变量以 JSON 对象传入：
+API 输入是 GraphQL document，可以包含 query 或 mutation 操作；mutation 必须显式加 `--unprotected`，适用边界见「未覆盖的写入与直接 HTTP」。含 `$` 或多行 GraphQL document 使用单引号 heredoc，避免 shell 展开。用 `-` 显式读取 stdin 到 EOF，变量以 JSON 对象传入：
 
 ```bash
 linear api - --variables-json '{"teamId":"abc123"}' <<'GRAPHQL'
