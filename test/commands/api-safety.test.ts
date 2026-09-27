@@ -312,6 +312,33 @@ Deno.test("API safety binds fragment and alias pagination to the selected respon
   }])
 })
 
+Deno.test("API paginate warns about nested connections left in node arrays", async () => {
+  const query =
+    "query Read($after: String) { teams(after: $after) { nodes { key issues { nodes { id } pageInfo { hasNextPage endCursor } } } pageInfo { hasNextPage endCursor } } }"
+  const result = await runApi(query, ["--paginate"], [{
+    body: {
+      data: {
+        teams: {
+          nodes: [{
+            key: "ENG",
+            issues: {
+              nodes: [{ id: "issue-1" }],
+              pageInfo: { hasNextPage: true, endCursor: "issue-cursor" },
+            },
+          }],
+          pageInfo: { hasNextPage: false, endCursor: null },
+        },
+      },
+    },
+  }])
+  assertEquals(result.code, 0, result.stderr)
+  assertStringIncludes(result.stderr, "teams.nodes[].issues has more pages")
+  assertStringIncludes(
+    result.stderr,
+    "page nested connections with $after per parent object",
+  )
+})
+
 for (const cursor of [null, "", 42]) {
   Deno.test(`API safety rejects hasNextPage with invalid cursor ${JSON.stringify(cursor)}`, async () => {
     const result = await runApi(read, ["--paginate"], [page("one", cursor)])

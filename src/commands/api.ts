@@ -382,6 +382,7 @@ async function executePaginated(
       connection.pageInfo,
     )
     outputJSON(mergedResponse, JSON.stringify(mergedResponse))
+    warnTruncatedConnections(mergedResponse.data)
   }
 }
 
