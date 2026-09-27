@@ -156,6 +156,7 @@ const mockIssueNode = {
     nodes: [
       { id: "label-1", name: "Bug", color: "#eb5757" },
     ],
+    pageInfo: { hasNextPage: false, endCursor: null },
   },
   inverseRelations: { nodes: [] },
 }

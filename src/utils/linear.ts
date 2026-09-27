@@ -428,14 +428,18 @@ export async function getWorkflowStates(
   teamReference: string,
 ) {
   const query = gql(/* GraphQL */ `
-    query GetWorkflowStates($teamKey: String!) {
+    query GetWorkflowStates($teamKey: String!, $first: Int!, $after: String) {
       team(id: $teamKey) {
-        states {
+        states(first: $first, after: $after) {
           nodes {
             id
             name
             type
             position
+          }
+          pageInfo {
+            hasNextPage
+            endCursor
           }
         }
       }
@@ -443,8 +447,16 @@ export async function getWorkflowStates(
   `)
 
   const client = getGraphQLClient()
-  const result = await client.request(query, { teamKey: teamReference })
-  return result.team.states.nodes.sort(
+  // Keep Linear's default first page of 50; later pages only when needed.
+  const fetchPage = async (after?: string, first = 50) =>
+    (await client.request(query, { teamKey: teamReference, first, after }))
+      .team.states
+  const { nodes } = await completeConnection(
+    await fetchPage(),
+    fetchPage,
+    `workflow states for team ${teamReference}`,
+  )
+  return nodes.sort(
     (a: { position: number }, b: { position: number }) =>
       a.position - b.position,
   )
@@ -951,6 +963,10 @@ const queryIssuesQuery = gql(/* GraphQL */ `
             name
             color
           }
+          pageInfo {
+            hasNextPage
+            endCursor
+          }
         }
         inverseRelations(first: 100) {
           nodes {
@@ -1331,6 +1347,24 @@ async function buildIssueFilter(
   return filter
 }
 
+/**
+ * Query rows embed Linear's default first page of 50 labels. Only rows whose
+ * label page is still open are read further, so ordinary pages cost nothing.
+ */
+async function completeQueryIssueLabels<
+  T extends { id: string; labels: Parameters<typeof completeIssueLabels>[1] },
+>(nodes: T[]): Promise<T[]> {
+  const completed: T[] = []
+  for (const node of nodes) {
+    completed.push(
+      node.labels.pageInfo.hasNextPage
+        ? { ...node, labels: await completeIssueLabels(node.id, node.labels) }
+        : node,
+    )
+  }
+  return completed
+}
+
 export async function fetchIssuesForQuery(
   options: FetchIssuesForQueryOptions,
 ): Promise<FetchedQueryIssuePayload> {
@@ -1420,9 +1454,11 @@ export async function fetchIssuesForQuery(
       exactIssueId,
     )
 
-  const nodes = options.exactUrl == null
-    ? (fetchAll ? matchedNodes : matchedNodes.slice(0, limit))
-    : matchedNodes
+  const nodes = await completeQueryIssueLabels(
+    options.exactUrl == null
+      ? (fetchAll ? matchedNodes : matchedNodes.slice(0, limit))
+      : matchedNodes,
+  )
 
   return {
     nodes,
@@ -1510,6 +1546,10 @@ const searchIssuesQuery = gql(/* GraphQL */ `
             name
             color
           }
+          pageInfo {
+            hasNextPage
+            endCursor
+          }
         }
         inverseRelations(first: 100) {
           nodes {
@@ -1587,7 +1627,7 @@ export async function searchIssuesByTerm(
     options.limit,
   )
   return {
-    nodes: connection.nodes,
+    nodes: await completeQueryIssueLabels(connection.nodes),
     pageInfo: connection.pageInfo,
     totalCount,
   }

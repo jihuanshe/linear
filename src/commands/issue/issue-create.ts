@@ -758,7 +758,7 @@ const createIssueMutation = gql(`
         assignee { id name email }
         project { id name }
         parent { identifier }
-        labels { nodes { id name } }
+        labels { nodes { id name } pageInfo { hasNextPage endCursor } }
       }
     }
   }

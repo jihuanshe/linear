@@ -207,7 +207,16 @@ for (
         ...responses,
         {
           queryName: "GetWorkflowStates",
-          response: { data: { team: { states: { nodes: [] } } } },
+          response: {
+            data: {
+              team: {
+                states: {
+                  nodes: [],
+                  pageInfo: { hasNextPage: false, endCursor: null },
+                },
+              },
+            },
+          },
         },
         {
           queryName: "GetLabelsForTeam",

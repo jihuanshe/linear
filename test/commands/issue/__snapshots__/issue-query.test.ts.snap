@@ -102,7 +102,11 @@ stdout:
             "name": "Bug",
             "color": "#eb5757"
           }
-        ]
+        ],
+        "pageInfo": {
+          "hasNextPage": false,
+          "endCursor": null
+        }
       },
       "inverseRelations": {
         "nodes": []
@@ -165,7 +169,11 @@ stdout:
             "name": "Bug",
             "color": "#eb5757"
           }
-        ]
+        ],
+        "pageInfo": {
+          "hasNextPage": false,
+          "endCursor": null
+        }
       },
       "inverseRelations": {
         "nodes": []

@@ -84,6 +84,10 @@ Deno.test("Issue Pick Command - selection prints one identifier and performs no 
               identifier: "ENG-123",
               title: "Pick this",
               priority: 2,
+              labels: {
+                nodes: [],
+                pageInfo: { hasNextPage: false, endCursor: null },
+              },
             }],
             pageInfo: { hasNextPage: false, endCursor: null },
           },

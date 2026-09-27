@@ -478,7 +478,10 @@ Deno.test("searchIssuesByTerm - without limit fetches a single page", async () =
                 project: null,
                 projectMilestone: null,
                 cycle: null,
-                labels: { nodes: [] },
+                labels: {
+                  nodes: [],
+                  pageInfo: { hasNextPage: false, endCursor: null },
+                },
                 inverseRelations: { nodes: [] },
                 metadata: {},
               },
@@ -528,7 +531,10 @@ Deno.test("searchIssuesByTerm - without limit fetches a single page", async () =
           project: null,
           projectMilestone: null,
           cycle: null,
-          labels: { nodes: [] },
+          labels: {
+            nodes: [],
+            pageInfo: { hasNextPage: false, endCursor: null },
+          },
           inverseRelations: { nodes: [] },
           metadata: {},
         },
