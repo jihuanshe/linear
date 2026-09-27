@@ -1157,7 +1157,7 @@ Run \`linear guide markdown\` for mentions, collapsible sections and rewrite ris
               variadic: false,
             },
           ],
-          description: "Workflow state for the issue (UUID, name, or type)",
+          description: "Workflow state (UUID, name, or type). Omit it, or pass 'default', for the team's default state; 'triage' only works on teams with triage enabled.",
           flags: [
             "-s",
             "--state",
@@ -1240,7 +1240,7 @@ Run \`linear guide markdown\` for mentions, collapsible sections and rewrite ris
         },
         {
           arguments: [],
-          description: "Output {ok, effect, data}; the created issue is in data.issue, its identifier in data.issue.identifier (non-interactive only)",
+          description: "Output {ok, effect, data}; the created issue is in data.issue, its identifier in data.issue.identifier; the receipt also carries url, state, assignee, project, parent and labels (non-interactive only)",
           flags: [
             "-j",
             "--json",

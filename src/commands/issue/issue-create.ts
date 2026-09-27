@@ -33,6 +33,7 @@ import {
   getProjectOptionsByName,
   getProjectsForTeam,
   getTeamKey,
+  getTeamStateDefaults,
   getWorkflowStates,
   isLinearUuid,
   lookupIssueLabelIdForTeam,
@@ -48,6 +49,7 @@ import {
 import {
   handleError,
   NotFoundError,
+  TriageDisabledError,
   ValidationError,
 } from "../../utils/errors.ts"
 
@@ -545,6 +547,46 @@ async function promptInteractiveIssueCreation(
   }
 }
 
+/** Reserved `--state` value: the team's `defaultIssueState`, as for members. */
+const DEFAULT_STATE = "default"
+
+async function resolveCreateState(
+  teamKey: string,
+  teamId: string,
+  state: string,
+): Promise<{ id: string }> {
+  const states = await getWorkflowStates(teamId)
+  if (state.toLowerCase() === DEFAULT_STATE) {
+    if (states.some((entry) => entry.name.toLowerCase() === DEFAULT_STATE)) {
+      throw new ValidationError(
+        `Team ${teamKey} has a workflow state named ${
+          JSON.stringify(state)
+        }, which conflicts with --state default`,
+        { suggestion: "Pass that state's UUID instead." },
+      )
+    }
+    const { defaultIssueState } = await getTeamStateDefaults(teamId)
+    if (defaultIssueState == null) {
+      throw new ValidationError(`Team ${teamKey} has no default issue state`, {
+        suggestion:
+          `Run \`linear team states ${teamKey}\` and pass one of its states.`,
+      })
+    }
+    return defaultIssueState
+  }
+  const workflowState = isLinearUuid(state)
+    ? states.find((entry) => entry.id.toLowerCase() === state.toLowerCase())
+    : resolveWorkflowState(states, state)
+  if (workflowState) return workflowState
+  if (state.toLowerCase() === "triage") {
+    const defaults = await getTeamStateDefaults(teamId)
+    if (!defaults.triageEnabled) {
+      throw new TriageDisabledError(teamKey, defaults.defaultIssueState ?? null)
+    }
+  }
+  throw workflowStateNotFoundError(teamKey, state, states)
+}
+
 export type CreateIssueOptions =
   & Pick<
     UpdateIssueOptions,
@@ -602,17 +644,9 @@ export async function prepareIssueCreate(options: CreateIssueOptions) {
   const writeTeam = await resolveTeam(team)
   team = writeTeam.key
   const teamId = writeTeam.id
-  let stateId: string | undefined
-  if (state != null) {
-    const states = await getWorkflowStates(teamId)
-    const workflowState = isLinearUuid(state)
-      ? states.find((entry) => entry.id.toLowerCase() === state.toLowerCase())
-      : resolveWorkflowState(states, state)
-    if (!workflowState) {
-      throw workflowStateNotFoundError(team, state, states)
-    }
-    stateId = workflowState.id
-  }
+  const stateId = state == null
+    ? undefined
+    : (await resolveCreateState(team, teamId, state)).id
 
   let assigneeId = undefined
   if (assignee != null) {
@@ -714,7 +748,18 @@ const createIssueMutation = gql(`
   mutation CreateIssue($input: IssueCreateInput!) {
     issueCreate(input: $input) {
       success
-      issue { id identifier title url team { key } }
+      issue {
+        id
+        identifier
+        title
+        url
+        team { key }
+        state { id name type }
+        assignee { id name email }
+        project { id name }
+        parent { identifier }
+        labels { nodes { id name } }
+      }
     }
   }
 `)
@@ -812,7 +857,7 @@ export const createCommand = withUsageMetadata(new Command(), {
   )
   .option(
     "-s, --state <state:string>",
-    "Workflow state for the issue (UUID, name, or type)",
+    "Workflow state (UUID, name, or type). Omit it, or pass 'default', for the team's default state; 'triage' only works on teams with triage enabled.",
     { preserveEmpty: true },
   )
   .option(
@@ -835,7 +880,7 @@ export const createCommand = withUsageMetadata(new Command(), {
   })
   .option(
     "-j, --json",
-    "Output {ok, effect, data}; the created issue is in data.issue, its identifier in data.issue.identifier (non-interactive only)",
+    "Output {ok, effect, data}; the created issue is in data.issue, its identifier in data.issue.identifier; the receipt also carries url, state, assignee, project, parent and labels (non-interactive only)",
   )
   .action(
     async (
