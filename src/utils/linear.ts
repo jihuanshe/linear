@@ -1809,7 +1809,9 @@ export async function fetchIssuesByIdentifiers(
   }
 
   return {
-    nodes,
+    // Complete labels and incoming relations only for the rows returned, after
+    // de-duplication, the same way the filter and search modes do.
+    nodes: await completeQueryIssueConnections(nodes),
     pageInfo: { hasNextPage: false, endCursor: null },
     resolutions: ordered as IssueUrlResolution[],
     reconciliation,
