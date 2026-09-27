@@ -758,7 +758,7 @@ const createIssueMutation = gql(`
         assignee { id name email }
         project { id name }
         parent { identifier }
-        labels { nodes { id name } }
+        labels { nodes { id name } pageInfo { hasNextPage endCursor } }
       }
     }
   }
@@ -880,7 +880,7 @@ export const createCommand = withUsageMetadata(new Command(), {
   })
   .option(
     "-j, --json",
-    "Output {ok, effect, data}; the created issue is in data.issue, its identifier in data.issue.identifier; the receipt also carries url, state, assignee, project, parent and labels (non-interactive only)",
+    "Output {ok, effect, data}; the created issue is in data.issue, its identifier in data.issue.identifier; the receipt also carries url, state, assignee, project, parent and labels {nodes, pageInfo}, where pageInfo.hasNextPage marks labels beyond the first 50 as omitted (non-interactive only)",
   )
   .action(
     async (

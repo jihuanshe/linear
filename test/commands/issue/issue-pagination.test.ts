@@ -223,7 +223,7 @@ for (const search of [false, true]) {
         response: {
           data: {
             [field]: {
-              nodes: [{ id: "late" }],
+              nodes: [{ id: "late", labels: empty, inverseRelations: empty }],
               totalCount: 200,
               pageInfo: continuation,
             },
@@ -238,7 +238,11 @@ for (const search of [false, true]) {
             [field]: {
               nodes: Array.from(
                 { length: 100 },
-                (_, id) => ({ id: String(id) }),
+                (_, id) => ({
+                  id: String(id),
+                  labels: empty,
+                  inverseRelations: empty,
+                }),
               ),
               totalCount: 200,
               pageInfo: { hasNextPage: true, endCursor: "next" },
@@ -261,7 +265,11 @@ for (const search of [false, true]) {
       assertEquals(result.code, 0, result.stderr)
       const data = JSON.parse(result.stdout)
       assertEquals(data.nodes.length, 101)
-      assertEquals(data.nodes.at(-1), { id: "late" })
+      assertEquals(data.nodes.at(-1), {
+        id: "late",
+        labels: empty,
+        inverseRelations: empty,
+      })
       assertEquals(data.pageInfo, continuation)
       if (search) assertEquals(data.totalCount, 200)
       assertEquals(server.graphqlRequests.length, 2)
@@ -906,3 +914,102 @@ Deno.test("issue view completes labels with the stable UUID before publishing it
     await server.stop()
   }
 })
+
+for (const search of [false, true]) {
+  Deno.test(`issue query search=${search} completes labels and incoming relations only for rows with more pages`, async () => {
+    const queryName = search ? "SearchIssues" : "GetIssuesForQuery"
+    const field = search ? "searchIssues" : "issues"
+    const label = (id: string) => ({ id, name: id, color: "#000000" })
+    const relation = (id: string) => ({
+      id,
+      type: "blocks",
+      issue: { id: `${id}-issue`, identifier: id, state: { type: "started" } },
+    })
+    const server = new MockLinearServer([
+      {
+        queryName: "GetIssueLabelsForWrite",
+        variables: { id: "crowded", first: 100, after: "labels-50" },
+        response: {
+          data: {
+            issue: {
+              labels: { nodes: [label("late-label")], pageInfo: terminalPage },
+            },
+          },
+        },
+      },
+      {
+        queryName: "GetQueryIssueInverseRelations",
+        variables: { id: "crowded", first: 100, after: "relations-10" },
+        response: {
+          data: {
+            issue: {
+              inverseRelations: {
+                nodes: [relation("late-relation")],
+                pageInfo: terminalPage,
+              },
+            },
+          },
+        },
+      },
+      {
+        queryName,
+        response: {
+          data: {
+            [field]: {
+              nodes: [
+                {
+                  id: "crowded",
+                  labels: {
+                    nodes: [label("first-label")],
+                    pageInfo: { hasNextPage: true, endCursor: "labels-50" },
+                  },
+                  inverseRelations: {
+                    nodes: [relation("first-relation")],
+                    pageInfo: { hasNextPage: true, endCursor: "relations-10" },
+                  },
+                },
+                { id: "plain", labels: empty, inverseRelations: empty },
+              ],
+              totalCount: 2,
+              pageInfo: terminalPage,
+            },
+          },
+        },
+      },
+    ])
+    server.start()
+    try {
+      const result = await runCli(server, [
+        "issue",
+        "query",
+        "--all-teams",
+        "--json",
+        ...(search ? ["--search", "evidence"] : []),
+      ])
+      assertEquals(result.code, 0, result.stderr)
+      const data = JSON.parse(result.stdout)
+      assertEquals(data.nodes[0].labels, {
+        nodes: [label("first-label"), label("late-label")],
+        pageInfo: terminalPage,
+      })
+      assertEquals(data.nodes[0].inverseRelations, {
+        nodes: [relation("first-relation"), relation("late-relation")],
+        pageInfo: terminalPage,
+      })
+      assertEquals(data.nodes[1].labels, empty)
+      assertEquals(data.nodes[1].inverseRelations, empty)
+      assertEquals(
+        server.graphqlRequests.map(({ query }) =>
+          query.match(/query (\w+)/)?.[1]
+        ),
+        [queryName, "GetIssueLabelsForWrite", "GetQueryIssueInverseRelations"],
+      )
+      assertStringIncludes(
+        server.graphqlRequests[0].query,
+        "inverseRelations(first: 10)",
+      )
+    } finally {
+      await server.stop()
+    }
+  })
+}

@@ -25,7 +25,7 @@ import {
   ValidationError,
 } from "./errors.ts"
 import { getGraphQLClient } from "./graphql.ts"
-import { completeConnection } from "./pagination.ts"
+import { completeConnection, type Connection } from "./pagination.ts"
 import { normalizeIssueIdentifier } from "./issue-identifier.ts"
 import { getCurrentIssueFromVcs } from "./vcs.ts"
 import { unified } from "unified"
@@ -429,14 +429,18 @@ export async function getWorkflowStates(
   teamReference: string,
 ) {
   const query = gql(/* GraphQL */ `
-    query GetWorkflowStates($teamKey: String!) {
+    query GetWorkflowStates($teamKey: String!, $first: Int!, $after: String) {
       team(id: $teamKey) {
-        states {
+        states(first: $first, after: $after) {
           nodes {
             id
             name
             type
             position
+          }
+          pageInfo {
+            hasNextPage
+            endCursor
           }
         }
       }
@@ -444,8 +448,16 @@ export async function getWorkflowStates(
   `)
 
   const client = getGraphQLClient()
-  const result = await client.request(query, { teamKey: teamReference })
-  return result.team.states.nodes.sort(
+  // Keep Linear's default first page of 50; later pages only when needed.
+  const fetchPage = async (after?: string, first = 50) =>
+    (await client.request(query, { teamKey: teamReference, first, after }))
+      .team.states
+  const { nodes } = await completeConnection(
+    await fetchPage(),
+    fetchPage,
+    `workflow states for team ${teamReference}`,
+  )
+  return nodes.sort(
     (a: { position: number }, b: { position: number }) =>
       a.position - b.position,
   )
@@ -938,8 +950,12 @@ const queryIssuesQuery = gql(/* GraphQL */ `
             name
             color
           }
+          pageInfo {
+            hasNextPage
+            endCursor
+          }
         }
-        inverseRelations(first: 100) {
+        inverseRelations(first: 10) {
           nodes {
             id
             type
@@ -950,6 +966,10 @@ const queryIssuesQuery = gql(/* GraphQL */ `
                 type
               }
             }
+          }
+          pageInfo {
+            hasNextPage
+            endCursor
           }
         }
       }
@@ -1318,6 +1338,93 @@ async function buildIssueFilter(
   return filter
 }
 
+const queryIssueInverseRelationsQuery = gql(/* GraphQL */ `
+  query GetQueryIssueInverseRelations(
+    $id: String!
+    $first: Int!
+    $after: String
+  ) {
+    issue(id: $id) {
+      inverseRelations(first: $first, after: $after) {
+        nodes {
+          id
+          type
+          issue {
+            id
+            identifier
+            state {
+              type
+            }
+          }
+        }
+        pageInfo {
+          hasNextPage
+          endCursor
+        }
+      }
+    }
+  }
+`)
+
+type QueryIssueConnections = {
+  id: string
+  labels: Parameters<typeof completeIssueLabels>[1]
+  inverseRelations: Connection<unknown>
+}
+
+/**
+ * Query rows embed Linear's default first page of 50 labels and the first 10
+ * incoming relations. Linear prices nested connections by the requested
+ * `first` on every row, so only rows whose page is still open are read further.
+ */
+async function completeQueryIssueConnections<T extends QueryIssueConnections>(
+  nodes: T[],
+): Promise<T[]> {
+  const completed: T[] = []
+  for (const node of nodes) {
+    let row = node
+    // Fail with a clear error, not a TypeError, when a connection arrives
+    // without the pageInfo this completion depends on.
+    for (
+      const [label, connection] of [
+        ["labels", row.labels],
+        ["incoming relations", row.inverseRelations],
+      ] as const
+    ) {
+      if (
+        connection == null || !Array.isArray(connection.nodes) ||
+        typeof connection.pageInfo?.hasNextPage !== "boolean"
+      ) {
+        throw new CliError(
+          `Issue query returned incomplete ${label} for ${node.id}`,
+        )
+      }
+    }
+    if (row.labels.pageInfo.hasNextPage) {
+      row = { ...row, labels: await completeIssueLabels(row.id, row.labels) }
+    }
+    if (row.inverseRelations.pageInfo.hasNextPage) {
+      row = {
+        ...row,
+        inverseRelations: await completeConnection(
+          row.inverseRelations,
+          async (after, first) => {
+            const result = await getGraphQLClient().request(
+              queryIssueInverseRelationsQuery,
+              { id: node.id, first, after },
+            )
+            if (result.issue == null) throw new NotFoundError("Issue", node.id)
+            return result.issue.inverseRelations
+          },
+          `incoming relations for ${node.id}`,
+        ),
+      }
+    }
+    completed.push(row)
+  }
+  return completed
+}
+
 export async function fetchIssuesForQuery(
   options: FetchIssuesForQueryOptions,
 ): Promise<FetchedQueryIssuePayload> {
@@ -1407,9 +1514,11 @@ export async function fetchIssuesForQuery(
       exactIssueId,
     )
 
-  const nodes = options.exactUrl == null
-    ? (fetchAll ? matchedNodes : matchedNodes.slice(0, limit))
-    : matchedNodes
+  const nodes = await completeQueryIssueConnections(
+    options.exactUrl == null
+      ? (fetchAll ? matchedNodes : matchedNodes.slice(0, limit))
+      : matchedNodes,
+  )
 
   return {
     nodes,
@@ -1700,7 +1809,9 @@ export async function fetchIssuesByIdentifiers(
   }
 
   return {
-    nodes,
+    // Complete labels and incoming relations only for the rows returned, after
+    // de-duplication, the same way the filter and search modes do.
+    nodes: await completeQueryIssueConnections(nodes),
     pageInfo: { hasNextPage: false, endCursor: null },
     resolutions: ordered as IssueUrlResolution[],
     reconciliation,
@@ -1781,8 +1892,12 @@ const searchIssuesQuery = gql(/* GraphQL */ `
             name
             color
           }
+          pageInfo {
+            hasNextPage
+            endCursor
+          }
         }
-        inverseRelations(first: 100) {
+        inverseRelations(first: 10) {
           nodes {
             id
             type
@@ -1793,6 +1908,10 @@ const searchIssuesQuery = gql(/* GraphQL */ `
                 type
               }
             }
+          }
+          pageInfo {
+            hasNextPage
+            endCursor
           }
         }
         metadata
@@ -1858,7 +1977,7 @@ export async function searchIssuesByTerm(
     options.limit,
   )
   return {
-    nodes: connection.nodes,
+    nodes: await completeQueryIssueConnections(connection.nodes),
     pageInfo: connection.pageInfo,
     totalCount,
   }

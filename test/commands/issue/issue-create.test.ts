@@ -53,7 +53,16 @@ for (const outcome of ["missing", "ambiguous", "unauthorized", "unavailable"]) {
       {
         queryName: "GetWorkflowStates",
         variables: { teamKey: teamWriteIds.OPS },
-        response: { data: { team: { states: { nodes: [] } } } },
+        response: {
+          data: {
+            team: {
+              states: {
+                nodes: [],
+                pageInfo: { hasNextPage: false, endCursor: null },
+              },
+            },
+          },
+        },
       },
       {
         queryName: "GetLabelsForTeam",
@@ -205,6 +214,7 @@ for (
                     position: 2,
                   },
                 ],
+                pageInfo: { hasNextPage: false, endCursor: null },
               },
             },
           },
@@ -539,7 +549,7 @@ Deno.test("Issue Create Command - JSON receipt includes the server title in data
     assertEquals(writes.length, 1)
     assertStringIncludes(
       stripIgnoredCharacters(writes[0].query),
-      "issue{id identifier title url team{key}state{id name type}assignee{id name email}project{id name}parent{identifier}labels{nodes{id name}}}",
+      "issue{id identifier title url team{key}state{id name type}assignee{id name email}project{id name}parent{identifier}labels{nodes{id name}pageInfo{hasNextPage endCursor}}}",
     )
   } finally {
     await cleanup()
@@ -1174,7 +1184,16 @@ for (const ownership of ["none", "project", "parent"] as const) {
       },
       {
         queryName: "GetWorkflowStates",
-        response: { data: { team: { states: { nodes: [] } } } },
+        response: {
+          data: {
+            team: {
+              states: {
+                nodes: [],
+                pageInfo: { hasNextPage: false, endCursor: null },
+              },
+            },
+          },
+        },
       },
       {
         queryName: "GetLabelsForTeam",
@@ -1391,6 +1410,7 @@ Deno.test("Issue Create Command - Explicit Project Still Uses Interactive Mode",
           team: {
             states: {
               nodes: [],
+              pageInfo: { hasNextPage: false, endCursor: null },
             },
           },
         },
@@ -1545,6 +1565,7 @@ Deno.test("Issue Create Command - Interactive Project Prompt Uses Team Projects"
           team: {
             states: {
               nodes: [],
+              pageInfo: { hasNextPage: false, endCursor: null },
             },
           },
         },
@@ -1697,6 +1718,7 @@ Deno.test("Issue Create Command - Additional Fields Can Set Project", async () =
           team: {
             states: {
               nodes: [],
+              pageInfo: { hasNextPage: false, endCursor: null },
             },
           },
         },
@@ -2294,6 +2316,7 @@ Deno.test("Issue Create Command - Auto Assign Mode Respects Linear User Setting 
           team: {
             states: {
               nodes: [],
+              pageInfo: { hasNextPage: false, endCursor: null },
             },
           },
         },
@@ -2510,6 +2533,7 @@ Deno.test("Issue Create Command - Interactive Assignee Can Override Config Self 
           team: {
             states: {
               nodes: [],
+              pageInfo: { hasNextPage: false, endCursor: null },
             },
           },
         },
@@ -2675,6 +2699,7 @@ await snapshotTest({
                     position: 3,
                   },
                 ],
+                pageInfo: { hasNextPage: false, endCursor: null },
               },
             },
           },
@@ -2726,6 +2751,7 @@ const backlogOnlyStates = {
             { id: "s-backlog", name: "Backlog", type: "backlog", position: 0 },
             { id: "s-todo", name: "Todo", type: "unstarted", position: 1 },
           ],
+          pageInfo: { hasNextPage: false, endCursor: null },
         },
       },
     },
@@ -2836,6 +2862,7 @@ Deno.test("Issue Create Command - --state default rejects a same-named state", a
               nodes: [
                 { id: "s-d", name: "Default", type: "unstarted", position: 0 },
               ],
+              pageInfo: { hasNextPage: false, endCursor: null },
             },
           },
         },

@@ -112,10 +112,18 @@ stdout:
             "name": "Bug",
             "color": "#eb5757"
           }
-        ]
+        ],
+        "pageInfo": {
+          "hasNextPage": false,
+          "endCursor": null
+        }
       },
       "inverseRelations": {
-        "nodes": []
+        "nodes": [],
+        "pageInfo": {
+          "hasNextPage": false,
+          "endCursor": null
+        }
       }
     }
   ],
@@ -175,10 +183,18 @@ stdout:
             "name": "Bug",
             "color": "#eb5757"
           }
-        ]
+        ],
+        "pageInfo": {
+          "hasNextPage": false,
+          "endCursor": null
+        }
       },
       "inverseRelations": {
-        "nodes": []
+        "nodes": [],
+        "pageInfo": {
+          "hasNextPage": false,
+          "endCursor": null
+        }
       },
       "metadata": {
         "context": {},

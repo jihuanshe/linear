@@ -38,8 +38,11 @@ function issueNode(
     project: null,
     projectMilestone: null,
     cycle: null,
-    labels: { nodes: [] },
-    inverseRelations: { nodes: [] },
+    labels: { nodes: [], pageInfo: { hasNextPage: false, endCursor: null } },
+    inverseRelations: {
+      nodes: [] as unknown[],
+      pageInfo: { hasNextPage: false, endCursor: null as string | null },
+    },
   }
 }
 
@@ -146,6 +149,53 @@ Deno.test("Issue Query --id - reads every identifier in one request when all exi
   })
   assertEquals(result.requests[0].variables.includeArchived, true)
   assertEquals(result.requests[0].variables.first, 100)
+})
+
+Deno.test("Issue Query --id - completes incoming relations beyond the first page", async () => {
+  const relation = (n: number) => ({
+    id: `relation-${n}`,
+    type: "blocks",
+    issue: {
+      id: `blocker-${n}`,
+      identifier: `ENG-${200 + n}`,
+      state: { type: "started" },
+    },
+  })
+  const node = issueNode("issue-1", "ENG-101")
+  node.inverseRelations = {
+    nodes: [relation(1)],
+    pageInfo: { hasNextPage: true, endCursor: "relations-1" },
+  }
+  const result = await runQuery(
+    [issuesById([node]), {
+      queryName: "GetQueryIssueInverseRelations",
+      response: {
+        data: {
+          issue: {
+            inverseRelations: {
+              nodes: [relation(2)],
+              pageInfo: { hasNextPage: false, endCursor: null },
+            },
+          },
+        },
+      },
+    }],
+    ["--id", "ENG-101", "--json"],
+  )
+
+  assertEquals(result.code, 0, result.stderr)
+  const [issue] = JSON.parse(result.stdout).nodes
+  assertEquals(
+    issue.inverseRelations.nodes.map((r: { id: string }) => r.id),
+    ["relation-1", "relation-2"],
+  )
+  assertEquals(issue.inverseRelations.pageInfo.hasNextPage, false)
+  assertEquals(operations(result.requests), [
+    "GetIssuesForQuery",
+    "GetQueryIssueInverseRelations",
+  ])
+  assertEquals(result.requests[1].variables.id, "issue-1")
+  assertEquals(result.requests[1].variables.after, "relations-1")
 })
 
 Deno.test("Issue Query --id - resolves moved, trashed, archived, and missing identifiers without failing the batch", async () => {

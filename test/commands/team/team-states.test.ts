@@ -1,4 +1,6 @@
 import { snapshotTest as cliffySnapshotTest } from "@cliffy/testing"
+import { assertEquals } from "@std/assert"
+import { stub } from "@std/testing/mock"
 import { statesCommand } from "../../../src/commands/team/team-states.ts"
 import { MockLinearServer } from "../../utils/mock_linear_server.ts"
 
@@ -21,6 +23,7 @@ const UNSORTED_STATES = {
           },
           { id: "s-todo", name: "Todo", type: "unstarted", position: 1 },
         ],
+        pageInfo: { hasNextPage: false, endCursor: null },
       },
     },
   },
@@ -116,7 +119,16 @@ await cliffySnapshotTest({
     const server = new MockLinearServer([
       {
         queryName: "GetWorkflowStates",
-        response: { data: { team: { states: { nodes: [] } } } },
+        response: {
+          data: {
+            team: {
+              states: {
+                nodes: [],
+                pageInfo: { hasNextPage: false, endCursor: null },
+              },
+            },
+          },
+        },
       },
     ])
     try {
@@ -143,7 +155,16 @@ await cliffySnapshotTest({
     const server = new MockLinearServer([
       {
         queryName: "GetWorkflowStates",
-        response: { data: { team: { states: { nodes: [] } } } },
+        response: {
+          data: {
+            team: {
+              states: {
+                nodes: [],
+                pageInfo: { hasNextPage: false, endCursor: null },
+              },
+            },
+          },
+        },
       },
     ])
     try {
@@ -181,4 +202,68 @@ await cliffySnapshotTest({
       await Deno.remove(directory, { recursive: true })
     }
   },
+})
+
+// A team with more states than Linear's default first page still lists all.
+Deno.test("Team States Command - reads states beyond the first page", async () => {
+  const state = (position: number) => ({
+    id: `s-${position}`,
+    name: `State ${position}`,
+    type: "started",
+    position,
+  })
+  const server = new MockLinearServer([
+    {
+      queryName: "GetWorkflowStates",
+      variables: { after: "states-50" },
+      response: {
+        data: {
+          team: {
+            states: {
+              nodes: [state(50)],
+              pageInfo: { hasNextPage: false, endCursor: "states-51" },
+            },
+          },
+        },
+      },
+    },
+    {
+      queryName: "GetWorkflowStates",
+      response: {
+        data: {
+          team: {
+            states: {
+              nodes: Array.from({ length: 50 }, (_, i) => state(i)),
+              pageInfo: { hasNextPage: true, endCursor: "states-50" },
+            },
+          },
+        },
+      },
+    },
+  ])
+  server.start()
+  Deno.env.set("LINEAR_GRAPHQL_ENDPOINT", server.getEndpoint())
+  Deno.env.set("LINEAR_API_KEY", "Bearer test-token")
+  const logs: string[] = []
+  const log = stub(console, "log", (...values: unknown[]) => {
+    logs.push(values.join(" "))
+  })
+  try {
+    await statesCommand.parse(["ENG", "--json"])
+  } finally {
+    log.restore()
+    await server.stop()
+    Deno.env.delete("LINEAR_GRAPHQL_ENDPOINT")
+    Deno.env.delete("LINEAR_API_KEY")
+  }
+  assertEquals(
+    server.graphqlRequests.map(({ variables }) => [
+      variables.first,
+      variables.after ?? null,
+    ]),
+    [[50, null], [100, "states-50"]],
+  )
+  const { nodes } = JSON.parse(logs.join("\n"))
+  assertEquals(nodes.length, 51)
+  assertEquals(nodes.at(-1).id, "s-50")
 })
