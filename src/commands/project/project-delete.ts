@@ -32,7 +32,7 @@ export const deleteCommand = withUsageMetadata(new Command(), {
   .name("delete")
   .option("--json", "Output a JSON write result")
   .description(
-    "Delete (trash) a Linear project by UUID, slug ID, or exact name",
+    "Delete (trash) a Linear project by UUID, slug ID, exact name, or Linear URL",
   )
   .arguments("<project:string>")
   .option("-y, --yes", "Skip confirmation prompt")

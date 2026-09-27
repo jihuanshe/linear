@@ -356,19 +356,7 @@ export async function getIssueReference(
           }
         `)
         const { organization } = await getGraphQLClient().request(query)
-        if (
-          !organization?.id ||
-          organization.urlKey?.toLowerCase() !==
-            reference.workspace.toLowerCase()
-        ) {
-          throw new ValidationError(
-            "Issue URL belongs to a different workspace",
-            {
-              suggestion:
-                "Select the URL's workspace with --workspace before continuing.",
-            },
-          )
-        }
+        assertUrlWorkspace(reference, organization, "Issue")
       }
       return reference.identifier
     }
@@ -1053,9 +1041,8 @@ interface LinearIssueUrlReference {
   workspace?: string
 }
 
-function parseLinearIssueUrl(
-  url: string,
-): LinearIssueUrlReference | undefined {
+/** An `https://linear.app/...` URL without port or credentials. */
+function parseLinearAppUrl(url: string): URL | undefined {
   let parsed: URL
   try {
     parsed = new URL(url)
@@ -1067,6 +1054,14 @@ function parseLinearIssueUrl(
     parsed.protocol !== "https:" || parsed.hostname !== "linear.app" ||
     parsed.port !== "" || parsed.username !== "" || parsed.password !== ""
   ) return undefined
+  return parsed
+}
+
+function parseLinearIssueUrl(
+  url: string,
+): LinearIssueUrlReference | undefined {
+  const parsed = parseLinearAppUrl(url)
+  if (parsed == null) return undefined
   const match = parsed.pathname.match(
     /^\/(?:([^/]+)\/)?issue\/([A-Za-z0-9]+-[1-9][0-9]*)(?:\/|$)/i,
   )
@@ -1078,6 +1073,57 @@ function parseLinearIssueUrl(
     return { identifier, workspace: decodeURIComponent(match[1]) }
   } catch {
     return undefined
+  }
+}
+
+export interface LinearObjectUrlReference {
+  slugId: string
+  workspace?: string
+}
+
+/**
+ * Parse `https://linear.app/<workspace>/<kind>/<name>-<slugId>` as Linear
+ * links Projects and Initiatives. The slug ID is the last `-` segment; the
+ * name prefix is optional, and trailing tabs such as `/overview` are ignored.
+ */
+export function parseLinearObjectUrl(
+  url: string,
+  kind: "project" | "initiative",
+): LinearObjectUrlReference | undefined {
+  const parsed = parseLinearAppUrl(url)
+  if (parsed == null) return undefined
+  const match = parsed.pathname.match(
+    new RegExp(`^/(?:([^/]+)/)?${kind}/([^/]+)(?:/|$)`, "i"),
+  )
+  if (match?.[2] == null) return undefined
+  let segment: string
+  let workspace: string | undefined
+  try {
+    segment = decodeURIComponent(match[2])
+    workspace = match[1] == null ? undefined : decodeURIComponent(match[1])
+  } catch {
+    return undefined
+  }
+  const slugId = segment.slice(segment.lastIndexOf("-") + 1)
+  if (!/^[0-9a-z]+$/i.test(slugId)) return undefined
+  return workspace == null ? { slugId } : { slugId, workspace }
+}
+
+/** Throw unless a URL's workspace segment names the authenticated workspace. */
+export function assertUrlWorkspace(
+  reference: { workspace?: string },
+  organization: { id?: string | null; urlKey?: string | null } | null,
+  kind: string,
+): void {
+  if (reference.workspace == null) return
+  if (
+    !organization?.id ||
+    organization.urlKey?.toLowerCase() !== reference.workspace.toLowerCase()
+  ) {
+    throw new ValidationError(`${kind} URL belongs to a different workspace`, {
+      suggestion:
+        "Select the URL's workspace with --workspace before continuing.",
+    })
   }
 }
 
@@ -1991,7 +2037,7 @@ export function isLinearUuid(value: string): boolean {
 }
 
 /**
- * Look up a project ID by UUID, slug ID, or exact name.
+ * Look up a project ID by UUID, Linear Project URL, slug ID, or exact name.
  * Returns undefined when no project matches. Use [[resolveProjectId]] when
  * you want a missing project to throw.
  */
@@ -2000,6 +2046,35 @@ export async function lookupProjectId(
   includeArchived?: boolean,
 ): Promise<string | undefined> {
   if (isLinearUuid(input)) return input.toLowerCase()
+
+  const url = parseLinearObjectUrl(input, "project")
+  if (url != null) {
+    // The workspace check travels with the slug ID lookup.
+    const query = gql(/* GraphQL */ `
+      query LookupProjectByUrl(
+        $slugId: String!
+        $includeArchived: Boolean = false
+      ) {
+        organization { id urlKey }
+        projects(
+          first: 2
+          filter: { slugId: { eq: $slugId } }
+          includeArchived: $includeArchived
+        ) {
+          nodes {
+            id
+          }
+          pageInfo { hasNextPage endCursor }
+        }
+      }
+    `)
+    const data = await getGraphQLClient().request(query, {
+      slugId: url.slugId,
+      ...(includeArchived === undefined ? {} : { includeArchived }),
+    })
+    assertUrlWorkspace(url, data.organization, "Project")
+    return uniqueLookupId(data.projects, input, "Project")
+  }
 
   // Both candidates travel in one request; name keeps precedence over slug ID.
   const query = gql(/* GraphQL */ `
@@ -2060,7 +2135,8 @@ function uniqueLookupId(
 }
 
 /**
- * Resolve a project to its UUID. Accepts a UUID, slug ID, or exact name.
+ * Resolve a project to its UUID. Accepts a UUID, Linear Project URL, slug ID,
+ * or exact name.
  * Throws NotFoundError if none match.
  */
 export async function resolveProjectId(
@@ -2070,7 +2146,7 @@ export async function resolveProjectId(
   if (!projectId) {
     throw new NotFoundError("Project", input, {
       suggestion:
-        "Pass a project UUID, slug ID (from `linear project list`), or exact project name.",
+        "Pass a project UUID, Linear Project URL, slug ID (from `linear project list`), or exact project name.",
     })
   }
   return projectId

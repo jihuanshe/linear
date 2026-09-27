@@ -41,7 +41,7 @@ const ListProjectUpdatesQuery = gql(`
 export const listCommand = new Command()
   .name("list")
   .description(
-    "List status updates for a project by UUID, slug ID, or exact name",
+    "List status updates for a project by UUID, slug ID, exact name, or Linear URL",
   )
   .alias("l")
   .arguments("<project:string>")

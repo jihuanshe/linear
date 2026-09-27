@@ -104,7 +104,7 @@ const GetProjectIssues = gql(`
 export const viewCommand = new Command()
   .name("view")
   .description(
-    "View project details and full overview by UUID, slug ID, or exact name",
+    "View project details and full overview by UUID, slug ID, exact name, or Linear URL",
   )
   .alias("v")
   .arguments("<project:string>")

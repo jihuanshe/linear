@@ -74,7 +74,7 @@ export const addProjectCommand = withUsageMetadata(new Command(), {
   .name("add-project")
   .option("--json", "Output a JSON write result")
   .description(
-    "Link a project to an initiative; each accepts a UUID, slug ID, or name. An existing direct link is unchanged, including its sort order.",
+    "Link a project to an initiative; each accepts a UUID, slug ID, name, or Linear URL. An existing direct link is unchanged, including its sort order.",
   )
   .arguments("<initiative:string> <project:string>")
   .option("--sort-order <order:number>", "Sort order for a new link only", {

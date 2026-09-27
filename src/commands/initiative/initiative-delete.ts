@@ -34,13 +34,13 @@ export const deleteCommand = withUsageMetadata(new Command(), {
   .name("delete")
   .option("--json", "Output a JSON write result")
   .description(
-    "Move a Linear initiative to trash by UUID, slug ID, or name; requires an explicit initiative or bulk input",
+    "Move a Linear initiative to trash by UUID, slug ID, name, or Linear URL; requires an explicit initiative or bulk input",
   )
   .arguments("[initiative:string]")
   .option("-y, --yes", "Skip confirmation prompt")
   .option(
     "--bulk <initiatives...:string>",
-    "Delete multiple initiatives by UUID, slug ID, or name",
+    "Delete multiple initiatives by UUID, slug ID, name, or Linear URL",
   )
   .option(
     "--bulk-file <path:string>",
@@ -72,7 +72,7 @@ export const deleteCommand = withUsageMetadata(new Command(), {
       // Single mode requires initiativeReference
       if (!initiativeReference) {
         throw new ValidationError(
-          "Initiative UUID, slug ID, or name required. Use --bulk for multiple initiatives.",
+          "Initiative UUID, slug ID, name, or Linear URL required. Use --bulk for multiple initiatives.",
         )
       }
 

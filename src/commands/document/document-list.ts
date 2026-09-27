@@ -56,7 +56,7 @@ export const listCommand = new Command()
   .alias("l")
   .option(
     "--project <project:string>",
-    "Filter by project (UUID, slug ID, or exact name)",
+    "Filter by project (UUID, slug ID, exact name, or Linear URL)",
   )
   .option(
     "--issue <issue:string>",

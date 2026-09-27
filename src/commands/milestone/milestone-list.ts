@@ -36,7 +36,7 @@ export const listCommand = new Command()
   .description("List milestones for a project")
   .option(
     "--project <project:string>",
-    "Project (UUID, slug ID, or name)",
+    "Project (UUID, slug ID, name, or Linear URL)",
     { required: true },
   )
   .option("--json", "Output the complete {nodes, pageInfo} connection as JSON")

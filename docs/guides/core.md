@@ -61,13 +61,13 @@ linear usage --json          # 命令树与能力元数据
 
 已知 Issue URL 时可直接传给 `issue view`、`issue export` 或 `issue update`；CLI 解析编号并核对 URL 所属工作区。
 
-项目 URL 仍需提取定位信息：
+Project 和 Initiative URL 可直接传给接受 Project 或 Initiative 的参数，例如 `project view <project>`、`issue query --project` 和 `initiative view <initiative>`：
 
 ```text
 https://linear.app/<workspace>/project/<project-name>-<project-slug-id>/issues
 ```
 
-取工作区短名和项目 slug ID，按上述认证规则核对身份，再将 slug ID 传给 `project view <project>` 核对对象。`view` 默认读取长正文，`--json` 保留原始字段。
+CLI 取路径末尾的 slug ID，并在同一请求中核对 URL 所属工作区；工作区不符时失败，需用 `--workspace` 选择对应凭据。`view` 默认读取长正文，`--json` 保留原始字段。Document URL 仍需提取末尾的 slug ID，再传给 `document view <document>`。
 
 ## 确定查询范围
 

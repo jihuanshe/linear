@@ -333,7 +333,7 @@ export async function prepareIssueUpdate(
     if (projectId === undefined) {
       throw new NotFoundError("Project", project, {
         suggestion:
-          "Pass a project UUID, slug ID (from `linear project list`), or exact project name.",
+          "Pass a project UUID, Linear Project URL, slug ID (from `linear project list`), or exact project name.",
       })
     }
   }
@@ -724,7 +724,7 @@ export const updateCommand = withUsageMetadata(new Command(), { writes: true })
   )
   .option(
     "--project <project:string>",
-    "Project to assign the issue to (UUID, slug ID, or name)",
+    "Project to assign the issue to (UUID, slug ID, name, or Linear URL)",
     { preserveEmpty: true },
   )
   .option(

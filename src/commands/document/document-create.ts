@@ -48,7 +48,7 @@ export const createCommand = withUsageMetadata(new Command(), {
   )
   .option(
     "--project <project:string>",
-    "Attach to project (UUID, slug ID, or name; exactly one parent is required)",
+    "Attach to project (UUID, slug ID, name, or Linear URL; exactly one parent is required)",
   )
   .option(
     "--issue <issue:string>",
@@ -235,7 +235,7 @@ async function promptInteractiveCreate(): Promise<{
 
   if (attachTo === "project") {
     const projectInput = await Input.prompt({
-      message: "Project (UUID, slug ID, or name)",
+      message: "Project (UUID, slug ID, name, or Linear URL)",
     })
     projectId = await resolveProjectId(projectInput)
   } else if (attachTo === "issue") {

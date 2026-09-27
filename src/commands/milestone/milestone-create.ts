@@ -41,7 +41,7 @@ export const createCommand = withUsageMetadata(new Command(), {
   .description("Create a new project milestone")
   .option(
     "--project <project:string>",
-    "Project (UUID, slug ID, or name)",
+    "Project (UUID, slug ID, name, or Linear URL)",
     { required: true },
   )
   .option("--name <name:string>", "Milestone name", { required: true })

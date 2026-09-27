@@ -30,7 +30,7 @@ const STATUS_COLORS: Record<string, string> = {
 export const viewCommand = new Command()
   .name("view")
   .description(
-    "View initiative details, full content and document links by UUID, slug ID, or name",
+    "View initiative details, full content and document links by UUID, slug ID, name, or Linear URL",
   )
   .alias("v")
   .arguments("<initiative:string>")

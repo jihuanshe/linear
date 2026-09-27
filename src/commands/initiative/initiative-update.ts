@@ -71,7 +71,7 @@ export const updateCommand = withUsageMetadata(new Command(), {
 })
   .name("update")
   .description(
-    "Update a Linear initiative by UUID, slug ID, or name using its original read basis",
+    "Update a Linear initiative by UUID, slug ID, name, or Linear URL using its original read basis",
   )
   .arguments("<initiative:string>")
   .option("-n, --name <name:string>", "New name for the initiative", {

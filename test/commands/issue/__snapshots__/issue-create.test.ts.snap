@@ -35,8 +35,8 @@ Options:
   --description-file         <path>         - Read UTF-8 description from a file (- for stdin; preferred for markdown content)                        
   -l, --label                <label>        - Issue label (UUID or name). May be repeated.                                                            
   --team                     <team>         - Team UUID or key (uses the configured default team when omitted)                                        
-  --project                  <project>      - Project for the issue (UUID, slug ID, or name); choose it after reading the candidate Project and       
-                                              Initiative content                                                                                      
+  --project                  <project>      - Project for the issue (UUID, slug ID, name, or Linear URL); choose it after reading the candidate       
+                                              Project and Initiative content                                                                          
   -s, --state                <state>        - Workflow state (UUID, name, or type). Omit it, or pass 'default', for the team's default state;         
                                               'triage' only works on teams with triage enabled.                                                       
   --milestone                <milestone>    - Project milestone (UUID, or name when --project is set)                                                 

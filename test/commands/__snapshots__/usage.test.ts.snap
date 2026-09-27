@@ -371,7 +371,7 @@ snapshot[`usage JSON describes command metadata 1`] = `
               variadic: false,
             },
           ],
-          description: "Filter by project (UUID, slug ID, or name)",
+          description: "Filter by project (UUID, slug ID, name, or Linear URL)",
           flags: [
             "--project",
           ],
@@ -1170,7 +1170,7 @@ Run \`linear guide markdown\` for mentions, collapsible sections and rewrite ris
               variadic: false,
             },
           ],
-          description: "Project for the issue (UUID, slug ID, or name); choose it after reading the candidate Project and Initiative content",
+          description: "Project for the issue (UUID, slug ID, name, or Linear URL); choose it after reading the candidate Project and Initiative content",
           flags: [
             "--project",
           ],
@@ -1538,7 +1538,7 @@ Run \`linear guide markdown\` for mentions, collapsible sections and rewrite ris
               variadic: false,
             },
           ],
-          description: "Project to assign the issue to (UUID, slug ID, or name)",
+          description: "Project to assign the issue to (UUID, slug ID, name, or Linear URL)",
           flags: [
             "--project",
           ],
