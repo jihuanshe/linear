@@ -70,8 +70,11 @@ CLI 会检查 Issue 团队与项目是否兼容，但不判定业务归属。需
 将 `ENG-123` 换成明确的目标 Issue 标识符；以下命令上传本地文件并创建普通侧栏附件，不创建评论：
 
 ```bash
-linear issue attach ENG-123 'evidence]draft.txt' --title '复查证据' --json
+linear issue attach ENG-123 'evidence]draft.txt' --title '复查证据' --json \
+  >attach-result.json 2>attach.log
 ```
+
+退出码非零或结果解析失败时，先查看 `attach-result.json` 的 `effect` 与上传回执，或用 `issue view <issue> --json` 的 `.issue.attachments.nodes` 核对附件是否已存在，再决定是否重试；重复执行会创建重复附件。
 
 ### 新评论附带文件
 
