@@ -14,12 +14,16 @@ for (const flag of ["--web", "--app"]) {
     const url = "https://linear.app/actual/project/release-project/overview"
     const { server, cleanup } = await setupMockLinearServer([
       {
-        queryName: "GetProjectIdByName",
-        variables: { name: "Release Project" },
+        queryName: "LookupProjectCandidates",
+        variables: { reference: "Release Project" },
         response: {
           data: {
-            projects: {
+            byName: {
               nodes: [{ id }],
+              pageInfo: { hasNextPage: false, endCursor: null },
+            },
+            bySlugId: {
+              nodes: [],
               pageInfo: { hasNextPage: false, endCursor: null },
             },
           },
@@ -77,12 +81,12 @@ for (
     const pageInfo = { hasNextPage: false, endCursor: null }
     const server = new MockLinearServer([
       {
-        queryName: "GetProjectIdByName",
+        queryName: "LookupProjectCandidates",
         response: scenario === "read-failure"
           ? { errors: [{ message: "Project lookup unavailable" }] }
           : {
             data: {
-              projects: {
+              byName: {
                 nodes: scenario === "name"
                   ? [{ id }]
                   : scenario === "ambiguous"
@@ -90,16 +94,12 @@ for (
                   : [],
                 pageInfo,
               },
+              bySlugId: {
+                nodes: scenario === "slug" ? [{ id }] : [],
+                pageInfo,
+              },
             },
           },
-      },
-      {
-        queryName: "GetProjectIdBySlugId",
-        response: {
-          data: {
-            projects: { nodes: scenario === "slug" ? [{ id }] : [], pageInfo },
-          },
-        },
       },
       {
         queryName: "GetProjectDetails",
@@ -155,6 +155,13 @@ for (
             : "Project lookup unavailable",
         )
       }
+      // A UUID needs no lookup; names and slug IDs share one lookup request.
+      assertEquals(
+        server.graphqlRequests.filter((request) =>
+          request.query.includes("query LookupProjectCandidates")
+        ).length,
+        scenario === "UUID" ? 0 : 1,
+      )
       if (scenario === "UUID") assertEquals(server.graphqlRequests.length, 1)
     } finally {
       await server.stop()
@@ -172,12 +179,16 @@ await snapshotTest({
   async fn() {
     const server = new MockLinearServer([
       {
-        queryName: "GetProjectIdByName",
-        variables: { name: "project-123" },
+        queryName: "LookupProjectCandidates",
+        variables: { reference: "project-123" },
         response: {
           data: {
-            projects: {
+            byName: {
               nodes: [{ id: "project-123" }],
+              pageInfo: { hasNextPage: false, endCursor: null },
+            },
+            bySlugId: {
+              nodes: [],
               pageInfo: { hasNextPage: false, endCursor: null },
             },
           },
@@ -322,12 +333,16 @@ await snapshotTest({
   async fn() {
     const server = new MockLinearServer([
       {
-        queryName: "GetProjectIdByName",
-        variables: { name: "minimal-project" },
+        queryName: "LookupProjectCandidates",
+        variables: { reference: "minimal-project" },
         response: {
           data: {
-            projects: {
+            byName: {
               nodes: [{ id: "minimal-project" }],
+              pageInfo: { hasNextPage: false, endCursor: null },
+            },
+            bySlugId: {
+              nodes: [],
               pageInfo: { hasNextPage: false, endCursor: null },
             },
           },
@@ -399,12 +414,16 @@ await snapshotTest({
 Deno.test("Project View includes full content by default", async () => {
   const server = new MockLinearServer([
     {
-      queryName: "GetProjectIdByName",
-      variables: { name: "project-with-content" },
+      queryName: "LookupProjectCandidates",
+      variables: { reference: "project-with-content" },
       response: {
         data: {
-          projects: {
+          byName: {
             nodes: [{ id: "project-with-content" }],
+            pageInfo: { hasNextPage: false, endCursor: null },
+          },
+          bySlugId: {
+            nodes: [],
             pageInfo: { hasNextPage: false, endCursor: null },
           },
         },

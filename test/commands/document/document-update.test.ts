@@ -915,13 +915,17 @@ await snapshotTest({
   denoArgs: commonDenoArgs,
   async fn() {
     const server = new MockLinearServer([originalDocument, {
-      queryName: "GetProjectIdByName",
-      variables: { name: "Tech Debt" },
+      queryName: "LookupProjectCandidates",
+      variables: { reference: "Tech Debt" },
       response: {
         data: {
-          projects: {
+          byName: {
             pageInfo: { hasNextPage: false, endCursor: null },
             nodes: [{ id: "proj-uuid" }],
+          },
+          bySlugId: {
+            nodes: [],
+            pageInfo: { hasNextPage: false, endCursor: null },
           },
         },
       },
@@ -995,22 +999,15 @@ await snapshotTest({
   canFail: true,
   async fn() {
     const server = new MockLinearServer([originalDocument, {
-      queryName: "GetProjectIdByName",
-      variables: { name: "Nope" },
+      queryName: "LookupProjectCandidates",
+      variables: { reference: "Nope" },
       response: {
         data: {
-          projects: {
+          byName: {
             pageInfo: { hasNextPage: false, endCursor: null },
             nodes: [],
           },
-        },
-      },
-    }, {
-      queryName: "GetProjectIdBySlugId",
-      variables: { slugId: "Nope" },
-      response: {
-        data: {
-          projects: {
+          bySlugId: {
             pageInfo: { hasNextPage: false, endCursor: null },
             nodes: [],
           },
