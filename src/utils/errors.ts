@@ -311,6 +311,24 @@ export class ValidationError extends CliError {
   }
 }
 
+/** A Triage state was requested for a team that has triage turned off. */
+export class TriageDisabledError extends CliError {
+  constructor(
+    teamKey: string,
+    defaultState: { id: string; name: string; type: string } | null,
+  ) {
+    super(`Team ${teamKey} has triage disabled`, {
+      suggestion: defaultState == null
+        ? `Omit --state (or pass --state default), or run \`linear team states ${teamKey}\` and pass one of its states.`
+        : `Omit --state (or pass --state default) to use the team default ${
+          JSON.stringify(defaultState.name)
+        } (${defaultState.type}); run \`linear team states ${teamKey}\` for other states.`,
+      details: { team: teamKey, triageEnabled: false, defaultState },
+    })
+    this.name = "TriageDisabledError"
+  }
+}
+
 /** The command has no machine-readable success contract. */
 export class UnsupportedOutputError extends CliError {
   constructor(path: string) {
