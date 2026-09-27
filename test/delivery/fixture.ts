@@ -351,30 +351,29 @@ export async function fixture(options: {
       }),
     },
     {
-      queryName: "LookupUser",
+      queryName: "LookupUserCandidates",
       response: ({ variables }) => {
-        const filter = variables.filter as Record<
-          string,
-          Record<string, string>
-        >
-        const [field, comparison] = Object.entries(filter)[0]
-        const [operator, input] = Object.entries(comparison)[0]
-        const matches = [...state.users.values()].filter((user) => {
-          const value = field === "name"
-            ? user.name
-            : field === "displayName"
-            ? user.displayName
-            : ""
-          return operator === "containsIgnoreCaseAndAccent"
-            ? value.toLowerCase().includes(input.toLowerCase())
-            : value.toLowerCase() === input.toLowerCase()
-        })
+        const input = String(variables.reference).toLowerCase()
+        const tier = (
+          value: (user: { name: string; displayName: string }) => string,
+          contains = false,
+        ) => {
+          const matches = [...state.users.values()].filter((user) =>
+            contains
+              ? value(user).toLowerCase().includes(input)
+              : value(user).toLowerCase() === input
+          )
+          return {
+            nodes: matches.slice(0, 2),
+            pageInfo: { hasNextPage: matches.length > 2, endCursor: null },
+          }
+        }
         return {
           data: {
-            users: {
-              nodes: matches.slice(0, 2),
-              pageInfo: { hasNextPage: matches.length > 2, endCursor: null },
-            },
+            byEmail: tier(() => ""),
+            byDisplayName: tier((user) => user.displayName),
+            byName: tier((user) => user.name),
+            byNameContains: tier((user) => user.name, true),
           },
         }
       },
@@ -404,28 +403,24 @@ export async function fixture(options: {
       }),
     },
     {
-      queryName: "GetProjectIdByName",
-      response: ({ variables }) => ({
-        data: {
-          projects: connection(
-            [...state.projects.values()].filter((project) =>
-              project.name === variables.name
+      queryName: "LookupProjectCandidates",
+      response: ({ variables }) => {
+        const projects = [...state.projects.values()]
+        return {
+          data: {
+            byName: connection(
+              projects.filter((project) =>
+                project.name === variables.reference
+              ),
             ),
-          ),
-        },
-      }),
-    },
-    {
-      queryName: "GetProjectIdBySlugId",
-      response: ({ variables }) => ({
-        data: {
-          projects: connection(
-            [...state.projects.values()].filter((project) =>
-              project.slugId === variables.slugId
+            bySlugId: connection(
+              projects.filter((project) =>
+                project.slugId === variables.reference
+              ),
             ),
-          ),
-        },
-      }),
+          },
+        }
+      },
     },
     {
       queryName: "ProjectTeams",
