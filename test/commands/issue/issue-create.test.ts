@@ -452,6 +452,11 @@ Deno.test("Issue Create Command - JSON receipt includes the server title in data
     title: "Server title",
     url: "https://linear.app/test/issue/ENG-123",
     team: { key: "ENG" },
+    state: { id: "s-backlog", name: "Backlog", type: "backlog" },
+    assignee: { id: "u-1", name: "Jane", email: "jane@example.com" },
+    project: { id: "p-1", name: "Feedback" },
+    parent: null,
+    labels: { nodes: [{ id: "l-1", name: "Bug" }] },
   }
   const { server, cleanup } = await setupMockLinearServer([
     {
@@ -497,7 +502,7 @@ Deno.test("Issue Create Command - JSON receipt includes the server title in data
     assertEquals(writes.length, 1)
     assertStringIncludes(
       stripIgnoredCharacters(writes[0].query),
-      "issue{id identifier title url team{key}}",
+      "issue{id identifier title url team{key}state{id name type}assignee{id name email}project{id name}parent{identifier}labels{nodes{id name}}}",
     )
   } finally {
     await cleanup()
@@ -2611,4 +2616,171 @@ await snapshotTest({
       await cleanup()
     }
   },
+})
+
+async function runCreateJson(args: string[]) {
+  const result = await new Deno.Command(Deno.execPath(), {
+    args: [
+      "run",
+      ...commonDenoArgs,
+      "src/main.ts",
+      "issue",
+      "create",
+      "--json",
+      "--title",
+      "Feedback",
+      "--team",
+      "ENG",
+      ...args,
+    ],
+    stdin: "null",
+    stdout: "piped",
+    stderr: "piped",
+  }).output()
+  return {
+    code: result.code,
+    body: JSON.parse(new TextDecoder().decode(result.stdout)),
+  }
+}
+
+const backlogOnlyStates = {
+  queryName: "GetWorkflowStates",
+  variables: { teamKey: teamWriteIds.ENG },
+  response: {
+    data: {
+      team: {
+        states: {
+          nodes: [
+            { id: "s-backlog", name: "Backlog", type: "backlog", position: 0 },
+            { id: "s-todo", name: "Todo", type: "unstarted", position: 1 },
+          ],
+        },
+      },
+    },
+  },
+}
+const engTeam = {
+  queryName: "GetTeamIdByKey",
+  variables: { team: "ENG" },
+  response: { data: { teams: { nodes: [{ id: teamWriteIds.ENG }] } } },
+}
+const teamDefaults = {
+  queryName: "GetTeamStateDefaults",
+  variables: { id: teamWriteIds.ENG },
+  response: {
+    data: {
+      team: {
+        triageEnabled: false,
+        defaultIssueState: {
+          id: "s-backlog",
+          name: "Backlog",
+          type: "backlog",
+        },
+      },
+    },
+  },
+}
+
+Deno.test("Issue Create Command - triage on a team without triage names the default state", async () => {
+  const { server, cleanup } = await setupMockLinearServer(
+    [engTeam, backlogOnlyStates, teamDefaults],
+    { LINEAR_ISSUE_CREATE_ASSIGN_SELF: "never" },
+  )
+  try {
+    const { code, body } = await runCreateJson(["--state", "triage"])
+    assertEquals(code, 1)
+    assertEquals(body.effect, "none")
+    assertEquals(body.error.code, "TriageDisabledError")
+    assertEquals(
+      body.error.message,
+      "Failed to create issue: Team ENG has triage disabled",
+    )
+    assertStringIncludes(body.error.suggestion, "--state default")
+    assertEquals(body.error.details, {
+      team: "ENG",
+      triageEnabled: false,
+      defaultState: { id: "s-backlog", name: "Backlog", type: "backlog" },
+    })
+    assertEquals(
+      server.graphqlRequests.some((request) =>
+        request.query.includes("mutation CreateIssue")
+      ),
+      false,
+    )
+  } finally {
+    await cleanup()
+  }
+})
+
+Deno.test("Issue Create Command - --state default writes the team default state", async () => {
+  const { server, cleanup } = await setupMockLinearServer([
+    engTeam,
+    backlogOnlyStates,
+    teamDefaults,
+    {
+      queryName: "CreateIssue",
+      response: {
+        data: {
+          issueCreate: {
+            success: true,
+            issue: {
+              id: "issue-id",
+              identifier: "ENG-7",
+              title: "Feedback",
+              url: "https://linear.app/test/issue/ENG-7",
+              team: { key: "ENG" },
+              state: { id: "s-backlog", name: "Backlog", type: "backlog" },
+            },
+          },
+        },
+      },
+    },
+  ], { LINEAR_ISSUE_CREATE_ASSIGN_SELF: "never" })
+  try {
+    const { code, body } = await runCreateJson(["--state", "default"])
+    assertEquals(code, 0)
+    assertEquals(body.data.issue.state.name, "Backlog")
+    const write = server.graphqlRequests.find((request) =>
+      request.query.includes("mutation CreateIssue")
+    )
+    assertEquals(
+      (write?.variables.input as Record<string, unknown>).stateId,
+      "s-backlog",
+    )
+  } finally {
+    await cleanup()
+  }
+})
+
+Deno.test("Issue Create Command - --state default rejects a same-named state", async () => {
+  const { server, cleanup } = await setupMockLinearServer([
+    engTeam,
+    {
+      ...backlogOnlyStates,
+      response: {
+        data: {
+          team: {
+            states: {
+              nodes: [
+                { id: "s-d", name: "Default", type: "unstarted", position: 0 },
+              ],
+            },
+          },
+        },
+      },
+    },
+  ], { LINEAR_ISSUE_CREATE_ASSIGN_SELF: "never" })
+  try {
+    const { code, body } = await runCreateJson(["--state", "default"])
+    assertEquals(code, 1)
+    assertEquals(body.error.code, "ValidationError")
+    assertEquals(
+      server.graphqlRequests.some((request) =>
+        request.query.includes("mutation CreateIssue")
+      ),
+      false,
+    )
+  } finally {
+    await cleanup()
+  }
 })

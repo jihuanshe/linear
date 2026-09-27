@@ -312,6 +312,33 @@ Deno.test("API safety binds fragment and alias pagination to the selected respon
   }])
 })
 
+Deno.test("API paginate warns about nested connections left in node arrays", async () => {
+  const query =
+    "query Read($after: String) { teams(after: $after) { nodes { key issues { nodes { id } pageInfo { hasNextPage endCursor } } } pageInfo { hasNextPage endCursor } } }"
+  const result = await runApi(query, ["--paginate"], [{
+    body: {
+      data: {
+        teams: {
+          nodes: [{
+            key: "ENG",
+            issues: {
+              nodes: [{ id: "issue-1" }],
+              pageInfo: { hasNextPage: true, endCursor: "issue-cursor" },
+            },
+          }],
+          pageInfo: { hasNextPage: false, endCursor: null },
+        },
+      },
+    },
+  }])
+  assertEquals(result.code, 0, result.stderr)
+  assertStringIncludes(result.stderr, "teams.nodes[].issues has more pages")
+  assertStringIncludes(
+    result.stderr,
+    "page nested connections with $after per parent object",
+  )
+})
+
 for (const cursor of [null, "", 42]) {
   Deno.test(`API safety rejects hasNextPage with invalid cursor ${JSON.stringify(cursor)}`, async () => {
     const result = await runApi(read, ["--paginate"], [page("one", cursor)])
@@ -741,4 +768,48 @@ Deno.test({
       await Deno.remove(file)
     }
   },
+})
+
+for (const hasNextPage of [true, false]) {
+  Deno.test(`API hints on stderr when an unpaginated query connection has more pages (${hasNextPage})`, async () => {
+    const envelope = {
+      data: {
+        issues: {
+          nodes: [{ id: "a" }],
+          pageInfo: { hasNextPage, endCursor: "a" },
+        },
+      },
+    }
+    const result = await runApi(read, [], [{ body: envelope }])
+    assertEquals(result.code, 0, result.stderr)
+    assertEquals(JSON.parse(result.stdout), envelope)
+    if (hasNextPage) {
+      assertStringIncludes(result.stderr, "issues has more pages")
+    } else assertEquals(result.stderr, "")
+  })
+}
+
+Deno.test("API hints on nested connections inside node arrays", async () => {
+  const envelope = {
+    data: {
+      teams: {
+        nodes: [{
+          key: "ENG",
+          issues: {
+            nodes: [{ id: "a" }],
+            pageInfo: { hasNextPage: true, endCursor: "a" },
+          },
+        }],
+        pageInfo: { hasNextPage: false, endCursor: null },
+      },
+    },
+  }
+  const result = await runApi(read, [], [{ body: envelope }])
+  assertEquals(result.code, 0, result.stderr)
+  assertEquals(JSON.parse(result.stdout), envelope)
+  assertStringIncludes(result.stderr, "teams.nodes[].issues has more pages")
+  assertStringIncludes(
+    result.stderr,
+    "page nested connections with $after per parent object",
+  )
 })

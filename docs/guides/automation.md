@@ -126,9 +126,13 @@ JSON 不与浏览器／应用跳转、显式交互／编辑或原文／脚本输
 
 ## 网络等待与查询重试
 
+Linear 按 API 密钥计算小时额度：2,500 个请求和 3,000,000 复杂度，窗口约 1 小时后补满。每条命令至少消耗 1 个请求：`issue view` 通常 1 个，`issue query --url-file` 每个 URL 至少 1 个，分页每页 1 个。同一密钥的并发子 Agent 和脚本共享额度，批处理前先估算请求数，查剩余额度用只读查询 `linear api 'query { rateLimitStatus { kind limits { type allowedAmount remainingAmount reset } } }'`（`reset` 是毫秒时间戳），不要靠固定等待猜测。
+
 专用命令与 `linear api` 共用 GraphQL 请求规则：每个逻辑请求最多 60 秒，包含响应正文读取和重试等待，query 最多尝试 3 次。分页的每一页分别计时，不是整个命令或整批 `apply` 的总时限；写后核验等调用方更短的取消期限仍然有效。此规则不涵盖文件 PUT、下载或其他非 GraphQL 网络操作。
 
 只有明确选中的 query 会对 HTTP 429／502／503／504，以及 HTTP 200／400 中单纯的 `RATELIMITED` 错误重试。无完整响应的连接错误、已有部分数据、认证、权限和校验错误不重试。等待使用有界退避，并遵守 `Retry-After` 的秒数或 HTTP 日期；剩余时间不足以遵守服务器要求时，返回原始失败，不缩短等待后强行重试。
+
+专用命令最终仍被 `RATELIMITED` 拒绝时，JSON 错误的 `error.code` 为 `RateLimited`，`error.details.rateLimit` 给出响应头中的剩余请求数、剩余复杂度和各自的重置时间，`retryAfter` 是耗尽的那项额度恢复的时间。query 的 `effect` 为 `none`，到 `retryAfter` 之后原样重试即可；mutation 仍为 `unknown`，Linear 没有文档保证被限流的写入零效果，先对账再重试。原生 `linear api` 保留原始 GraphQL 响应，不加这一层。
 
 mutation 不自动重发。派发后的超时、连接或响应读取失败仍可能已经写入，按 `effect` 与回执对账，不把超时理解为撤销。
 
@@ -252,6 +256,6 @@ linear issue query --all-teams --url-file object-urls.txt --json >url-lookups.js
 jq '.lookups[] | {url, identifiers: [.nodes[].identifier]}' url-lookups.json
 ```
 
-Linear Issue URL 按 Issue 编号和工作区定位；其他 URL 核对候选正文或评论中的完整 URL 边界，不搜索侧栏附件（Attachment）。URL 模式完整读取候选并返回全部精确命中，不受 `--limit` 截断；空 `nodes` 只证明当前凭据可见且所选筛选范围内没有命中。`--url-file` 忽略空行与 `#` 注释，去重后按首次出现顺序返回 `lookups`。
+Linear Issue URL 先用 `issue(id:)` 按编号解析（团队迁移前的旧编号也能命中）并核对工作区，结果带 `resolution.status`：`found`、`moved`（`identifier` 为现编号）、`trashed`、`archived` 或 `not_found`；`trashed`／`archived` 的 Issue 只有加 `--include-archived` 才进入 `nodes`。其他 URL 核对候选正文或评论中的完整 URL 边界，不搜索侧栏附件（Attachment）。URL 模式完整读取候选并返回全部精确命中，不受 `--limit` 截断；空 `nodes` 只证明当前凭据可见且所选筛选范围内没有命中。`--url-file` 忽略空行与 `#` 注释，去重后按首次出现顺序返回 `lookups`。
 
 比较查询集合时，保存相同范围的前后读取，按 ID 和目标字段核对；新增对象不自动进入原写入范围。按组织规则检查缺项或异常候选时，使用 `linear recipe doctor`，结果解释见 `linear guide doctor`。
