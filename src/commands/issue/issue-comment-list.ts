@@ -126,6 +126,13 @@ export const commentListCommand = new Command()
 
         console.log("")
       }
+      if (commentsConnection.pageInfo.hasNextPage) {
+        console.error(
+          `Showing the first ${comments.length} ${
+            comments.length === 1 ? "comment" : "comments"
+          }; more exist. Use --limit 0 to fetch all pages.`,
+        )
+      }
     } catch (error) {
       handleError(error, "Failed to list comments")
     }

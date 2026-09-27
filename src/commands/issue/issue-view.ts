@@ -19,11 +19,47 @@ import {
   shouldShowSpinner,
 } from "../../utils/hyperlink.ts"
 import { createHyperlinkExtension } from "../../utils/charmd-hyperlink-extension.ts"
-import { handleError, ValidationError } from "../../utils/errors.ts"
+import {
+  handleError,
+  NotFoundError,
+  ValidationError,
+} from "../../utils/errors.ts"
+import { gql } from "../../__codegen__/gql.ts"
+import { getGraphQLClient } from "../../utils/graphql.ts"
+import { completeConnection } from "../../utils/pagination.ts"
 import {
   formatIssueContextMarkdown,
   summarizeIssueContext,
 } from "../../utils/issue-context.ts"
+
+// The first page stays at 50: Linear prices a connection by the requested page
+// size, and an Issue rarely links more documents than that.
+const IssueDocuments = gql(`
+  query GetIssueDocuments($id: String!, $first: Int!, $after: String!) {
+    issue(id: $id) {
+      id
+      documents(first: $first, after: $after) {
+        nodes { id title slugId url createdAt updatedAt }
+        pageInfo { hasNextPage endCursor }
+      }
+    }
+  }
+`)
+
+async function completeIssueDocuments(
+  issueId: string,
+  initial: IssueDetails["documents"],
+) {
+  return await completeConnection(initial, async (after, first) => {
+    const result = await getGraphQLClient().request(IssueDocuments, {
+      id: issueId,
+      first,
+      after,
+    })
+    if (result.issue?.id !== issueId) throw new NotFoundError("Issue", issueId)
+    return result.issue.documents
+  }, `documents for ${issueId}`)
+}
 
 export const viewCommand = new Command()
   .name("view")
@@ -42,7 +78,7 @@ export const viewCommand = new Command()
   .option("--no-pager", "Disable automatic paging for long output")
   .option(
     "-j, --json",
-    "Output {organization, viewer, issue, contextSummary} without a write envelope; the issue is in issue. Includes all fetched threads (even resolved) and issue.history (latest 50); comments and attachments retain {nodes, pageInfo}",
+    "Output {organization, viewer, issue, contextSummary} without a write envelope; the issue is in issue. Includes all fetched threads (even resolved) and issue.history (latest 50); comments, attachments and documents retain {nodes, pageInfo} with every page read",
   )
   .action(async (options, issueArg) => {
     const { web, app, comments, showResolvedThreads, pager, json } = options
@@ -74,6 +110,10 @@ export const viewCommand = new Command()
           issueReference,
           showComments,
           true,
+        )
+        readData.issue.documents = await completeIssueDocuments(
+          readData.issue.id,
+          readData.issue.documents,
         )
       } finally {
         spinner?.stop()

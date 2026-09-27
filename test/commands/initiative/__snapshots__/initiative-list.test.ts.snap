@@ -30,7 +30,11 @@ stdout:
               "name": "In Progress"
             }
           }
-        ]
+        ],
+        "pageInfo": {
+          "hasNextPage": false,
+          "endCursor": null
+        }
       }
     },
     {
@@ -59,7 +63,11 @@ stdout:
               "name": "Planned"
             }
           }
-        ]
+        ],
+        "pageInfo": {
+          "hasNextPage": false,
+          "endCursor": null
+        }
       }
     }
   ],

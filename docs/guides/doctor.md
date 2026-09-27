@@ -2,8 +2,7 @@
 name: doctor
 description: 解释只读健康检查的候选，保留判断依据并复查结果
 commands:
-  - api
-  - issue query
+  - recipe
 ---
 
 # 解释健康检查结果

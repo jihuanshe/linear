@@ -1,5 +1,6 @@
 import { snapshotTest as cliffySnapshotTest } from "@cliffy/testing"
 import { assertEquals, assertStringIncludes } from "@std/assert"
+import { stub } from "@std/testing/mock"
 import { listCommand } from "../../../src/commands/initiative-update/initiative-update-list.ts"
 import {
   commonDenoArgs,
@@ -177,10 +178,98 @@ await cliffySnapshotTest({
   name: "Initiative Update List Command - Rejects Invalid Limit",
   meta: import.meta,
   colors: false,
-  args: ["550e8400-e29b-41d4-a716-446655440000", "--limit", "0"],
+  args: ["550e8400-e29b-41d4-a716-446655440000", "--limit", "-1"],
   denoArgs: commonDenoArgs,
   canFail: true,
   async fn() {
     await listCommand.parse()
   },
 })
+
+for (const mode of ["default", "default-json", "all"] as const) {
+  Deno.test(`Initiative Update List Command - pagination and truncation hint (${mode})`, async () => {
+    const id = "550e8400-e29b-41d4-a716-446655440000"
+    const update = (i: number) => ({
+      id: `update-${i}-0000-0000`,
+      body: `Update ${i}`,
+      health: "onTrack",
+      url: `https://linear.app/test/initiative/update-${i}`,
+      createdAt: "2026-01-18T10:30:00Z",
+      user: null,
+    })
+    const initiative = (
+      nodes: ReturnType<typeof update>[],
+      pageInfo: { hasNextPage: boolean; endCursor: string },
+    ) => ({
+      data: {
+        initiative: {
+          name: "Big",
+          slugId: "big",
+          initiativeUpdates: { nodes, pageInfo },
+        },
+      },
+    })
+    const firstPage = Array.from({ length: 10 }, (_, i) => update(i))
+    const { server, cleanup } = await setupMockLinearServer([
+      {
+        queryName: "ListInitiativeUpdates",
+        variables: { after: "updates-10" },
+        response: initiative([update(10)], {
+          hasNextPage: false,
+          endCursor: "updates-11",
+        }),
+      },
+      {
+        queryName: "ListInitiativeUpdates",
+        response: initiative(firstPage, {
+          hasNextPage: true,
+          endCursor: "updates-10",
+        }),
+      },
+    ], { NO_COLOR: "1" })
+    const stdout: string[] = []
+    const stderr: string[] = []
+    const log = stub(console, "log", (...args: unknown[]) => {
+      stdout.push(args.map(String).join(" "))
+    })
+    const error = stub(console, "error", (...args: unknown[]) => {
+      stderr.push(args.map(String).join(" "))
+    })
+    try {
+      await listCommand.parse([
+        id,
+        ...(mode === "all" ? ["--limit", "0"] : []),
+        ...(mode === "default-json" ? ["--json"] : []),
+      ])
+    } finally {
+      error.restore()
+      log.restore()
+      await cleanup()
+    }
+    assertEquals(
+      server.graphqlRequests.map(({ variables }) => [
+        variables.first,
+        variables.after ?? null,
+      ]),
+      mode === "all" ? [[100, null], [100, "updates-10"]] : [[10, null]],
+    )
+    if (mode === "default-json") {
+      assertEquals(
+        JSON.parse(stdout.join("\n")).initiativeUpdates.pageInfo.hasNextPage,
+        true,
+      )
+      assertEquals(stderr, [])
+    } else {
+      assertEquals(
+        stdout.filter((line) => line.startsWith("update-")).length,
+        mode === "all" ? 11 : 10,
+      )
+      assertEquals(
+        stderr,
+        mode === "all" ? [] : [
+          "Showing the first 10 updates; more exist. Use --limit 0 to fetch all pages.",
+        ],
+      )
+    }
+  })
+}

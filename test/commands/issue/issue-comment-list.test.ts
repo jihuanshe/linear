@@ -200,3 +200,52 @@ await snapshotTest({
     }
   },
 })
+
+// A finite --limit that leaves more pages is reported on stderr
+await snapshotTest({
+  name: "Issue Comment List Command - Reports Truncation",
+  meta: import.meta,
+  colors: false,
+  args: ["TEST-123", "--limit", "1"],
+  denoArgs: commonDenoArgs,
+  async fn() {
+    setColorEnabled(false)
+    const { cleanup } = await setupMockLinearServer([
+      {
+        queryName: "GetIssueId",
+        variables: { id: "TEST-123" },
+        response: { data: { issue: { id: "issue-uuid-123" } } },
+      },
+      {
+        queryName: "GetIssueComments",
+        response: {
+          data: {
+            issue: {
+              comments: {
+                nodes: [
+                  {
+                    id: "comment-uuid-456",
+                    body: "The only comment on this page",
+                    createdAt: "2024-01-15T10:30:00Z",
+                    updatedAt: "2024-01-15T10:30:00Z",
+                    url: "https://linear.app/issue/TEST-123#comment-uuid-456",
+                    user: { name: "testuser", displayName: "Test User" },
+                    externalUser: null,
+                    parent: null,
+                  },
+                ],
+                pageInfo: { hasNextPage: true, endCursor: "cursor-1" },
+              },
+            },
+          },
+        },
+      },
+    ])
+
+    try {
+      await commentListCommand.parse()
+    } finally {
+      await cleanup()
+    }
+  },
+})

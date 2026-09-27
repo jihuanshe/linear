@@ -8,14 +8,19 @@ import { getTeamKey } from "../../utils/linear.ts"
 import { resolveTeam } from "../../utils/issue-read.ts"
 import { shouldShowSpinner } from "../../utils/hyperlink.ts"
 import { header, muted } from "../../utils/styling.ts"
-import { handleError, ValidationError } from "../../utils/errors.ts"
+import {
+  handleError,
+  NotFoundError,
+  ValidationError,
+} from "../../utils/errors.ts"
+import { completeConnection } from "../../utils/pagination.ts"
 
 const GetTeamCycles = gql(`
-  query GetTeamCycles($teamId: String!) {
+  query GetTeamCycles($teamId: String!, $after: String) {
     team(id: $teamId) {
       id
       name
-      cycles {
+      cycles(first: 100, after: $after) {
         nodes {
           id
           number
@@ -27,6 +32,7 @@ const GetTeamCycles = gql(`
           isFuture
           isPast
         }
+        pageInfo { hasNextPage endCursor }
       }
     }
   }
@@ -73,10 +79,22 @@ export const listCommand = new Command()
       spinner?.start()
 
       const client = getGraphQLClient()
-      const result = await client.request(GetTeamCycles, { teamId })
-      spinner?.stop()
-
-      const cycles = result.team?.cycles?.nodes || []
+      const readPage = async (after?: string) => {
+        const result = await client.request(GetTeamCycles, { teamId, after })
+        if (result.team == null) throw new NotFoundError("Team", teamReference)
+        return result.team.cycles
+      }
+      // Sorting by start date is only meaningful over every cycle.
+      let cycles
+      try {
+        ;({ nodes: cycles } = await completeConnection(
+          await readPage(),
+          readPage,
+          `cycles for team ${teamReference}`,
+        ))
+      } finally {
+        spinner?.stop()
+      }
 
       if (cycles.length === 0) {
         console.log("No cycles found for this team.")

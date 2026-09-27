@@ -6,6 +6,7 @@ import { formatRelativeTime } from "../../utils/display.ts"
 import { getCycleIdByNameOrNumber, getTeamKey } from "../../utils/linear.ts"
 import { resolveTeam } from "../../utils/issue-read.ts"
 import { shouldShowSpinner } from "../../utils/hyperlink.ts"
+import { completeConnection } from "../../utils/pagination.ts"
 import {
   handleError,
   NotFoundError,
@@ -32,20 +33,61 @@ const GetCycleDetails = gql(`
         key
         name
       }
-      issues {
-        nodes {
-          id
-          identifier
-          title
-          state {
-            name
-            type
-          }
-        }
+      issues(first: 100) {
+        ...CycleIssuePage
+      }
+    }
+  }
+  fragment CycleIssuePage on IssueConnection {
+    nodes {
+      id
+      identifier
+      title
+      state {
+        name
+        type
+      }
+    }
+    pageInfo { hasNextPage endCursor }
+  }
+`)
+
+// Progress counts every Issue in the cycle, so the connection is read to the end.
+const GetCycleIssues = gql(`
+  query GetCycleIssues($id: String!, $first: Int!, $after: String!) {
+    cycle(id: $id) {
+      id
+      issues(first: $first, after: $after) {
+        ...CycleIssuePage
       }
     }
   }
 `)
+
+async function readCycle(
+  client: ReturnType<typeof getGraphQLClient>,
+  id: string,
+  reference: string,
+) {
+  const { cycle } = await client.request(GetCycleDetails, { id })
+  if (!cycle) throw new NotFoundError("Cycle", reference)
+  const issues = await completeConnection(
+    cycle.issues,
+    async (after, first) => {
+      const next = await client.request(GetCycleIssues, {
+        id: cycle.id,
+        first,
+        after,
+      })
+      if (next.cycle?.id !== cycle.id) {
+        throw new NotFoundError("Cycle", cycle.id)
+      }
+      return next.cycle.issues
+    },
+    `issues for cycle ${cycle.id}`,
+  )
+  return { cycle, issues }
+}
 
 export const viewCommand = new Command()
   .name("view")
@@ -77,13 +119,11 @@ export const viewCommand = new Command()
       spinner?.start()
 
       const client = getGraphQLClient()
-      const result = await client.request(GetCycleDetails, { id: cycleId })
-      spinner?.stop()
-
-      const cycle = result.cycle
-      if (!cycle) {
-        throw new NotFoundError("Cycle", cycleReference)
-      }
+      const { cycle, issues } = await readCycle(
+        client,
+        cycleId,
+        cycleReference,
+      ).finally(() => spinner?.stop())
 
       const lines: string[] = []
 
@@ -117,12 +157,12 @@ export const viewCommand = new Command()
         lines.push(cycle.description)
       }
 
-      if (cycle.issues.nodes.length > 0) {
+      if (issues.nodes.length > 0) {
         lines.push("")
         lines.push("## Issues")
         lines.push("")
 
-        const issuesByState = cycle.issues.nodes.reduce(
+        const issuesByState = issues.nodes.reduce(
           (acc: Record<string, number>, issue) => {
             const stateType = issue.state.type
             if (!acc[stateType]) acc[stateType] = 0
@@ -132,7 +172,7 @@ export const viewCommand = new Command()
           {} as Record<string, number>,
         )
 
-        const total = cycle.issues.nodes.length
+        const total = issues.nodes.length
         const completed = issuesByState.completed || 0
         const started = issuesByState.started || 0
         const unstarted = issuesByState.unstarted || 0
@@ -153,16 +193,16 @@ export const viewCommand = new Command()
         lines.push("")
         lines.push("**Issues:**")
         lines.push("")
-        cycle.issues.nodes.slice(0, 10).forEach((issue) => {
+        issues.nodes.slice(0, 10).forEach((issue) => {
           lines.push(
             `- ${issue.identifier}: ${issue.title} (${issue.state.name})`,
           )
         })
 
-        if (cycle.issues.nodes.length > 10) {
+        if (issues.nodes.length > 10) {
           lines.push("")
           lines.push(
-            `_...and ${cycle.issues.nodes.length - 10} more issues_`,
+            `_...and ${issues.nodes.length - 10} more issues_`,
           )
         }
       } else {
