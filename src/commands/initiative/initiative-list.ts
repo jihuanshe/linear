@@ -12,15 +12,15 @@ import { handleError, NotFoundError } from "../../utils/errors.ts"
 import { parseInitiativeStatus } from "./initiative-status.ts"
 import { completeConnection } from "../../utils/pagination.ts"
 
+// 25 initiatives per page: Linear prices the nested projects page by its size,
+// so 50 initiatives x 50 projects cost 9,120 of the 10,000 single-query limit
+// and 25 cost 4,560 (x-complexity, measured 2026-09-27).
 const GetInitiatives = gql(`
   query GetInitiatives(
     $filter: InitiativeFilter
     $includeArchived: Boolean
     $after: String
   ) {
-    # 25 initiatives per page: Linear prices the nested projects page by its
-    # size: 50 initiatives x 50 projects cost 9,120 of the 10,000 single-query
-    # limit, 25 cost 4,560 (x-complexity, measured 2026-09-27).
     initiatives(
       filter: $filter
       includeArchived: $includeArchived
