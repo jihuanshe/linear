@@ -126,6 +126,8 @@ JSON 不与浏览器／应用跳转、显式交互／编辑或原文／脚本输
 
 ## 网络等待与查询重试
 
+Linear 按 API 密钥计算小时额度：2,500 个请求和 3,000,000 复杂度，窗口约 1 小时后补满。每条命令至少消耗 1 个请求：`issue view` 通常 1 个，`issue query --url-file` 每个 URL 至少 1 个，分页每页 1 个。同一密钥的并发子 Agent 和脚本共享额度，批处理前先估算请求数，查剩余额度用只读查询 `linear api 'query { rateLimitStatus { kind limits { type allowedAmount remainingAmount reset } } }'`（`reset` 是毫秒时间戳），不要靠固定等待猜测。
+
 专用命令与 `linear api` 共用 GraphQL 请求规则：每个逻辑请求最多 60 秒，包含响应正文读取和重试等待，query 最多尝试 3 次。分页的每一页分别计时，不是整个命令或整批 `apply` 的总时限；写后核验等调用方更短的取消期限仍然有效。此规则不涵盖文件 PUT、下载或其他非 GraphQL 网络操作。
 
 只有明确选中的 query 会对 HTTP 429／502／503／504，以及 HTTP 200／400 中单纯的 `RATELIMITED` 错误重试。无完整响应的连接错误、已有部分数据、认证、权限和校验错误不重试。等待使用有界退避，并遵守 `Retry-After` 的秒数或 HTTP 日期；剩余时间不足以遵守服务器要求时，返回原始失败，不缩短等待后强行重试。

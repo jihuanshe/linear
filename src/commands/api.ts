@@ -302,6 +302,28 @@ async function executeSingle(
     throw error
   }
   outputJSON(parsed, JSON.stringify(parsed))
+  if (!mutation) warnTruncatedConnections(parsed.data)
+}
+
+/**
+ * A top-level connection with more pages is a silent sample to callers that
+ * only read `nodes` (for example `issues(filter: {id: {in: [...]}})` returns
+ * at most 50 by default). The hint goes to stderr; stdout stays unchanged.
+ */
+function warnTruncatedConnections(data: unknown): void {
+  if (data == null || typeof data !== "object") return
+  const truncated = Object.entries(data).filter(([, value]) => {
+    if (value == null || typeof value !== "object") return false
+    const pageInfo = (value as { pageInfo?: unknown }).pageInfo
+    return pageInfo != null && typeof pageInfo === "object" &&
+      (pageInfo as { hasNextPage?: unknown }).hasNextPage === true
+  }).map(([field]) => field)
+  if (truncated.length === 0) return
+  console.error(
+    `Note: ${
+      truncated.join(", ")
+    } has more pages (pageInfo.hasNextPage: true); use --paginate or page with $after to read everything.`,
+  )
 }
 
 async function executePaginated(

@@ -742,3 +742,22 @@ Deno.test({
     }
   },
 })
+
+for (const hasNextPage of [true, false]) {
+  Deno.test(`API hints on stderr when an unpaginated query connection has more pages (${hasNextPage})`, async () => {
+    const envelope = {
+      data: {
+        issues: {
+          nodes: [{ id: "a" }],
+          pageInfo: { hasNextPage, endCursor: "a" },
+        },
+      },
+    }
+    const result = await runApi(read, [], [{ body: envelope }])
+    assertEquals(result.code, 0, result.stderr)
+    assertEquals(JSON.parse(result.stdout), envelope)
+    if (hasNextPage) {
+      assertStringIncludes(result.stderr, "issues has more pages")
+    } else assertEquals(result.stderr, "")
+  })
+}
