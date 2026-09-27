@@ -107,6 +107,12 @@ export const viewCommand = new Command()
       const { identifier } = issueData
 
       const metaParts: string[] = []
+      // JSON already carries these; humans would otherwise read a deleted
+      // issue as live because its workflow state is unchanged.
+      if (issueData.trashed) metaParts.push("**Trashed**")
+      else if (issueData.archivedAt != null) {
+        metaParts.push(`**Archived:** ${issueData.archivedAt}`)
+      }
       if (issueData.state) {
         metaParts.push(`**State:** ${issueData.state.name}`)
       }

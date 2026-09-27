@@ -1005,61 +1005,146 @@ Deno.test("Issue Query Command - rejects non-adjacent comment cursor cycles", as
   }
 })
 
-Deno.test("Issue Query Command - exact Linear issue URL resolves by identifier", async () => {
-  const targetUrl = "https://linear.app/test/issue/ENG-101/old-title"
-  const { cleanup } = await setupMockLinearServer([
-    {
-      queryName: "GetIssuesForQuery",
-      variables: {
-        filter: { id: { eq: "ENG-101" } },
-        first: 100,
-        includeDescription: true,
-        includeComments: false,
+const linearUrlCases = [
+  {
+    name: "resolves a current identifier",
+    url: "https://linear.app/test/issue/ENG-101/old-title",
+    issue: { trashed: false, archivedAt: null },
+    resolution: {
+      status: "found",
+      requested: "ENG-101",
+      identifier: "ENG-101",
+    },
+    listed: true,
+  },
+  {
+    name: "resolves an identifier from before a team move",
+    url: "https://linear.app/test/issue/OLD-7",
+    issue: { trashed: false, archivedAt: null },
+    resolution: { status: "moved", requested: "OLD-7", identifier: "ENG-101" },
+    listed: true,
+  },
+  {
+    name: "reports a trashed issue",
+    url: "https://linear.app/test/issue/ENG-101",
+    issue: { trashed: true, archivedAt: "2026-09-24T00:00:00.000Z" },
+    resolution: {
+      status: "trashed",
+      requested: "ENG-101",
+      identifier: "ENG-101",
+    },
+    listed: false,
+  },
+  {
+    name: "does not cross workspace scope",
+    url: "https://linear.app/other/issue/ENG-101/old-title",
+    issue: { trashed: false, archivedAt: null },
+    resolution: { status: "not_found", requested: "ENG-101" },
+    listed: false,
+  },
+  {
+    name: "reports a missing identifier",
+    url: "https://linear.app/test/issue/ENG-999",
+    issue: null,
+    resolution: { status: "not_found", requested: "ENG-999" },
+    listed: false,
+  },
+] as const
+
+for (const testCase of linearUrlCases) {
+  Deno.test(`Issue Query Command - exact Linear issue URL ${testCase.name}`, async () => {
+    const { server, cleanup } = await setupMockLinearServer([
+      {
+        queryName: "ResolveIssueUrlReference",
+        variables: { id: testCase.resolution.requested },
+        response: testCase.issue == null
+          ? { errors: [{ message: "Entity not found: Issue" }] }
+          : {
+            data: {
+              issue: {
+                id: mockIssueNode.id,
+                identifier: mockIssueNode.identifier,
+                url: mockIssueNode.url,
+                ...testCase.issue,
+              },
+            },
+          },
       },
-      response: {
-        data: {
-          issues: {
-            nodes: [mockIssueNode],
-            pageInfo: { hasNextPage: false, endCursor: null },
+      {
+        queryName: "GetIssuesForQuery",
+        variables: {
+          filter: { id: { eq: mockIssueNode.id } },
+          first: 100,
+          includeDescription: true,
+          includeComments: false,
+        },
+        response: {
+          data: {
+            issues: {
+              // The server omits trashed issues without includeArchived.
+              nodes: testCase.issue?.trashed ? [] : [mockIssueNode],
+              pageInfo: { hasNextPage: false, endCursor: null },
+            },
           },
         },
       },
-    },
-  ], { NO_COLOR: "true" })
-  const logs: string[] = []
-  const logStub = stub(console, "log", (...args: unknown[]) => {
-    logs.push(args.map(String).join(" "))
+    ], { NO_COLOR: "true" })
+    const logs: string[] = []
+    const logStub = stub(console, "log", (...args: unknown[]) => {
+      logs.push(args.map(String).join(" "))
+    })
+
+    try {
+      await queryCommand.parse(["--all-teams", "--url", testCase.url, "--json"])
+    } finally {
+      logStub.restore()
+      await cleanup()
+    }
+
+    const payload = JSON.parse(logs[0])
+    assertEquals(payload.resolution, testCase.resolution)
+    assertEquals(
+      payload.nodes.map((issue: { identifier: string }) => issue.identifier),
+      testCase.listed ? ["ENG-101"] : [],
+    )
+    assertEquals(
+      server.graphqlRequests.some((request) =>
+        request.query.includes("GetIssuesForQuery")
+      ),
+      testCase.resolution.status !== "not_found",
+    )
   })
+}
 
-  try {
-    await queryCommand.parse([
-      "--all-teams",
-      "--url",
-      targetUrl,
-      "--json",
-    ])
-  } finally {
-    logStub.restore()
-    await cleanup()
-  }
-
-  const payload = JSON.parse(logs[0])
-  assertEquals(
-    payload.nodes.map((issue: { identifier: string }) => issue.identifier),
-    ["ENG-101"],
+Deno.test("Issue Query Command - URL file prints unresolved Linear issue URLs", async () => {
+  const urlFile = await Deno.makeTempFile({ suffix: ".txt" })
+  await Deno.writeTextFile(
+    urlFile,
+    "https://linear.app/test/issue/OLD-7\nhttps://linear.app/test/issue/ENG-999\n",
   )
-})
-
-Deno.test("Issue Query Command - exact Linear URL does not cross workspace scope", async () => {
-  const targetUrl = "https://linear.app/other/issue/ENG-101/old-title"
   const { cleanup } = await setupMockLinearServer([
     {
-      queryName: "GetIssuesForQuery",
-      variables: {
-        filter: { id: { eq: "ENG-101" } },
-        first: 100,
-        includeDescription: true,
+      queryName: "ResolveIssueUrlReference",
+      variables: { id: "OLD-7" },
+      response: {
+        data: {
+          issue: {
+            id: mockIssueNode.id,
+            identifier: "ENG-101",
+            url: mockIssueNode.url,
+            trashed: false,
+            archivedAt: null,
+          },
+        },
       },
+    },
+    {
+      queryName: "ResolveIssueUrlReference",
+      variables: { id: "ENG-999" },
+      response: { errors: [{ message: "Entity not found: Issue" }] },
+    },
+    {
+      queryName: "GetIssuesForQuery",
       response: {
         data: {
           issues: {
@@ -1078,16 +1163,19 @@ Deno.test("Issue Query Command - exact Linear URL does not cross workspace scope
   try {
     await queryCommand.parse([
       "--all-teams",
-      "--url",
-      targetUrl,
-      "--json",
+      "--url-file",
+      urlFile,
+      "--no-pager",
     ])
   } finally {
     logStub.restore()
     await cleanup()
+    await Deno.remove(urlFile)
   }
 
-  assertEquals(JSON.parse(logs[0]).nodes, [])
+  const output = logs.join("\n")
+  assertStringIncludes(output, "OLD-7 moved to ENG-101")
+  assertStringIncludes(output, "ENG-999 does not exist in this workspace")
 })
 
 Deno.test("Issue Query Command - URL file preserves lookup order", async () => {
