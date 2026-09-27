@@ -761,3 +761,28 @@ for (const hasNextPage of [true, false]) {
     } else assertEquals(result.stderr, "")
   })
 }
+
+Deno.test("API hints on nested connections inside node arrays", async () => {
+  const envelope = {
+    data: {
+      teams: {
+        nodes: [{
+          key: "ENG",
+          issues: {
+            nodes: [{ id: "a" }],
+            pageInfo: { hasNextPage: true, endCursor: "a" },
+          },
+        }],
+        pageInfo: { hasNextPage: false, endCursor: null },
+      },
+    },
+  }
+  const result = await runApi(read, [], [{ body: envelope }])
+  assertEquals(result.code, 0, result.stderr)
+  assertEquals(JSON.parse(result.stdout), envelope)
+  assertStringIncludes(result.stderr, "teams.nodes[].issues has more pages")
+  assertStringIncludes(
+    result.stderr,
+    "page nested connections with $after per parent object",
+  )
+})

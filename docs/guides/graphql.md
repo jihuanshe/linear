@@ -77,9 +77,9 @@ jq -e '((.errors // []) | length == 0) and (.data.issues.nodes | type == "array"
 
 缺失或循环游标、连接路径改变、响应结构不完整和后续页读取失败都会非零退出，不输出已经累积的节点。上游返回 GraphQL `errors` 时保留该页的原始响应，绝不拼入之前的页冒充完整成功。完整分页只表示读到了终页，不保证所有页来自同一时刻。
 
-未显式传 `first` 的连接默认只返回 50 条，按 ID 集合筛选也一样：`issues(filter: {id: {in: [...]}})` 传入 85 个 ID 只返回前 50 个，同时 `pageInfo.hasNextPage` 为 `true`。不带 `--paginate` 的 query 若返回的连接（包括嵌套连接）还有后续页，`linear api` 会在 stderr 提示一行，stdout 不变；需要全部结果时读 `pageInfo`，或改用 `--paginate`。
+未显式传 `first` 的连接默认只返回 50 条，按 ID 集合筛选也一样：`issues(filter: {id: {in: [...]}})` 传入 85 个 ID 只返回前 50 个，同时 `pageInfo.hasNextPage` 为 `true`。不带 `--paginate` 的 query 若返回的连接（包括嵌套连接）还有后续页，`linear api` 会递归检查对象数组，并在 stderr 提示一行，stdout 不变；需要全部结果时读 `pageInfo`，或改用 `--paginate`。
 
-查询可以包含嵌套分页连接，但 `--paginate` 只推进外层连接的游标，不补齐其节点中的嵌套集合。即使命令成功且外层 `hasNextPage` 为 `false`，内层仍可能有后续页；需要完整内层集合时，按父对象单独查询并分页。
+查询可以包含嵌套分页连接，但 `--paginate` 只推进外层连接的游标，不补齐其节点中的嵌套集合。若内层连接位于节点数组中，提示会标出类似 `teams.nodes[].issues` 的路径，并说明按每个父对象使用 `$after` 单独查询和分页；不要对该路径直接使用 `--paginate`。即使命令成功且外层 `hasNextPage` 为 `false`，内层仍可能有后续页。
 
 ## 拆分查询
 

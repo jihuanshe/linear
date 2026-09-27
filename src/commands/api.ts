@@ -313,7 +313,11 @@ async function executeSingle(
 function warnTruncatedConnections(data: unknown): void {
   const truncated: string[] = []
   const visit = (value: unknown, path: string) => {
-    if (value == null || typeof value !== "object" || Array.isArray(value)) {
+    if (value == null || typeof value !== "object") {
+      return
+    }
+    if (Array.isArray(value)) {
+      value.forEach((child) => visit(child, `${path}[]`))
       return
     }
     const pageInfo = (value as { pageInfo?: unknown }).pageInfo
@@ -329,10 +333,13 @@ function warnTruncatedConnections(data: unknown): void {
   visit(data, "")
   if (truncated.length === 0) return
   const verb = truncated.length === 1 ? "has" : "have"
+  const guidance = truncated.some((path) => path.includes("[]"))
+    ? "page nested connections with $after per parent object"
+    : "use --paginate or page with $after"
   console.error(
     `Note: ${
       truncated.join(", ")
-    } ${verb} more pages (pageInfo.hasNextPage: true); use --paginate or page with $after to read everything.`,
+    } ${verb} more pages (pageInfo.hasNextPage: true); ${guidance} to read everything.`,
   )
 }
 
