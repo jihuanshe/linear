@@ -127,7 +127,6 @@ function validateIssueIdentifiers(
           `Pass identifiers such as ENG-123, one per --id or per line: a team key of at most ${MAX_TEAM_KEY_LENGTH} characters and a number from 1 to ${
             MAX_ISSUE_NUMBER.toLocaleString("en-US")
           }.`,
-        details: { invalid },
       },
     )
   }
