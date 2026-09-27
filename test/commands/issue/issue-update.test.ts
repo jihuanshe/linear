@@ -262,7 +262,7 @@ for (const outcome of ["found", "missing", "error"] as const) {
       )
       assertEquals(
         server.graphqlRequests.some((request) =>
-          /query LookupUser\(/.test(request.query)
+          /query LookupUserCandidates\(/.test(request.query)
         ),
         false,
       )
@@ -302,17 +302,22 @@ for (
         queryName: "GetTeamIdByKey",
         response: { data: { teams: { nodes: [{ id: teamWriteIds.ENG }] } } },
       },
-      ...["email", "displayName", "name"].map((field) => ({
-        queryName: "LookupUser",
-        variables: { filter: { [field]: { eqIgnoreCase: input } } },
+      {
+        queryName: "LookupUserCandidates",
+        variables: { reference: input },
         response: {
-          data: {
-            users: {
+          data: Object.fromEntries(
+            [
+              ["byEmail", "email"],
+              ["byDisplayName", "displayName"],
+              ["byName", "name"],
+              ["byNameContains", "nameContains"],
+            ].map(([alias, field]) => [alias, {
               nodes: field === matchField ? [{ id: expectedId }] : [],
-            },
-          },
+            }]),
+          ),
         },
-      })),
+      },
       {
         queryName: "UpdateIssue",
         response: {
@@ -551,12 +556,16 @@ await snapshotTest({
       },
       // Mock response for lookupProjectId()
       {
-        queryName: "GetProjectIdByName",
-        variables: { name: "My Project" },
+        queryName: "LookupProjectCandidates",
+        variables: { reference: "My Project" },
         response: {
           data: {
-            projects: {
+            byName: {
               nodes: [{ id: "project-123" }],
+            },
+            bySlugId: {
+              nodes: [],
+              pageInfo: { hasNextPage: false, endCursor: null },
             },
           },
         },
