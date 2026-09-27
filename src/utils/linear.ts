@@ -1509,8 +1509,9 @@ type AliasedIssueReference = {
 /**
  * Resolve identifiers the `issues` filter did not return. Only `issue(id:)`
  * accepts identifiers from before a team move, and its non-null result makes
- * one unknown identifier null the whole aliased response; Linear reports only
- * the first such alias, so each round drops it and rereads the rest.
+ * one unknown identifier null the whole aliased response; Linear reports one
+ * such alias per response (not necessarily the first), so each round drops the
+ * reported alias and rereads the rest.
  */
 async function resolveIssueIdentifierAliases(
   identifiers: readonly string[],

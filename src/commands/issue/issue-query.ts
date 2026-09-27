@@ -89,9 +89,20 @@ async function readExactUrlFile(filePath: string): Promise<string[]> {
   return [...new Set(urls)]
 }
 
+// Linear rejects the whole `issues(filter: {id: {in}})` request with an
+// "Argument Validation Error" that names no element when any identifier has a
+// team key longer than 7 characters or a number above 999,999,999 (measured
+// 2026-09-27), so such values are rejected here, one by one, before any request.
+const MAX_TEAM_KEY_LENGTH = 7
+const MAX_ISSUE_NUMBER = 999_999_999
+
 function validateIssueIdentifier(value: string, source: string): string {
   const identifier = normalizeIssueIdentifier(value.trim())
-  if (identifier == null) {
+  const [teamKey, number] = identifier?.split("-") ?? []
+  if (
+    identifier == null || teamKey.length > MAX_TEAM_KEY_LENGTH ||
+    Number(number) > MAX_ISSUE_NUMBER
+  ) {
     throw new ValidationError(
       `Invalid issue identifier in ${source}: "${value}"`,
       {

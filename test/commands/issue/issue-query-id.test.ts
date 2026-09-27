@@ -362,6 +362,16 @@ for (
       'Invalid issue identifier in --id: "ENG-0"',
     ],
     [
+      "a team key longer than Linear accepts",
+      ["--id", "ENG-1", "--id", "ABCDEFGH-1"],
+      'Invalid issue identifier in --id: "ABCDEFGH-1"',
+    ],
+    [
+      "a number larger than Linear accepts",
+      ["--id", "ENG-1", "--id", "ENG-1000000000"],
+      'Invalid issue identifier in --id: "ENG-1000000000"',
+    ],
+    [
       "a filter",
       ["--id", "ENG-1", "--team", "ENG"],
       "Cannot combine --id with --team",

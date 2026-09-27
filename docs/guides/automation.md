@@ -156,9 +156,9 @@ jq -e '.reconciliation as $r | $r.requested == $r.read + $r.missing' issues.json
 jq -r '.resolutions[] | select(.status == "not_found") | .requested' issues.json
 ```
 
-`nodes` 按首次请求的顺序给出每个 Issue 一次，节点带 `trashed` 与 `archivedAt`；`pageInfo.hasNextPage` 恒为 `false`。`resolutions` 按请求顺序逐项给出 `{requested, status, identifier}`：`found` 表示当前编号，`moved` 表示团队迁移前的编号并给出现编号，`trashed`／`archived` 的 Issue 也读取到 `nodes`，`not_found` 表示工作区中不存在或当前凭据不可见。`reconciliation` 按请求编号计数，`requested = read + missing`；两个编号解析到同一 Issue 时 `read` 计两次，`nodes` 只有一个。CLI 在输出前核对这个等式，不成立时非零退出，`error.details` 给出 `unread` 编号，不输出较短的结果。
+`nodes` 按首次请求的顺序给出每个 Issue 一次，节点带 `trashed` 与 `archivedAt`；`pageInfo.hasNextPage` 恒为 `false`。`resolutions` 按请求顺序逐项给出 `{requested, status, identifier}`：`found` 表示当前编号，`moved` 表示团队迁移或改名前的编号并给出现编号，`trashed`／`archived` 的 Issue 也读取到 `nodes`，`not_found` 表示工作区中不存在或当前凭据不可见。团队 key 超过 7 位或编号大于 999,999,999 的输入会让 Linear 拒绝整批请求，CLI 在发请求前逐个报错。`reconciliation` 按请求编号计数，`requested = read + missing`；两个编号解析到同一 Issue 时 `read` 计两次，`nodes` 只有一个。CLI 在输出前核对这个等式，不成立时非零退出，`error.details` 给出 `unread` 编号，不输出较短的结果。
 
-请求数：每 100 个编号 1 个请求；未按当前编号读到的编号再用 `issue(id:)` 分批解析，每批约 1 个请求，每个不存在的编号额外 1 个，因为 Linear 在一个编号不存在时让整批返回空数据，且只报告第一个；已迁移的 Issue 再合计 1 个请求读取完整节点。这些都是 query，遵守上文「网络等待与查询重试」的规则。
+请求数：每 100 个编号 1 个请求；未按当前编号读到的编号再用 `issue(id:)` 分批解析，每批约 1 个请求，每个不存在的编号额外 1 个，因为 Linear 在一个编号不存在时让整批返回空数据，且每次只报告其中一个；已迁移的 Issue 再合计 1 个请求读取完整节点。这些都是 query，遵守上文「网络等待与查询重试」的规则。
 
 `issue view --json` 与 `issue export` 完整读取 `.issue.comments`、`.issue.attachments` 和 `.issue.labels`；`view --no-comments` 跳过评论。评论保留 `quotedText` 和 `documentContentId`，供识别行内引用；PR 等链接位于 `.issue.attachments.nodes`。`children`、`documents` 和详情中的 `relations` 等集合仍是有限预览；完整关系用 `issue relation list <issue> --json`，其他完整集合按 `linear guide graphql` 单独分页。完整分页不代表跨页数据库快照。
 
