@@ -13,6 +13,7 @@ import {
   truncateText,
 } from "../../utils/display.ts"
 import {
+  fetchIssuesByIdentifiers,
   fetchIssuesForQuery,
   getCycleIdByNameOrNumber,
   getProjectOptionsByName,
@@ -22,11 +23,13 @@ import {
   type IssueUrlResolution,
   lookupProjectId,
   lookupUserId,
+  mapWithConcurrency,
   resolveMilestoneId,
   searchIssuesByTerm,
   selectOption,
 } from "../../utils/linear.ts"
 import { resolveTeam } from "../../utils/issue-read.ts"
+import { normalizeIssueIdentifier } from "../../utils/issue-identifier.ts"
 import { pipeToUserPager, shouldUsePager } from "../../utils/pager.ts"
 import { shouldShowSpinner } from "../../utils/hyperlink.ts"
 import { header, muted, warning } from "../../utils/styling.ts"
@@ -86,27 +89,95 @@ async function readExactUrlFile(filePath: string): Promise<string[]> {
   return [...new Set(urls)]
 }
 
-async function mapWithConcurrency<T, R>(
-  items: readonly T[],
-  concurrency: number,
-  mapper: (item: T, index: number) => Promise<R>,
-): Promise<R[]> {
-  const results = new Array<R>(items.length)
-  let nextIndex = 0
-  const worker = async () => {
-    while (true) {
-      const index = nextIndex++
-      if (index >= items.length) return
-      results[index] = await mapper(items[index], index)
-    }
-  }
-  const workers = Array.from(
-    { length: Math.min(Math.max(1, concurrency), items.length) },
-    () => worker(),
-  )
-  await Promise.all(workers)
-  return results
+// Linear rejects the whole `issues(filter: {id: {in}})` request with an
+// "Argument Validation Error" that names no element when any identifier has a
+// team key longer than 7 characters or a number above 999,999,999 (measured
+// 2026-09-27), so such values are rejected here, all listed, before any request.
+const MAX_TEAM_KEY_LENGTH = 7
+const MAX_ISSUE_NUMBER = 999_999_999
+
+function isAcceptedIssueIdentifier(identifier: string | undefined): boolean {
+  if (identifier == null) return false
+  const [teamKey, number] = identifier.split("-")
+  return teamKey.length <= MAX_TEAM_KEY_LENGTH &&
+    Number(number) <= MAX_ISSUE_NUMBER
 }
+
+/** Normalize every value; report all invalid ones in one error. */
+function validateIssueIdentifiers(
+  values: readonly string[],
+  source: string,
+): string[] {
+  const invalid: string[] = []
+  const identifiers: string[] = []
+  for (const value of values) {
+    const identifier = normalizeIssueIdentifier(value.trim())
+    if (isAcceptedIssueIdentifier(identifier)) identifiers.push(identifier!)
+    else invalid.push(value)
+  }
+  if (invalid.length > 0) {
+    throw new ValidationError(
+      `Invalid issue identifier${
+        invalid.length === 1 ? "" : "s"
+      } in ${source}: ${
+        invalid.map((value) => JSON.stringify(value)).join(", ")
+      }`,
+      {
+        suggestion:
+          `Pass identifiers such as ENG-123, one per --id or per line: a team key of at most ${MAX_TEAM_KEY_LENGTH} characters and a number from 1 to ${
+            MAX_ISSUE_NUMBER.toLocaleString("en-US")
+          }.`,
+      },
+    )
+  }
+  return identifiers
+}
+
+async function readIssueIdentifierFile(filePath: string): Promise<string[]> {
+  let content: string
+  try {
+    content = await Deno.readTextFile(filePath)
+  } catch (error) {
+    if (error instanceof Deno.errors.NotFound) {
+      throw new NotFoundError("Identifier file", filePath)
+    }
+    throw error
+  }
+  const identifiers = validateIssueIdentifiers(
+    content
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0 && !line.startsWith("#")),
+    `--id-file ${filePath}`,
+  )
+  if (identifiers.length === 0) {
+    throw new ValidationError(`--id-file contains no identifiers: ${filePath}`)
+  }
+  return identifiers
+}
+
+/** Options that filter or order a result set; ID mode reports every request. */
+const ID_MODE_CONFLICTS = [
+  ["search", "--search"],
+  ["searchComments", "--search-comments"],
+  ["url", "--url"],
+  ["urlFile", "--url-file"],
+  ["team", "--team"],
+  ["allTeams", "--all-teams"],
+  ["stateType", "--state-type"],
+  ["stateName", "--state-name"],
+  ["assignee", "--assignee"],
+  ["unassigned", "--unassigned"],
+  ["sort", "--sort"],
+  ["project", "--project"],
+  ["unprojected", "--unprojected"],
+  ["projectLabel", "--project-label"],
+  ["cycle", "--cycle"],
+  ["milestone", "--milestone"],
+  ["label", "--label"],
+  ["createdAfter", "--created-after"],
+  ["updatedAfter", "--updated-after"],
+] as const
 
 export const queryCommand = withUsageMetadata(new Command(), {
   interactive: true,
@@ -127,6 +198,16 @@ export const queryCommand = withUsageMetadata(new Command(), {
   .option(
     "--url-file <path:string>",
     "Find issues for one URL per line (blank lines and lines starting with # are ignored); JSON returns {lookups: [{url, nodes, pageInfo, resolution?}]} in input order, with resolution as in --url for Linear Issue URLs; --limit is ignored",
+    { preserveEmpty: true },
+  )
+  .option(
+    "--id <identifier:string>",
+    "Read issues by identifier across all teams (repeatable; duplicates are read once). Identifiers from before a team move resolve to the current issue, and archived and trashed issues are included. JSON returns {nodes, pageInfo, resolutions: [{requested, status: found|moved|trashed|archived|not_found, identifier?}], reconciliation: {requested, read, missing}}: nodes holds each distinct issue once in request order, pageInfo.hasNextPage is always false, and requested = read + missing is checked (a mismatch fails with a non-zero exit). Cannot be combined with filters, --search, or --url; --limit is ignored",
+    { collect: true, preserveEmpty: true },
+  )
+  .option(
+    "--id-file <path:string>",
+    "Read issues for one identifier per line (blank lines and lines starting with # are ignored); same result and reconciliation as --id",
     { preserveEmpty: true },
   )
   .option(
@@ -205,6 +286,8 @@ export const queryCommand = withUsageMetadata(new Command(), {
       search,
       url,
       urlFile,
+      id: idFlags,
+      idFile,
       searchComments,
       team: teamFlags,
       allTeams,
@@ -232,6 +315,66 @@ export const queryCommand = withUsageMetadata(new Command(), {
       | null = null
 
     try {
+      // --- Identifier mode: cross-team, unfiltered, reconciled ---
+
+      if (idFlags != null || idFile != null) {
+        if (idFlags != null && idFile != null) {
+          throw new ValidationError("Cannot use both --id and --id-file", {
+            suggestion:
+              "Repeat --id for a few identifiers, or put one identifier per line in --id-file.",
+          })
+        }
+        const conflict = ID_MODE_CONFLICTS.find(([key]) => {
+          const value = options[key]
+          return value != null &&
+            !(Array.isArray(value) && value.length === 0)
+        })
+        if (conflict != null) {
+          throw new ValidationError(
+            `Cannot combine ${idFile != null ? "--id-file" : "--id"} with ${
+              conflict[1]
+            }`,
+            {
+              suggestion:
+                "Identifier mode reads every requested issue across teams; filter the JSON result instead.",
+            },
+          )
+        }
+        const identifiers = idFile != null
+          ? await readIssueIdentifierFile(idFile)
+          : validateIssueIdentifiers(idFlags!.flat(), "--id")
+
+        const { Spinner } = await import("@std/cli/unstable-spinner")
+        spinner = shouldShowSpinner() && !json ? new Spinner() : null
+        spinner?.start()
+        const result = await fetchIssuesByIdentifiers(identifiers)
+        spinner?.stop()
+
+        if (json) {
+          console.log(JSON.stringify(result, null, 2))
+          return
+        }
+
+        const outputLines: string[] = []
+        for (const resolution of result.resolutions) {
+          const note = describeResolution(resolution, true, false)
+          if (note != null) outputLines.push(note)
+        }
+        if (result.nodes.length > 0) {
+          if (outputLines.length > 0) outputLines.push("")
+          outputLines.push(...formatIssueTable(result.nodes, true, true))
+        }
+        const { requested, read, missing } = result.reconciliation
+        outputLines.push(
+          "",
+          `Read ${read} of ${requested} requested ${
+            requested === 1 ? "issue" : "issues"
+          }; ${missing} not found.`,
+        )
+        await outputPaged(outputLines, pager !== false)
+        return
+      }
+
       // --- Validation ---
 
       const teamKeys = teamFlags
