@@ -8,6 +8,7 @@
  * - GraphQL errors should be parsed and presented nicely
  */
 
+import { ValidationError as CommandValidationError } from "@cliffy/command"
 import { ClientError } from "graphql-request"
 import { gray, red } from "@std/fmt/colors"
 import { withTerminalColors } from "./terminal.ts"
@@ -255,6 +256,50 @@ function rateLimitSuggestion(
     : `Linear rejected this write as RATELIMITED, which does not prove it had no effect; reconcile the remote outcome, then retry ${when}.`
 }
 
+/**
+ * Stable code and next step for failures Linear or the argument parser already
+ * classified. Mutations keep their generic code: their effect evidence decides
+ * the suggestion.
+ */
+function classifiedFailure(
+  error: unknown,
+): { code: string; suggestion?: string } | undefined {
+  if (error instanceof CommandValidationError) {
+    const path = error.cmd?.getPath()
+    return {
+      code: "ValidationError",
+      ...(path == null ? {} : {
+        suggestion: `Run '${path} --help' for valid arguments and options.`,
+      }),
+    }
+  }
+  if (!isClientError(error) || requestWasMutation(error)) return undefined
+  const errors = error.response?.errors
+  if (!Array.isArray(errors) || errors.length === 0) return undefined
+  if (
+    errors.every((entry) => entry.extensions?.code === "AUTHENTICATION_ERROR")
+  ) {
+    return {
+      code: "AuthError",
+      suggestion:
+        "Linear rejected the API key; check LINEAR_API_KEY or the selected workspace credential (`linear auth list`), or run `linear auth login`.",
+    }
+  }
+  if (
+    errors.every((entry) =>
+      typeof entry.message === "string" &&
+      entry.message.startsWith("Entity not found")
+    )
+  ) {
+    return {
+      code: "NotFoundError",
+      suggestion:
+        "Check the identifier and that it belongs to the selected workspace (`linear auth whoami`).",
+    }
+  }
+  return undefined
+}
+
 export function errorResult(error: unknown, context?: string) {
   const message = error instanceof CliError
     ? error.userMessage
@@ -269,6 +314,7 @@ export function errorResult(error: unknown, context?: string) {
     ? mutationWasAcknowledged(error) ? "applied" : "unknown"
     : "none"
   const rateLimit = isClientError(error) ? rateLimitDetails(error) : undefined
+  const classified = classifiedFailure(error)
   return {
     ok: false as const,
     effect,
@@ -284,6 +330,8 @@ export function errorResult(error: unknown, context?: string) {
     error: {
       code: rateLimit != null
         ? "RateLimited"
+        : classified != null
+        ? classified.code
         : error instanceof Error
         ? error.name
         : "Error",
@@ -292,6 +340,8 @@ export function errorResult(error: unknown, context?: string) {
         ? { suggestion: error.suggestion }
         : rateLimit != null
         ? { suggestion: rateLimitSuggestion(rateLimit, effect) }
+        : classified?.suggestion != null
+        ? { suggestion: classified.suggestion }
         : effect === "unknown"
         ? {
           suggestion:
@@ -403,7 +453,7 @@ export class UnsupportedOutputError extends CliError {
   constructor(path: string) {
     super(`${path} does not support JSON output`, {
       suggestion:
-        `Use '${path} --help' without --json, or 'linear usage --json' to discover commands with JSON output.`,
+        `Run '${path}' without --json, or use 'linear usage --json' to discover commands with JSON output.`,
     })
     this.name = "UnsupportedOutputError"
   }
@@ -526,19 +576,13 @@ function printGraphQLError(error: ClientError, context?: string): void {
   const message = extractGraphQLMessage(error)
   const prefix = context ? `${context}: ` : ""
 
-  // Check for common error patterns and provide helpful messages
-  if (isNotFoundError(error)) {
-    console.error(red(`✗ ${prefix}${message}`))
-  } else {
-    console.error(red(`✗ ${prefix}${message}`))
-  }
+  console.error(red(`✗ ${prefix}${message}`))
 
   const rateLimit = rateLimitDetails(error)
-  if (rateLimit != null) {
-    console.error(
-      gray(`  ${rateLimitSuggestion(rateLimit, errorResult(error).effect)}`),
-    )
-  }
+  const suggestion = rateLimit != null
+    ? rateLimitSuggestion(rateLimit, errorResult(error).effect)
+    : classifiedFailure(error)?.suggestion
+  if (suggestion != null) console.error(gray(`  ${suggestion}`))
 
   if (isDebugMode()) {
     printDebugInfo(error)
@@ -558,6 +602,8 @@ function printGraphQLError(error: ClientError, context?: string): void {
 function printGenericError(error: Error, context?: string): void {
   const prefix = context ? `${context}: ` : ""
   console.error(red(`✗ ${prefix}${error.message}`))
+  const suggestion = classifiedFailure(error)?.suggestion
+  if (suggestion != null) console.error(gray(`  ${suggestion}`))
 
   if (isDebugMode()) {
     printDebugInfo(error)

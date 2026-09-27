@@ -42,10 +42,10 @@ export function withGraphQLContext<T>(action: () => Promise<T>): Promise<T> {
 }
 
 function workspaceCredentialNotFound(workspace: string): Error {
-  return new AuthError(
-    `Workspace "${workspace}" not found in credentials. ` +
-      `Run \`linear auth login\` to add it, or \`linear auth list\` to see configured workspaces.`,
-  )
+  return new AuthError(`Workspace "${workspace}" not found in credentials`, {
+    suggestion:
+      "Run `linear auth list` to see configured workspaces, or `linear auth login` to add it.",
+  })
 }
 
 /**
