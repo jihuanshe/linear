@@ -452,22 +452,15 @@ await snapshotTest({
     const server = new MockLinearServer([
       // Shared project resolver tries name first, then slugId
       {
-        queryName: "GetProjectIdByName",
+        queryName: "LookupProjectCandidates",
+        variables: { reference: "tinycloud-sdk" },
         response: {
           data: {
-            projects: {
+            byName: {
               pageInfo: { hasNextPage: false, endCursor: null },
               nodes: [],
             },
-          },
-        },
-      },
-      {
-        queryName: "GetProjectIdBySlugId",
-        variables: { slugId: "tinycloud-sdk" },
-        response: {
-          data: {
-            projects: {
+            bySlugId: {
               pageInfo: { hasNextPage: false, endCursor: null },
               nodes: [{ id: "project-uuid-123" }],
             },
