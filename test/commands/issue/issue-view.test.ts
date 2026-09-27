@@ -47,6 +47,7 @@ const emptyIssueFields = {
   },
   documents: {
     nodes: [],
+    pageInfo: { hasNextPage: false, endCursor: null },
   },
 }
 
@@ -135,7 +136,10 @@ for (const comments of [true, false]) {
               activeCycle: null,
             },
             children: { nodes: [] },
-            documents: { nodes: [] },
+            documents: {
+              nodes: [],
+              pageInfo: { hasNextPage: false, endCursor: null },
+            },
             relations: { nodes: [], pageInfo: { hasNextPage: false } },
             inverseRelations: { nodes: [], pageInfo: { hasNextPage: false } },
             labels: {
@@ -177,6 +181,89 @@ for (const comments of [true, false]) {
       logStub.restore()
       await cleanup()
     }
+  })
+}
+
+for (const json of [false, true]) {
+  Deno.test(`Issue View Command - reads every page of documents (json ${json})`, async () => {
+    const id = "11111111-1111-4111-8111-000000000125"
+    const document = (i: number) => ({
+      id: `document-${i}`,
+      title: `Doc ${i}`,
+      slugId: `doc-${i}`,
+      url: `https://linear.app/test-team/document/doc-${i}`,
+      createdAt: "2024-01-15T09:00:00Z",
+      updatedAt: "2024-01-15T09:00:00Z",
+    })
+    const { server, cleanup } = await setupMockLinearServer([{
+      queryName: "GetIssueDetails",
+      variables: { id: "ENG-125" },
+      response: {
+        data: {
+          organization: { id: "org", urlKey: "test-team" },
+          issue: {
+            ...emptyIssueFields,
+            id,
+            identifier: "ENG-125",
+            title: "Many documents",
+            description: null,
+            url: "https://linear.app/test-team/issue/ENG-125",
+            branchName: "eng-125",
+            state: { id: "s", name: "Todo", type: "unstarted", color: "#000" },
+            team: { id: "t", key: "ENG", activeCycle: null },
+            attachments: {
+              nodes: [],
+              pageInfo: { hasNextPage: false, endCursor: null },
+            },
+            documents: {
+              nodes: Array.from({ length: 50 }, (_, i) => document(i)),
+              pageInfo: { hasNextPage: true, endCursor: "documents-50" },
+            },
+          },
+        },
+      },
+    }, {
+      queryName: "GetIssueDocuments",
+      variables: { id, first: 100, after: "documents-50" },
+      response: {
+        data: {
+          issue: {
+            id,
+            documents: {
+              nodes: [document(50)],
+              pageInfo: { hasNextPage: false, endCursor: "documents-51" },
+            },
+          },
+        },
+      },
+    }], { NO_COLOR: "true" })
+    const output: string[] = []
+    const logStub = stub(console, "log", (value: string) => output.push(value))
+    try {
+      await viewCommand.parse([
+        "ENG-125",
+        "--no-comments",
+        "--no-pager",
+        ...(json ? ["--json"] : []),
+      ])
+    } finally {
+      logStub.restore()
+      await cleanup()
+    }
+    if (json) {
+      assertEquals(JSON.parse(output.join("\n")).issue.documents, {
+        nodes: Array.from({ length: 51 }, (_, i) => document(i)),
+        pageInfo: { hasNextPage: false, endCursor: "documents-51" },
+      })
+    } else {
+      assertMatch(output.join("\n"), /\*\*Doc 50\*\*: https:/)
+    }
+    assertEquals(
+      server.graphqlRequests.filter((request) =>
+        request.query.includes("query GetIssueDocuments")
+      ).length,
+      1,
+    )
   })
 }
 
@@ -607,6 +694,7 @@ await snapshotTest({
                     updatedAt: "2024-01-15T09:15:00Z",
                   },
                 ],
+                pageInfo: { hasNextPage: false, endCursor: null },
               },
               identifier: "TEST-246",
               title: "Audit issue resource output",
@@ -1066,6 +1154,7 @@ await snapshotTest({
                     updatedAt: "2024-01-15T09:15:00Z",
                   },
                 ],
+                pageInfo: { hasNextPage: false, endCursor: null },
               },
               identifier: "TEST-246",
               title: "Audit issue resource output",

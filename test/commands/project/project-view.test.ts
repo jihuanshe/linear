@@ -111,6 +111,7 @@ for (
               name: "Release",
               teams: { nodes: [], pageInfo },
               labels: { nodes: [], pageInfo },
+              issues: { nodes: [], pageInfo },
             },
           },
         },
@@ -291,6 +292,7 @@ await snapshotTest({
                     },
                   },
                 ],
+                pageInfo: { hasNextPage: false, endCursor: null },
               },
               lastUpdate: {
                 id: "update-1",
@@ -389,6 +391,7 @@ await snapshotTest({
               },
               issues: {
                 nodes: [],
+                pageInfo: { hasNextPage: false, endCursor: null },
               },
               lastUpdate: null,
             },
@@ -464,7 +467,10 @@ Deno.test("Project View includes full content by default", async () => {
               nodes: [],
               pageInfo: { hasNextPage: false, endCursor: null },
             },
-            issues: { nodes: [] },
+            issues: {
+              nodes: [],
+              pageInfo: { hasNextPage: false, endCursor: null },
+            },
             lastUpdate: null,
           },
         },
@@ -495,3 +501,103 @@ Deno.test("Project View includes full content by default", async () => {
     Deno.env.delete("LINEAR_API_KEY")
   }
 })
+
+for (const json of [false, true]) {
+  Deno.test(`Project View reads every page of issues (json ${json})`, async () => {
+    const id = "fedcba98-7654-4321-8fed-cba987654321"
+    const pageInfo = { hasNextPage: false, endCursor: null }
+    const issue = (i: number) => ({
+      id: `issue-${i}`,
+      identifier: `ENG-${i}`,
+      title: `Task ${i}`,
+      state: i < 30 || i >= 100
+        ? { name: "Done", type: "completed" }
+        : { name: "Todo", type: "unstarted" },
+    })
+    const { server, cleanup } = await setupMockLinearServer([
+      {
+        queryName: "GetProjectDetails",
+        response: {
+          data: {
+            organization: { id: "workspace-1", urlKey: "test" },
+            project: {
+              id,
+              name: "Large",
+              description: "",
+              content: "",
+              slugId: "large",
+              icon: null,
+              color: "#64748b",
+              status: { id: "started", name: "Started", color: "#22c55e" },
+              creator: null,
+              lead: null,
+              priority: 0,
+              health: null,
+              startDate: null,
+              targetDate: null,
+              startedAt: null,
+              completedAt: null,
+              canceledAt: null,
+              updatedAt: "2024-01-20T12:00:00Z",
+              archivedAt: null,
+              trashed: null,
+              createdAt: "2024-01-20T12:00:00Z",
+              url: "https://linear.app/acme/project/large",
+              teams: { nodes: [], pageInfo },
+              labels: { nodes: [], pageInfo },
+              issues: {
+                nodes: Array.from({ length: 100 }, (_, i) => issue(i)),
+                pageInfo: { hasNextPage: true, endCursor: "issues-100" },
+              },
+              lastUpdate: null,
+            },
+          },
+        },
+      },
+      {
+        queryName: "GetProjectIssues",
+        variables: { id, first: 100, after: "issues-100" },
+        response: {
+          data: {
+            project: {
+              id,
+              issues: {
+                nodes: Array.from({ length: 20 }, (_, i) => issue(100 + i)),
+                pageInfo: { hasNextPage: false, endCursor: "issues-120" },
+              },
+            },
+          },
+        },
+      },
+    ], { NO_COLOR: "1" })
+    const logs: string[] = []
+    const log = stub(console, "log", (...args: unknown[]) => {
+      logs.push(args.map(String).join(" "))
+    })
+    try {
+      await viewCommand.parse([id, ...(json ? ["--json"] : [])])
+    } finally {
+      log.restore()
+      await cleanup()
+    }
+    if (json) {
+      const { issues } = JSON.parse(logs.join("\n")).project
+      assertEquals(issues.nodes.length, 120)
+      assertEquals(issues.pageInfo, {
+        hasNextPage: false,
+        endCursor: "issues-120",
+      })
+    } else {
+      const output = logs.join("\n")
+      assertStringIncludes(output, "**Total Issues:** 120")
+      assertStringIncludes(output, "**Completed:** 50")
+      assertStringIncludes(output, "**To Do:** 70")
+    }
+    assertEquals(
+      server.graphqlRequests
+        .filter((request) => request.query.includes("query GetProjectIssues"))
+        .length,
+      1,
+    )
+  })
+}

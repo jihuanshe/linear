@@ -16,14 +16,15 @@ Description:
 
 Options:
 
-  -h, --help               - Show this help.                                                                                                          
-  -w, --web                - Open in web browser                                                                                                      
-  -a, --app                - Open in Linear.app                                                                                                       
-  --no-comments            - Exclude comments from the output                                                                                         
-  --show-resolved-threads  - Include resolved threads in human output; JSON always retains all fetched threads                                        
-  --no-pager               - Disable automatic paging for long output                                                                                 
-  -j, --json               - Output {organization, viewer, issue, contextSummary} without a write envelope; the issue is in issue. Includes all       
-                             fetched threads (even resolved) and issue.history (latest 50); comments and attachments retain {nodes, pageInfo}         
+  -h, --help               - Show this help.                                                                                                         
+  -w, --web                - Open in web browser                                                                                                     
+  -a, --app                - Open in Linear.app                                                                                                      
+  --no-comments            - Exclude comments from the output                                                                                        
+  --show-resolved-threads  - Include resolved threads in human output; JSON always retains all fetched threads                                       
+  --no-pager               - Disable automatic paging for long output                                                                                
+  -j, --json               - Output {organization, viewer, issue, contextSummary} without a write envelope; the issue is in issue. Includes all      
+                             fetched threads (even resolved) and issue.history (latest 50); comments, attachments and documents retain {nodes,       
+                             pageInfo} with every page read                                                                                          
 
 "
 stderr:
@@ -201,7 +202,11 @@ stdout:
       }
     },
     "documents": {
-      "nodes": []
+      "nodes": [],
+      "pageInfo": {
+        "hasNextPage": false,
+        "endCursor": null
+      }
     },
     "id": "11111111-1111-4111-8111-000000000123",
     "team": {
@@ -323,7 +328,11 @@ stdout:
       }
     },
     "documents": {
-      "nodes": []
+      "nodes": [],
+      "pageInfo": {
+        "hasNextPage": false,
+        "endCursor": null
+      }
     },
     "id": "11111111-1111-4111-8111-000000000123",
     "team": {
@@ -438,7 +447,11 @@ stdout:
       }
     },
     "documents": {
-      "nodes": []
+      "nodes": [],
+      "pageInfo": {
+        "hasNextPage": false,
+        "endCursor": null
+      }
     },
     "id": "11111111-1111-4111-8111-000000000123",
     "team": {
@@ -636,7 +649,11 @@ stdout:
           "createdAt": "2024-01-15T09:00:00Z",
           "updatedAt": "2024-01-15T09:15:00Z"
         }
-      ]
+      ],
+      "pageInfo": {
+        "hasNextPage": false,
+        "endCursor": null
+      }
     },
     "id": "11111111-1111-4111-8111-000000000246",
     "team": {
@@ -929,7 +946,11 @@ stdout:
       }
     },
     "documents": {
-      "nodes": []
+      "nodes": [],
+      "pageInfo": {
+        "hasNextPage": false,
+        "endCursor": null
+      }
     },
     "id": "11111111-1111-4111-8111-000000000654",
     "team": {
@@ -1103,7 +1124,11 @@ stdout:
       }
     },
     "documents": {
-      "nodes": []
+      "nodes": [],
+      "pageInfo": {
+        "hasNextPage": false,
+        "endCursor": null
+      }
     },
     "id": "11111111-1111-4111-8111-000000000123",
     "team": {

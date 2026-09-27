@@ -83,7 +83,10 @@ Deno.test("initiative list still displays unknown remote statuses", async () => 
               slugId: "future",
               name: "Future initiative",
               status: "FutureState",
-              projects: { nodes: [] },
+              projects: {
+                nodes: [],
+                pageInfo: { hasNextPage: false, endCursor: null },
+              },
             }],
             pageInfo: { hasNextPage: false, endCursor: null },
           },
@@ -144,6 +147,7 @@ await cliffySnapshotTest({
                         status: { name: "Planned" },
                       },
                     ],
+                    pageInfo: { hasNextPage: false, endCursor: null },
                   },
                 },
                 {
@@ -171,6 +175,7 @@ await cliffySnapshotTest({
                         status: { name: "In Progress" },
                       },
                     ],
+                    pageInfo: { hasNextPage: false, endCursor: null },
                   },
                 },
               ],
@@ -196,4 +201,78 @@ await cliffySnapshotTest({
       Deno.env.delete("LINEAR_API_KEY")
     }
   },
+})
+
+Deno.test("initiative list counts every page of an initiative's projects", async () => {
+  const id = "initiative-large"
+  const project = (i: number) => ({
+    id: `project-${i}`,
+    name: `Project ${i}`,
+    status: { name: "Started" },
+  })
+  const { server, cleanup } = await setupMockLinearServer([
+    {
+      queryName: "GetInitiatives",
+      response: {
+        data: {
+          initiatives: {
+            nodes: [{
+              id,
+              slugId: "large",
+              name: "Large",
+              description: null,
+              status: "Active",
+              targetDate: null,
+              health: null,
+              color: null,
+              icon: null,
+              url: "https://linear.app/test/initiative/large",
+              archivedAt: null,
+              trashed: false,
+              owner: null,
+              projects: {
+                nodes: Array.from({ length: 50 }, (_, i) => project(i)),
+                pageInfo: { hasNextPage: true, endCursor: "projects-50" },
+              },
+            }],
+            pageInfo: { hasNextPage: false, endCursor: null },
+          },
+        },
+      },
+    },
+    {
+      queryName: "GetInitiativeProjects",
+      variables: { id, first: 100, after: "projects-50" },
+      response: {
+        data: {
+          initiative: {
+            id,
+            projects: {
+              nodes: Array.from({ length: 7 }, (_, i) => project(50 + i)),
+              pageInfo: { hasNextPage: false, endCursor: "projects-57" },
+            },
+          },
+        },
+      },
+    },
+  ], { NO_COLOR: "1" })
+  const logs: string[] = []
+  const log = stub(console, "log", (...args: unknown[]) => {
+    logs.push(args.map(String).join(" "))
+  })
+  try {
+    await listCommand.parse(["--json"])
+  } finally {
+    log.restore()
+    await cleanup()
+  }
+  const { nodes } = JSON.parse(logs.join("\n"))
+  assertEquals(nodes[0].projects.nodes.length, 57)
+  assertEquals(nodes[0].projects.pageInfo.hasNextPage, false)
+  assertEquals(
+    server.graphqlRequests.map((request) =>
+      request.query.match(/query (\w+)/)?.[1]
+    ),
+    ["GetInitiatives", "GetInitiativeProjects"],
+  )
 })
