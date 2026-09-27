@@ -15,7 +15,8 @@ Description:
   Pass a GraphQL document or '-' to read stdin to EOF.                                                                                               
                                                                                                                                                      
   Raw mutations require --unprotected and do not provide domain guards, receipts or checkpoints. Queries may retry explicit server overload responses
-  within a bounded deadline; mutations are never retried. Inspect data/errors and reconcile uncertain writes.                                        
+  within a bounded deadline; mutations are never retried. Unpaginated queries warn on stderr when a returned connection has more pages. Inspect      
+  data/errors and reconcile uncertain writes.                                                                                                        
 
 Options:
 

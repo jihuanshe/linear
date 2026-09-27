@@ -25,7 +25,7 @@ export const apiCommand = withUsageMetadata(new Command(), {
 })
   .name("api")
   .description(
-    "Run raw GraphQL queries or explicitly unprotected mutations.\n\nPass a GraphQL document or '-' to read stdin to EOF.\n\nRaw mutations require --unprotected and do not provide domain guards, receipts or checkpoints. Queries may retry explicit server overload responses within a bounded deadline; mutations are never retried. Inspect data/errors and reconcile uncertain writes.",
+    "Run raw GraphQL queries or explicitly unprotected mutations.\n\nPass a GraphQL document or '-' to read stdin to EOF.\n\nRaw mutations require --unprotected and do not provide domain guards, receipts or checkpoints. Queries may retry explicit server overload responses within a bounded deadline; mutations are never retried. Unpaginated queries warn on stderr when a returned connection has more pages. Inspect data/errors and reconcile uncertain writes.",
   )
   .arguments("[document:string]")
   .option(
@@ -311,18 +311,28 @@ async function executeSingle(
  * at most 50 by default). The hint goes to stderr; stdout stays unchanged.
  */
 function warnTruncatedConnections(data: unknown): void {
-  if (data == null || typeof data !== "object") return
-  const truncated = Object.entries(data).filter(([, value]) => {
-    if (value == null || typeof value !== "object") return false
+  const truncated: string[] = []
+  const visit = (value: unknown, path: string) => {
+    if (value == null || typeof value !== "object" || Array.isArray(value)) {
+      return
+    }
     const pageInfo = (value as { pageInfo?: unknown }).pageInfo
-    return pageInfo != null && typeof pageInfo === "object" &&
+    if (
+      pageInfo != null && typeof pageInfo === "object" &&
+      !Array.isArray(pageInfo) &&
       (pageInfo as { hasNextPage?: unknown }).hasNextPage === true
-  }).map(([field]) => field)
+    ) truncated.push(path)
+    for (const [field, child] of Object.entries(value)) {
+      if (field !== "pageInfo") visit(child, path ? `${path}.${field}` : field)
+    }
+  }
+  visit(data, "")
   if (truncated.length === 0) return
+  const verb = truncated.length === 1 ? "has" : "have"
   console.error(
     `Note: ${
       truncated.join(", ")
-    } has more pages (pageInfo.hasNextPage: true); use --paginate or page with $after to read everything.`,
+    } ${verb} more pages (pageInfo.hasNextPage: true); use --paginate or page with $after to read everything.`,
   )
 }
 
