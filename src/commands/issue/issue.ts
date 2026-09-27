@@ -17,6 +17,7 @@ import { updateCommand } from "./issue-update.ts"
 import { urlCommand } from "./issue-url.ts"
 import { viewCommand } from "./issue-view.ts"
 import { exportCommand } from "./issue-export.ts"
+import { favoriteCommand } from "./issue-favorite.ts"
 
 export const issueCommand = new Command()
   .description("Manage Linear issues")
@@ -37,5 +38,6 @@ export const issueCommand = new Command()
   .command("attach", attachCommand)
   .command("link", linkCommand)
   .command("relation", relationCommand)
+  .command("favorite", favoriteCommand)
   .command("plan", issuePlanCommand)
   .command("apply", issueApplyCommand)

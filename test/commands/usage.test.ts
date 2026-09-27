@@ -56,6 +56,8 @@ const CANONICAL_WRITES_COMMAND_PATHS = [
   "linear issue comment update",
   "linear issue create",
   "linear issue delete",
+  "linear issue favorite add",
+  "linear issue favorite remove",
   "linear issue link",
   "linear issue relation add",
   "linear issue relation delete",
