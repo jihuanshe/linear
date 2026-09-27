@@ -319,7 +319,7 @@ export class TriageDisabledError extends CliError {
   ) {
     super(`Team ${teamKey} has triage disabled`, {
       suggestion: defaultState == null
-        ? `Omit --state, or run \`linear team states ${teamKey}\` and pass one of its states.`
+        ? `Omit --state (or pass --state default), or run \`linear team states ${teamKey}\` and pass one of its states.`
         : `Omit --state (or pass --state default) to use the team default ${
           JSON.stringify(defaultState.name)
         } (${defaultState.type}); run \`linear team states ${teamKey}\` for other states.`,
