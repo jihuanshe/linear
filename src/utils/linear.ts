@@ -817,27 +817,6 @@ export async function fetchIssueDetailsRaw(
 export type FetchedIssueComment =
   GetIssueDetailsWithCommentsQuery["issue"]["comments"]["nodes"][number]
 
-export async function fetchParentIssueTitle(
-  parentId: string,
-): Promise<string | null> {
-  try {
-    const query = gql(/* GraphQL */ `
-      query GetParentIssueTitle($id: String!) {
-        issue(id: $id) {
-          title
-          identifier
-        }
-      }
-    `)
-    const client = getGraphQLClient()
-    const data = await client.request(query, { id: parentId })
-    return `${data.issue.identifier}: ${data.issue.title}`
-  } catch {
-    // Silently fail for optional parent lookup - caller handles display
-    return null
-  }
-}
-
 export async function fetchParentIssueData(parentRef: string): Promise<
   {
     id: string
@@ -2199,15 +2178,6 @@ export async function getOrganizationMembers(
   )
 
   return { nodes, pageInfo }
-}
-
-export async function getIssueTeam(issueIdentifier: string) {
-  const query = gql(`query GetIssueTeam($id: String!) {
-    issue(id: $id) { team { id key } }
-  }`)
-  const data = await getGraphQLClient().request(query, { id: issueIdentifier })
-  if (data.issue == null) throw new NotFoundError("Issue", issueIdentifier)
-  return data.issue.team
 }
 
 /**
