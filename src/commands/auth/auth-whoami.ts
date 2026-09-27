@@ -25,7 +25,9 @@ const viewerQuery = gql(`
 
 export const whoamiCommand = new Command()
   .name("whoami")
-  .description("Print information about the authenticated user")
+  .description(
+    "Print information about the authenticated user. `admin` is the member's workspace role, not the API key's permission scope, which the API does not expose.",
+  )
   .option("-j, --json", "Output as JSON")
   .action(async ({ json }) => {
     try {
@@ -50,7 +52,9 @@ export const whoamiCommand = new Command()
       }
       console.log(`  Email: ${viewer.email}`)
       if (viewer.admin) {
-        console.log(`  Role: admin`)
+        console.log(
+          `  Role: admin (workspace role; API key scopes are not shown)`,
+        )
       } else if (viewer.guest) {
         console.log(`  Role: guest`)
       }

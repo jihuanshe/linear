@@ -25,7 +25,7 @@ export const apiCommand = withUsageMetadata(new Command(), {
 })
   .name("api")
   .description(
-    "Run raw GraphQL queries or explicitly unprotected mutations.\n\nPass a GraphQL document or '-' to read stdin to EOF.\n\nRaw mutations require --unprotected and do not provide domain guards, receipts or checkpoints. Queries may retry explicit server overload responses within a bounded deadline; mutations are never retried. Inspect data/errors and reconcile uncertain writes.",
+    "Run raw GraphQL queries or explicitly unprotected mutations.\n\nPass a GraphQL document or '-' to read stdin to EOF.\n\nRaw mutations require --unprotected and do not provide domain guards, receipts or checkpoints. Queries may retry explicit server overload responses within a bounded deadline; mutations are never retried. Unpaginated queries warn on stderr when a returned connection has more pages. Inspect data/errors and reconcile uncertain writes.",
   )
   .arguments("[document:string]")
   .option(
@@ -302,6 +302,45 @@ async function executeSingle(
     throw error
   }
   outputJSON(parsed, JSON.stringify(parsed))
+  if (!mutation) warnTruncatedConnections(parsed.data)
+}
+
+/**
+ * A top-level connection with more pages is a silent sample to callers that
+ * only read `nodes` (for example `issues(filter: {id: {in: [...]}})` returns
+ * at most 50 by default). The hint goes to stderr; stdout stays unchanged.
+ */
+function warnTruncatedConnections(data: unknown): void {
+  const truncated: string[] = []
+  const visit = (value: unknown, path: string) => {
+    if (value == null || typeof value !== "object") {
+      return
+    }
+    if (Array.isArray(value)) {
+      value.forEach((child) => visit(child, `${path}[]`))
+      return
+    }
+    const pageInfo = (value as { pageInfo?: unknown }).pageInfo
+    if (
+      pageInfo != null && typeof pageInfo === "object" &&
+      !Array.isArray(pageInfo) &&
+      (pageInfo as { hasNextPage?: unknown }).hasNextPage === true
+    ) truncated.push(path)
+    for (const [field, child] of Object.entries(value)) {
+      if (field !== "pageInfo") visit(child, path ? `${path}.${field}` : field)
+    }
+  }
+  visit(data, "")
+  if (truncated.length === 0) return
+  const verb = truncated.length === 1 ? "has" : "have"
+  const guidance = truncated.some((path) => path.includes("[]"))
+    ? "page nested connections with $after per parent object"
+    : "use --paginate or page with $after"
+  console.error(
+    `Note: ${
+      truncated.join(", ")
+    } ${verb} more pages (pageInfo.hasNextPage: true); ${guidance} to read everything.`,
+  )
 }
 
 async function executePaginated(
@@ -343,6 +382,7 @@ async function executePaginated(
       connection.pageInfo,
     )
     outputJSON(mergedResponse, JSON.stringify(mergedResponse))
+    warnTruncatedConnections(mergedResponse.data)
   }
 }
 

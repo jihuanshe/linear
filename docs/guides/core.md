@@ -53,6 +53,8 @@ linear usage --json          # 命令树与能力元数据
 
 身份不匹配或认证失败时，停止依赖该凭据的操作。
 
+`auth whoami` 的 `admin` 是当前成员在工作区的角色，不代表 API 密钥的权限范围；密钥范围无法通过 GraphQL 读取。成员角色为 admin 时写入仍可能因密钥权限被拒绝，例如 `label create`。遇到这类权限错误不要换凭据重试，请有权限的人在 Linear 界面创建一次标签，之后只用 `issue update --add-label`／`--remove-label` 引用它，普通写入权限即可。
+
 ## 从 URL 定位对象
 
 已知 Issue URL 时可直接传给 `issue view`、`issue export` 或 `issue update`；CLI 解析编号并核对 URL 所属工作区。
