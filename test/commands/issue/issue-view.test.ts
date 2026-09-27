@@ -527,7 +527,7 @@ await snapshotTest({
     const server = new MockLinearServer([
       {
         queryName: "GetIssueDetails",
-        queryIncludes: "relations(first: 250)",
+        queryIncludes: "relations(first: 50)",
         variables: { id: "TEST-246" },
         response: {
           data: {
@@ -986,7 +986,7 @@ await snapshotTest({
     const server = new MockLinearServer([
       {
         queryName: "GetIssueDetails",
-        queryIncludes: "relations(first: 250)",
+        queryIncludes: "relations(first: 50)",
         variables: { id: "TEST-246" },
         response: {
           data: {
@@ -2210,3 +2210,71 @@ Deno.test("Issue View Command - JSON adds a derived contextSummary", async () =>
     await cleanup()
   }
 })
+
+for (const moreRelations of [false, true]) {
+  Deno.test(`Issue View Command - relation preview with more than one page ${moreRelations}`, async () => {
+    // Linear prices relation connections by the requested page size, so the
+    // view asks for 50 rows and repeats the 250-row preview only when needed.
+    const read = contextIssueRead()
+    read.issue.inverseRelations = {
+      nodes: [],
+      pageInfo: { hasNextPage: moreRelations },
+    }
+    const preview = {
+      id: read.issue.id,
+      relations: {
+        nodes: [read.issue.relations.nodes[0], {
+          id: "relation-2",
+          type: "related",
+          relatedIssue: { identifier: "TEST-201", title: "Nearby" },
+        }],
+        pageInfo: { hasNextPage: false },
+      },
+      inverseRelations: {
+        nodes: [{
+          id: "relation-3",
+          type: "blocks",
+          issue: { identifier: "TEST-202", title: "Blocker" },
+        }],
+        pageInfo: { hasNextPage: true },
+      },
+    }
+    const { server, cleanup } = await setupMockLinearServer([{
+      queryName: "GetIssueDetailsWithComments",
+      variables: { id: "TEST-321" },
+      response: { data: read },
+    }, {
+      queryName: "GetIssueRelationsPreview",
+      variables: { id: read.issue.id },
+      response: { data: { issue: preview } },
+    }])
+    const output: string[] = []
+    const logStub = stub(console, "log", (value: string) => output.push(value))
+    try {
+      await viewCommand.parse(["TEST-321", "--json"])
+      const body = JSON.parse(output.join("\n"))
+      const [details, ...rest] = server.graphqlRequests
+      assertMatch(details.query, /\brelations\(first: 50\)/)
+      assertMatch(details.query, /inverseRelations\(first: 50\)/)
+      assertEquals(
+        rest.map((request) => request.variables),
+        moreRelations ? [{ id: read.issue.id }] : [],
+      )
+      if (moreRelations) {
+        assertMatch(rest[0].query, /\brelations\(first: 250\)/)
+        assertMatch(rest[0].query, /inverseRelations\(first: 250\)/)
+      }
+      const expected = moreRelations ? preview : read.issue
+      assertEquals(body.issue.relations, expected.relations)
+      assertEquals(body.issue.inverseRelations, expected.inverseRelations)
+      assertEquals(body.contextSummary.relations.complete, !moreRelations)
+      assertEquals(
+        body.contextSummary.relations.items.length,
+        moreRelations ? 3 : 1,
+      )
+    } finally {
+      logStub.restore()
+      await cleanup()
+    }
+  })
+}

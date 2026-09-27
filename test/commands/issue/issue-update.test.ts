@@ -2119,6 +2119,12 @@ for (
         1,
       )
       assertEquals(contextIndex >= 0 && contextIndex < writeIndex, true)
+      if (context.issue != null) {
+        // A complete first relation page needs no 250-row preview read.
+        const contextQuery = server.graphqlRequests[contextIndex].query
+        assertStringIncludes(contextQuery, "inverseRelations(first: 50)")
+        assertEquals(requests.includes("GetIssueRelationsPreview"), false)
+      }
     } finally {
       errorStub.restore()
       logStub.restore()
