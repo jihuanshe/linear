@@ -64,31 +64,27 @@ export async function setupIssueWriteServer(
   envVars?: Record<string, string>,
 ) {
   const fixtures: MockResponses = responses.map((response) => {
-    const field = response.queryName.startsWith("GetProjectIdBy")
-      ? "projects"
+    const fields = response.queryName === "LookupProjectCandidates"
+      ? ["byName", "bySlugId"]
+      : response.queryName === "LookupUserCandidates"
+      ? ["byEmail", "byDisplayName", "byName", "byNameContains"]
       : response.queryName === "GetIssueLabelIdByNameForTeam"
-      ? "issueLabels"
-      : ["LookupUser", "LookupUserById"].includes(response.queryName)
-      ? "users"
+      ? ["issueLabels"]
+      : response.queryName === "LookupUserById"
+      ? ["users"]
       : undefined
-    if (field == null) return response
+    if (fields == null) return response
     if (typeof response.response === "function") return response
-    const data = object(response.response.data)
-    const connection = object(data[field])
-    if (!Array.isArray(connection.nodes)) return response
-    return {
-      ...response,
-      response: {
-        ...response.response,
-        data: {
-          ...data,
-          [field]: {
-            ...connection,
-            pageInfo: connection.pageInfo ?? terminalPage,
-          },
-        },
-      },
+    const data = { ...object(response.response.data) }
+    for (const field of fields) {
+      const connection = object(data[field])
+      if (!Array.isArray(connection.nodes)) continue
+      data[field] = {
+        ...connection,
+        pageInfo: connection.pageInfo ?? terminalPage,
+      }
     }
+    return { ...response, response: { ...response.response, data } }
   })
 
   for (const response of responses) {

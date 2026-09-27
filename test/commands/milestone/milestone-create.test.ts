@@ -100,21 +100,14 @@ await cliffySnapshotTest({
   async fn() {
     const server = new MockLinearServer([
       {
-        queryName: "GetProjectIdByName",
+        queryName: "LookupProjectCandidates",
         response: {
           data: {
-            projects: {
+            byName: {
               pageInfo: { hasNextPage: false, endCursor: null },
               nodes: [],
             },
-          },
-        },
-      },
-      {
-        queryName: "GetProjectIdBySlugId",
-        response: {
-          data: {
-            projects: {
+            bySlugId: {
               pageInfo: { hasNextPage: false, endCursor: null },
               nodes: [{ id: "project-123" }],
             },
@@ -171,21 +164,14 @@ await cliffySnapshotTest({
   async fn() {
     const server = new MockLinearServer([
       {
-        queryName: "GetProjectIdByName",
+        queryName: "LookupProjectCandidates",
         response: {
           data: {
-            projects: {
+            byName: {
               pageInfo: { hasNextPage: false, endCursor: null },
               nodes: [],
             },
-          },
-        },
-      },
-      {
-        queryName: "GetProjectIdBySlugId",
-        response: {
-          data: {
-            projects: {
+            bySlugId: {
               pageInfo: { hasNextPage: false, endCursor: null },
               nodes: [{ id: "project-456" }],
             },
@@ -242,13 +228,17 @@ await cliffySnapshotTest({
   async fn() {
     const server = new MockLinearServer([
       {
-        queryName: "GetProjectIdByName",
-        variables: { name: "Tech Debt" },
+        queryName: "LookupProjectCandidates",
+        variables: { reference: "Tech Debt" },
         response: {
           data: {
-            projects: {
+            byName: {
               pageInfo: { hasNextPage: false, endCursor: null },
               nodes: [{ id: "project-tech-debt-uuid" }],
+            },
+            bySlugId: {
+              nodes: [],
+              pageInfo: { hasNextPage: false, endCursor: null },
             },
           },
         },
