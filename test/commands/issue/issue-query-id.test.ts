@@ -165,8 +165,8 @@ Deno.test("Issue Query --id - resolves moved, trashed, archived, and missing ide
       {
         queryName: "ResolveIssueIdentifiers",
         response: (request) =>
-          // OLD-7 moved to ENG-150; ENG-999 never existed. Linear reports
-          // only the first missing alias and nulls the whole response.
+          // OLD-7 moved to ENG-150; ENG-999 never existed. Linear nulls the
+          // whole response and reports one missing alias per response.
           request.variables.i1 === "ENG-999" ? aliasNotFound("i1") : {
             data: {
               i0: {
@@ -370,6 +370,11 @@ for (
       "a number larger than Linear accepts",
       ["--id", "ENG-1", "--id", "ENG-1000000000"],
       'Invalid issue identifier in --id: "ENG-1000000000"',
+    ],
+    [
+      "every invalid identifier at once",
+      ["--id", "ENG-1", "--id", "ABCDEFGH-1", "--id", "ENG-1000000000"],
+      'Invalid issue identifiers in --id: "ABCDEFGH-1", "ENG-1000000000"',
     ],
     [
       "a filter",

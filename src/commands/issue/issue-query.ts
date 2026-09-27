@@ -92,26 +92,46 @@ async function readExactUrlFile(filePath: string): Promise<string[]> {
 // Linear rejects the whole `issues(filter: {id: {in}})` request with an
 // "Argument Validation Error" that names no element when any identifier has a
 // team key longer than 7 characters or a number above 999,999,999 (measured
-// 2026-09-27), so such values are rejected here, one by one, before any request.
+// 2026-09-27), so such values are rejected here, all listed, before any request.
 const MAX_TEAM_KEY_LENGTH = 7
 const MAX_ISSUE_NUMBER = 999_999_999
 
-function validateIssueIdentifier(value: string, source: string): string {
-  const identifier = normalizeIssueIdentifier(value.trim())
-  const [teamKey, number] = identifier?.split("-") ?? []
-  if (
-    identifier == null || teamKey.length > MAX_TEAM_KEY_LENGTH ||
-    Number(number) > MAX_ISSUE_NUMBER
-  ) {
+function isAcceptedIssueIdentifier(identifier: string | undefined): boolean {
+  if (identifier == null) return false
+  const [teamKey, number] = identifier.split("-")
+  return teamKey.length <= MAX_TEAM_KEY_LENGTH &&
+    Number(number) <= MAX_ISSUE_NUMBER
+}
+
+/** Normalize every value; report all invalid ones in one error. */
+function validateIssueIdentifiers(
+  values: readonly string[],
+  source: string,
+): string[] {
+  const invalid: string[] = []
+  const identifiers: string[] = []
+  for (const value of values) {
+    const identifier = normalizeIssueIdentifier(value.trim())
+    if (isAcceptedIssueIdentifier(identifier)) identifiers.push(identifier!)
+    else invalid.push(value)
+  }
+  if (invalid.length > 0) {
     throw new ValidationError(
-      `Invalid issue identifier in ${source}: "${value}"`,
+      `Invalid issue identifier${
+        invalid.length === 1 ? "" : "s"
+      } in ${source}: ${
+        invalid.map((value) => JSON.stringify(value)).join(", ")
+      }`,
       {
         suggestion:
-          "Pass identifiers such as ENG-123, one per --id or per line.",
+          `Pass identifiers such as ENG-123, one per --id or per line: a team key of at most ${MAX_TEAM_KEY_LENGTH} characters and a number from 1 to ${
+            MAX_ISSUE_NUMBER.toLocaleString("en-US")
+          }.`,
+        details: { invalid },
       },
     )
   }
-  return identifier
+  return identifiers
 }
 
 async function readIssueIdentifierFile(filePath: string): Promise<string[]> {
@@ -124,11 +144,13 @@ async function readIssueIdentifierFile(filePath: string): Promise<string[]> {
     }
     throw error
   }
-  const identifiers = content
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .filter((line) => line.length > 0 && !line.startsWith("#"))
-    .map((line) => validateIssueIdentifier(line, `--id-file ${filePath}`))
+  const identifiers = validateIssueIdentifiers(
+    content
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0 && !line.startsWith("#")),
+    `--id-file ${filePath}`,
+  )
   if (identifiers.length === 0) {
     throw new ValidationError(`--id-file contains no identifiers: ${filePath}`)
   }
@@ -321,9 +343,7 @@ export const queryCommand = withUsageMetadata(new Command(), {
         }
         const identifiers = idFile != null
           ? await readIssueIdentifierFile(idFile)
-          : idFlags!.flat().map((value) =>
-            validateIssueIdentifier(value, "--id")
-          )
+          : validateIssueIdentifiers(idFlags!.flat(), "--id")
 
         const { Spinner } = await import("@std/cli/unstable-spinner")
         spinner = shouldShowSpinner() && !json ? new Spinner() : null
