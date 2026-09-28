@@ -18,10 +18,12 @@ Options:
   --url               <url>         - Find an issue by Linear URL, or by an exact URL occurrence in its description or comments (URL                 
                                       mode returns all exact matches; --limit is ignored). A Linear Issue URL also resolves identifiers              
                                       from before a team move and adds resolution {status: found|moved|trashed|archived|not_found,                   
-                                      requested, identifier}; trashed and archived issues need --include-archived to appear in nodes                 
+                                      requested, identifier}; trashed and archived issues need --include-archived to appear in nodes.                
+                                      Without --team or --cycle, URL mode searches the whole workspace and ignores the configured                    
+                                      default team                                                                                                   
   --url-file          <path>        - Find issues for one URL per line (blank lines and lines starting with # are ignored); JSON                     
                                       returns {lookups: [{url, nodes, pageInfo, resolution?}]} in input order, with resolution as in                 
-                                      --url for Linear Issue URLs; --limit is ignored                                                                
+                                      --url for Linear Issue URLs; --limit is ignored. Team scope follows --url                                      
   --id                <identifier>  - Read issues by identifier across all teams (repeatable; duplicates are read once). Identifiers                 
                                       from before a team move resolve to the current issue, and archived and trashed issues are                      
                                       included. JSON returns {nodes, pageInfo, resolutions: [{requested, status:                                     
