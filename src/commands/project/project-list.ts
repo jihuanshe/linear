@@ -209,7 +209,8 @@ export const listCommand = new Command()
         return
       }
 
-      // Sort projects logically by status then by name
+      // Human output is a presentation sort. JSON preserves the GraphQL
+      // connection order so its cursor remains valid for subsequent pages.
       const statusOrder: Record<ProjectStatusType, number> = {
         "started": 1,
         "planned": 2,
@@ -219,7 +220,7 @@ export const listCommand = new Command()
         "canceled": 6,
       }
 
-      projects = projects.sort((a, b) => {
+      const sortProjects = (a: Project, b: Project) => {
         // First sort by status type priority
         const statusA =
           statusOrder[a.status.type as keyof typeof statusOrder] || 999
@@ -232,7 +233,7 @@ export const listCommand = new Command()
 
         // Then sort alphabetically by name
         return a.name.localeCompare(b.name)
-      })
+      }
 
       if (json) {
         console.log(JSON.stringify(
@@ -245,6 +246,8 @@ export const listCommand = new Command()
         ))
         return
       }
+
+      projects = projects.sort(sortProjects)
 
       // Helper function to get the most relevant date to display
       const getDisplayDate = (

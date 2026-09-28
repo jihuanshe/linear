@@ -322,7 +322,11 @@ export function errorResult(error: unknown, context?: string) {
     : isClientError(error) && requestWasMutation(error)
     ? mutationWasAcknowledged(error) ? "applied" : "unknown"
     : "none"
-  const rateLimit = isClientError(error) ? rateLimitDetails(error) : undefined
+  const rateLimit = isClientError(error)
+    ? rateLimitDetails(error)
+    : error instanceof WriteError && isClientError(error.cause)
+    ? rateLimitDetails(error.cause)
+    : undefined
   const classified = classifiedFailure(error)
   return {
     ok: false as const,

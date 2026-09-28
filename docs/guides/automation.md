@@ -124,7 +124,7 @@ JSON 不与浏览器／应用跳转、显式交互／编辑或原文／脚本输
 
 ## 网络等待与查询重试
 
-并发命令和脚本共享 API 密钥的限流额度；分页和批处理前先估算请求数。需要安排批处理时，用只读查询 `rateLimitStatus` 查看剩余额度和重置时间，不要靠固定等待猜测：
+并发命令和脚本共享 API 密钥的限流额度；分页和批处理前先估算 GraphQL 请求及尝试次数。本地命令和 API 请求前的参数校验不会消耗 GraphQL 请求。需要安排批处理时，用只读查询 `rateLimitStatus` 查看剩余额度和重置时间，不要靠固定等待猜测：
 
 ```bash
 linear api 'query { rateLimitStatus { kind limits { type remainingAmount reset } } }' >rate-limit.json

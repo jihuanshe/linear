@@ -637,7 +637,7 @@ Deno.test("project list --limit selects the same projects for human and JSON out
     const parsed = JSON.parse(json.stdout)
     assertEquals(
       parsed.nodes.map((node: { slugId: string }) => node.slugId),
-      ["start-a", "plan-b"],
+      ["plan-b", "start-a"],
     )
     assertEquals(parsed.pageInfo, pageInfo)
 

@@ -96,6 +96,40 @@ Deno.test("rate-limited write stays unknown and asks for reconciliation", async 
   }
 })
 
+Deno.test("rate-limited write wrapped as WriteError keeps RateLimited", async () => {
+  const { server, cleanup } = await setupMockLinearServer([
+    {
+      queryName: "GetDocumentForDelete",
+      variables: { id: "d4b93e3b2695" },
+      response: {
+        data: {
+          document: {
+            id: "doc-uuid-123",
+            slugId: "d4b93e3b2695",
+            title: "Test Document",
+          },
+        },
+      },
+    },
+    { queryName: "DeleteDocument", ...rateLimited },
+  ])
+  try {
+    const { code, body } = await run([
+      "document",
+      "delete",
+      "d4b93e3b2695",
+      "--yes",
+    ])
+    assertEquals(code, 1)
+    assertEquals(server.graphqlRequests.length, 2)
+    assertEquals(body.effect, "unknown")
+    assertEquals(body.error.code, "RateLimited")
+    assertEquals(body.error.details.rateLimit, rateLimit)
+  } finally {
+    await cleanup()
+  }
+})
+
 Deno.test("malformed reset headers cannot erase an unknown mutation effect", async () => {
   const { server, cleanup } = await setupIssueWriteServer([
     {
