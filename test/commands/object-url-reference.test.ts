@@ -45,6 +45,7 @@ async function run(server: MockLinearServer, args: string[]) {
 const projectId = "11111111-1111-4111-8111-111111111111"
 const initiativeId = "22222222-2222-4222-8222-222222222222"
 const slugId = "3f2a1b4c5d6e"
+const hyphenatedSlugId = "auth-redesign-2024"
 const organization = { id: "org-1", urlKey: "acme" }
 const connection = (nodes: unknown[]) => ({
   nodes,
@@ -53,12 +54,16 @@ const connection = (nodes: unknown[]) => ({
 const issues = connection([])
 
 function projectServer(
-  { urlKey = "acme", found = true }: { urlKey?: string; found?: boolean } = {},
+  { urlKey = "acme", found = true, projectSlugId = slugId }: {
+    urlKey?: string
+    found?: boolean
+    projectSlugId?: string
+  } = {},
 ) {
   return setupMockLinearServer([
     {
       queryName: "LookupProjectByUrl",
-      variables: { slugId },
+      variables: { slugId: projectSlugId },
       response: {
         data: {
           organization: { ...organization, urlKey },
@@ -86,6 +91,31 @@ function projectServer(
     },
   ])
 }
+
+Deno.test("project URL resolves a slug ID containing hyphens through the CLI", async () => {
+  const { server, cleanup } = await projectServer({
+    projectSlugId: hyphenatedSlugId,
+  })
+  try {
+    const result = await run(server, [
+      "issue",
+      "query",
+      "--project",
+      `https://linear.app/acme/project/${hyphenatedSlugId}`,
+      "--json",
+    ])
+    assertEquals(result.code, 0, result.stdout + result.stderr)
+    assertEquals(JSON.parse(result.stdout), issues)
+    assertEquals(
+      server.graphqlRequests.map((request) =>
+        request.query.match(/query (\w+)/)?.[1]
+      ),
+      ["LookupProjectByUrl", "GetIssuesForQuery"],
+    )
+  } finally {
+    await cleanup()
+  }
+})
 
 for (
   const url of [
