@@ -20,6 +20,7 @@ import {
   getTeamKey,
   isIssueBlocked,
   isLinearUuid,
+  issueFilterReferences,
   type IssueUrlResolution,
   lookupProjectId,
   lookupUserId,
@@ -29,6 +30,7 @@ import {
   selectOption,
 } from "../../utils/linear.ts"
 import { resolveTeam } from "../../utils/issue-read.ts"
+import { assertFilterReferences } from "../../utils/filter-references.ts"
 import { normalizeIssueIdentifier } from "../../utils/issue-identifier.ts"
 import { pipeToUserPager, shouldUsePager } from "../../utils/pager.ts"
 import { shouldShowSpinner } from "../../utils/hyperlink.ts"
@@ -534,6 +536,7 @@ export const queryCommand = withUsageMetadata(new Command(), {
       // --- Team scope resolution ---
 
       let resolvedTeamKeys: string[] | undefined
+      let teamKeySource: string | undefined
       let isMultiTeam = false
 
       if (allTeams) {
@@ -562,6 +565,7 @@ export const queryCommand = withUsageMetadata(new Command(), {
           `Note: using default team ${defaultTeam}. Pass --team <key> or --all-teams to be explicit.`,
         )
         resolvedTeamKeys = [defaultTeam]
+        teamKeySource = "configured team_key"
       }
 
       // --- Resolve entity IDs ---
@@ -623,6 +627,7 @@ export const queryCommand = withUsageMetadata(new Command(), {
       const sort = search ? undefined : resolveIssueSort(sortFlag)
       const queryOptions = {
         teamKeys: resolvedTeamKeys,
+        teamKeySource,
         allTeams: allTeams === true,
         stateTypes,
         stateNames,
@@ -642,6 +647,10 @@ export const queryCommand = withUsageMetadata(new Command(), {
       }
 
       if (exactUrls != null) {
+        // Check the filter values once, not once per URL.
+        await assertFilterReferences(
+          issueFilterReferences(queryOptions),
+        )
         // Keep URL order in the result so a caller can reconcile each lookup
         // without matching on an issue title or identifier.
         const results = await mapWithConcurrency(
@@ -652,6 +661,7 @@ export const queryCommand = withUsageMetadata(new Command(), {
               ...queryOptions,
               assigneeId: resolvedBatchAssigneeId,
               exactUrl: target,
+              referencesChecked: true,
             }),
         )
 

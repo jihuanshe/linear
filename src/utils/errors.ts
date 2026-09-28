@@ -410,7 +410,7 @@ export class NotFoundError extends CliError {
   constructor(
     entityType: string,
     identifier: string,
-    options?: { suggestion?: string },
+    options?: { suggestion?: string; details?: unknown },
   ) {
     const message = `${entityType} not found: ${identifier}`
     super(message, options)

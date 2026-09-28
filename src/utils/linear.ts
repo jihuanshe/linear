@@ -26,6 +26,11 @@ import {
 } from "./errors.ts"
 import { getGraphQLClient } from "./graphql.ts"
 import { completeConnection, type Connection } from "./pagination.ts"
+import {
+  assertFilterReferences,
+  type FilterReference,
+  filterReferenceVariables,
+} from "./filter-references.ts"
 import { normalizeIssueIdentifier } from "./issue-identifier.ts"
 import { getCurrentIssueFromVcs } from "./vcs.ts"
 import { unified } from "unified"
@@ -863,7 +868,25 @@ const queryIssuesQuery = gql(/* GraphQL */ `
     $includeDescription: Boolean!
     $includeComments: Boolean!
     $includeLifecycle: Boolean = false
+    $checkTeamReferences: Boolean = false
+    $teamReferenceFilter: TeamFilter
+    $checkWorkflowStateReferences: Boolean = false
+    $workflowStateReferenceFilter: WorkflowStateFilter
+    $checkIssueLabelReferences: Boolean = false
+    $issueLabelReferenceFilter: IssueLabelFilter
+    $checkProjectLabelReferences: Boolean = false
+    $projectLabelReferenceFilter: ProjectLabelFilter
+    $checkProjectReferences: Boolean = false
+    $projectReferenceFilter: ProjectFilter
+    $checkMilestoneReferences: Boolean = false
+    $milestoneReferenceFilter: ProjectMilestoneFilter
   ) {
+    ...TeamReferenceCheck
+    ...WorkflowStateReferenceCheck
+    ...IssueLabelReferenceCheck
+    ...ProjectLabelReferenceCheck
+    ...ProjectReferenceCheck
+    ...MilestoneReferenceCheck
     issues(
       filter: $filter
       sort: $sort
@@ -1009,6 +1032,8 @@ function buildWorkflowStateFilter(
 
 interface IssueFilterOptions {
   teamKeys?: string[]
+  /** Where teamKeys came from, named in a not-found error (default --team). */
+  teamKeySource?: string
   allTeams?: boolean
   stateTypes?: string[]
   stateNames?: string[]
@@ -1034,6 +1059,64 @@ export interface FetchIssuesForQueryOptions extends IssueFilterOptions {
   includeArchived?: boolean
   /** Exact URL to locate in an issue's URL, description, or comments. */
   exactUrl?: string
+  /** The caller already ran assertFilterReferences for these options. */
+  referencesChecked?: boolean
+}
+
+/**
+ * Filter values that Linear would match against nothing when misspelled.
+ * Assignee, cycle, and project/milestone names are resolved to IDs before
+ * the query and fail there; a project or milestone UUID is taken as given,
+ * so it is checked here.
+ */
+export function issueFilterReferences(
+  options: IssueFilterOptions,
+): FilterReference[] {
+  const teamKeys = options.allTeams ? [] : options.teamKeys ?? []
+  const team = teamKeys.length === 1 ? teamKeys[0] : undefined
+  return [
+    {
+      kind: "team",
+      option: options.teamKeySource ?? "--team",
+      values: teamKeys,
+    },
+    {
+      kind: "workflowState",
+      option: "--state-name",
+      // State types take precedence in buildWorkflowStateFilter.
+      values: options.stateTypes?.length ? [] : options.stateNames ?? [],
+      ...(team == null ? {} : {
+        suggestion: `Run \`linear team states ${team}\` to see state names.`,
+      }),
+    },
+    {
+      kind: "issueLabel",
+      option: "--label",
+      values: options.labelNames ?? [],
+      ...(team == null ? {} : {
+        suggestion:
+          `Run \`linear label list --team ${team}\` to see label names.`,
+      }),
+    },
+    {
+      kind: "projectLabel",
+      option: "--project-label",
+      values: options.projectId == null && !options.unprojected &&
+          options.projectLabel != null
+        ? [options.projectLabel]
+        : [],
+    },
+    {
+      kind: "project",
+      option: "--project",
+      values: options.projectId == null ? [] : [options.projectId],
+    },
+    {
+      kind: "milestone",
+      option: "--milestone",
+      values: options.milestoneId == null ? [] : [options.milestoneId],
+    },
+  ]
 }
 
 interface LinearIssueUrlReference {
@@ -1475,6 +1558,9 @@ export async function fetchIssuesForQuery(
   options: FetchIssuesForQueryOptions,
 ): Promise<FetchedQueryIssuePayload> {
   const filter = await buildIssueFilter(options)
+  const references = options.referencesChecked
+    ? []
+    : issueFilterReferences(options)
   const exactIssueReference = options.exactUrl == null
     ? undefined
     : parseLinearIssueUrl(options.exactUrl)
@@ -1487,6 +1573,8 @@ export async function fetchIssuesForQuery(
         exactIssueReference,
       ))
       if (exactIssueId == null) {
+        // No issue request follows to carry the checks.
+        await assertFilterReferences(references)
         return {
           nodes: [],
           pageInfo: { hasNextPage: false, endCursor: null },
@@ -1536,8 +1624,12 @@ export async function fetchIssuesForQuery(
   const limit = options.limit ?? 50
   const pageSize = fetchAll ? 100 : Math.min(limit, 100)
 
-  const fetchPage = async (after?: string, first = pageSize) => {
-    const result = await client.request(queryIssuesQuery, {
+  const requestPage = (
+    after?: string,
+    first = pageSize,
+    checks: Record<string, unknown> = {},
+  ) =>
+    client.request(queryIssuesQuery, {
       sort: sortPayload,
       filter: Object.keys(filter).length > 0 ? filter : undefined,
       first,
@@ -1545,11 +1637,19 @@ export async function fetchIssuesForQuery(
       includeArchived: options.includeArchived,
       includeDescription: options.exactUrl != null,
       includeComments: options.exactUrl != null && exactIssueReference == null,
+      ...checks,
     })
-    return result.issues
-  }
+  const fetchPage = async (after?: string, first = pageSize) =>
+    (await requestPage(after, first)).issues
+  // The first page also carries the filter reference checks.
+  const firstPage = await requestPage(
+    undefined,
+    pageSize,
+    filterReferenceVariables(references),
+  )
+  await assertFilterReferences(references, firstPage)
   const { nodes: allNodes, pageInfo: lastPageInfo } = await completeConnection(
-    await fetchPage(),
+    firstPage.issues,
     fetchPage,
     "issue",
     fetchAll ? 0 : limit,
@@ -1876,7 +1976,25 @@ const searchIssuesQuery = gql(/* GraphQL */ `
     $includeArchived: Boolean
     $includeComments: Boolean
     $orderBy: PaginationOrderBy
+    $checkTeamReferences: Boolean = false
+    $teamReferenceFilter: TeamFilter
+    $checkWorkflowStateReferences: Boolean = false
+    $workflowStateReferenceFilter: WorkflowStateFilter
+    $checkIssueLabelReferences: Boolean = false
+    $issueLabelReferenceFilter: IssueLabelFilter
+    $checkProjectLabelReferences: Boolean = false
+    $projectLabelReferenceFilter: ProjectLabelFilter
+    $checkProjectReferences: Boolean = false
+    $projectReferenceFilter: ProjectFilter
+    $checkMilestoneReferences: Boolean = false
+    $milestoneReferenceFilter: ProjectMilestoneFilter
   ) {
+    ...TeamReferenceCheck
+    ...WorkflowStateReferenceCheck
+    ...IssueLabelReferenceCheck
+    ...ProjectLabelReferenceCheck
+    ...ProjectReferenceCheck
+    ...MilestoneReferenceCheck
     searchIssues(
       term: $term
       filter: $filter
@@ -1996,6 +2114,7 @@ export async function searchIssuesByTerm(
   options: SearchIssuesByTermOptions = {},
 ): Promise<FetchedIssueSearchPayload> {
   const filter = await buildIssueFilter(options)
+  const references = issueFilterReferences(options)
   const client = getGraphQLClient()
   let totalCount = 0
   const first = options.limit === 0
@@ -2003,7 +2122,11 @@ export async function searchIssuesByTerm(
     : options.limit == null
     ? undefined
     : Math.min(options.limit, 100)
-  const fetchPage = async (after?: string, pageSize = first) => {
+  const requestPage = async (
+    after?: string,
+    pageSize = first,
+    checks: Record<string, unknown> = {},
+  ) => {
     const result = await client.request(searchIssuesQuery, {
       term,
       filter: Object.keys(filter).length > 0 ? filter : undefined,
@@ -2012,11 +2135,21 @@ export async function searchIssuesByTerm(
       includeArchived: options.includeArchived,
       includeComments: options.includeComments,
       orderBy: options.orderBy,
+      ...checks,
     })
     totalCount = result.searchIssues.totalCount
-    return result.searchIssues
+    return result
   }
-  const initial = await fetchPage()
+  const fetchPage = async (after?: string, pageSize = first) =>
+    (await requestPage(after, pageSize)).searchIssues
+  // The first page also carries the filter reference checks.
+  const firstPage = await requestPage(
+    undefined,
+    first,
+    filterReferenceVariables(references),
+  )
+  await assertFilterReferences(references, firstPage)
+  const initial = firstPage.searchIssues
   // An omitted limit deliberately returns Linear's default first page. Only
   // an explicit zero asks this helper to accumulate the complete connection.
   const connection = options.limit == null

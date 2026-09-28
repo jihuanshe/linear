@@ -30,6 +30,7 @@ export const pickCommand = withUsageMetadata(new Command(), {
       }
       const { nodes } = await fetchIssuesForQuery({
         teamKeys: [teamKey],
+        teamKeySource: "configured team_key",
         stateTypes: ["unstarted"],
         assigneeIsMe: !unassigned && !allAssignees,
         unassigned,
