@@ -124,13 +124,18 @@ JSON 不与浏览器／应用跳转、显式交互／编辑或原文／脚本输
 
 ## 网络等待与查询重试
 
-并发命令和脚本共享 API 密钥的限流额度；分页和批处理前先估算请求数。需要安排批处理时，用只读查询 `rateLimitStatus` 查看剩余额度和重置时间，不要靠固定等待猜测。
+并发命令和脚本共享 API 密钥的限流额度；分页和批处理前先估算请求数。需要安排批处理时，用只读查询 `rateLimitStatus` 查看剩余额度和重置时间，不要靠固定等待猜测：
+
+```bash
+linear api 'query { rateLimitStatus { kind limits { type remainingAmount reset } } }' >rate-limit.json
+jq '.data.rateLimitStatus.limits[] | {type, remainingAmount, reset}' rate-limit.json
+```
 
 专用命令与 `linear api` 共用 GraphQL 请求规则：每个逻辑请求最多 60 秒，包含响应正文读取和重试等待，query 最多尝试 3 次。分页的每一页分别计时，不是整个命令或整批 `apply` 的总时限；写后核验等调用方更短的取消期限仍然有效。此规则不涵盖文件 PUT、下载或其他非 GraphQL 网络操作。
 
 只有明确选中的 query 会对 HTTP 429／502／503／504，以及 HTTP 200／400 中单纯的 `RATELIMITED` 错误重试；已有部分数据、认证、权限和校验错误不重试。等待使用有界退避并遵守 `Retry-After`；剩余时间不足时返回原始失败。
 
-专用命令被限流时，JSON 错误会给出 `RateLimited`、额度和 `retryAfter`。query 的 `effect` 为 `none`，可以在 `retryAfter` 后重试；mutation 仍为 `unknown`，先对账再重试。原生 `linear api` 保留原始 GraphQL 响应。
+专用命令被限流时，JSON 错误会给出 `RateLimited`、额度；当所有耗尽额度都有可用的未来重置时间时才提供 `retryAfter`。该字段缺失时，按返回的建议或新的 `rateLimitStatus` 查询安排重试。query 的 `effect` 为 `none`，可以在 `retryAfter` 后重试；mutation 仍为 `unknown`，先对账再重试。原生 `linear api` 保留原始 GraphQL 响应。
 
 mutation 不自动重发。派发后的超时、连接或响应读取失败仍可能已经写入，按 `effect` 与回执对账，不把超时理解为撤销。
 
