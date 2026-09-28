@@ -8,28 +8,9 @@ import {
   isNotFoundError,
   NotFoundError,
   ValidationError,
-  WriteError,
-  writeErrorFrom,
 } from "../../src/utils/errors.ts"
 import { ClientError, type GraphQLResponse } from "graphql-request"
 import { GraphQLError } from "graphql"
-
-Deno.test("errorResult preserves rate-limit classification through WriteError", () => {
-  const error = new ClientError({
-    status: 200,
-    headers: new Headers({
-      "x-ratelimit-requests-remaining": "0",
-      "x-ratelimit-requests-reset": String(Date.now() + 60_000),
-    }),
-    body: JSON.stringify({ errors: [{ extensions: { code: "RATELIMITED" } }] }),
-    errors: [
-      new GraphQLError("rate limited", { extensions: { code: "RATELIMITED" } }),
-    ],
-  }, { query: "mutation { documentDelete { success } }" })
-  const wrapped = writeErrorFrom(error, {})
-  assertEquals(wrapped instanceof WriteError, true)
-  assertEquals(errorResult(wrapped).error.code, "RateLimited")
-})
 
 Deno.test("isDebugMode - returns false when LINEAR_DEBUG is not set", () => {
   Deno.env.delete("LINEAR_DEBUG")

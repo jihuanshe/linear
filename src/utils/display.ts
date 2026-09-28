@@ -27,22 +27,11 @@ export function truncateText(text: string, maxWidth: number): string {
     return text
   }
 
-  if (maxWidth < 3) {
-    let truncated = ""
-    let width = 0
-    for (const char of text) {
-      const charWidth = unicodeWidth(char)
-      if (width + charWidth > maxWidth) break
-      truncated += char
-      width += charWidth
-    }
-    return truncated
-  }
-
-  // Unicode-aware truncation by iterating through characters
+  // Below three columns there is no room for "...", so cut to the width.
+  const ellipsis = maxWidth < 3 ? "" : "..."
+  const maxContentWidth = maxWidth - ellipsis.length
   let truncated = ""
   let width = 0
-  const maxContentWidth = maxWidth - 3 // Reserve space for "..."
 
   for (const char of text) {
     const charWidth = unicodeWidth(char)
@@ -53,7 +42,7 @@ export function truncateText(text: string, maxWidth: number): string {
     width += charWidth
   }
 
-  return truncated + "..."
+  return truncated + ellipsis
 }
 
 export function getPriorityDisplay(priority: number): string {
