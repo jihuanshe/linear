@@ -1068,3 +1068,84 @@ Deno.test("JSON keeps human-only display toggles and no-pager compatible", async
     await cleanup()
   }
 })
+
+Deno.test("classified read failures expose stable codes and next steps", async () => {
+  const notFound = (entity: string) => ({
+    errors: [{
+      message: `Entity not found: ${entity}`,
+      path: [entity.toLowerCase()],
+      extensions: {
+        type: "invalid input",
+        code: "INPUT_ERROR",
+        userPresentableMessage: `Could not find referenced ${entity}.`,
+      },
+    }],
+  })
+  const { server, cleanup } = await setupMockLinearServer([
+    { queryName: "GetIssueHistory", response: notFound("Issue") },
+    { queryName: "GetWorkflowStates", response: notFound("Team") },
+    {
+      queryName: "AuthStatus",
+      status: 401,
+      response: {
+        errors: [{
+          message: "Authentication required, not authenticated",
+          extensions: {
+            type: "authentication error",
+            code: "AUTHENTICATION_ERROR",
+            userPresentableMessage:
+              "You need to authenticate to access this operation.",
+          },
+        }],
+      },
+    },
+  ])
+  const env = {
+    LINEAR_API_KEY: "test-token",
+    LINEAR_GRAPHQL_ENDPOINT: server.getEndpoint(),
+    NO_COLOR: "1",
+  }
+  try {
+    for (
+      const [args, code, suggestion] of [
+        [
+          ["issue", "history", "ENG-999"],
+          "NotFoundError",
+          /selected workspace/,
+        ],
+        [["team", "states", "NOPE"], "NotFoundError", /selected workspace/],
+        [["auth", "whoami"], "AuthError", /LINEAR_API_KEY/],
+        // Parser failures name the command whose help lists valid input.
+        [
+          ["issue", "query", "--team", "ENG", "--state-type", "nope"],
+          "ValidationError",
+          /^Run 'linear issue query --help'/,
+        ],
+        [["issue", "nope"], "ValidationError", /^Run 'linear issue --help'/],
+        [
+          ["initiative-update", "list"],
+          "ValidationError",
+          /^Run 'linear initiative-update list --help'/,
+        ],
+      ] as const
+    ) {
+      const json = await run([...args, "--json"], env)
+      assertEquals(json.code, 1, JSON.stringify(json))
+      assertEquals(json.stderr, "")
+      const failure = JSON.parse(json.stdout)
+      assertEquals(failure.effect, "none")
+      assertEquals(failure.error.code, code, args.join(" "))
+      assertMatch(failure.error.suggestion, suggestion)
+
+      const human = await run([...args], env)
+      assertEquals(human.code, 1)
+      assertEquals(human.stdout, "")
+      assertEquals(
+        human.stderr.trimEnd().split("\n").at(-1)?.trim(),
+        failure.error.suggestion,
+      )
+    }
+  } finally {
+    await cleanup()
+  }
+})
