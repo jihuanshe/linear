@@ -1328,7 +1328,7 @@ for (const ownership of ["none", "project", "parent"] as const) {
         )
         assertStringIncludes(
           errors[0],
-          "issue update ENG-903 --project <project>",
+          "(set -C; linear issue view 'ENG-903' --json > original.json) && linear issue update 'ENG-903' --project <project> --base-file original.json",
         )
       } else {
         assertEquals(errors, [])
