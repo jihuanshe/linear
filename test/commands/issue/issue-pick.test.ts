@@ -32,7 +32,7 @@ Deno.test("Issue Pick Command - Does Not Require Sort Config", async () => {
         },
         first: 100,
         sort: [
-          { workflowState: { order: "Descending" } },
+          { workflowState: { order: "Ascending" } },
           { priority: { nulls: "last", order: "Descending" } },
           { manual: { nulls: "last", order: "Ascending" } },
         ],

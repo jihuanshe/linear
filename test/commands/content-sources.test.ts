@@ -136,6 +136,7 @@ for (const command of cases) {
                 name: "Work",
                 title: "Spec",
                 issue: { id },
+                project: { id },
               },
             },
           },

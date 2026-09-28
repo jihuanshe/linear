@@ -126,7 +126,7 @@ export const updateCommand = withUsageMetadata(new Command(), {
   .option("--icon <icon:string>", "New icon (emoji)", { preserveEmpty: true })
   .option(
     "--project <project:string>",
-    "Attach to project (UUID, slug ID, or name)",
+    "Attach to project (UUID, slug ID, name, or Linear URL)",
     { preserveEmpty: true },
   )
   .option("-e, --edit", "Open current content in $EDITOR for editing")

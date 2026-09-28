@@ -9,6 +9,8 @@ import {
   assertMutationReceipt,
   assertMutationSuccess,
   handleError,
+  handleNotFound,
+  NotFoundError,
   ValidationError,
 } from "../../utils/errors.ts"
 import { printWriteResult } from "../../utils/write-result.ts"
@@ -25,6 +27,13 @@ const DeleteProject = gql(`
   }
 `)
 
+// A UUID skips name resolution; confirm the target exists before deleting.
+const GetProjectForDelete = gql(`
+  query GetProjectForDelete($id: String!) {
+    project(id: $id) { id }
+  }
+`)
+
 export const deleteCommand = withUsageMetadata(new Command(), {
   writes: true,
   interactive: true,
@@ -32,7 +41,7 @@ export const deleteCommand = withUsageMetadata(new Command(), {
   .name("delete")
   .option("--json", "Output a JSON write result")
   .description(
-    "Delete (trash) a Linear project by UUID, slug ID, or exact name",
+    "Delete (trash) a Linear project by UUID, slug ID, exact name, or Linear URL",
   )
   .arguments("<project:string>")
   .option("-y, --yes", "Skip confirmation prompt")
@@ -62,6 +71,12 @@ export const deleteCommand = withUsageMetadata(new Command(), {
     try {
       const client = getGraphQLClient()
       const resolvedId = await resolveProjectId(projectReference)
+      const target = await client.request(GetProjectForDelete, {
+        id: resolvedId,
+      }).catch(handleNotFound("Project", projectReference))
+      if (target.project == null) {
+        throw new NotFoundError("Project", projectReference)
+      }
 
       const result = await client.request(DeleteProject, {
         id: resolvedId,

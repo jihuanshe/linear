@@ -460,3 +460,32 @@ Deno.test("Relation JSON no-op has no mutation and list retains complete connect
     await cleanup()
   }
 })
+
+Deno.test("Relation delete of an absent relation is a JSON no-op without mutation", async () => {
+  const { server, cleanup } = await setupMockLinearServer([
+    ...headers,
+    inventory(empty, { nodes: [incoming()], pageInfo: terminal }),
+  ])
+  try {
+    const result = await runRelation([
+      "delete",
+      source.identifier,
+      "blocks",
+      target.identifier,
+      "--json",
+    ])
+    assertEquals(result.code, 0, result.stdout + result.stderr)
+    assertEquals(result.stderr, "")
+    const data = JSON.parse(result.stdout)
+    assertEquals(data.ok, true)
+    assertEquals(data.effect, "none")
+    assertEquals(data.data.type, "blocks")
+    assertEquals(data.data.relation, null)
+    assertEquals(
+      server.graphqlRequests.some((r) => r.query.includes("mutation")),
+      false,
+    )
+  } finally {
+    await cleanup()
+  }
+})

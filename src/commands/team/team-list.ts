@@ -5,11 +5,11 @@ import { open } from "@opensrc/deno-open"
 import { gql } from "../../__codegen__/gql.ts"
 import type { GetTeamsQuery } from "../../__codegen__/graphql.ts"
 import { getGraphQLClient } from "../../utils/graphql.ts"
-import { getTimeAgo, padDisplay } from "../../utils/display.ts"
+import { getTimeAgo, padDisplay, truncateText } from "../../utils/display.ts"
 import { getWorkspaceUrl } from "../../utils/actions.ts"
 import { shouldShowSpinner } from "../../utils/hyperlink.ts"
 import { handleError } from "../../utils/errors.ts"
-import { limitType } from "../../utils/pagination.ts"
+import { limitType, warnIfTruncated } from "../../utils/pagination.ts"
 
 const GetTeams = gql(`
   query GetTeams($filter: TeamFilter, $first: Int, $after: String) {
@@ -47,7 +47,7 @@ export const listCommand = new Command()
   .type("limit", limitType)
   .option(
     "--limit <limit:limit>",
-    "Maximum results (non-negative integer; 0 or omitted means unlimited)",
+    "Maximum teams to read (0 or omitted reads all pages); human and JSON output select the same teams",
   )
   .action(async ({ web, app, json, limit }) => {
     const { Spinner } = await import("@std/cli/unstable-spinner")
@@ -66,7 +66,9 @@ export const listCommand = new Command()
       spinner?.start()
 
       const client = getGraphQLClient()
-      const boundedJson = json && limit != null && limit > 0
+      // Human and JSON output must select the same teams for one --limit;
+      // the name sort below only orders what was read.
+      const bounded = limit != null && limit > 0
 
       // Fetch all teams with pagination
       const allTeams: GetTeamsQuery["teams"]["nodes"] = []
@@ -81,7 +83,7 @@ export const listCommand = new Command()
         const activeTeamCount = allTeams.filter((team) =>
           !team.archivedAt
         ).length
-        const first = boundedJson ? Math.min(100, limit - activeTeamCount) : 100
+        const first = bounded ? Math.min(100, limit - activeTeamCount) : 100
         const result: GetTeamsQuery = await client.request(GetTeams, {
           filter: undefined,
           first,
@@ -97,7 +99,7 @@ export const listCommand = new Command()
         }
         hasNextPage = pageInfo.hasNextPage
         after = pageInfo.endCursor
-        if (boundedJson) {
+        if (bounded) {
           const activeTeams = allTeams.filter((team) => !team.archivedAt)
           if (activeTeams.length >= limit) break
         }
@@ -106,16 +108,9 @@ export const listCommand = new Command()
       spinner?.stop()
 
       // Filter out archived teams
-      let teams = allTeams.filter((team) => !team.archivedAt)
-
-      if (!boundedJson) {
-        // Sort teams alphabetically by name
-        teams = teams.sort((a, b) => a.name.localeCompare(b.name))
-
-        if (limit != null && limit > 0) {
-          teams = teams.slice(0, limit)
-        }
-      }
+      // Sort teams alphabetically by name
+      const teams = allTeams.filter((team) => !team.archivedAt)
+        .sort((a, b) => a.name.localeCompare(b.name))
 
       if (json) {
         console.log(JSON.stringify({ nodes: teams, pageInfo }, null, 2))
@@ -174,9 +169,10 @@ export const listCommand = new Command()
         const cycles = team.cyclesEnabled ? "Yes" : "No"
         const updated = getTimeAgo(new Date(team.updatedAt))
 
-        const truncName = team.name.length > nameWidth
-          ? team.name.slice(0, nameWidth - 3) + "..."
-          : padDisplay(team.name, nameWidth)
+        const truncName = padDisplay(
+          truncateText(team.name, nameWidth),
+          nameWidth,
+        )
 
         console.log(
           `${
@@ -196,6 +192,7 @@ export const listCommand = new Command()
           }`,
         )
       }
+      warnIfTruncated({ nodes: teams, pageInfo }, "team", "teams")
     } catch (error) {
       spinner?.stop()
       handleError(error, "Failed to fetch teams")

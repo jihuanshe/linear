@@ -7,7 +7,7 @@ import type {
   GetIssueLabelsQueryVariables,
 } from "../../__codegen__/graphql.ts"
 import { getGraphQLClient } from "../../utils/graphql.ts"
-import { padDisplay } from "../../utils/display.ts"
+import { padDisplay, truncateText } from "../../utils/display.ts"
 import { getTeamKey } from "../../utils/linear.ts"
 import { shouldShowSpinner } from "../../utils/hyperlink.ts"
 import { handleError, ValidationError } from "../../utils/errors.ts"
@@ -236,9 +236,10 @@ export const listCommand = new Command()
       for (const label of sortedLabels) {
         const teamDisplay = label.team?.key || "Workspace"
 
-        const truncName = label.name.length > nameWidth
-          ? label.name.slice(0, nameWidth - 3) + "..."
-          : padDisplay(label.name, nameWidth)
+        const truncName = padDisplay(
+          truncateText(label.name, nameWidth),
+          nameWidth,
+        )
 
         const idDisplay = padDisplay(label.id, ID_WIDTH)
         const colorDisplay = padDisplay(label.color, COLOR_WIDTH)

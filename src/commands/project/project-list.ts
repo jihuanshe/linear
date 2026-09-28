@@ -8,7 +8,7 @@ import type {
   ProjectStatusType,
 } from "../../__codegen__/graphql.ts"
 import { getGraphQLClient } from "../../utils/graphql.ts"
-import { getTimeAgo, padDisplay } from "../../utils/display.ts"
+import { getTimeAgo, padDisplay, truncateText } from "../../utils/display.ts"
 import { getWorkspaceUrl } from "../../utils/actions.ts"
 import { getTeamKey } from "../../utils/linear.ts"
 import {
@@ -19,7 +19,7 @@ import {
 import { assertProjectStatusName } from "./project-status.ts"
 import { shouldShowSpinner } from "../../utils/hyperlink.ts"
 import { handleError, ValidationError } from "../../utils/errors.ts"
-import { limitType } from "../../utils/pagination.ts"
+import { limitType, warnIfTruncated } from "../../utils/pagination.ts"
 
 const GetProjects = gql(`
   query GetProjects(
@@ -90,7 +90,7 @@ export const listCommand = new Command()
   .type("limit", limitType)
   .option(
     "--limit <limit:limit>",
-    "Maximum results (non-negative integer; 0 or omitted means unlimited)",
+    "Maximum projects to read (0 or omitted reads all pages); human and JSON output select the same projects",
   )
   .action(async ({ team, allTeams, statusName, web, app, json, limit }) => {
     if (web || app) {
@@ -146,7 +146,9 @@ export const listCommand = new Command()
       }
 
       const client = getGraphQLClient()
-      const boundedJson = json && limit != null && limit > 0
+      // Human and JSON output must select the same projects for one --limit;
+      // the status sort below only orders what was read.
+      const bounded = limit != null && limit > 0
 
       // Fetch all projects with pagination
       const allProjects: GetProjectsQuery["projects"]["nodes"] = []
@@ -158,9 +160,7 @@ export const listCommand = new Command()
       }
 
       while (hasNextPage) {
-        const first = boundedJson
-          ? Math.min(100, limit - allProjects.length)
-          : 100
+        const first = bounded ? Math.min(100, limit - allProjects.length) : 100
         const result: GetProjectsQuery = await client.request(GetProjects, {
           filter: Object.keys(filter).length > 0 ? filter : undefined,
           first,
@@ -185,7 +185,7 @@ export const listCommand = new Command()
         }
         hasNextPage = pageInfo.hasNextPage
         after = pageInfo.endCursor
-        if (boundedJson && allProjects.length >= limit) break
+        if (bounded && allProjects.length >= limit) break
       }
 
       spinner?.stop()
@@ -209,36 +209,30 @@ export const listCommand = new Command()
         return
       }
 
-      if (!boundedJson) {
-        // Sort projects logically by status then by relevant date
-        const statusOrder: Record<ProjectStatusType, number> = {
-          "started": 1,
-          "planned": 2,
-          "backlog": 3,
-          "paused": 4,
-          "completed": 5,
-          "canceled": 6,
-        }
-
-        projects = projects.sort((a, b) => {
-          // First sort by status type priority
-          const statusA =
-            statusOrder[a.status.type as keyof typeof statusOrder] || 999
-          const statusB =
-            statusOrder[b.status.type as keyof typeof statusOrder] || 999
-
-          if (statusA !== statusB) {
-            return statusA - statusB
-          }
-
-          // Then sort alphabetically by name
-          return a.name.localeCompare(b.name)
-        })
-
-        if (limit != null && limit > 0) {
-          projects = projects.slice(0, limit)
-        }
+      // Sort projects logically by status then by name
+      const statusOrder: Record<ProjectStatusType, number> = {
+        "started": 1,
+        "planned": 2,
+        "backlog": 3,
+        "paused": 4,
+        "completed": 5,
+        "canceled": 6,
       }
+
+      projects = projects.sort((a, b) => {
+        // First sort by status type priority
+        const statusA =
+          statusOrder[a.status.type as keyof typeof statusOrder] || 999
+        const statusB =
+          statusOrder[b.status.type as keyof typeof statusOrder] || 999
+
+        if (statusA !== statusB) {
+          return statusA - statusB
+        }
+
+        // Then sort alphabetically by name
+        return a.name.localeCompare(b.name)
+      })
 
       if (json) {
         console.log(JSON.stringify(
@@ -377,9 +371,10 @@ export const listCommand = new Command()
         const teams = project.teams.nodes.map((t) => t.key).join(",") || "-"
         const dateDisplay = getDisplayDate(project)
 
-        const truncName = project.name.length > nameWidth
-          ? project.name.slice(0, nameWidth - 3) + "..."
-          : padDisplay(project.name, nameWidth)
+        const truncName = padDisplay(
+          truncateText(project.name, nameWidth),
+          nameWidth,
+        )
 
         console.log(
           `${padDisplay(project.slugId, SLUG_WIDTH)} ${truncName} ${
@@ -394,6 +389,7 @@ export const listCommand = new Command()
           }${rgb24(padDisplay(dateDisplay, DATE_WIDTH), 0x808080)}`,
         )
       }
+      warnIfTruncated({ nodes: projects, pageInfo }, "project", "projects")
     } catch (error) {
       spinner?.stop()
       handleError(error, "Failed to fetch projects")

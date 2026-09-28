@@ -3,7 +3,7 @@ import { unicodeWidth } from "@std/cli"
 import { underline } from "@std/fmt/colors"
 import { gql } from "../../__codegen__/gql.ts"
 import { getGraphQLClient } from "../../utils/graphql.ts"
-import { padDisplay } from "../../utils/display.ts"
+import { padDisplay, truncateText } from "../../utils/display.ts"
 import { resolveProjectId } from "../../utils/linear.ts"
 import { shouldShowSpinner } from "../../utils/hyperlink.ts"
 import { handleError, NotFoundError } from "../../utils/errors.ts"
@@ -36,7 +36,7 @@ export const listCommand = new Command()
   .description("List milestones for a project")
   .option(
     "--project <project:string>",
-    "Project (UUID, slug ID, or name)",
+    "Project (UUID, slug ID, name, or Linear URL)",
     { required: true },
   )
   .option("--json", "Output the complete {nodes, pageInfo} connection as JSON")
@@ -133,9 +133,10 @@ export const listCommand = new Command()
           ? milestone.project.name.slice(0, PROJECT_WIDTH - 3) + "..."
           : padDisplay(milestone.project.name, PROJECT_WIDTH)
 
-        const truncName = milestone.name.length > nameWidth
-          ? milestone.name.slice(0, nameWidth - 3) + "..."
-          : padDisplay(milestone.name, nameWidth)
+        const truncName = padDisplay(
+          truncateText(milestone.name, nameWidth),
+          nameWidth,
+        )
 
         console.log(
           `${truncName} ${padDisplay(milestone.id, ID_WIDTH)} ${

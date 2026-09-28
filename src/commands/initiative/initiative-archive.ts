@@ -34,13 +34,13 @@ export const archiveCommand = withUsageMetadata(new Command(), {
   .name("archive")
   .option("--json", "Output a JSON write result")
   .description(
-    "Archive a Linear initiative by UUID, slug ID, or name; requires an explicit initiative or bulk input",
+    "Archive a Linear initiative by UUID, slug ID, name, or Linear URL; requires an explicit initiative or bulk input",
   )
   .arguments("[initiative:string]")
   .option("-y, --yes", "Skip confirmation prompt")
   .option(
     "--bulk <initiatives...:string>",
-    "Archive multiple initiatives by UUID, slug ID, or name",
+    "Archive multiple initiatives by UUID, slug ID, name, or Linear URL",
   )
   .option(
     "--bulk-file <path:string>",
@@ -72,7 +72,7 @@ export const archiveCommand = withUsageMetadata(new Command(), {
       // Single mode requires initiativeReference
       if (!initiativeReference) {
         throw new ValidationError(
-          "Initiative UUID, slug ID, or name required. Use --bulk for multiple initiatives.",
+          "Initiative UUID, slug ID, name, or Linear URL required. Use --bulk for multiple initiatives.",
         )
       }
 

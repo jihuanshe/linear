@@ -2,7 +2,11 @@ import { Command } from "@cliffy/command"
 import { gql } from "../../__codegen__/gql.ts"
 import { getGraphQLClient } from "../../utils/graphql.ts"
 import { getIssueReference } from "../../utils/linear.ts"
-import { completeConnection, limitType } from "../../utils/pagination.ts"
+import {
+  completeConnection,
+  limitType,
+  warnIfTruncated,
+} from "../../utils/pagination.ts"
 import {
   handleError,
   NotFoundError,
@@ -152,11 +156,6 @@ export const historyCommand = new Command()
         console.log(JSON.stringify(history, null, 2))
         return
       }
-      if (history.pageInfo.hasNextPage) {
-        console.log(
-          "Warning: history is truncated; increase --limit or use --limit 0 to fetch all history.",
-        )
-      }
       if (history.nodes.length === 0) {
         console.log(`No history found for ${issueReference}`)
         return
@@ -168,6 +167,7 @@ export const historyCommand = new Command()
           }`,
         )
       }
+      warnIfTruncated(history, "history entry", "history entries")
     } catch (error) {
       handleError(error, "Failed to read issue history")
     }

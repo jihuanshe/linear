@@ -1,9 +1,10 @@
+import { unicodeWidth } from "@std/cli"
 import { Command } from "@cliffy/command"
 import { rgb24, underline } from "@std/fmt/colors"
 import { gql } from "../../__codegen__/gql.ts"
 import type { ListDocumentsQueryVariables } from "../../__codegen__/graphql.ts"
 import { getGraphQLClient } from "../../utils/graphql.ts"
-import { getTimeAgo, padDisplay } from "../../utils/display.ts"
+import { getTimeAgo, padDisplay, truncateText } from "../../utils/display.ts"
 import {
   getIssueId,
   getIssueReference,
@@ -56,7 +57,7 @@ export const listCommand = new Command()
   .alias("l")
   .option(
     "--project <project:string>",
-    "Filter by project (UUID, slug ID, or exact name)",
+    "Filter by project (UUID, slug ID, exact name, or Linear URL)",
   )
   .option(
     "--issue <issue:string>",
@@ -152,7 +153,7 @@ export const listCommand = new Command()
 
       const ATTACHMENT_WIDTH = Math.max(
         10, // minimum width for "ATTACHMENT" header
-        ...documents.map((doc) => getAttachment(doc).length),
+        ...documents.map((doc) => unicodeWidth(getAttachment(doc))),
       )
 
       const UPDATED_WIDTH = Math.max(
@@ -165,7 +166,7 @@ export const listCommand = new Command()
       const PADDING = 1
       const availableWidth = Math.max(columns - PADDING - fixed, 10)
       const maxTitleWidth = Math.max(
-        ...documents.map((doc) => doc.title.length),
+        ...documents.map((doc) => unicodeWidth(doc.title)),
       )
       const titleWidth = Math.min(maxTitleWidth, availableWidth)
 
@@ -181,9 +182,10 @@ export const listCommand = new Command()
 
       // Print each document
       for (const doc of documents) {
-        const truncTitle = doc.title.length > titleWidth
-          ? doc.title.slice(0, titleWidth - 3) + "..."
-          : padDisplay(doc.title, titleWidth)
+        const truncTitle = padDisplay(
+          truncateText(doc.title, titleWidth),
+          titleWidth,
+        )
 
         const attachment = getAttachment(doc)
         const updated = getTimeAgo(new Date(doc.updatedAt))

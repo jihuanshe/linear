@@ -35,8 +35,8 @@ Options:
   --description-file         <path>         - Read UTF-8 description from a file (- for stdin; preferred for markdown content)                        
   -l, --label                <label>        - Issue label (UUID or name). May be repeated.                                                            
   --team                     <team>         - Team UUID or key (uses the configured default team when omitted)                                        
-  --project                  <project>      - Project for the issue (UUID, slug ID, or name); choose it after reading the candidate Project and       
-                                              Initiative content                                                                                      
+  --project                  <project>      - Project for the issue (UUID, slug ID, name, or Linear URL); choose it after reading the candidate       
+                                              Project and Initiative content                                                                          
   -s, --state                <state>        - Workflow state (UUID, name, or type). Omit it, or pass 'default', for the team's default state;         
                                               'triage' only works on teams with triage enabled.                                                       
   --milestone                <milestone>    - Project milestone (UUID, or name when --project is set)                                                 
@@ -61,7 +61,7 @@ stdout:
 https://linear.app/test-team/issue/ENG-123/fix-authentication-bug
 "
 stderr:
-"ENG-123 has no --project or --parent. Decide ownership from the candidate Project's full content and the related Initiative content (linear guide issue-authoring), then run: issue update ENG-123 --project <project>
+"ENG-123 has no --project or --parent. Decide ownership from the candidate Project's full content and the related Initiative content (linear guide issue-authoring), then save the original read and set the project: (set -C; linear issue view 'ENG-123' --json > original.json) && linear issue update 'ENG-123' --project <project> --base-file original.json
 "
 `;
 
@@ -80,7 +80,7 @@ stdout:
 https://linear.app/test-team/issue/ENG-456/test-case-insensitive-labels
 "
 stderr:
-"ENG-456 has no --project or --parent. Decide ownership from the candidate Project's full content and the related Initiative content (linear guide issue-authoring), then run: issue update ENG-456 --project <project>
+"ENG-456 has no --project or --parent. Decide ownership from the candidate Project's full content and the related Initiative content (linear guide issue-authoring), then save the original read and set the project: (set -C; linear issue view 'ENG-456' --json > original.json) && linear issue update 'ENG-456' --project <project> --base-file original.json
 "
 `;
 
@@ -99,7 +99,7 @@ stdout:
 https://linear.app/test-team/issue/ENG-890/test-cycle-feature
 "
 stderr:
-"ENG-890 has no --project or --parent. Decide ownership from the candidate Project's full content and the related Initiative content (linear guide issue-authoring), then run: issue update ENG-890 --project <project>
+"ENG-890 has no --project or --parent. Decide ownership from the candidate Project's full content and the related Initiative content (linear guide issue-authoring), then save the original read and set the project: (set -C; linear issue view 'ENG-890' --json > original.json) && linear issue update 'ENG-890' --project <project> --base-file original.json
 "
 `;
 
