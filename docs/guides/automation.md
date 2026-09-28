@@ -106,7 +106,7 @@ JSON 不与浏览器／应用跳转、显式交互／编辑或原文／脚本输
 
 创建单个实体时，`data` 下保留 GraphQL 资源字段，而不是把字段直接展开到 `data`；例如 Issue 编号在 `data.issue.identifier`，Document ID 在 `data.document.id`。具体路径见创建命令的 `--json` 帮助。删除、批量操作、上传与原生 API 各自保留其合同。
 
-提取下一步要用的 ID 时使用 `jq -er`，并检查类型和非空值，例如 `jq -er 'select(.ok == true) | .data.comment.id | strings | select(length > 0)' comment-result.json`。普通 `jq -r` 在路径不存在时会输出 `null` 并成功退出。stdout 只有这一份 JSON，进度与提示（如上传时的 `✓ Uploaded <file>`）写到 stderr；分别重定向 stdout 和 stderr，不要用 `2>&1` 合并后解析。先将 CLI 结果保存到文件并检查退出码，再解析；不要用默认只检查最后一段退出码的管道掩盖 CLI 失败。解析失败不说明写入失败：保留结果，修正解析路径，不要重复创建对象。
+提取下一步要用的 ID 时使用 `jq -er`，并检查类型和非空值，例如 `jq -er 'select(.ok == true) | .data.comment.id | strings | select(length > 0)' comment-result.json`。普通 `jq -r` 在路径不存在时会输出 `null` 并成功退出。stdout 只有这一份 JSON，进度与提示（如上传时的 `✓ Uploaded <file>`）写到 stderr；分别重定向 stdout 和 stderr，不要用 `2>&1` 合并后解析。先将 CLI 结果保存到文件并检查退出码，再解析；不要用默认只检查最后一段退出码的管道掩盖 CLI 失败。解析失败不说明写入失败：保留结果，修正解析路径，不要重复创建对象。在 zsh 中不要用 `echo "$result"` 转交 JSON：zsh 的 `echo` 会把字符串里的 `\n` 转义展开成真实换行，解析器随即报「Invalid control character」；直接重定向到文件，或用 `printf '%s\n' "$result"`。
 
 | 写入效果 `effect` | 可据此决定的下一步                                                    |
 | ----------------- | --------------------------------------------------------------------- |
@@ -273,6 +273,6 @@ linear issue query --all-teams --url-file object-urls.txt --json >url-lookups.js
 jq '.lookups[] | {url, identifiers: [.nodes[].identifier]}' url-lookups.json
 ```
 
-Linear Issue URL 先用 `issue(id:)` 按编号解析（团队迁移前的旧编号也能命中）并核对工作区，结果带 `resolution.status`：`found`、`moved`（`identifier` 为现编号）、`trashed`、`archived` 或 `not_found`；`trashed`／`archived` 的 Issue 只有加 `--include-archived` 才进入 `nodes`。其他 URL 核对候选正文或评论中的完整 URL 边界，不搜索侧栏附件（Attachment）。URL 模式完整读取候选并返回全部精确命中，不受 `--limit` 截断；空 `nodes` 只证明当前凭据可见且所选筛选范围内没有命中。`--url-file` 忽略空行与 `#` 注释，去重后按首次出现顺序返回 `lookups`。
+Linear Issue URL 先用 `issue(id:)` 按编号解析（团队迁移前的旧编号也能命中）并核对工作区，结果带 `resolution.status`：`found`、`moved`（`identifier` 为现编号）、`trashed`、`archived` 或 `not_found`；`trashed`／`archived` 的 Issue 只有加 `--include-archived` 才进入 `nodes`。其他 URL 核对候选正文或评论中的完整 URL 边界，不搜索侧栏附件（Attachment）。URL 模式完整读取候选并返回全部精确命中，不受 `--limit` 截断；空 `nodes` 只证明当前凭据可见且所选筛选范围内没有命中。同一批次刚创建的 Issue 以本批写入回执中的 `data.issue.identifier` 去重，不以查询未命中推断本批没有建过。`--url-file` 忽略空行与 `#` 注释，去重后按首次出现顺序返回 `lookups`。
 
 比较查询集合时，保存相同范围的前后读取，按 ID 和目标字段核对；新增对象不自动进入原写入范围。按治理策略示例检查缺项或异常候选时，使用 `linear recipe doctor`，结果解释见 `linear guide doctor`。
