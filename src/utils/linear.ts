@@ -1458,17 +1458,20 @@ export async function fetchIssuesForQuery(
   }
 
   const sort = options.sort ?? "priority"
+  // Ascending workflow state order lists started, unstarted, backlog and
+  // triage before completed, canceled and duplicate, so a bounded page shows
+  // active work instead of closed history.
   let sortPayload: Array<IssueSortInput>
   switch (sort) {
     case "manual":
       sortPayload = [
-        { workflowState: { order: "Descending" } },
+        { workflowState: { order: "Ascending" } },
         { manual: { nulls: "last" as const, order: "Ascending" as const } },
       ]
       break
     case "priority":
       sortPayload = [
-        { workflowState: { order: "Descending" } },
+        { workflowState: { order: "Ascending" } },
         { priority: { nulls: "last" as const, order: "Descending" as const } },
         { manual: { nulls: "last" as const, order: "Ascending" as const } },
       ]
