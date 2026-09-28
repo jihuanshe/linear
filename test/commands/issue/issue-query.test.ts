@@ -1196,6 +1196,60 @@ Deno.test("Issue Query Command - URL file prints unresolved Linear issue URLs", 
   assertStringIncludes(output, "ENG-999 does not exist in this workspace")
 })
 
+Deno.test("Issue Query Command - exact URL ignores an unrelated default team", async () => {
+  const { server, cleanup } = await setupMockLinearServer([
+    {
+      queryName: "ResolveIssueUrlReference",
+      response: {
+        data: {
+          issue: {
+            id: mockIssueNode.id,
+            identifier: mockIssueNode.identifier,
+            url: mockIssueNode.url,
+            trashed: false,
+            archivedAt: null,
+          },
+        },
+      },
+    },
+    {
+      queryName: "GetIssuesForQuery",
+      response: {
+        data: {
+          issues: {
+            nodes: [mockIssueNode],
+            pageInfo: { hasNextPage: false, endCursor: null },
+          },
+        },
+      },
+    },
+  ], { LINEAR_TEAM_KEY: "JHS", NO_COLOR: "true" })
+  const logs: string[] = []
+  const logStub = stub(console, "log", (...args: unknown[]) => {
+    logs.push(args.map(String).join(" "))
+  })
+
+  try {
+    await queryCommand.parse([
+      "--url",
+      mockIssueNode.url,
+      "--json",
+    ])
+  } finally {
+    logStub.restore()
+    await cleanup()
+  }
+
+  assertEquals(
+    JSON.parse(logs[0]).nodes[0].identifier,
+    mockIssueNode.identifier,
+  )
+  assertEquals(
+    server.graphqlRequests[1].variables.filter,
+    { id: { eq: mockIssueNode.id } },
+  )
+})
+
 Deno.test("Issue Query Command - explains filters that exclude a resolved URL", async () => {
   const { cleanup } = await setupMockLinearServer([
     {

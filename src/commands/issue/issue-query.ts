@@ -545,6 +545,12 @@ export const queryCommand = withUsageMetadata(new Command(), {
       } else if (teamKeys && teamKeys.length > 0) {
         resolvedTeamKeys = teamKeys
         isMultiTeam = teamKeys.length > 1
+      } else if (exactUrl != null || exactUrls != null) {
+        // Exact URL lookups are workspace-wide unless the caller explicitly
+        // narrows them with --team. Do not let an unrelated default team
+        // prevent resolving a URL from another team.
+        resolvedTeamKeys = undefined
+        isMultiTeam = true
       } else if (project != null) {
         // A project filter already scopes the query; do not narrow it to the
         // configured default team unless the caller explicitly asks for one.
