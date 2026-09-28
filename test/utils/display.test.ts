@@ -1,5 +1,5 @@
 import { assertEquals, assertThrows } from "@std/assert"
-import { formatCycleShort } from "../../src/utils/display.ts"
+import { formatCycleShort, truncateText } from "../../src/utils/display.ts"
 
 function cycle(overrides: {
   number: number
@@ -100,4 +100,9 @@ Deno.test("formatCycleShort - rejects non-integer cycle numbers", () => {
     Error,
     "integer",
   )
+})
+
+Deno.test("truncateText never exceeds a narrow display width for CJK", () => {
+  assertEquals(truncateText("中文团队", 1), "")
+  assertEquals(truncateText("中文团队", 2), "中")
 })

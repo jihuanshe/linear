@@ -195,12 +195,12 @@ export const queryCommand = withUsageMetadata(new Command(), {
   )
   .option(
     "--url <url:string>",
-    "Find an issue by Linear URL, or by an exact URL occurrence in its description or comments (URL mode returns all exact matches; --limit is ignored). A Linear Issue URL also resolves identifiers from before a team move and adds resolution {status: found|moved|trashed|archived|not_found, requested, identifier}; trashed and archived issues need --include-archived to appear in nodes",
+    "Find an issue by Linear URL, or by an exact URL occurrence in its description or comments (URL mode returns all exact matches; --limit is ignored). A Linear Issue URL also resolves identifiers from before a team move and adds resolution {status: found|moved|trashed|archived|not_found, requested, identifier}; trashed and archived issues need --include-archived to appear in nodes. Without --team or --cycle, URL mode searches the whole workspace and ignores the configured default team",
     { preserveEmpty: true },
   )
   .option(
     "--url-file <path:string>",
-    "Find issues for one URL per line (blank lines and lines starting with # are ignored); JSON returns {lookups: [{url, nodes, pageInfo, resolution?}]} in input order, with resolution as in --url for Linear Issue URLs; --limit is ignored",
+    "Find issues for one URL per line (blank lines and lines starting with # are ignored); JSON returns {lookups: [{url, nodes, pageInfo, resolution?}]} in input order, with resolution as in --url for Linear Issue URLs; --limit is ignored. Team scope follows --url",
     { preserveEmpty: true },
   )
   .option(
@@ -545,6 +545,13 @@ export const queryCommand = withUsageMetadata(new Command(), {
       } else if (teamKeys && teamKeys.length > 0) {
         resolvedTeamKeys = teamKeys
         isMultiTeam = teamKeys.length > 1
+      } else if ((exactUrl != null || exactUrls != null) && cycle == null) {
+        // Exact URL lookups are workspace-wide unless the caller explicitly
+        // narrows them with --team. Do not let an unrelated default team
+        // prevent resolving a URL from another team. --cycle is team-relative,
+        // so it keeps the default team as its single scope.
+        resolvedTeamKeys = undefined
+        isMultiTeam = true
       } else if (project != null) {
         // A project filter already scopes the query; do not narrow it to the
         // configured default team unless the caller explicitly asks for one.

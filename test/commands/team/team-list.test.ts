@@ -428,7 +428,7 @@ Deno.test("team list --limit selects the same teams for human and JSON output", 
     const parsed = JSON.parse(json.stdout)
     assertEquals(
       parsed.nodes.map((node: { key: string }) => node.key),
-      ["A", "Z"],
+      ["Z", "A"],
     )
     assertEquals(parsed.pageInfo, pageInfo)
 

@@ -71,7 +71,7 @@ CLI 取路径末尾的 slug ID，并在同一请求中核对 URL 所属工作区
 
 ## 确定查询范围
 
-`issue query --project` 默认覆盖项目关联的全部团队；显式 `--team` 会缩窄结果。没有项目范围时，默认团队来自 `LINEAR_TEAM_KEY` 或配置 `team_key`（环境变量优先），不从目录名推断。查询整个工作区用 `--all-teams`；未知团队用 `team list` 查找。
+`issue query --project` 默认覆盖项目关联的全部团队；显式 `--team` 会缩窄结果。`--url` 与 `--url-file` 未给 `--team` 时查整个工作区，不使用默认团队；同时给 `--cycle` 时仍以默认团队解析周期。没有项目或 URL 范围时，默认团队来自 `LINEAR_TEAM_KEY` 或配置 `team_key`（环境变量优先），不从目录名推断。查询整个工作区用 `--all-teams`；未知团队用 `team list` 查找。
 
 个人未开始待办用 `issue query --team ENG --assignee self --state-type unstarted`，将 `ENG` 换成目标团队 key；添加项目筛选时保留 `--team`，查询范围仍是该团队与项目的交集。终端选择用只读 `issue pick`。`--state-type` 匹配状态类型，如 `started`；`--state-name` 匹配工作流名称，如 `Merged`。写入状态仍用 `issue create/update --state`，接受 UUID、名称或类型。状态和成员分别用 `team states --json`、`user list --json` 查询。
 
