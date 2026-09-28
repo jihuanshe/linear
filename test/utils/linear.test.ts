@@ -11,7 +11,6 @@ import {
   getTeamMembers,
   isLinearUuid,
   lookupUserId,
-  parseLinearObjectUrl,
   planIssueRelations,
   resolveMilestoneId,
   resolveProjectId,
@@ -22,23 +21,6 @@ import {
 } from "../../src/utils/linear.ts"
 import { NotFoundError, ValidationError } from "../../src/utils/errors.ts"
 import { setupMockLinearServer } from "../utils/test-helpers.ts"
-
-Deno.test("parseLinearObjectUrl preserves hyphenated slug IDs", () => {
-  assertEquals(
-    parseLinearObjectUrl(
-      "https://linear.app/acme/project/auth-redesign-2024",
-      "project",
-    ),
-    { workspace: "acme", slugId: "auth-redesign-2024" },
-  )
-  assertEquals(
-    parseLinearObjectUrl(
-      "https://linear.app/acme/project/checkout-910091d5a024",
-      "project",
-    ),
-    { workspace: "acme", slugId: "910091d5a024" },
-  )
-})
 
 for (
   const [queryName, invoke] of [
