@@ -187,18 +187,37 @@ Deno.test("update - passes explicit bump intent to mise", async () => {
   }
 })
 
+/** Fake mise that records `up` arguments and answers `outdated` with JSON. */
+async function writeFakeMise(
+  root: string,
+  outdatedJson: string,
+): Promise<{ mise: string; argsFile: string; outdatedArgsFile: string }> {
+  const mise = join(root, "mise")
+  const argsFile = join(root, "args")
+  const outdatedArgsFile = join(root, "outdated-args")
+  await writeExecutable(
+    mise,
+    `#!/bin/sh
+if [ "$1" = outdated ]; then
+  printf '%s\\n' "$@" > '${outdatedArgsFile}'
+  cat <<'JSON'
+${outdatedJson}
+JSON
+  exit 0
+fi
+printf '%s\\n' "$@" > '${argsFile}'
+`,
+  )
+  return { mise, argsFile, outdatedArgsFile }
+}
+
 Deno.test("update - gives activation guidance after mise succeeds", async () => {
   if (Deno.build.os === "windows") return
   const root = await Deno.makeTempDir()
   const output: string[] = []
   const originalLog = console.log
   try {
-    const mise = join(root, "mise")
-    const argsFile = join(root, "args")
-    await writeExecutable(
-      mise,
-      `#!/bin/sh\nprintf '%s\\n' "$@" > '${argsFile}'\n`,
-    )
+    const { mise, argsFile, outdatedArgsFile } = await writeFakeMise(root, "{}")
     console.log = (...args: unknown[]) => output.push(args.join(" "))
 
     await updateWithMise(mise)
@@ -207,12 +226,79 @@ Deno.test("update - gives activation guidance after mise succeeds", async () => 
       await Deno.readTextFile(argsFile),
       "up\ngithub:jihuanshe/linear\n",
     )
+    assertEquals(
+      await Deno.readTextFile(outdatedArgsFile),
+      "outdated\n--bump\n--json\ngithub:jihuanshe/linear\n",
+    )
     const guidance = output.join("\n")
     assertStringIncludes(guidance, "current shell may still resolve")
     assertStringIncludes(guidance, "refresh PATH")
     assertStringIncludes(guidance, "type -a linear")
     assertStringIncludes(guidance, "mise exec -- linear ...")
     assertStringIncludes(guidance, "mise exec -- linear version --json")
+  } finally {
+    console.log = originalLog
+    await Deno.remove(root, { recursive: true })
+  }
+})
+
+Deno.test("update - rejects a mise update held back by a pinned version", async () => {
+  if (Deno.build.os === "windows") return
+  const root = await Deno.makeTempDir()
+  const output: string[] = []
+  const originalLog = console.log
+  try {
+    const { mise } = await writeFakeMise(
+      root,
+      JSON.stringify({
+        "github:jihuanshe/linear": {
+          name: "github:jihuanshe/linear",
+          requested: "0.0.1-g1234567",
+          current: "0.0.1-g1234567",
+          bump: "0.0.2-gabcdef0",
+          latest: "0.0.2-gabcdef0",
+          source: {
+            type: "mise.toml",
+            path: "/home/me/.config/mise/config.toml",
+          },
+        },
+      }),
+    )
+    console.log = (...args: unknown[]) => output.push(args.join(" "))
+
+    const error = await assertRejects(
+      () => updateWithMise(mise),
+      CliError,
+      'mise kept Linear CLI at 0.0.1-g1234567; 0.0.2-gabcdef0 is outside the configured version "0.0.1-g1234567"',
+    )
+    const suggestion = error.suggestion ?? ""
+    assertStringIncludes(suggestion, "/home/me/.config/mise/config.toml")
+    assertStringIncludes(suggestion, "linear update --bump")
+    assertStringIncludes(
+      suggestion,
+      '"github:jihuanshe/linear" = { version = "latest", minimum_release_age = "0s" }',
+    )
+    assertEquals(output, [])
+  } finally {
+    console.log = originalLog
+    await Deno.remove(root, { recursive: true })
+  }
+})
+
+Deno.test("update - an explicit bump skips the pinned version check", async () => {
+  if (Deno.build.os === "windows") return
+  const root = await Deno.makeTempDir()
+  const originalLog = console.log
+  try {
+    const { mise, outdatedArgsFile } = await writeFakeMise(root, "{}")
+    console.log = () => {}
+
+    await updateWithMise(mise, true)
+
+    assertEquals(
+      await Deno.stat(outdatedArgsFile).then(() => true, () => false),
+      false,
+    )
   } finally {
     console.log = originalLog
     await Deno.remove(root, { recursive: true })

@@ -9,6 +9,8 @@ linear --version
 
 需要可复现安装时，把 `latest` 换成 [GitHub Releases](https://github.com/jihuanshe/linear/releases/latest) 中的确切版本。已安装的发行版用 `linear update` 更新。
 
+mise 配置钉成确切版本时，`mise up` 不会越过它，`linear update` 会报错并给出两种选择：`linear update --bump` 把配置改写为最新的确切版本；或把配置改为 `"github:jihuanshe/linear" = { version = "latest", minimum_release_age = "0s" }`，之后 `linear update` 持续跟随发布。只对本工具豁免发布等待期，不设置全局 `MISE_MINIMUM_RELEASE_AGE`。交给 AI Agent 修改配置的提示词见 [README 的更新章节](../README.md#更新)；无法修改配置时，单次任务可用 `mise exec github:jihuanshe/linear@<最新 tag> -- linear ...`。
+
 ## 认证
 
 在 Linear 的 Settings > Account > Security & Access 创建 Personal API key，再通过提示符登录：

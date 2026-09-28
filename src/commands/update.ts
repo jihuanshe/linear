@@ -163,6 +163,53 @@ export async function isMiseManagedInstallation(
   )
 }
 
+interface MiseOutdatedEntry {
+  requested?: string
+  current?: string | null
+  bump?: string | null
+  source?: { path?: string }
+}
+
+async function rejectPinnedMiseVersion(miseExecutable: string): Promise<void> {
+  let entry: MiseOutdatedEntry | undefined
+  try {
+    const result = await new Deno.Command(miseExecutable, {
+      args: ["outdated", "--bump", "--json", MISE_TOOL],
+      env: { MISE_FETCH_REMOTE_VERSIONS_CACHE: "0s" },
+      stdin: "null",
+      stdout: "piped",
+      stderr: "piped",
+    }).output()
+    if (!result.success) throw new Error(`exit status ${result.code}`)
+    const outdated = JSON.parse(new TextDecoder().decode(result.stdout)) as
+      | Record<string, MiseOutdatedEntry>
+      | null
+    entry = outdated?.[MISE_TOOL]
+  } catch {
+    console.error(
+      warning(
+        `Warning: could not check whether mise pins ${MISE_TOOL}. ` +
+          `Compare \`linear version --json\` with the latest release at ${RELEASES_URL}/latest.`,
+      ),
+    )
+    return
+  }
+
+  if (entry?.bump == null || entry.bump === entry.current) return
+
+  const source = entry.source?.path ? ` in ${entry.source.path}` : ""
+  throw new CliError(
+    `mise kept Linear CLI at ${entry.current ?? "the configured version"}; ` +
+      `${entry.bump} is outside the configured version "${entry.requested}"`,
+    {
+      suggestion: `The mise configuration${source} pins an exact version. ` +
+        "Run `linear update --bump` to rewrite it to the newest release, or set " +
+        `\`"${MISE_TOOL}" = { version = "latest", minimum_release_age = "0s" }\` ` +
+        "so `linear update` keeps following releases.",
+    },
+  )
+}
+
 export async function updateWithMise(
   miseExecutable = "mise",
   bump = false,
@@ -197,6 +244,10 @@ export async function updateWithMise(
       }${MISE_TOOL}\` directly for more details.`,
     })
   }
+
+  // `mise up` exits 0 when the configured selector is an exact version and a
+  // newer release exists outside it, so success alone does not mean updated.
+  if (!bump) await rejectPinnedMiseVersion(miseExecutable)
 
   console.log(
     "The current shell may still resolve the previous Linear CLI executable.",

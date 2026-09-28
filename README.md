@@ -34,7 +34,25 @@ linear auth whoami --json
 linear config
 ```
 
-多工作区、系统密钥环、CI 凭据和配置见[安装、认证与配置](docs/setup.md)。更新已安装的发行版使用 `linear update`。
+多工作区、系统密钥环、CI 凭据和配置见[安装、认证与配置](docs/setup.md)。
+
+### 更新
+
+已安装的发行版用 `linear update` 更新。mise 安装时它运行 `mise up github:jihuanshe/linear`，只在配置的版本范围内升级；配置钉成确切版本（常见于 dotfiles 定期把 `latest` 改写为具体版本）时，mise 会跳过新版本，`linear update` 随即报错并提示改用 `linear update --bump` 或把配置改为 `latest`。
+
+要让某台机器始终跟随最新发布，可以把下面的提示词交给能修改该机器配置的 AI Agent：
+
+```text
+把本机 mise 全局配置中的 Linear CLI 改为始终跟随最新发布，只豁免这一个工具：
+
+1. 用 `mise config ls` 和 `mise outdated --bump github:jihuanshe/linear` 找到声明 `github:jihuanshe/linear` 的全局配置文件；配置由 dotfiles 管理时，修改 dotfiles 中的源文件，不改生成的副本。
+2. 把该项设为 `"github:jihuanshe/linear" = { version = "latest", minimum_release_age = "0s" }`。其他工具保持原有的确切版本和 mise 默认的发布等待期；不要设置全局 `MISE_MINIMUM_RELEASE_AGE`，也不要为整个 `github:` backend 设置排除规则。
+3. 如果 dotfiles 有自动把工具版本改写为确切值的流程（例如定期运行 `mise upgrade --bump` 或 `mise use --pin` 的脚本），让它跳过 `github:jihuanshe/linear`，否则下次运行会把 `latest` 改回确切版本。
+4. 运行 `mise up github:jihuanshe/linear` 安装新版本并刷新 lockfile。
+5. 验证：`mise exec -- linear version --json` 的 `version` 应等于 `gh release view --repo jihuanshe/linear --json tagName` 的 `tagName`。当前 shell 中的 `linear version --json` 仍是旧值时，回到提示符或重启 shell 刷新 PATH。
+```
+
+无法修改用户配置时，单次任务可以直接运行最新发布：`mise exec github:jihuanshe/linear@<最新 tag> -- linear ...`。确切版本不受 mise 发布等待期过滤。
 
 ## 找命令和工作流
 
