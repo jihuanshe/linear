@@ -108,14 +108,15 @@ export const listCommand = new Command()
       spinner?.stop()
 
       // Filter out archived teams
-      // Sort teams alphabetically by name
+      // JSON preserves GraphQL connection order; sorting is presentation-only.
       const teams = allTeams.filter((team) => !team.archivedAt)
-        .sort((a, b) => a.name.localeCompare(b.name))
 
       if (json) {
         console.log(JSON.stringify({ nodes: teams, pageInfo }, null, 2))
         return
       }
+
+      teams.sort((a, b) => a.name.localeCompare(b.name))
 
       if (teams.length === 0) {
         console.log("No teams found.")
