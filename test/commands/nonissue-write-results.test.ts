@@ -284,6 +284,7 @@ const writes = [
       title: "Example",
       slugId: "example",
       url: "https://linear.app/example",
+      project: { id: projectId },
     },
     id,
   },
