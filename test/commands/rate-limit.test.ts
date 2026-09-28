@@ -218,3 +218,27 @@ Deno.test("past reset headers are not actionable retry guidance", async () => {
     await cleanup()
   }
 })
+
+Deno.test("an unknown exhausted quota suppresses retry guidance", async () => {
+  const knownReset = Date.now() + 120_000
+  const { cleanup } = await setupMockLinearServer([{
+    queryName: "GetIssueDetailsWithComments",
+    ...rateLimited,
+    headers: {
+      ...rateLimited.headers,
+      "x-ratelimit-requests-reset": String(knownReset),
+      "x-ratelimit-complexity-remaining": "0",
+      "x-ratelimit-complexity-reset": "0",
+    },
+  }])
+  try {
+    const { body } = await run(["issue", "view", "ENG-1"])
+    assertEquals(body.error.details.rateLimit.retryAfter, undefined)
+    assertStringIncludes(
+      body.error.suggestion,
+      "after the rate limit window resets",
+    )
+  } finally {
+    await cleanup()
+  }
+})

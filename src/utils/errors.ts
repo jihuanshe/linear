@@ -227,11 +227,20 @@ function rateLimitDetails(error: ClientError) {
   const endpointRequestsRemaining = header("endpoint-requests-remaining")
   const endpointRequestsResetAt = resetAt("endpoint-requests")
   // A retry is safe only after every exhausted budget has reset.
-  const retryAfter = [
-    endpointRequestsRemaining === 0 ? endpointRequestsResetAt : undefined,
-    requestsRemaining === 0 ? requestsResetAt : undefined,
-    complexityRemaining === 0 ? complexityResetAt : undefined,
-  ].filter((value): value is string => value != null).sort().at(-1)
+  const exhaustedResets = [
+    [endpointRequestsRemaining, endpointRequestsResetAt],
+    [requestsRemaining, requestsResetAt],
+    [complexityRemaining, complexityResetAt],
+  ] as const
+  const retryAfter = exhaustedResets.some(
+      ([remaining, resetAt]) => remaining === 0 && resetAt == null,
+    )
+    ? undefined
+    : exhaustedResets
+      .filter(([remaining, resetAt]) => remaining === 0 && resetAt != null)
+      .map(([, resetAt]) => resetAt)
+      .sort()
+      .at(-1)
   const details = {
     ...(requestsRemaining == null ? {} : { requestsRemaining }),
     ...(requestsResetAt == null ? {} : { requestsResetAt }),
