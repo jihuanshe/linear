@@ -2,13 +2,26 @@ import { Command } from "@cliffy/command"
 import { withUsageMetadata } from "../usage.ts"
 import { gql } from "../../__codegen__/gql.ts"
 import { getGraphQLClient } from "../../utils/graphql.ts"
-import { assertMutationSuccess, handleError } from "../../utils/errors.ts"
+import {
+  assertMutationSuccess,
+  CliError,
+  handleError,
+  handleNotFound,
+  NotFoundError,
+} from "../../utils/errors.ts"
 import { assertPromptAllowed, Confirm } from "../../utils/prompt.ts"
 import { printWriteResult } from "../../utils/write-result.ts"
 
 const DeleteComment = gql(`
   mutation DeleteComment($id: String!) {
     commentDelete(id: $id) { success }
+  }
+`)
+
+// A missing target is a known no-write failure, not an unknown mutation.
+const GetCommentForDelete = gql(`
+  query GetCommentForDelete($id: String!) {
+    comment(id: $id) { id }
   }
 `)
 
@@ -40,8 +53,16 @@ export const commentDeleteCommand = withUsageMetadata(new Command(), {
           return
         }
       }
-      const data = await getGraphQLClient().request(DeleteComment, {
+      const client = getGraphQLClient()
+      const target = await client.request(GetCommentForDelete, {
         id: commentId,
+      }).catch(handleNotFound("Comment", commentId))
+      if (target.comment == null) throw new NotFoundError("Comment", commentId)
+      if (!target.comment.id) {
+        throw new CliError("Comment lookup returned no stable identity")
+      }
+      const data = await client.request(DeleteComment, {
+        id: target.comment.id,
       })
       assertMutationSuccess(data.commentDelete, data)
       if (json) printWriteResult({ id: commentId, ...data.commentDelete })

@@ -11,6 +11,7 @@ import { printWriteResult } from "../../utils/write-result.ts"
 import {
   assertMutationSuccess,
   handleError,
+  handleNotFound,
   NotFoundError,
   ValidationError,
 } from "../../utils/errors.ts"
@@ -51,6 +52,7 @@ async function resolveInitiative(
     }
   `)
   const result = await client.request(query, { id })
+    .catch(handleNotFound("Initiative", reference))
   if (!result.initiative?.id) throw new NotFoundError("Initiative", reference)
   return result.initiative
 }
@@ -66,6 +68,7 @@ async function resolveProject(
     }
   `)
   const result = await client.request(query, { id })
+    .catch(handleNotFound("Project", reference))
   if (!result.project?.id) throw new NotFoundError("Project", reference)
   return result.project
 }

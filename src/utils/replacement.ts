@@ -33,19 +33,29 @@ function shellWord(value: string): string | undefined {
   }
 }
 
-function missingBasisSuggestion(read?: ReplacementReadCommand): string {
-  const target = read == null ? undefined : shellWord(read.target)
-  const workspace = read?.workspace == null || Deno.env.has("LINEAR_API_KEY")
+/** A copyable `linear` command line that keeps the selected workspace. */
+export function linearCommandLine(
+  args: string[],
+  workspace?: string,
+): string {
+  const selection = workspace == null || Deno.env.has("LINEAR_API_KEY")
     ? []
-    : ["--workspace", shellWord(read.workspace) ?? "<workspace>"]
-  const readCommand = read == null ? "linear <view-command> <target> --json" : [
-    "linear",
-    ...workspace,
-    ...read.command,
-    "view",
-    target ?? "<target>",
-    "--json",
-  ].join(" ")
+    : ["--workspace", shellWord(workspace) ?? "<workspace>"]
+  return ["linear", ...selection, ...args].join(" ")
+}
+
+/** The target as one shell word, or a placeholder when it cannot be quoted. */
+export function shellTarget(target: string): string {
+  return shellWord(target) ?? "<target>"
+}
+
+function missingBasisSuggestion(read?: ReplacementReadCommand): string {
+  const readCommand = read == null
+    ? "linear <view-command> <target> --json"
+    : linearCommandLine(
+      [...read.command, "view", shellTarget(read.target), "--json"],
+      read.workspace,
+    )
   const workspaceCheck = read?.workspace == null
     ? ""
     : ` Keep the same credentials and confirm organization.urlKey in the saved read is ${
