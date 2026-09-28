@@ -549,7 +549,7 @@ Deno.test("Issue Create Command - JSON receipt includes the server title in data
     assertEquals(writes.length, 1)
     assertStringIncludes(
       stripIgnoredCharacters(writes[0].query),
-      "issue{id identifier title url team{key}state{id name type}assignee{id name email}project{id name}parent{identifier}labels{nodes{id name}pageInfo{hasNextPage endCursor}}}",
+      "issue{id identifier title url team{key}state{id name type}assignee{id name email}project{id name}parent{identifier}labels(first:100){nodes{id name}pageInfo{hasNextPage endCursor}}}",
     )
   } finally {
     await cleanup()
