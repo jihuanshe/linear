@@ -60,6 +60,40 @@ for (
   }
 }
 
+Deno.test("comment add names a missing --body-file path instead of reading the next option as a file", async () => {
+  const { server, cleanup } = await setupMockLinearServer([])
+  try {
+    // zsh keeps `set -- $pair` as one argument, so the path goes missing and
+    // --json is consumed as the body file; JSON output is then not selected.
+    const result = await new Deno.Command(Deno.execPath(), {
+      args: [
+        "run",
+        ...commonDenoArgs,
+        "src/main.ts",
+        "issue",
+        "comment",
+        "add",
+        "ENG-123 comment.md",
+        "--body-file",
+        "--json",
+      ],
+      stdin: "null",
+      stdout: "piped",
+      stderr: "piped",
+    }).output()
+    assertEquals(result.code, 1)
+    const stderr = new TextDecoder().decode(result.stderr)
+    assertStringIncludes(
+      stderr,
+      "--body-file got --json, which looks like an option",
+    )
+    assertStringIncludes(stderr, "zsh does not split unquoted variables")
+    assertEquals(server.graphqlRequests, [])
+  } finally {
+    await cleanup()
+  }
+})
+
 // Test adding a comment with body flag
 await snapshotTest({
   name: "Issue Comment Add Command - With Body Flag",
