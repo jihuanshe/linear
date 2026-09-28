@@ -3,7 +3,7 @@ import { unicodeWidth } from "@std/cli"
 import { green } from "@std/fmt/colors"
 import { gql } from "../../__codegen__/gql.ts"
 import { getGraphQLClient } from "../../utils/graphql.ts"
-import { padDisplay } from "../../utils/display.ts"
+import { padDisplay, truncateText } from "../../utils/display.ts"
 import { getTeamKey } from "../../utils/linear.ts"
 import { resolveTeam } from "../../utils/issue-read.ts"
 import { shouldShowSpinner } from "../../utils/hyperlink.ts"
@@ -140,9 +140,7 @@ export const listCommand = new Command()
 
       for (const cycle of sortedCycles) {
         const name = cycle.name || `Cycle ${cycle.number}`
-        const truncName = name.length > nameWidth
-          ? name.slice(0, nameWidth - 3) + "..."
-          : padDisplay(name, nameWidth)
+        const truncName = padDisplay(truncateText(name, nameWidth), nameWidth)
 
         const status = getCycleStatus(cycle)
         const statusStr = padDisplay(status, STATUS_WIDTH)

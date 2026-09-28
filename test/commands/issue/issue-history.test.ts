@@ -340,7 +340,7 @@ for (const limit of [undefined, 0, 100, 101]) {
   })
 }
 
-Deno.test("issue history requests only the remaining small limit and warns when truncated", async () => {
+Deno.test("issue history requests only the remaining small limit and warns on stderr when truncated", async () => {
   const first = historyEntry()
   const second = historyEntry({ id: "history-2" })
   const more = { hasNextPage: true, endCursor: "more" }
@@ -363,9 +363,12 @@ Deno.test("issue history requests only the remaining small limit and warns when 
     assertEquals(server.graphqlRequests.length, 2)
     const human = await runHistory(server, ["--limit", "2"])
     assertEquals(human.code, 0, human.stderr)
-    assertStringIncludes(human.stdout, "Warning: history is truncated")
-    assertStringIncludes(human.stdout, "increase --limit")
-    assertStringIncludes(human.stdout, "--limit 0")
+    // The hint is a diagnostic: stdout keeps only the entries read.
+    assertEquals(human.stdout.trimEnd().split("\n").length, 2)
+    assertEquals(
+      human.stderr,
+      "Showing the first 2 history entries; more exist. Use --limit 0 to fetch all pages.\n",
+    )
     assertEquals(server.graphqlRequests.length, 4)
   } finally {
     await server.stop()
