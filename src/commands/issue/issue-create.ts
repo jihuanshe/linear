@@ -875,7 +875,7 @@ export const createCommand = withUsageMetadata(new Command(), {
   )
   .option(
     "--project <project:string>",
-    "Project for the issue (UUID, slug ID, or name); choose it after reading the candidate Project and Initiative content",
+    "Project for the issue (UUID, slug ID, name, or Linear URL); choose it after reading the candidate Project and Initiative content",
     { preserveEmpty: true },
   )
   .option(

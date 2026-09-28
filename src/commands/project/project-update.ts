@@ -60,7 +60,9 @@ const UpdateProject = gql(`
 
 export const updateCommand = withUsageMetadata(new Command(), { writes: true })
   .name("update")
-  .description("Update a Linear project by UUID, slug ID, or exact name")
+  .description(
+    "Update a Linear project by UUID, slug ID, exact name, or Linear URL",
+  )
   .arguments("<project:string>")
   .option("-n, --name <name:string>", "Project name", { preserveEmpty: true })
   .option(

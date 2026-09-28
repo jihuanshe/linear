@@ -47,7 +47,7 @@ Options:
   --sort              <sort>        - Sort order within workflow state, active states (started, unstarted, backlog, triage) before       (Values:    
                                       completed and canceled: manual or priority (default: priority, not available with --search)        "manual",   
                                                                                                                                          "priority") 
-  --project           <project>     - Filter by project (UUID, slug ID, or name)                                                                     
+  --project           <project>     - Filter by project (UUID, slug ID, name, or Linear URL)                                                         
   --unprojected                     - Show only issues that are not assigned to a project                                                            
   --project-label     <name>        - Filter by project label name (shows issues from all projects with this label)                                  
   --cycle             <cycle>       - Filter by cycle name, number, 'active'/'now', 'next', 'previous', or a relative offset like +1                 

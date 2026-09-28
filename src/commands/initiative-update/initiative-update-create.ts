@@ -30,7 +30,7 @@ export const createCommand = withUsageMetadata(new Command(), {
     "Output a JSON write result; the created update is in data.initiativeUpdate",
   )
   .description(
-    "Create a new status update for an initiative by UUID, slug ID, or name",
+    "Create a new status update for an initiative by UUID, slug ID, name, or Linear URL",
   )
   .alias("c")
   .arguments("<initiative:string>")

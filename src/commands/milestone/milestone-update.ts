@@ -65,7 +65,7 @@ export const updateCommand = withUsageMetadata(new Command(), { writes: true })
   )
   .option(
     "--project <project:string>",
-    "Move to a different project (UUID, slug ID, or name)",
+    "Move to a different project (UUID, slug ID, name, or Linear URL)",
     { preserveEmpty: true },
   )
   .option("-j, --json", "Output the write result as JSON")

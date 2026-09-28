@@ -6,7 +6,7 @@ import { handleError } from "../../utils/errors.ts"
 export const teamsCommand = new Command()
   .name("teams")
   .description(
-    "List all teams eligible for a project (UUID, slug ID, or exact name)",
+    "List all teams eligible for a project (UUID, slug ID, exact name, or Linear URL)",
   )
   .arguments("<project:string>")
   .option(

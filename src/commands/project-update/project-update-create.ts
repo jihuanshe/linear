@@ -46,7 +46,7 @@ export const createCommand = withUsageMetadata(new Command(), {
     "Output a JSON write result; the created update is in data.projectUpdate",
   )
   .description(
-    "Create a new status update for a project by UUID, slug ID, or exact name",
+    "Create a new status update for a project by UUID, slug ID, exact name, or Linear URL",
   )
   .alias("c")
   .arguments("<project:string>")

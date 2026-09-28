@@ -243,7 +243,7 @@ export const queryCommand = withUsageMetadata(new Command(), {
   )
   .option(
     "--project <project:string>",
-    "Filter by project (UUID, slug ID, or name)",
+    "Filter by project (UUID, slug ID, name, or Linear URL)",
   )
   .option(
     "--unprojected",

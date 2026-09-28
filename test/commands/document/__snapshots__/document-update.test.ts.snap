@@ -104,6 +104,6 @@ stdout:
 ""
 stderr:
 "✗ Failed to update document: Project not found: Nope
-  Pass a project UUID, slug ID (from \`linear project list\`), or exact project name.
+  Pass a project UUID, Linear Project URL, slug ID (from \`linear project list\`), or exact project name.
 "
 `;
