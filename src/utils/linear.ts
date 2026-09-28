@@ -361,19 +361,7 @@ export async function getIssueReference(
           }
         `)
         const { organization } = await getGraphQLClient().request(query)
-        if (
-          !organization?.id ||
-          organization.urlKey?.toLowerCase() !==
-            reference.workspace.toLowerCase()
-        ) {
-          throw new ValidationError(
-            "Issue URL belongs to a different workspace",
-            {
-              suggestion:
-                "Select the URL's workspace with --workspace before continuing.",
-            },
-          )
-        }
+        assertUrlWorkspace(reference, organization, "Issue")
       }
       return reference.identifier
     }
@@ -1136,9 +1124,8 @@ interface LinearIssueUrlReference {
   workspace?: string
 }
 
-function parseLinearIssueUrl(
-  url: string,
-): LinearIssueUrlReference | undefined {
+/** An `https://linear.app/...` URL without port or credentials. */
+function parseLinearAppUrl(url: string): URL | undefined {
   let parsed: URL
   try {
     parsed = new URL(url)
@@ -1150,6 +1137,14 @@ function parseLinearIssueUrl(
     parsed.protocol !== "https:" || parsed.hostname !== "linear.app" ||
     parsed.port !== "" || parsed.username !== "" || parsed.password !== ""
   ) return undefined
+  return parsed
+}
+
+function parseLinearIssueUrl(
+  url: string,
+): LinearIssueUrlReference | undefined {
+  const parsed = parseLinearAppUrl(url)
+  if (parsed == null) return undefined
   const match = parsed.pathname.match(
     /^\/(?:([^/]+)\/)?issue\/([A-Za-z0-9]+-[1-9][0-9]*)(?:\/|$)/i,
   )
@@ -1161,6 +1156,57 @@ function parseLinearIssueUrl(
     return { identifier, workspace: decodeURIComponent(match[1]) }
   } catch {
     return undefined
+  }
+}
+
+export interface LinearObjectUrlReference {
+  slugId: string
+  workspace?: string
+}
+
+/**
+ * Parse `https://linear.app/<workspace>/<kind>/<name>-<slugId>` as Linear
+ * links Projects and Initiatives. The slug ID is the last `-` segment; the
+ * name prefix is optional, and trailing tabs such as `/overview` are ignored.
+ */
+export function parseLinearObjectUrl(
+  url: string,
+  kind: "project" | "initiative",
+): LinearObjectUrlReference | undefined {
+  const parsed = parseLinearAppUrl(url)
+  if (parsed == null) return undefined
+  const match = parsed.pathname.match(
+    new RegExp(`^/(?:([^/]+)/)?${kind}/([^/]+)(?:/|$)`, "i"),
+  )
+  if (match?.[2] == null) return undefined
+  let segment: string
+  let workspace: string | undefined
+  try {
+    segment = decodeURIComponent(match[2])
+    workspace = match[1] == null ? undefined : decodeURIComponent(match[1])
+  } catch {
+    return undefined
+  }
+  const slugId = segment.slice(segment.lastIndexOf("-") + 1)
+  if (!/^[0-9a-z]+$/i.test(slugId)) return undefined
+  return workspace == null ? { slugId } : { slugId, workspace }
+}
+
+/** Throw unless a URL's workspace segment names the authenticated workspace. */
+export function assertUrlWorkspace(
+  reference: { workspace?: string },
+  organization: { id?: string | null; urlKey?: string | null } | null,
+  kind: string,
+): void {
+  if (reference.workspace == null) return
+  if (
+    !organization?.id ||
+    organization.urlKey?.toLowerCase() !== reference.workspace.toLowerCase()
+  ) {
+    throw new ValidationError(`${kind} URL belongs to a different workspace`, {
+      suggestion:
+        "Select the URL's workspace with --workspace before continuing.",
+    })
   }
 }
 
@@ -1546,17 +1592,20 @@ export async function fetchIssuesForQuery(
   }
 
   const sort = options.sort ?? "priority"
+  // Ascending workflow state order lists started, unstarted, backlog and
+  // triage before completed, canceled and duplicate, so a bounded page shows
+  // active work instead of closed history.
   let sortPayload: Array<IssueSortInput>
   switch (sort) {
     case "manual":
       sortPayload = [
-        { workflowState: { order: "Descending" } },
+        { workflowState: { order: "Ascending" } },
         { manual: { nulls: "last" as const, order: "Ascending" as const } },
       ]
       break
     case "priority":
       sortPayload = [
-        { workflowState: { order: "Descending" } },
+        { workflowState: { order: "Ascending" } },
         { priority: { nulls: "last" as const, order: "Descending" as const } },
         { manual: { nulls: "last" as const, order: "Ascending" as const } },
       ]
@@ -2103,17 +2152,37 @@ export async function searchIssuesByTerm(
   const initial = firstPage.searchIssues
   // An omitted limit deliberately returns Linear's default first page. Only
   // an explicit zero asks this helper to accumulate the complete connection.
-  const connection = options.limit == null ? initial : await completeConnection(
-    initial,
-    fetchPage,
-    "issue search",
-    options.limit,
-  )
+  const connection = options.limit == null
+    ? endAtEmptySearchPage(initial)
+    : await completeConnection(
+      endAtEmptySearchPage(initial),
+      async (after, first) =>
+        endAtEmptySearchPage(await fetchPage(after, first)),
+      "issue search",
+      options.limit,
+    )
   return {
     nodes: await completeQueryIssueConnections(connection.nodes),
     pageInfo: connection.pageInfo,
     totalCount,
   }
+}
+
+/**
+ * With a filter, searchIssues keeps hasNextPage: true after the last match
+ * (its totalCount ignores the filter too) and answers the continuation, or a
+ * search with no match at all, with no nodes and a null endCursor. Paging
+ * live filtered searches with page sizes from 1 to 100 returned the same
+ * matches as filtering the unfiltered search, and this empty page came only at
+ * the end, so it marks completion. A nonempty page without a cursor still
+ * fails in completeConnection.
+ */
+function endAtEmptySearchPage(page: SearchIssuesPayload): SearchIssuesPayload {
+  if (
+    !Array.isArray(page?.nodes) || page.nodes.length > 0 ||
+    page.pageInfo?.endCursor != null
+  ) return page
+  return { ...page, pageInfo: { hasNextPage: false, endCursor: null } }
 }
 
 const UUID_REGEX =
@@ -2124,7 +2193,7 @@ export function isLinearUuid(value: string): boolean {
 }
 
 /**
- * Look up a project ID by UUID, slug ID, or exact name.
+ * Look up a project ID by UUID, Linear Project URL, slug ID, or exact name.
  * Returns undefined when no project matches. Use [[resolveProjectId]] when
  * you want a missing project to throw.
  */
@@ -2133,6 +2202,35 @@ export async function lookupProjectId(
   includeArchived?: boolean,
 ): Promise<string | undefined> {
   if (isLinearUuid(input)) return input.toLowerCase()
+
+  const url = parseLinearObjectUrl(input, "project")
+  if (url != null) {
+    // The workspace check travels with the slug ID lookup.
+    const query = gql(/* GraphQL */ `
+      query LookupProjectByUrl(
+        $slugId: String!
+        $includeArchived: Boolean = false
+      ) {
+        organization { id urlKey }
+        projects(
+          first: 2
+          filter: { slugId: { eq: $slugId } }
+          includeArchived: $includeArchived
+        ) {
+          nodes {
+            id
+          }
+          pageInfo { hasNextPage endCursor }
+        }
+      }
+    `)
+    const data = await getGraphQLClient().request(query, {
+      slugId: url.slugId,
+      ...(includeArchived === undefined ? {} : { includeArchived }),
+    })
+    assertUrlWorkspace(url, data.organization, "Project")
+    return uniqueLookupId(data.projects, input, "Project")
+  }
 
   // Both candidates travel in one request; name keeps precedence over slug ID.
   const query = gql(/* GraphQL */ `
@@ -2193,7 +2291,8 @@ function uniqueLookupId(
 }
 
 /**
- * Resolve a project to its UUID. Accepts a UUID, slug ID, or exact name.
+ * Resolve a project to its UUID. Accepts a UUID, Linear Project URL, slug ID,
+ * or exact name.
  * Throws NotFoundError if none match.
  */
 export async function resolveProjectId(
@@ -2203,7 +2302,7 @@ export async function resolveProjectId(
   if (!projectId) {
     throw new NotFoundError("Project", input, {
       suggestion:
-        "Pass a project UUID, slug ID (from `linear project list`), or exact project name.",
+        "Pass a project UUID, Linear Project URL, slug ID (from `linear project list`), or exact project name.",
     })
   }
   return projectId

@@ -240,12 +240,12 @@ export const queryCommand = withUsageMetadata(new Command(), {
   .option("-U, --unassigned", "Show only unassigned issues")
   .option(
     "--sort <sort:sort>",
-    "Sort order: manual or priority (default: priority, not available with --search)",
+    "Sort order within workflow state, active states (started, unstarted, backlog, triage) before completed and canceled: manual or priority (default: priority, not available with --search)",
     { required: false },
   )
   .option(
     "--project <project:string>",
-    "Filter by project (UUID, slug ID, or name)",
+    "Filter by project (UUID, slug ID, name, or Linear URL)",
   )
   .option(
     "--unprojected",

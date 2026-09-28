@@ -14,7 +14,7 @@ import { getEditor, openEditor } from "../../utils/editor.ts"
 import { readTextSource } from "../../utils/text-source.ts"
 import { printWriteResult } from "../../utils/write-result.ts"
 import {
-  assertMutationReceipt,
+  assertMutationReferences,
   assertMutationSuccess,
   handleError,
   ValidationError,
@@ -48,7 +48,7 @@ export const createCommand = withUsageMetadata(new Command(), {
   )
   .option(
     "--project <project:string>",
-    "Attach to project (UUID, slug ID, or name; exactly one parent is required)",
+    "Attach to project (UUID, slug ID, name, or Linear URL; exactly one parent is required)",
   )
   .option(
     "--issue <issue:string>",
@@ -235,7 +235,7 @@ async function promptInteractiveCreate(): Promise<{
 
   if (attachTo === "project") {
     const projectInput = await Input.prompt({
-      message: "Project (UUID, slug ID, or name)",
+      message: "Project (UUID, slug ID, name, or Linear URL)",
     })
     projectId = await resolveProjectId(projectInput)
   } else if (attachTo === "issue") {
@@ -272,6 +272,12 @@ async function createDocument(
           slugId
           title
           url
+          project {
+            id
+          }
+          issue {
+            id
+          }
         }
       }
     }
@@ -282,7 +288,11 @@ async function createDocument(
   assertMutationSuccess(result?.documentCreate, result?.documentCreate)
 
   const document = result?.documentCreate.document
-  assertMutationReceipt(document, result?.documentCreate)
+  // A document must land on the requested parent, like comments and attachments.
+  assertMutationReferences(document, result?.documentCreate, {
+    ...(input.projectId != null ? { project: input.projectId } : {}),
+    ...(input.issueId != null ? { issue: input.issueId } : {}),
+  })
   if (json) {
     printWriteResult({ document })
     return

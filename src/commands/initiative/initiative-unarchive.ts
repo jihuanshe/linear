@@ -21,7 +21,9 @@ export const unarchiveCommand = withUsageMetadata(new Command(), {
 })
   .name("unarchive")
   .option("--json", "Output a JSON write result")
-  .description("Unarchive a Linear initiative by UUID, slug ID, or name")
+  .description(
+    "Unarchive a Linear initiative by UUID, slug ID, name, or Linear URL",
+  )
   .arguments("<initiative:string>")
   .option("-y, --yes", "Skip confirmation prompt")
   .action(async ({ yes, json }, initiativeReference) => {

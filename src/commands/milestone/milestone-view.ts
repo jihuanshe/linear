@@ -63,7 +63,7 @@ export const viewCommand = new Command()
   )
   .option(
     "--project <project:string>",
-    "Project for resolving a milestone name (UUID, slug ID, or name)",
+    "Project for resolving a milestone name (UUID, slug ID, name, or Linear URL)",
   )
   .option(
     "-j, --json",

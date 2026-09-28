@@ -32,7 +32,7 @@ const HEALTH_DISPLAY: Record<string, string> = {
 export const listCommand = new Command()
   .name("list")
   .description(
-    "List status updates for an initiative by UUID, slug ID, or name",
+    "List status updates for an initiative by UUID, slug ID, name, or Linear URL",
   )
   .alias("l")
   .arguments("<initiative:string>")

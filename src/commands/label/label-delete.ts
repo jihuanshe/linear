@@ -11,6 +11,7 @@ import { printWriteResult } from "../../utils/write-result.ts"
 import {
   assertMutationSuccess,
   handleError,
+  handleNotFound,
   NotFoundError,
   ValidationError,
 } from "../../utils/errors.ts"
@@ -75,6 +76,7 @@ async function resolveLabel(
     )
   ) {
     const result = await client.request(GetLabelById, { id: nameOrId })
+      .catch(handleNotFound("Label", nameOrId))
     return result.issueLabel ?? undefined
   }
 
