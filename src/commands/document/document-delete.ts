@@ -14,6 +14,7 @@ import {
 import {
   assertMutationSuccess,
   handleError,
+  handleNotFound,
   NotFoundError,
   ValidationError,
   WriteError,
@@ -102,7 +103,7 @@ async function handleSingleDelete(
 
   const documentDetails = await client.request(detailsQuery, {
     id: documentReference,
-  })
+  }).catch(handleNotFound("Document", documentReference))
 
   if (!documentDetails?.document) {
     throw new NotFoundError("Document", documentReference)
@@ -213,6 +214,7 @@ async function handleBulkDelete(
     `)
 
     const details = await client.request(detailsQuery, { id: docId })
+      .catch(handleNotFound("Document", docId))
     if (!details.document?.id) throw new NotFoundError("Document", docId)
     const documentUuid = details.document.id
     const title = details.document.title

@@ -17,6 +17,7 @@ import {
   CliError,
   errorResult,
   handleError,
+  handleNotFound,
   NotFoundError,
   ValidationError,
   WriteError,
@@ -39,7 +40,7 @@ async function resolveIssue(ref: string) {
   if (!reference) throw new NotFoundError("Issue", ref)
   const data = await getGraphQLClient().request(IssueDeleteDetails, {
     id: reference,
-  })
+  }).catch(handleNotFound("Issue", ref))
   if (!data.issue) throw new NotFoundError("Issue", ref)
   if (!data.issue.id) {
     throw new CliError("Issue lookup returned no stable identity")
