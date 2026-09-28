@@ -142,7 +142,12 @@ Deno.test("terminal presence never implicitly opens an editor or prompts for mis
         data: {
           documentCreate: {
             success: true,
-            document: { id, title: "Spec", url: "https://linear.app/test" },
+            document: {
+              id,
+              title: "Spec",
+              url: "https://linear.app/test",
+              project: { id },
+            },
           },
         },
       },

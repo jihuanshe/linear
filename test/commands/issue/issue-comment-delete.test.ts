@@ -18,6 +18,10 @@ await snapshotTest({
   async fn() {
     const { cleanup } = await setupMockLinearServer([
       {
+        queryName: "GetCommentForDelete",
+        response: { data: { comment: { id: "comment-uuid-123" } } },
+      },
+      {
         queryName: "DeleteComment",
         response: {
           data: {
@@ -40,6 +44,9 @@ await snapshotTest({
 for (const success of [true, false]) {
   Deno.test(`Comment delete JSON preserves confirmed=${success} effects`, async () => {
     const { server, cleanup } = await setupMockLinearServer([{
+      queryName: "GetCommentForDelete",
+      response: { data: { comment: { id: "comment-id" } } },
+    }, {
       queryName: "DeleteComment",
       variables: { id: "comment-id" },
       response: { data: { commentDelete: { success } } },
@@ -70,7 +77,12 @@ for (const success of [true, false]) {
       if (success) {
         assertEquals(output.data, { id: "comment-id", success: true })
       } else assertEquals(output.data.commentDelete, { success: false })
-      assertEquals(server.graphqlRequests.length, 1)
+      assertEquals(
+        server.graphqlRequests.filter((request) =>
+          request.query.includes("mutation")
+        ).length,
+        1,
+      )
     } finally {
       await cleanup()
     }

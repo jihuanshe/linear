@@ -37,6 +37,26 @@ const CreateProject = gql(`
         slugId
         name
         url
+        status {
+          id
+          name
+          type
+        }
+        lead {
+          id
+          name
+          displayName
+        }
+        teams(first: 50) {
+          nodes {
+            id
+            key
+          }
+          pageInfo {
+            hasNextPage
+            endCursor
+          }
+        }
       }
     }
   }

@@ -7,6 +7,8 @@ import { shouldShowSpinner } from "../../utils/hyperlink.ts"
 import {
   assertMutationSuccess,
   handleError,
+  handleNotFound,
+  NotFoundError,
   ValidationError,
 } from "../../utils/errors.ts"
 import { printWriteResult } from "../../utils/write-result.ts"
@@ -16,6 +18,13 @@ const DeleteProjectMilestone = gql(`
     projectMilestoneDelete(id: $id) {
       success
     }
+  }
+`)
+
+// A missing target is a known no-write failure, not an unknown mutation.
+const GetMilestoneForDelete = gql(`
+  query GetMilestoneForDelete($id: String!) {
+    projectMilestone(id: $id) { id }
   }
 `)
 
@@ -54,6 +63,11 @@ export const deleteCommand = withUsageMetadata(new Command(), {
 
     try {
       const client = getGraphQLClient()
+      const target = await client.request(GetMilestoneForDelete, { id })
+        .catch(handleNotFound("Milestone", id))
+      if (target.projectMilestone == null) {
+        throw new NotFoundError("Milestone", id)
+      }
       const result = await client.request(DeleteProjectMilestone, {
         id,
       })

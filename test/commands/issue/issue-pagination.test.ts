@@ -211,6 +211,159 @@ for (const mode of ["query", "search"]) {
   })
 }
 
+// Filtered searchIssues reports hasNextPage: true on its last filled page and
+// answers the continuation with no nodes and a null endCursor (observed on
+// the live API with --label, including for a search with no match at all).
+for (const json of [true, false]) {
+  Deno.test(`issue search ${json ? "JSON" : "human"} ends at an empty page without a cursor`, async () => {
+    const found = ["a", "b", "c", "d"].map((id) => ({
+      ...issue,
+      id,
+      identifier: `TEST-${id}`,
+      updatedAt: "2026-09-06T00:00:00Z",
+      labels: empty,
+      inverseRelations: empty,
+    }))
+    const server = new MockLinearServer([
+      {
+        queryName: "SearchIssues",
+        variables: { after: "d", first: 1 },
+        response: {
+          data: {
+            searchIssues: {
+              nodes: [],
+              totalCount: 102,
+              pageInfo: { hasNextPage: true, endCursor: null },
+            },
+          },
+        },
+      },
+      {
+        queryName: "SearchIssues",
+        variables: { first: 5 },
+        response: {
+          data: {
+            searchIssues: {
+              nodes: found,
+              totalCount: 102,
+              pageInfo: { hasNextPage: true, endCursor: "d" },
+            },
+          },
+        },
+      },
+    ])
+    await server.start()
+    try {
+      const result = await runCli(server, [
+        "issue",
+        "query",
+        "--team",
+        "TEST",
+        "--search",
+        "evidence",
+        "--label",
+        "Bug",
+        "--limit",
+        "5",
+        "--no-pager",
+        ...(json ? ["--json"] : []),
+      ])
+      assertEquals(result.code, 0, result.stderr)
+      assertEquals(result.stderr, "")
+      assertEquals(server.graphqlRequests.length, 2)
+      if (json) {
+        const data = JSON.parse(result.stdout)
+        assertEquals(data.nodes.map((node: { id: string }) => node.id), [
+          "a",
+          "b",
+          "c",
+          "d",
+        ])
+        assertEquals(data.pageInfo, { hasNextPage: false, endCursor: null })
+      } else {
+        for (const id of ["a", "b", "c", "d"]) {
+          assertStringIncludes(result.stdout, `TEST-${id}`)
+        }
+      }
+    } finally {
+      await server.stop()
+    }
+  })
+}
+
+Deno.test("issue search reports no match when the first filtered page is empty", async () => {
+  const server = new MockLinearServer([
+    {
+      queryName: "SearchIssues",
+      response: {
+        data: {
+          searchIssues: {
+            nodes: [],
+            totalCount: 102,
+            pageInfo: { hasNextPage: true, endCursor: null },
+          },
+        },
+      },
+    },
+  ])
+  await server.start()
+  try {
+    const result = await runCli(server, [
+      "issue",
+      "query",
+      "--team",
+      "TEST",
+      "--search",
+      "evidence",
+      "--label",
+      "Android",
+      "--limit",
+      "5",
+      "--no-pager",
+    ])
+    assertEquals(result.code, 0, result.stderr)
+    assertEquals(result.stdout.trim(), "No issues found.")
+    assertEquals(server.graphqlRequests.length, 1)
+  } finally {
+    await server.stop()
+  }
+})
+
+Deno.test("issue search still rejects a nonempty page that has more but no cursor", async () => {
+  const server = new MockLinearServer([
+    {
+      queryName: "SearchIssues",
+      response: {
+        data: {
+          searchIssues: {
+            nodes: [{ ...issue, updatedAt: "2026-09-06T00:00:00Z" }],
+            totalCount: 3,
+            pageInfo: { hasNextPage: true, endCursor: null },
+          },
+        },
+      },
+    },
+  ])
+  await server.start()
+  try {
+    const result = await runCli(server, [
+      "issue",
+      "query",
+      "--team",
+      "TEST",
+      "--search",
+      "evidence",
+      "--limit",
+      "0",
+      "--json",
+    ])
+    assertReadFailure(result, "empty or repeated cursor")
+    assertEquals(server.graphqlRequests.length, 1)
+  } finally {
+    await server.stop()
+  }
+})
+
 for (const search of [false, true]) {
   Deno.test(`issue query search=${search} requests only the remaining limit and retains the cursor`, async () => {
     const queryName = search ? "SearchIssues" : "GetIssuesForQuery"

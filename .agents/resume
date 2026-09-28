@@ -126,4 +126,13 @@ assert_resolution linear
 # prek install records the absolute path of the prek binary that wrote the
 # hook. Reinstall on every resume so a checkout that moved to another pinned
 # prek version does not keep calling the previous one.
-"$mise_bin" -C "$repo_root" run --quiet hooks:install >/dev/null
+local_hooks_path="$(git -C "$repo_root" config --local --get core.hooksPath || true)"
+global_hooks_path="$(git -C "$repo_root" config --get core.hooksPath || true)"
+if [[ -z "$global_hooks_path" ||
+  "$local_hooks_path" == ".git/hooks" ||
+  "$local_hooks_path" == "$repo_root/.git/hooks"
+]]; then
+  "$mise_bin" -C "$repo_root" run --quiet hooks:install >/dev/null
+else
+  echo "Skipping repository hook install: core.hooksPath is configured as $global_hooks_path" >&2
+fi

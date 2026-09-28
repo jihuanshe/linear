@@ -181,6 +181,14 @@ for (
     }
     const { server, cleanup } = await setupMockLinearServer([
       {
+        queryName: "GetProjectForDelete",
+        response: { data: { project: { id } } },
+      },
+      {
+        queryName: "GetMilestoneForDelete",
+        response: { data: { projectMilestone: { id } } },
+      },
+      {
         queryName: "ReadInitiative",
         response: {
           data: {

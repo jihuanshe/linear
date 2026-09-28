@@ -29,6 +29,13 @@ const CreateInitiative = gql(`
         slugId
         name
         url
+        status
+        targetDate
+        owner {
+          id
+          name
+          displayName
+        }
       }
     }
   }
