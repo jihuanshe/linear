@@ -28,7 +28,15 @@ export function truncateText(text: string, maxWidth: number): string {
   }
 
   if (maxWidth < 3) {
-    return text.slice(0, maxWidth)
+    let truncated = ""
+    let width = 0
+    for (const char of text) {
+      const charWidth = unicodeWidth(char)
+      if (width + charWidth > maxWidth) break
+      truncated += char
+      width += charWidth
+    }
+    return truncated
   }
 
   // Unicode-aware truncation by iterating through characters

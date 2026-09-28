@@ -120,7 +120,10 @@ export async function addIssueFavorite(
   })
   assertMutationSuccess(data.favoriteCreate, data)
   const favorite = data.favoriteCreate.favorite
-  assertMutationReferences(favorite, data, { issue: issue.id })
+  assertMutationReferences(favorite, data, {
+    issue: issue.id,
+    ...(parentId == null ? {} : { parent: parentId }),
+  })
   return writeResult({ issue, favorite })
 }
 

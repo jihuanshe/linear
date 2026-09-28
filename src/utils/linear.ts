@@ -1187,8 +1187,13 @@ export function parseLinearObjectUrl(
   } catch {
     return undefined
   }
-  const slugId = segment.slice(segment.lastIndexOf("-") + 1)
-  if (!/^[0-9a-z]+$/i.test(slugId)) return undefined
+  // Current object URLs use a 12-character hexadecimal slug ID after the
+  // human-readable name. If the slug ID itself contains hyphens (or is the
+  // whole path segment), do not discard the prefix by splitting at the last
+  // hyphen.
+  const suffix = segment.match(/-([0-9a-f]{12})$/i)?.[1]
+  const slugId = suffix ?? segment
+  if (!/^[0-9a-z-]+$/i.test(slugId)) return undefined
   return workspace == null ? { slugId } : { slugId, workspace }
 }
 
@@ -2152,12 +2157,13 @@ export async function searchIssuesByTerm(
   const initial = firstPage.searchIssues
   // An omitted limit deliberately returns Linear's default first page. Only
   // an explicit zero asks this helper to accumulate the complete connection.
+  const filteredSearch = Object.keys(filter).length > 0
   const connection = options.limit == null
-    ? endAtEmptySearchPage(initial)
+    ? endAtEmptySearchPage(initial, filteredSearch)
     : await completeConnection(
-      endAtEmptySearchPage(initial),
+      endAtEmptySearchPage(initial, filteredSearch),
       async (after, first) =>
-        endAtEmptySearchPage(await fetchPage(after, first)),
+        endAtEmptySearchPage(await fetchPage(after, first), filteredSearch),
       "issue search",
       options.limit,
     )
@@ -2177,8 +2183,12 @@ export async function searchIssuesByTerm(
  * the end, so it marks completion. A nonempty page without a cursor still
  * fails in completeConnection.
  */
-function endAtEmptySearchPage(page: SearchIssuesPayload): SearchIssuesPayload {
+function endAtEmptySearchPage(
+  page: SearchIssuesPayload,
+  filteredSearch: boolean,
+): SearchIssuesPayload {
   if (
+    !filteredSearch ||
     !Array.isArray(page?.nodes) || page.nodes.length > 0 ||
     page.pageInfo?.endCursor != null
   ) return page
