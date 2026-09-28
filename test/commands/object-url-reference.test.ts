@@ -93,7 +93,9 @@ function projectServer(
 }
 
 Deno.test("project URL resolves a slug ID containing hyphens through the CLI", async () => {
-  const { server, cleanup } = await projectServer({ projectSlugId: hyphenatedSlugId })
+  const { server, cleanup } = await projectServer({
+    projectSlugId: hyphenatedSlugId,
+  })
   try {
     const result = await run(server, [
       "issue",
@@ -105,7 +107,9 @@ Deno.test("project URL resolves a slug ID containing hyphens through the CLI", a
     assertEquals(result.code, 0, result.stdout + result.stderr)
     assertEquals(JSON.parse(result.stdout), issues)
     assertEquals(
-      server.graphqlRequests.map((request) => request.query.match(/query (\w+)/)?.[1]),
+      server.graphqlRequests.map((request) =>
+        request.query.match(/query (\w+)/)?.[1]
+      ),
       ["LookupProjectByUrl", "GetIssuesForQuery"],
     )
   } finally {
