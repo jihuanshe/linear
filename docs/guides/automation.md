@@ -256,7 +256,7 @@ linear project update <project> --content-file project-content.md --base-file pr
 
 单独导出评论用 `issue comment list <issue> --limit 0 --json`；省略 `--limit 0` 时最多读取 50 条，并返回 `{nodes,pageInfo}`。属性变更经过用 `issue history <issue> --json`，默认读取全部历史页，也返回 `{nodes,pageInfo}`；使用有限 `--limit` 时检查后续游标。
 
-`history` 展示上游返回的活动记录，不保证每次写入都有独立条目。Kadoraba 实测中，紧接创建的部分标题／正文修改未出现，后续优先级和附件变更有记录；原生 GraphQL 返回相同结果，具体原因未确定。用 `view` 读取当前状态；判断写入是否发生要结合本次回执与读回，不能因历史缺项重发写入。
+`history` 展示上游返回的活动记录，不保证每次写入都有独立条目。紧接创建的部分标题／正文修改可能不会出现在历史中，后续优先级和附件变更可能有记录；原生 GraphQL 返回相同结果，具体原因未确定。用 `view` 读取当前状态；判断写入是否发生要结合本次回执与读回，不能因历史缺项重发写入。
 
 `issue view` 的未解决数量按完整读取后的根线程计算，JSON 保留已解决历史；`--no-comments` 跳过评论，也不显示数量。线程收束见 `linear guide issue-authoring`。`resolve`／`unresolve` 的 JSON 写结果将读回的根评论放在 `.data.comment`；读回失败仍保留已确认的 `effect: applied`。
 
@@ -270,4 +270,4 @@ jq '.lookups[] | {url, identifiers: [.nodes[].identifier]}' url-lookups.json
 
 Linear Issue URL 先用 `issue(id:)` 按编号解析（团队迁移前的旧编号也能命中）并核对工作区，结果带 `resolution.status`：`found`、`moved`（`identifier` 为现编号）、`trashed`、`archived` 或 `not_found`；`trashed`／`archived` 的 Issue 只有加 `--include-archived` 才进入 `nodes`。其他 URL 核对候选正文或评论中的完整 URL 边界，不搜索侧栏附件（Attachment）。URL 模式完整读取候选并返回全部精确命中，不受 `--limit` 截断；空 `nodes` 只证明当前凭据可见且所选筛选范围内没有命中。`--url-file` 忽略空行与 `#` 注释，去重后按首次出现顺序返回 `lookups`。
 
-比较查询集合时，保存相同范围的前后读取，按 ID 和目标字段核对；新增对象不自动进入原写入范围。按组织规则检查缺项或异常候选时，使用 `linear recipe doctor`，结果解释见 `linear guide doctor`。
+比较查询集合时，保存相同范围的前后读取，按 ID 和目标字段核对；新增对象不自动进入原写入范围。按治理策略示例检查缺项或异常候选时，使用 `linear recipe doctor`，结果解释见 `linear guide doctor`。

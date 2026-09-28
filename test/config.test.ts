@@ -700,10 +700,9 @@ Deno.test("getOption - env var takes precedence over home config", async () => {
 })
 
 // --- resolveIssueSort ---
-// Note: the repo's own .linear.toml sets issue_sort = "priority", so it is in
-// the loaded config for in-process tests. Env vars are read at call time, so
-// setting LINEAR_ISSUE_SORT here exercises precedence over that config value.
-// The truly-unconfigured default is tested in a subprocess below.
+// Env vars are read at call time, so setting LINEAR_ISSUE_SORT here exercises
+// precedence over the configured value. The truly-unconfigured default is
+// tested in a subprocess below.
 
 Deno.test("resolveIssueSort - cli value takes precedence", () => {
   assertEquals(resolveIssueSort("manual"), "manual")

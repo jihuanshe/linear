@@ -180,7 +180,6 @@ export const updateCommand = withUsageMetadata(new Command(), { writes: true })
         const writeInput = { ...plan.input }
         // Linear ignores an empty description but accepts LF to clear it.
         // Keep the exact desired Markdown for comparison; encode only on wire.
-        // Evidence: https://github.com/jihuanshe/linear/pull/38
         if (writeInput.description === "") writeInput.description = "\n"
         const result = await client.request(UpdateProjectMilestone, {
           id: resolvedId,
