@@ -17,6 +17,17 @@ export async function readTextSource(
       `${field[0].toUpperCase()}${field.slice(1)} file path cannot be empty`,
     )
   }
+  // `--body-file --json` means the path was missing and the parser took the
+  // next option as the value, e.g. an unquoted zsh variable that did not split.
+  if (file.startsWith("-") && file !== "-") {
+    throw new ValidationError(
+      `--${field}-file got ${file}, which looks like an option: the file path is probably missing`,
+      {
+        suggestion:
+          `Pass the path right after --${field}-file. zsh does not split unquoted variables, so one "KEY path" variable stays one argument. For a file whose name starts with -, write ./${file}.`,
+      },
+    )
+  }
   try {
     const bytes = file === "-"
       ? new Uint8Array(await new Response(Deno.stdin.readable).arrayBuffer())
