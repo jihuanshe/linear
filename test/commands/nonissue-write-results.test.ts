@@ -49,6 +49,7 @@ function readResponse(request: RequestBody, archived = false) {
         team: null,
       },
       document: { id: target, title: "Example document", slugId: "example" },
+      projectMilestone: { id: target },
       initiativeToProjects: {
         nodes: [{ id: linkId, initiative: { id }, project: { id: projectId } }],
         pageInfo: finalPage,
@@ -283,6 +284,7 @@ const writes = [
       title: "Example",
       slugId: "example",
       url: "https://linear.app/example",
+      project: { id: projectId },
     },
     id,
   },

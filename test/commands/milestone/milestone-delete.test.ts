@@ -16,6 +16,10 @@ await cliffySnapshotTest({
   async fn() {
     const server = new MockLinearServer([
       {
+        queryName: "GetMilestoneForDelete",
+        response: { data: { projectMilestone: { id: "milestone-123" } } },
+      },
+      {
         queryName: "DeleteProjectMilestone",
         response: {
           data: {
