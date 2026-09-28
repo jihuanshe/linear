@@ -413,7 +413,7 @@ Deno.test("Exported Doctor paginates evidence, limits only human output and fail
     )
     const human = await runner.script(args)
     assertEquals(human.code, 0, human.stderr)
-    assertStringIncludes(human.stdout, "6 findings (organization policy)")
+    assertStringIncludes(human.stdout, "6 findings (configured policy)")
     assertEquals(human.stdout.match(/^P[012] /gm)?.length, 1)
     const selected = await runner.script([
       ...args,

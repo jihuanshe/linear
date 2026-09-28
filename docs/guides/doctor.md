@@ -7,13 +7,13 @@ commands:
 
 # 解释健康检查结果
 
-健康检查使用可编辑的工作流示例。运行 `linear recipe doctor` 读取范围、依赖、运行步骤与规则说明；用 `linear recipe doctor --source` 取得完整脚本。查看和导出均从二进制内读取，不访问网络或执行脚本。
+健康检查使用可编辑的、带主观看法的治理策略示例。运行 `linear recipe doctor` 读取范围、依赖、运行步骤与规则说明；用 `linear recipe doctor --source` 取得完整脚本。查看和导出均从二进制内读取，不访问网络或执行脚本。示例规则不是 Linear 的必填约束；不适合你的工作区时，导出脚本后修改。
 
 执行脚本后先检查退出码。读取失败时脚本返回非零且不生成部分报告；空文件或缺少报告不能解释为健康。`--limit` 只限制人类显示，JSON 保留完整扫描的候选与证据。
 
 ## 判断候选
 
-报告中的 `summary` 汇总严重度，`findings` 保留对象和逐项证据。`ruleId` 标明命中的规则，`severity` 表示示例定义的严重度。P0／P1／P2 是可修改的组织约定，不能作为 Linear 的必填约束或缺陷等级。
+报告中的 `summary` 汇总严重度，`findings` 保留对象和逐项证据。`ruleId` 标明命中的规则，`severity` 表示示例定义的严重度。P0／P1／P2 是可修改的策略约定，不能作为 Linear 的必填约束或缺陷等级。
 
 ```bash
 jq '.findings[] | {target, id: (.issue.id // .project.id), ruleId, severity, field, evidence}' doctor.json

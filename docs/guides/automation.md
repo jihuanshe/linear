@@ -124,13 +124,13 @@ JSON 不与浏览器／应用跳转、显式交互／编辑或原文／脚本输
 
 ## 网络等待与查询重试
 
-Linear 按 API 密钥计算小时额度：2,500 个请求和 3,000,000 复杂度，窗口约 1 小时后补满。每条命令至少消耗 1 个请求：`issue view` 通常 1 个，`issue query --url-file` 每个 URL 至少 1 个，`issue query --id-file` 每 100 个编号约 1 个（见「按编号批量读取 Issue」），分页每页 1 个。同一密钥的并发子 Agent 和脚本共享额度，批处理前先估算请求数，查剩余额度用只读查询 `linear api 'query { rateLimitStatus { kind limits { type allowedAmount remainingAmount reset } } }'`（`reset` 是毫秒时间戳），不要靠固定等待猜测。
+并发命令和脚本共享 API 密钥的限流额度；分页和批处理前先估算请求数。需要安排批处理时，用只读查询 `rateLimitStatus` 查看剩余额度和重置时间，不要靠固定等待猜测。
 
 专用命令与 `linear api` 共用 GraphQL 请求规则：每个逻辑请求最多 60 秒，包含响应正文读取和重试等待，query 最多尝试 3 次。分页的每一页分别计时，不是整个命令或整批 `apply` 的总时限；写后核验等调用方更短的取消期限仍然有效。此规则不涵盖文件 PUT、下载或其他非 GraphQL 网络操作。
 
-只有明确选中的 query 会对 HTTP 429／502／503／504，以及 HTTP 200／400 中单纯的 `RATELIMITED` 错误重试。无完整响应的连接错误、已有部分数据、认证、权限和校验错误不重试。等待使用有界退避，并遵守 `Retry-After` 的秒数或 HTTP 日期；剩余时间不足以遵守服务器要求时，返回原始失败，不缩短等待后强行重试。
+只有明确选中的 query 会对 HTTP 429／502／503／504，以及 HTTP 200／400 中单纯的 `RATELIMITED` 错误重试；已有部分数据、认证、权限和校验错误不重试。等待使用有界退避并遵守 `Retry-After`；剩余时间不足时返回原始失败。
 
-专用命令最终仍被 `RATELIMITED` 拒绝时，JSON 错误的 `error.code` 为 `RateLimited`，`error.details.rateLimit` 给出响应头中的剩余请求数、剩余复杂度和各自的重置时间，`retryAfter` 是耗尽的那项额度恢复的时间。query 的 `effect` 为 `none`，到 `retryAfter` 之后原样重试即可；mutation 仍为 `unknown`，Linear 没有文档保证被限流的写入零效果，先对账再重试。原生 `linear api` 保留原始 GraphQL 响应，不加这一层。
+专用命令被限流时，JSON 错误会给出 `RateLimited`、额度和 `retryAfter`。query 的 `effect` 为 `none`，可以在 `retryAfter` 后重试；mutation 仍为 `unknown`，先对账再重试。原生 `linear api` 保留原始 GraphQL 响应。
 
 mutation 不自动重发。派发后的超时、连接或响应读取失败仍可能已经写入，按 `effect` 与回执对账，不把超时理解为撤销。
 
@@ -256,7 +256,7 @@ linear project update <project> --content-file project-content.md --base-file pr
 
 单独导出评论用 `issue comment list <issue> --limit 0 --json`；省略 `--limit 0` 时最多读取 50 条，并返回 `{nodes,pageInfo}`。属性变更经过用 `issue history <issue> --json`，默认读取全部历史页，也返回 `{nodes,pageInfo}`；使用有限 `--limit` 时检查后续游标。
 
-`history` 展示上游返回的活动记录，不保证每次写入都有独立条目。Kadoraba 实测中，紧接创建的部分标题／正文修改未出现，后续优先级和附件变更有记录；原生 GraphQL 返回相同结果，具体原因未确定。用 `view` 读取当前状态；判断写入是否发生要结合本次回执与读回，不能因历史缺项重发写入。
+`history` 展示上游返回的活动记录，不保证每次写入都有独立条目。紧接创建的部分标题／正文修改可能不会出现在历史中，后续优先级和附件变更可能有记录；原生 GraphQL 返回相同结果，具体原因未确定。用 `view` 读取当前状态；判断写入是否发生要结合本次回执与读回，不能因历史缺项重发写入。
 
 `issue view` 的未解决数量按完整读取后的根线程计算，JSON 保留已解决历史；`--no-comments` 跳过评论，也不显示数量。线程收束见 `linear guide issue-authoring`。`resolve`／`unresolve` 的 JSON 写结果将读回的根评论放在 `.data.comment`；读回失败仍保留已确认的 `effect: applied`。
 
@@ -270,4 +270,4 @@ jq '.lookups[] | {url, identifiers: [.nodes[].identifier]}' url-lookups.json
 
 Linear Issue URL 先用 `issue(id:)` 按编号解析（团队迁移前的旧编号也能命中）并核对工作区，结果带 `resolution.status`：`found`、`moved`（`identifier` 为现编号）、`trashed`、`archived` 或 `not_found`；`trashed`／`archived` 的 Issue 只有加 `--include-archived` 才进入 `nodes`。其他 URL 核对候选正文或评论中的完整 URL 边界，不搜索侧栏附件（Attachment）。URL 模式完整读取候选并返回全部精确命中，不受 `--limit` 截断；空 `nodes` 只证明当前凭据可见且所选筛选范围内没有命中。`--url-file` 忽略空行与 `#` 注释，去重后按首次出现顺序返回 `lookups`。
 
-比较查询集合时，保存相同范围的前后读取，按 ID 和目标字段核对；新增对象不自动进入原写入范围。按组织规则检查缺项或异常候选时，使用 `linear recipe doctor`，结果解释见 `linear guide doctor`。
+比较查询集合时，保存相同范围的前后读取，按 ID 和目标字段核对；新增对象不自动进入原写入范围。按治理策略示例检查缺项或异常候选时，使用 `linear recipe doctor`，结果解释见 `linear guide doctor`。
