@@ -1,6 +1,6 @@
 # 运行可修改的只读治理检查
 
-按一套明确的组织规则检查任务和项目时使用。脚本通过 `linear api --paginate` 读取数据，输出候选与证据，不执行写入。命中项不等于缺陷，也不直接产生修复补丁。
+按一套明确的、可修改的治理规则检查任务和项目时使用。脚本是带主观看法的策略示例，不代表 Linear 的必填约束。脚本通过 `linear api --paginate` 读取数据，输出候选与证据，不执行写入。命中项不等于缺陷，也不直接产生修复补丁。
 
 执行需要 Deno 和当前 `linear`；`LINEAR_BIN` 可以固定 CLI 的绝对路径。脚本使用固定版本的 Deno 标准库参数解析模块，不依赖源码仓库或其配置；首次执行时 Deno 可能需要获取该依赖。仅从 CLI 读取说明或源码不需要 Deno 和网络。
 
@@ -24,4 +24,4 @@ deno run --allow-run --allow-env doctor.js self \
 jq '.findings[] | {target, id: (.issue.id // .project.id), ruleId, severity, field, evidence}' doctor.json
 ```
 
-`summary` 汇总严重度，`findings` 保存对象与逐项证据，按严重度、规则、对象排序。P0/P1/P2 是这份示例的组织策略，不是 Linear 的缺陷等级或必填约束。策略不适合本团队时修改导出的脚本；解释候选及复查方法见 `linear guide doctor`。
+`summary` 汇总严重度，`findings` 保存对象与逐项证据，按严重度、规则、对象排序。P0/P1/P2 是这份策略示例的可修改约定，不是 Linear 的缺陷等级或必填约束。策略不适合你的工作区时修改导出的脚本；解释候选及复查方法见 `linear guide doctor`。

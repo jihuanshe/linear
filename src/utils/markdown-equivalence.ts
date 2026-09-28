@@ -12,7 +12,6 @@ function comparableMarkdown(markdown: string): string {
     // Linear joins adjacent unordered lists split by different bullet markers.
     // Merge parsed siblings, not source text: rewriting '* ---' as '- ---'
     // would turn a list item into a top-level thematic break.
-    // https://linear.app/jihuanshe/issue/ARCH-231
     if ("children" in node) {
       for (let index = 1; index < node.children.length;) {
         const previous = node.children[index - 1]

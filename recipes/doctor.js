@@ -1,6 +1,7 @@
 #!/usr/bin/env -S deno run --allow-run --allow-env --allow-read
-// Organization policy lives here. Edit these conditions for your workspace.
-// All network access and complete pagination belong to the installed CLI.
+// This is an opinionated policy example. Edit these conditions for your
+// workspace. All network access and complete pagination belong to the
+// installed CLI.
 // The exported script must resolve its dependency without the repository import map.
 // deno-lint-ignore no-import-prefix
 import { parseArgs } from "jsr:@std/cli@1.0.32/parse-args"
@@ -398,7 +399,7 @@ if (import.meta.main) {
     if (flags.json) console.log(JSON.stringify(report, null, 2))
     else {
       console.log(
-        `Scanned ${report.scanned.issueCount} issues and ${report.scanned.projectCount} projects; ${report.findings.length} findings (organization policy)`,
+        `Scanned ${report.scanned.issueCount} issues and ${report.scanned.projectCount} projects; ${report.findings.length} findings (configured policy)`,
       )
       for (
         const finding of limit
