@@ -363,6 +363,7 @@ type AgentActivityErrorContent {
 The reason an agent activity was persisted without being sent to the agent runtime.
 """
 enum AgentActivityExecutionSkippedReason {
+  permissionDenied
   quotaExceeded
 }
 
@@ -602,8 +603,11 @@ type AgentSession implements Node {
   """
   archivedAt: DateTime
 
+  """[Internal] Coding harness metadata for this cloud or local session."""
+  codingHarness: AgentSessionCodingHarness
+
   """
-  [Internal] Compact display label for the coding harness model used by this session, derived from the latest associated sandbox.
+  [Internal] Compact display label for the coding harness model used by this cloud or local session.
   """
   codingHarnessModelLabel: String
 
@@ -712,7 +716,7 @@ type AgentSession implements Node {
   startedAt: DateTime
 
   """
-  The current status of the agent session, such as pending, active, awaiting input, complete, error, or stale.
+  The current status of the agent session, such as pending, active, stopping, awaiting input, complete, error, or stale.
   """
   status: AgentSessionStatus!
 
@@ -747,6 +751,17 @@ type AgentSession implements Node {
     """The diff content hash from workspaceDiff."""
     contentHash: String!
   ): [AgentSessionWorkspaceDiffFile!] @deprecated(reason: "Use Diff.files instead.")
+}
+
+"""
+[Internal] Coding harness metadata for a cloud or local coding session.
+"""
+type AgentSessionCodingHarness {
+  """The coding harness or local target used by the session."""
+  harness: String!
+
+  """Compact display label for the model used by the session."""
+  modelLabel: String!
 }
 
 type AgentSessionConnection {
@@ -845,6 +860,7 @@ enum AgentSessionStatus {
   error
   pending
   stale
+  stopping
 }
 
 """
@@ -1267,6 +1283,7 @@ The kind of acknowledgement the agent expresses when it has nothing meaningful t
 enum AiConversationAckKind {
   done
   ignored
+  skipped
   waiting
 }
 
@@ -1384,6 +1401,19 @@ type AiConversationConfirmationElicitationResponseData {
   kind: AiConversationElicitationKind!
 }
 
+type AiConversationContactSupportToolCall implements AiConversationBaseToolCall {
+  displayInfo: AiConversationToolDisplayInfo!
+
+  """The name of the tool that was called."""
+  name: AiConversationTool!
+
+  """The arguments of the tool call."""
+  rawArgs: JSON
+
+  """The result of the tool call."""
+  rawResult: JSON
+}
+
 type AiConversationCreateEntityToolCall implements AiConversationBaseToolCall {
   """The arguments to the tool call."""
   args: AiConversationCreateEntityToolCallArgs
@@ -1467,6 +1497,7 @@ type AiConversationDeleteEntityToolCallResult {
 """The kind of input an AI conversation elicitation asks for."""
 enum AiConversationElicitationKind {
   confirmation
+  entitySelection
   mcpServerConnection
   multipleChoice
 }
@@ -1484,6 +1515,9 @@ type AiConversationElicitationOption {
 
 """A structured request for user input shown with an AI conversation."""
 type AiConversationElicitationPart implements AiConversationBasePart {
+  """Entity type for entity selection."""
+  entityType: String
+
   """The ID of the part."""
   id: String!
 
@@ -1508,10 +1542,16 @@ type AiConversationElicitationPart implements AiConversationBasePart {
   """
   scope: AiConversationMcpServerConnectionScope
 
+  """Whether to select one or multiple entities."""
+  selection: String
+
   """
   The MCP server URL for a new connection. Null for reconnects and other elicitation kinds.
   """
   serverUrl: String
+
+  """Suggested entity identifiers."""
+  suggestedEntityIds: [String!]
 
   """The optional title shown above the elicitation choices."""
   title: String
@@ -1523,7 +1563,7 @@ type AiConversationElicitationPart implements AiConversationBasePart {
 """
 The kind-specific data recorded when a user answers an AI conversation elicitation.
 """
-union AiConversationElicitationResponseData = AiConversationConfirmationElicitationResponseData | AiConversationMcpServerConnectionElicitationResponseData | AiConversationMultipleChoiceElicitationResponseData
+union AiConversationElicitationResponseData = AiConversationConfirmationElicitationResponseData | AiConversationEntitySelectionElicitationResponseData | AiConversationMcpServerConnectionElicitationResponseData | AiConversationMultipleChoiceElicitationResponseData
 
 """A structured user response to an elicitation in an AI conversation."""
 type AiConversationElicitationResponsePart implements AiConversationBasePart {
@@ -1695,6 +1735,12 @@ enum AiConversationEntityListWidgetArgsEntitiesType {
   Team
   Template
   WorkflowDefinition
+}
+
+"""Selected entities in an entity selection elicitation."""
+type AiConversationEntitySelectionElicitationResponseData {
+  kind: AiConversationElicitationKind!
+  selectedEntityIds: [String!]!
 }
 
 """An error part in an AI conversation."""
@@ -2892,6 +2938,7 @@ type AiConversationTextPart implements AiConversationBasePart {
 enum AiConversationTool {
   Bash
   CodeIntelligence
+  ContactSupport
   CreateEntity
   CreateSandbox
   DeleteEntity
@@ -2940,7 +2987,7 @@ enum AiConversationTool {
 }
 
 """The tool call."""
-union AiConversationToolCall = AiConversationBashToolCall | AiConversationCodeIntelligenceToolCall | AiConversationCreateEntityToolCall | AiConversationCreateSandboxToolCall | AiConversationDeleteEntityToolCall | AiConversationGetMicrosoftTeamsConversationHistoryToolCall | AiConversationGetPullRequestCheckLogsToolCall | AiConversationGetPullRequestDiffToolCall | AiConversationGetPullRequestFileToolCall | AiConversationGetSlackConversationHistoryToolCall | AiConversationHandoffToCodingSessionToolCall | AiConversationInvokeMcpToolToolCall | AiConversationListCodingSessionsToolCall | AiConversationMemoryToolCall | AiConversationNavigateToPageToolCall | AiConversationNotifyUsersToolCall | AiConversationPatchSettingsToolCall | AiConversationPostChatMessageToolCall | AiConversationPromptCodingSessionToolCall | AiConversationQueryActivityToolCall | AiConversationQueryUpdatesToolCall | AiConversationQueryViewToolCall | AiConversationReadFileToolCall | AiConversationReadSandboxFileToolCall | AiConversationReadSettingToolCall | AiConversationRemoveSpendLimitToolCall | AiConversationResearchToolCall | AiConversationRestoreEntityToolCall | AiConversationRetrieveEntitiesToolCall | AiConversationRetryPullRequestCheckToolCall | AiConversationRunLoopToolCall | AiConversationSandboxGitHistoryToolCall | AiConversationSearchChatChannelsToolCall | AiConversationSearchDocumentationToolCall | AiConversationSearchEntitiesToolCall | AiConversationSearchSettingsToolCall | AiConversationSetSpendLimitToolCall | AiConversationSpawnSubagentToolCall | AiConversationStartCodingSessionToolCall | AiConversationSubscribeToEventToolCall | AiConversationSuggestRepositoryToolCall | AiConversationSuggestValuesToolCall | AiConversationTranscribeMediaToolCall | AiConversationTranscribeVideoToolCall | AiConversationUnsubscribeFromEventToolCall | AiConversationUpdateEntityToolCall | AiConversationWebSearchToolCall
+union AiConversationToolCall = AiConversationBashToolCall | AiConversationCodeIntelligenceToolCall | AiConversationContactSupportToolCall | AiConversationCreateEntityToolCall | AiConversationCreateSandboxToolCall | AiConversationDeleteEntityToolCall | AiConversationGetMicrosoftTeamsConversationHistoryToolCall | AiConversationGetPullRequestCheckLogsToolCall | AiConversationGetPullRequestDiffToolCall | AiConversationGetPullRequestFileToolCall | AiConversationGetSlackConversationHistoryToolCall | AiConversationHandoffToCodingSessionToolCall | AiConversationInvokeMcpToolToolCall | AiConversationListCodingSessionsToolCall | AiConversationMemoryToolCall | AiConversationNavigateToPageToolCall | AiConversationNotifyUsersToolCall | AiConversationPatchSettingsToolCall | AiConversationPostChatMessageToolCall | AiConversationPromptCodingSessionToolCall | AiConversationQueryActivityToolCall | AiConversationQueryUpdatesToolCall | AiConversationQueryViewToolCall | AiConversationReadFileToolCall | AiConversationReadSandboxFileToolCall | AiConversationReadSettingToolCall | AiConversationRemoveSpendLimitToolCall | AiConversationResearchToolCall | AiConversationRestoreEntityToolCall | AiConversationRetrieveEntitiesToolCall | AiConversationRetryPullRequestCheckToolCall | AiConversationRunLoopToolCall | AiConversationSandboxGitHistoryToolCall | AiConversationSearchChatChannelsToolCall | AiConversationSearchDocumentationToolCall | AiConversationSearchEntitiesToolCall | AiConversationSearchSettingsToolCall | AiConversationSetSpendLimitToolCall | AiConversationSpawnSubagentToolCall | AiConversationStartCodingSessionToolCall | AiConversationSubscribeToEventToolCall | AiConversationSuggestRepositoryToolCall | AiConversationSuggestValuesToolCall | AiConversationTranscribeMediaToolCall | AiConversationTranscribeVideoToolCall | AiConversationUnsubscribeFromEventToolCall | AiConversationUpdateEntityToolCall | AiConversationWebSearchToolCall
 
 """A tool call part in an AI conversation."""
 type AiConversationToolCallPart implements AiConversationBasePart {
@@ -4574,7 +4621,9 @@ input CommentCreateInput {
   """
   id: String
 
-  """The initiative to associate the comment with."""
+  """
+  The initiative to associate the comment with. Can be a UUID or initiative identifier (e.g., 'I-12').
+  """
   initiativeId: String
 
   """The initiative update to associate the comment with."""
@@ -4591,7 +4640,9 @@ input CommentCreateInput {
   """The post to associate the comment with."""
   postId: String
 
-  """The project to associate the comment with."""
+  """
+  The project to associate the comment with. Can be a UUID or project identifier (e.g., 'P-LIN-123').
+  """
   projectId: String
 
   """The project update to associate the comment with."""
@@ -4738,9 +4789,7 @@ input ContactCreateInput {
   """The user's operating system name and version (e.g., 'macOS 14.0')."""
   operatingSystem: String
 
-  """
-  The type of support contact (e.g., bug report, feature request, general feedback).
-  """
+  """The type of support contact."""
   type: String!
 }
 
@@ -5281,6 +5330,11 @@ type CustomViewNotificationSubscription implements Entity & Node & NotificationS
 
   """The unique identifier of the entity."""
   id: ID!
+
+  """
+  Whether initiative update notifications also include updates from sub-initiatives. Applies only when initiative updates are enabled and the workspace supports sub-initiatives.
+  """
+  includeSubInitiativeUpdates: Boolean!
 
   """
   The initiative that this notification subscription is scoped to. Null if the subscription targets a different entity type.
@@ -5890,7 +5944,7 @@ input CustomerNeedCreateInput {
   priority: Float
 
   """
-  [INTERNAL] The project to link this need to. Either issueId or projectId must be provided.
+  [INTERNAL] The project to link this need to. Accepts a UUID or project identifier (e.g., 'P-LIN-123'). Either issueId or projectId must be provided.
   """
   projectId: String
 }
@@ -6125,7 +6179,9 @@ input CustomerNeedUpdateInput {
   """
   priority: Float
 
-  """[INTERNAL] The project to move this need to."""
+  """
+  [INTERNAL] The project to move this need to. Accepts a UUID or project identifier (e.g., 'P-LIN-123').
+  """
   projectId: String
 }
 
@@ -6305,6 +6361,11 @@ type CustomerNotificationSubscription implements Entity & Node & NotificationSub
 
   """The unique identifier of the entity."""
   id: ID!
+
+  """
+  Whether initiative update notifications also include updates from sub-initiatives. Applies only when initiative updates are enabled and the workspace supports sub-initiatives.
+  """
+  includeSubInitiativeUpdates: Boolean!
 
   """
   The initiative that this notification subscription is scoped to. Null if the subscription targets a different entity type.
@@ -7306,6 +7367,11 @@ type CycleNotificationSubscription implements Entity & Node & NotificationSubscr
   id: ID!
 
   """
+  Whether initiative update notifications also include updates from sub-initiatives. Applies only when initiative updates are enabled and the workspace supports sub-initiatives.
+  """
+  includeSubInitiativeUpdates: Boolean!
+
+  """
   The initiative that this notification subscription is scoped to. Null if the subscription targets a different entity type.
   """
   initiative: Initiative
@@ -7606,6 +7672,43 @@ type DeletePayload implements ArchivePayload {
 
   """Whether the operation was successful."""
   success: Boolean!
+}
+
+"""A package registry a dependency file's packages can be looked up in."""
+enum DependencyEcosystem {
+  npm
+}
+
+"""One package version to look up registry metadata for."""
+input DependencyPackageInput {
+  """The registry the package comes from."""
+  ecosystem: DependencyEcosystem!
+
+  """Package name."""
+  name: String!
+
+  """Package version."""
+  version: String!
+}
+
+"""Registry metadata for one dependency package version."""
+type DependencyPackageMetadataResult {
+  """SPDX license identifier. Null if the registry doesn't report one."""
+  license: String
+
+  """Package name, echoed back from the request."""
+  name: String!
+
+  """
+  When this version was published. Null if the registry doesn't report it.
+  """
+  publishedAt: DateTime
+
+  """Package version, echoed back from the request."""
+  version: String!
+
+  """Weekly download count. Null if the registry doesn't report it."""
+  weeklyDownloads: Float
 }
 
 """
@@ -8202,7 +8305,9 @@ input DocumentCreateInput {
   """
   id: String
 
-  """[Internal] Related initiative for the document."""
+  """
+  [Internal] Related initiative for the document. Can be a UUID or initiative identifier (e.g., 'I-12').
+  """
   initiativeId: String
 
   """
@@ -8218,7 +8323,9 @@ input DocumentCreateInput {
   """
   ownerId: String
 
-  """Related project for the document."""
+  """
+  Related project for the document. Can be a UUID or project identifier (e.g., 'P-LIN-123').
+  """
   projectId: String
 
   """Related release for the document."""
@@ -8716,7 +8823,9 @@ input DocumentUpdateInput {
   """The icon of the document."""
   icon: String
 
-  """[Internal] Related initiative for the document."""
+  """
+  [Internal] Related initiative for the document. Can be a UUID or initiative identifier (e.g., 'I-12').
+  """
   initiativeId: String
 
   """
@@ -8730,7 +8839,9 @@ input DocumentUpdateInput {
   """The owner of the document. Set to null to clear."""
   ownerId: String
 
-  """Related project for the document."""
+  """
+  Related project for the document. Can be a UUID or project identifier (e.g., 'P-LIN-123').
+  """
   projectId: String
 
   """Related release for the document."""
@@ -9407,13 +9518,17 @@ input EntityExternalLinkCreateInput {
   """
   id: String
 
-  """The initiative associated with the link."""
+  """
+  The initiative associated with the link. Can be a UUID or initiative identifier (e.g., 'I-12').
+  """
   initiativeId: String
 
   """The label for the link."""
   label: String!
 
-  """The project associated with the link."""
+  """
+  The project associated with the link. Can be a UUID or project identifier (e.g., 'P-LIN-123').
+  """
   projectId: String
 
   """The release associated with the link."""
@@ -10680,11 +10795,29 @@ type GitLabIntegrationCreatePayload {
 }
 
 input GitLabSettingsInput {
+  """Whether the token supports self-rotation."""
+  canSelfRotate: Boolean
+
   """The ISO timestamp the GitLab access token expires."""
   expiresAt: String
 
+  """The ISO timestamp of the last successful token rotation."""
+  lastRotatedAt: String
+
+  """The ISO timestamp of the next automatic token rotation."""
+  nextRotationAt: String
+
   """Whether the token is limited to a read-only scope."""
   readonly: Boolean
+
+  """Whether Linear automatically rotates the token."""
+  rotationEnabled: Boolean
+
+  """The reason token rotation needs attention."""
+  rotationFailureReason: String
+
+  """Verified scopes of the GitLab access token."""
+  scopes: [String!]
 
   """The self-hosted URL of the GitLab instance."""
   url: String
@@ -12256,6 +12389,11 @@ type InitiativeNotificationSubscription implements Entity & Node & NotificationS
 
   """The unique identifier of the entity."""
   id: ID!
+
+  """
+  Whether initiative update notifications also include updates from sub-initiatives. Applies only when initiative updates are enabled and the workspace supports sub-initiatives.
+  """
+  includeSubInitiativeUpdates: Boolean!
 
   """The initiative subscribed to."""
   initiative: Initiative!
@@ -14696,7 +14834,9 @@ input IssueCreateInput {
   """
   prioritySortOrder: Float
 
-  """The project associated with the issue."""
+  """
+  The project associated with the issue. Can be a UUID or project identifier (e.g., 'P-LIN-123').
+  """
   projectId: String
 
   """The project milestone associated with the issue."""
@@ -17682,7 +17822,9 @@ input IssueUpdateInput {
   """
   prioritySortOrder: Float
 
-  """The project associated with the issue."""
+  """
+  The project associated with the issue. Can be a UUID or project identifier (e.g., 'P-LIN-123').
+  """
   projectId: String
 
   """The project milestone associated with the issue."""
@@ -17904,6 +18046,11 @@ input JiraUpdateInput {
   """
   accessToken: String
 
+  """
+  The mapped Jira project to use as its team's default. Omit to keep the current default.
+  """
+  defaultProjectId: String
+
   """Whether to delete the current manual webhook configuration."""
   deleteWebhook: Boolean
 
@@ -17912,9 +18059,6 @@ input JiraUpdateInput {
 
   """The id of the integration to update."""
   id: String!
-
-  """Whether the Jira instance does not support webhook secrets."""
-  noSecret: Boolean
 
   """Whether to refresh Jira metadata for the integration."""
   updateMetadata: Boolean
@@ -17991,6 +18135,11 @@ type LabelNotificationSubscription implements Entity & Node & NotificationSubscr
 
   """The unique identifier of the entity."""
   id: ID!
+
+  """
+  Whether initiative update notifications also include updates from sub-initiatives. Applies only when initiative updates are enabled and the workspace supports sub-initiatives.
+  """
+  includeSubInitiativeUpdates: Boolean!
 
   """
   The initiative that this notification subscription is scoped to. Null if the subscription targets a different entity type.
@@ -18146,6 +18295,12 @@ input McpServerCustomHeaderInput {
 }
 
 input McpServerIntegrationSettingsInput {
+  """Who may use this connector in conversations."""
+  conversationAccess: String
+
+  """Who may add this connector to a Loop."""
+  loopAccess: String
+
   """The connection-specific display name."""
   name: String
 }
@@ -19716,12 +19871,38 @@ type Mutation {
   ): GitLabIntegrationCreatePayload!
 
   """
+  Rotates the GitLab token, revoking the previous token and saving its replacement.
+  """
+  integrationGitlabRotate(integrationId: String!): IntegrationPayload!
+
+  """
   Tests connectivity to a self-hosted GitLab instance and clears auth errors if successful.
   """
   integrationGitlabTestConnection(
     """The ID of the GitLab integration to test."""
     integrationId: String!
   ): GitLabTestConnectionPayload!
+
+  """Enables or disables automatic self-rotation of the GitLab token."""
+  integrationGitlabUpdateRotationSettings(enabled: Boolean!, integrationId: String!): IntegrationPayload!
+
+  """
+  Replaces the GitLab access token while preserving the connected host and webhook.
+  """
+  integrationGitlabUpdateToken(
+    accessToken: String!
+
+    """
+    The time at which the replacement token expires. Used when GitLab cannot return its expiry.
+    """
+    expiresAt: DateTime
+    integrationId: String!
+
+    """
+    Whether the replacement token has read-only access. Required when GitLab cannot return its scopes.
+    """
+    readonly: Boolean
+  ): IntegrationPayload!
 
   """Integrates the workspace with Gong."""
   integrationGong(
@@ -19786,6 +19967,11 @@ type Mutation {
 
     """The Jira OAuth code, when connecting using OAuth."""
     code: String
+
+    """
+    The workspace Jira integration to connect to. Required when the connection would otherwise be ambiguous.
+    """
+    workspaceIntegrationId: String
   ): IntegrationPayload!
 
   """[INTERNAL] Updates a Jira Integration."""
@@ -19829,6 +20015,9 @@ type Mutation {
 
     """The URL of the MCP server to connect with."""
     serverUrl: String!
+
+    """Access settings for a new team MCP connector."""
+    settings: McpServerIntegrationSettingsInput
 
     """The ID of the team to connect the MCP server to."""
     teamId: String
@@ -21753,6 +21942,11 @@ type Mutation {
   userExternalUserDisconnect(
     """The external service to disconnect."""
     service: String!
+
+    """
+    The workspace Jira integration whose account mapping to remove. If omitted, removes all Jira mappings without a personal connection.
+    """
+    workspaceIntegrationId: String
   ): UserPayload!
 
   """
@@ -22476,6 +22670,11 @@ interface NotificationSubscription implements Entity & Node {
   id: ID!
 
   """
+  Whether initiative update notifications also include updates from sub-initiatives. Applies only when initiative updates are enabled and the workspace supports sub-initiatives.
+  """
+  includeSubInitiativeUpdates: Boolean!
+
+  """
   The initiative that this notification subscription is scoped to. Null if the subscription targets a different entity type.
   """
   initiative: Initiative
@@ -22548,6 +22747,9 @@ input NotificationSubscriptionCreateInput {
   The identifier in UUID v4 format. If none is provided, the backend will generate one.
   """
   id: String
+
+  """Whether to include updates from sub-initiatives."""
+  includeSubInitiativeUpdates: Boolean
 
   """The identifier of the initiative to subscribe to."""
   initiativeId: String
@@ -22633,6 +22835,9 @@ Input for updating an existing notification subscription. Allows changing the su
 input NotificationSubscriptionUpdateInput {
   """Whether the subscription is active."""
   active: Boolean
+
+  """Whether to include updates from sub-initiatives."""
+  includeSubInitiativeUpdates: Boolean
 
   """
   The specific notification event types the subscriber wants to receive. Replaces all previously configured types.
@@ -27941,7 +28146,9 @@ input ProjectMilestoneCreateInput {
   """The name of the project milestone."""
   name: String!
 
-  """Related project for the project milestone."""
+  """
+  Related project for the project milestone. Can be a UUID or project identifier (e.g., 'P-LIN-123').
+  """
   projectId: String!
 
   """The sort order for the project milestone within a project."""
@@ -28111,7 +28318,9 @@ input ProjectMilestoneUpdateInput {
   """The name of the project milestone."""
   name: String
 
-  """Related project for the project milestone."""
+  """
+  Related project for the project milestone. Can be a UUID or project identifier (e.g., 'P-LIN-123').
+  """
   projectId: String
 
   """The sort order for the project milestone within a project."""
@@ -28324,6 +28533,11 @@ type ProjectNotificationSubscription implements Entity & Node & NotificationSubs
   id: ID!
 
   """
+  Whether initiative update notifications also include updates from sub-initiatives. Applies only when initiative updates are enabled and the workspace supports sub-initiatives.
+  """
+  includeSubInitiativeUpdates: Boolean!
+
+  """
   The initiative that this notification subscription is scoped to. Null if the subscription targets a different entity type.
   """
   initiative: Initiative
@@ -28464,7 +28678,9 @@ input ProjectRelationCreateInput {
   """
   id: String
 
-  """The identifier of the project that is related to another project."""
+  """
+  The identifier of the project that is related to another project. Can be a UUID or project identifier (e.g., 'P-LIN-123').
+  """
   projectId: String!
 
   """The identifier of the project milestone."""
@@ -28473,7 +28689,9 @@ input ProjectRelationCreateInput {
   """The type of the anchor for the related project."""
   relatedAnchorType: String!
 
-  """The identifier of the related project."""
+  """
+  The identifier of the related project. Can be a UUID or project identifier (e.g., 'P-LIN-123').
+  """
   relatedProjectId: String!
 
   """The identifier of the related project milestone."""
@@ -28506,7 +28724,9 @@ input ProjectRelationUpdateInput {
   """The type of the anchor for the project."""
   anchorType: String
 
-  """The identifier of the project that is related to another project."""
+  """
+  The identifier of the project that is related to another project. Can be a UUID or project identifier (e.g., 'P-LIN-123').
+  """
   projectId: String
 
   """The identifier of the project milestone."""
@@ -28515,7 +28735,9 @@ input ProjectRelationUpdateInput {
   """The type of the anchor for the related project."""
   relatedAnchorType: String
 
-  """The identifier of the related project."""
+  """
+  The identifier of the related project. Can be a UUID or project identifier (e.g., 'P-LIN-123').
+  """
   relatedProjectId: String
 
   """The identifier of the related project milestone."""
@@ -29707,7 +29929,9 @@ input ProjectUpdateCreateInput {
   """
   isDiffHidden: Boolean
 
-  """The project to associate the project update with."""
+  """
+  The project to associate the project update with. Can be a UUID or project identifier (e.g., 'P-LIN-123').
+  """
   projectId: String!
 }
 
@@ -31145,6 +31369,11 @@ type Query {
     """
     orderBy: PaginationOrderBy
   ): CycleConnection!
+
+  """
+  Registry metadata (license, publish date, weekly download count) for a batch of dependency package versions, used by the dependency lock file diff preview. Cached across all workspaces since registry data isn't workspace-specific. A package the registry has no data for (or an unsupported ecosystem) is simply omitted from the result rather than erroring. At most 500 packages per request.
+  """
+  dependencyPackageMetadata(packages: [DependencyPackageInput!]!): [DependencyPackageMetadataResult!]!
 
   """[Internal] A specific diff."""
   diff(
@@ -36402,6 +36631,15 @@ type Subscription {
   """Triggered when a project is created"""
   projectCreated: Project!
 
+  """Triggered when a project label is created"""
+  projectLabelCreated: ProjectLabel!
+
+  """Triggered when a project label is deleted"""
+  projectLabelDeleted: ProjectLabel!
+
+  """Triggered when a project label is updated"""
+  projectLabelUpdated: ProjectLabel!
+
   """Triggered when a a project is unarchived"""
   projectUnarchived: Project!
 
@@ -37689,6 +37927,11 @@ type TeamNotificationSubscription implements Entity & Node & NotificationSubscri
 
   """The unique identifier of the entity."""
   id: ID!
+
+  """
+  Whether initiative update notifications also include updates from sub-initiatives. Applies only when initiative updates are enabled and the workspace supports sub-initiatives.
+  """
+  includeSubInitiativeUpdates: Boolean!
 
   """
   The initiative that this notification subscription is scoped to. Null if the subscription targets a different entity type.
@@ -39630,6 +39873,11 @@ type UserNotificationSubscription implements Entity & Node & NotificationSubscri
   id: ID!
 
   """
+  Whether initiative update notifications also include updates from sub-initiatives. Applies only when initiative updates are enabled and the workspace supports sub-initiatives.
+  """
+  includeSubInitiativeUpdates: Boolean!
+
+  """
   The initiative that this notification subscription is scoped to. Null if the subscription targets a different entity type.
   """
   initiative: Initiative
@@ -39745,6 +39993,9 @@ type UserSettings implements Node {
   [Internal] The user's preferred merge method for pull requests. Null if the user chooses a method for each pull request.
   """
   pullRequestMergeStrategyPreference: PullRequestMergeMethod
+
+  """Whether to show line numbers in code blocks."""
+  showCodeBlockLineNumbers: Boolean!
 
   """Whether to show full user names instead of display names."""
   showFullUserNames: Boolean!
