@@ -44,8 +44,8 @@ Options:
   --state-name        <name>        - Filter by exact workflow state name (case-insensitive; can be repeated)                                        
   --assignee          <assignee>    - Filter by assignee (user UUID, username, name, email, 'self', or '@me')                                        
   -U, --unassigned                  - Show only unassigned issues                                                                                    
-  --sort              <sort>        - Sort order: manual or priority (default: priority, not available with --search)                    (Values:    
-                                                                                                                                         "manual",   
+  --sort              <sort>        - Sort order within workflow state, active states (started, unstarted, backlog, triage) before       (Values:    
+                                      completed and canceled: manual or priority (default: priority, not available with --search)        "manual",   
                                                                                                                                          "priority") 
   --project           <project>     - Filter by project (UUID, slug ID, name, or Linear URL)                                                         
   --unprojected                     - Show only issues that are not assigned to a project                                                            

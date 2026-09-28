@@ -61,7 +61,7 @@ stdout:
 https://linear.app/test-team/issue/ENG-123/fix-authentication-bug
 "
 stderr:
-"ENG-123 has no --project or --parent. Decide ownership from the candidate Project's full content and the related Initiative content (linear guide issue-authoring), then run: issue update ENG-123 --project <project>
+"ENG-123 has no --project or --parent. Decide ownership from the candidate Project's full content and the related Initiative content (linear guide issue-authoring), then save the original read and set the project: (set -C; linear issue view 'ENG-123' --json > original.json) && linear issue update 'ENG-123' --project <project> --base-file original.json
 "
 `;
 
@@ -80,7 +80,7 @@ stdout:
 https://linear.app/test-team/issue/ENG-456/test-case-insensitive-labels
 "
 stderr:
-"ENG-456 has no --project or --parent. Decide ownership from the candidate Project's full content and the related Initiative content (linear guide issue-authoring), then run: issue update ENG-456 --project <project>
+"ENG-456 has no --project or --parent. Decide ownership from the candidate Project's full content and the related Initiative content (linear guide issue-authoring), then save the original read and set the project: (set -C; linear issue view 'ENG-456' --json > original.json) && linear issue update 'ENG-456' --project <project> --base-file original.json
 "
 `;
 
@@ -99,7 +99,7 @@ stdout:
 https://linear.app/test-team/issue/ENG-890/test-cycle-feature
 "
 stderr:
-"ENG-890 has no --project or --parent. Decide ownership from the candidate Project's full content and the related Initiative content (linear guide issue-authoring), then run: issue update ENG-890 --project <project>
+"ENG-890 has no --project or --parent. Decide ownership from the candidate Project's full content and the related Initiative content (linear guide issue-authoring), then save the original read and set the project: (set -C; linear issue view 'ENG-890' --json > original.json) && linear issue update 'ENG-890' --project <project> --base-file original.json
 "
 `;
 

@@ -162,6 +162,7 @@ for (const interactive of [false, true]) {
               documentCreate: {
                 success: true,
                 document: {
+                  issue: { id: parentIssueId },
                   id: "document",
                   title: "Spec",
                   url: "https://linear.app/test/document/spec",
@@ -322,6 +323,7 @@ for (
           documentCreate: {
             success: true,
             document: {
+              project: { id: parentProjectId },
               id: "doc-1",
               title: "Spec",
               url: "https://linear.app/test",
@@ -408,6 +410,7 @@ await snapshotTest({
             documentCreate: {
               success: true,
               document: {
+                project: { id: parentProjectId },
                 id: "doc-new",
                 slugId: "newd0c12345",
                 title: "Test Document",
@@ -475,6 +478,7 @@ await snapshotTest({
             documentCreate: {
               success: true,
               document: {
+                project: { id: "project-uuid-123" },
                 id: "doc-proj",
                 slugId: "projd0c456",
                 title: "Project Spec",
@@ -537,6 +541,7 @@ await snapshotTest({
             documentCreate: {
               success: true,
               document: {
+                issue: { id: "issue-uuid-456" },
                 id: "doc-issue",
                 slugId: "issued0c789",
                 title: "Investigation",
@@ -596,6 +601,7 @@ await snapshotTest({
             documentCreate: {
               success: true,
               document: {
+                project: { id: parentProjectId },
                 id: "doc-icon",
                 slugId: "icond0c000",
                 title: "Design Doc",
@@ -641,3 +647,79 @@ await snapshotTest({
 })
 
 // NOTE: "API Error" test removed - stack traces contain machine-specific paths
+
+for (
+  const parent of [
+    {
+      option: "--project",
+      value: parentProjectId,
+      returned: { project: null },
+    },
+    {
+      option: "--issue",
+      value: parentIssueId,
+      returned: { issue: { id: "ffffffff-ffff-4fff-8fff-ffffffffffff" } },
+    },
+  ]
+) {
+  Deno.test(`document create ${parent.option} keeps applied when the receipt lacks the requested parent`, async () => {
+    const server = new MockLinearServer([
+      {
+        queryName: "GetIssueId",
+        response: { data: { issue: { id: parentIssueId } } },
+      },
+      {
+        queryName: "CreateDocument",
+        response: {
+          data: {
+            documentCreate: {
+              success: true,
+              document: {
+                id: "doc-1",
+                title: "Spec",
+                url: "https://linear.app/test",
+                ...parent.returned,
+              },
+            },
+          },
+        },
+      },
+    ])
+    try {
+      await server.start()
+      const result = await new Deno.Command(Deno.execPath(), {
+        args: [
+          "run",
+          ...commonDenoArgs,
+          "src/main.ts",
+          "document",
+          "create",
+          "--title",
+          "Spec",
+          "--content",
+          "Body",
+          parent.option,
+          parent.value,
+          "--json",
+        ],
+        env: {
+          LINEAR_GRAPHQL_ENDPOINT: server.getEndpoint(),
+          LINEAR_API_KEY: "test-token",
+        },
+      }).output()
+      const body = JSON.parse(new TextDecoder().decode(result.stdout))
+      assertEquals(result.code, 1, JSON.stringify(body))
+      assertEquals(body.ok, false)
+      assertEquals(body.effect, "applied")
+      assertEquals(body.error.message.includes("association"), true)
+      assertEquals(
+        server.graphqlRequests.filter((request) =>
+          request.query.includes("mutation")
+        ).length,
+        1,
+      )
+    } finally {
+      await server.stop()
+    }
+  })
+}

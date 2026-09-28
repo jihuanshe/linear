@@ -354,7 +354,7 @@ snapshot[`usage JSON describes command metadata 1`] = `
               variadic: false,
             },
           ],
-          description: "Sort order: manual or priority (default: priority, not available with --search)",
+          description: "Sort order within workflow state, active states (started, unstarted, backlog, triage) before completed and canceled: manual or priority (default: priority, not available with --search)",
           flags: [
             "--sort",
           ],

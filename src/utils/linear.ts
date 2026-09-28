@@ -1504,17 +1504,20 @@ export async function fetchIssuesForQuery(
   }
 
   const sort = options.sort ?? "priority"
+  // Ascending workflow state order lists started, unstarted, backlog and
+  // triage before completed, canceled and duplicate, so a bounded page shows
+  // active work instead of closed history.
   let sortPayload: Array<IssueSortInput>
   switch (sort) {
     case "manual":
       sortPayload = [
-        { workflowState: { order: "Descending" } },
+        { workflowState: { order: "Ascending" } },
         { manual: { nulls: "last" as const, order: "Ascending" as const } },
       ]
       break
     case "priority":
       sortPayload = [
-        { workflowState: { order: "Descending" } },
+        { workflowState: { order: "Ascending" } },
         { priority: { nulls: "last" as const, order: "Descending" as const } },
         { manual: { nulls: "last" as const, order: "Ascending" as const } },
       ]
@@ -2016,17 +2019,37 @@ export async function searchIssuesByTerm(
   const initial = await fetchPage()
   // An omitted limit deliberately returns Linear's default first page. Only
   // an explicit zero asks this helper to accumulate the complete connection.
-  const connection = options.limit == null ? initial : await completeConnection(
-    initial,
-    fetchPage,
-    "issue search",
-    options.limit,
-  )
+  const connection = options.limit == null
+    ? endAtEmptySearchPage(initial)
+    : await completeConnection(
+      endAtEmptySearchPage(initial),
+      async (after, first) =>
+        endAtEmptySearchPage(await fetchPage(after, first)),
+      "issue search",
+      options.limit,
+    )
   return {
     nodes: await completeQueryIssueConnections(connection.nodes),
     pageInfo: connection.pageInfo,
     totalCount,
   }
+}
+
+/**
+ * With a filter, searchIssues keeps hasNextPage: true after the last match
+ * (its totalCount ignores the filter too) and answers the continuation, or a
+ * search with no match at all, with no nodes and a null endCursor. Paging
+ * live filtered searches with page sizes from 1 to 100 returned the same
+ * matches as filtering the unfiltered search, and this empty page came only at
+ * the end, so it marks completion. A nonempty page without a cursor still
+ * fails in completeConnection.
+ */
+function endAtEmptySearchPage(page: SearchIssuesPayload): SearchIssuesPayload {
+  if (
+    !Array.isArray(page?.nodes) || page.nodes.length > 0 ||
+    page.pageInfo?.endCursor != null
+  ) return page
+  return { ...page, pageInfo: { hasNextPage: false, endCursor: null } }
 }
 
 const UUID_REGEX =

@@ -4,7 +4,11 @@ import {
   type UpdateIssueOptions,
   validateIssueWriteOptions,
 } from "./issue-update.ts"
-import type { FieldReader } from "../../utils/replacement.ts"
+import {
+  type FieldReader,
+  linearCommandLine,
+  shellTarget,
+} from "../../utils/replacement.ts"
 import { resolveTeam } from "../../utils/issue-read.ts"
 import { writeResult } from "../../utils/write-result.ts"
 import {
@@ -17,7 +21,7 @@ import { withUsageMetadata } from "../usage.ts"
 import { withMarkdownHint } from "../../utils/markdown-help.ts"
 import { Checkbox, Input, Select } from "../../utils/prompt.ts"
 import { gql } from "../../__codegen__/gql.ts"
-import { getOption } from "../../config.ts"
+import { getCliWorkspace, getOption } from "../../config.ts"
 import { getGraphQLClient } from "../../utils/graphql.ts"
 import { getEditor, openEditor } from "../../utils/editor.ts"
 import { readTextSource } from "../../utils/text-source.ts"
@@ -793,7 +797,26 @@ export async function createIssue(options: CreateIssueOptions) {
 
 /** Printed on stderr after the write; the create is never blocked. */
 export function missingProjectReminder(identifier: string): string {
-  return `${identifier} has no --project or --parent. Decide ownership from the candidate Project's full content and the related Initiative content (linear guide issue-authoring), then run: issue update ${identifier} --project <project>`
+  // `issue update --project` is a protected replacement: it needs a saved read.
+  const workspace = getCliWorkspace()
+  const target = shellTarget(identifier)
+  const read = linearCommandLine(
+    ["issue", "view", target, "--json"],
+    workspace,
+  )
+  const update = linearCommandLine(
+    [
+      "issue",
+      "update",
+      target,
+      "--project",
+      "<project>",
+      "--base-file",
+      "original.json",
+    ],
+    workspace,
+  )
+  return `${identifier} has no --project or --parent. Decide ownership from the candidate Project's full content and the related Initiative content (linear guide issue-authoring), then save the original read and set the project: (set -C; ${read} > original.json) && ${update}`
 }
 
 export const createCommand = withUsageMetadata(new Command(), {
