@@ -13,14 +13,18 @@ commands:
 
 ## 保存清单
 
-先读取要修改的对象。以下命令在当前目录保存原始依据：读取先写入同目录的临时文件，成功后才用 `ln` 落为 `original.json`，已有同名文件时拒绝覆盖；读取失败时把结果打印到 stderr，不留下文件，修正原因后可以原样重跑。
+先读取要修改的对象。以下命令在当前目录保存原始依据：`original.json` 已存在（文件、目录或链接）时直接拒绝；读取先写入同目录的临时文件，成功后才用 `ln` 落为 `original.json`；读取失败时把结果打印到 stderr，不留下文件，修正原因后可以原样重跑。在 `set -e`、`set -C` 下同样适用。
 
 ```bash
 (
+  if [ -e original.json ] || [ -L original.json ]; then
+    echo 'original.json exists' >&2
+    exit 1
+  fi
   t=$(mktemp original.json.XXXXXX) || exit
-  linear issue view ENG-123 --json >|"$t" || { cat "$t" >&2; rm -f "$t"; exit 1; }
-  ln "$t" original.json
-  s=$?
+  s=0
+  linear issue view ENG-123 --json >|"$t" || { cat "$t" >&2; s=1; }
+  [ "$s" != 0 ] || ln "$t" original.json || s=1
   rm -f "$t"
   exit "$s"
 )

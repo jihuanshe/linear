@@ -50,12 +50,13 @@ export function shellTarget(target: string): string {
 }
 
 /**
- * POSIX shell line that saves a read as original.json only after it succeeds,
- * never replacing an existing basis; a failed read prints its result on stderr
- * and leaves nothing behind, so the same line can be retried.
+ * POSIX shell line that saves a read as original.json only after it succeeds.
+ * Any existing path there (file, directory or link) is kept and rejected; a
+ * failed read prints its result on stderr and leaves nothing behind, so the
+ * same line can be retried. Safe under `set -e` and `set -C`.
  */
 export function saveOriginalReadLine(readCommand: string): string {
-  return `(t=$(mktemp original.json.XXXXXX) || exit; ${readCommand} >| "$t" || { cat "$t" >&2; rm -f "$t"; exit 1; }; ln "$t" original.json; s=$?; rm -f "$t"; exit "$s")`
+  return `(if [ -e original.json ] || [ -L original.json ]; then echo 'original.json exists' >&2; exit 1; fi; t=$(mktemp original.json.XXXXXX) || exit; s=0; ${readCommand} >| "$t" || { cat "$t" >&2; s=1; }; [ "$s" != 0 ] || ln "$t" original.json || s=1; rm -f "$t"; exit "$s")`
 }
 
 function missingBasisSuggestion(read?: ReplacementReadCommand): string {

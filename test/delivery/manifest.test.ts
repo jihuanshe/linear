@@ -161,7 +161,7 @@ Deno.test("manifest missing basis explains recovery for the specific entry and w
     const suggestion = error.suggestion!
     assertStringIncludes(
       suggestion,
-      `(t=$(mktemp original.json.XXXXXX) || exit; linear --workspace 'delivery-workspace' issue view 'ENG-2048' --json >| "$t" || { cat "$t" >&2; rm -f "$t"; exit 1; }; ln "$t" original.json; s=$?; rm -f "$t"; exit "$s")`,
+      `(if [ -e original.json ] || [ -L original.json ]; then echo 'original.json exists' >&2; exit 1; fi; t=$(mktemp original.json.XXXXXX) || exit; s=0; linear --workspace 'delivery-workspace' issue view 'ENG-2048' --json >| "$t" || { cat "$t" >&2; s=1; }; [ "$s" != 0 ] || ln "$t" original.json || s=1; rm -f "$t"; exit "$s")`,
     )
     assertStringIncludes(suggestion, "Stop if it fails")
     assertStringIncludes(
@@ -273,7 +273,7 @@ ${command}`,
         assertEquals(f.server.graphqlRequests, [])
 
         const readCommand = suggestion.match(
-          /\(t=\$\(mktemp original\.json\.XXXXXX\).*?exit "\$s"\)/,
+          /\(if \[ -e original\.json \].*?exit "\$s"\)/,
         )![0]
         const baseFile = join(f.dir, "original.json")
         const leftovers = async () =>
@@ -299,10 +299,12 @@ ${command}`,
           originalRead.issue,
         )
 
-        const repeated = await run(readCommand)
+        const requestsBeforeRepeat = f.server.graphqlRequests.length
+        const repeated = await run(`set -eC; ${readCommand}`)
         assertEquals(repeated.success, false)
         assertEquals(await Deno.readTextFile(baseFile), saved)
         assertEquals(await leftovers(), ["original.json"])
+        assertEquals(f.server.graphqlRequests.length, requestsBeforeRepeat)
         originalRead.organization.urlKey = "another-workspace"
         await Deno.writeTextFile(baseFile, JSON.stringify(originalRead))
         await assertRejects(

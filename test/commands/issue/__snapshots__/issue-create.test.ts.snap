@@ -61,7 +61,7 @@ stdout:
 https://linear.app/test-team/issue/ENG-123/fix-authentication-bug
 "
 stderr:
-\`ENG-123 has no --project or --parent. Decide ownership from the candidate Project's full content and the related Initiative content (linear guide issue-authoring), then save the original read and set the project: (t=\$(mktemp original.json.XXXXXX) || exit; linear issue view 'ENG-123' --json >| "\$t" || { cat "\$t" >&2; rm -f "\$t"; exit 1; }; ln "\$t" original.json; s=\$?; rm -f "\$t"; exit "\$s") && linear issue update 'ENG-123' --project <project> --base-file original.json
+\`ENG-123 has no --project or --parent. Decide ownership from the candidate Project's full content and the related Initiative content (linear guide issue-authoring), then save the original read and set the project: (if [ -e original.json ] || [ -L original.json ]; then echo 'original.json exists' >&2; exit 1; fi; t=\$(mktemp original.json.XXXXXX) || exit; s=0; linear issue view 'ENG-123' --json >| "\$t" || { cat "\$t" >&2; s=1; }; [ "\$s" != 0 ] || ln "\$t" original.json || s=1; rm -f "\$t"; exit "\$s") && linear issue update 'ENG-123' --project <project> --base-file original.json
 \`
 `;
 
@@ -80,7 +80,7 @@ stdout:
 https://linear.app/test-team/issue/ENG-456/test-case-insensitive-labels
 "
 stderr:
-\`ENG-456 has no --project or --parent. Decide ownership from the candidate Project's full content and the related Initiative content (linear guide issue-authoring), then save the original read and set the project: (t=\$(mktemp original.json.XXXXXX) || exit; linear issue view 'ENG-456' --json >| "\$t" || { cat "\$t" >&2; rm -f "\$t"; exit 1; }; ln "\$t" original.json; s=\$?; rm -f "\$t"; exit "\$s") && linear issue update 'ENG-456' --project <project> --base-file original.json
+\`ENG-456 has no --project or --parent. Decide ownership from the candidate Project's full content and the related Initiative content (linear guide issue-authoring), then save the original read and set the project: (if [ -e original.json ] || [ -L original.json ]; then echo 'original.json exists' >&2; exit 1; fi; t=\$(mktemp original.json.XXXXXX) || exit; s=0; linear issue view 'ENG-456' --json >| "\$t" || { cat "\$t" >&2; s=1; }; [ "\$s" != 0 ] || ln "\$t" original.json || s=1; rm -f "\$t"; exit "\$s") && linear issue update 'ENG-456' --project <project> --base-file original.json
 \`
 `;
 
@@ -99,7 +99,7 @@ stdout:
 https://linear.app/test-team/issue/ENG-890/test-cycle-feature
 "
 stderr:
-\`ENG-890 has no --project or --parent. Decide ownership from the candidate Project's full content and the related Initiative content (linear guide issue-authoring), then save the original read and set the project: (t=\$(mktemp original.json.XXXXXX) || exit; linear issue view 'ENG-890' --json >| "\$t" || { cat "\$t" >&2; rm -f "\$t"; exit 1; }; ln "\$t" original.json; s=\$?; rm -f "\$t"; exit "\$s") && linear issue update 'ENG-890' --project <project> --base-file original.json
+\`ENG-890 has no --project or --parent. Decide ownership from the candidate Project's full content and the related Initiative content (linear guide issue-authoring), then save the original read and set the project: (if [ -e original.json ] || [ -L original.json ]; then echo 'original.json exists' >&2; exit 1; fi; t=\$(mktemp original.json.XXXXXX) || exit; s=0; linear issue view 'ENG-890' --json >| "\$t" || { cat "\$t" >&2; s=1; }; [ "\$s" != 0 ] || ln "\$t" original.json || s=1; rm -f "\$t"; exit "\$s") && linear issue update 'ENG-890' --project <project> --base-file original.json
 \`
 `;
 

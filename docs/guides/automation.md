@@ -53,7 +53,7 @@ test "$code" -eq 0
 
 其他字段可直接保存读取输出，不手抄旧字段。各入口的 JSON 根对象如下；`organization` 均包含稳定 `id` 和 `urlKey`。
 
-负责人、状态等字段替换也需要原始依据，不只正文需要。比如改派负责人，先在 POSIX shell 中用 `(t=$(mktemp original.json.XXXXXX) || exit; linear issue view ENG-123 --json >| "$t" || { cat "$t" >&2; rm -f "$t"; exit 1; }; ln "$t" original.json; s=$?; rm -f "$t"; exit "$s")` 保存读取；读取成功后才用 `ln` 落为 `original.json`，已有文件不被覆盖，读取失败不留下文件，修正原因后可以重跑。读取成功后审阅当前负责人和上下文，确认仍要改派，再执行 `linear issue update ENG-123 --assignee <assignee> --base-file original.json --json`。使用 `--workspace` 时，两次命令保持相同选择。缺依据或冲突后都不能只补一次读取就自动重试。
+负责人、状态等字段替换也需要原始依据，不只正文需要。比如改派负责人，先在 POSIX shell 中用 `(if [ -e original.json ] || [ -L original.json ]; then echo 'original.json exists' >&2; exit 1; fi; t=$(mktemp original.json.XXXXXX) || exit; s=0; linear issue view ENG-123 --json >| "$t" || { cat "$t" >&2; s=1; }; [ "$s" != 0 ] || ln "$t" original.json || s=1; rm -f "$t"; exit "$s")` 保存读取；已有 `original.json` 时直接拒绝，读取成功后才用 `ln` 落为 `original.json`，读取失败不留下文件，修正原因后可以重跑。读取成功后审阅当前负责人和上下文，确认仍要改派，再执行 `linear issue update ENG-123 --assignee <assignee> --base-file original.json --json`。使用 `--workspace` 时，两次命令保持相同选择。缺依据或冲突后都不能只补一次读取就自动重试。
 
 | 读取入口                                | 对象路径            | 对应更新入口           |
 | --------------------------------------- | ------------------- | ---------------------- |
@@ -249,6 +249,10 @@ linear api 'query ProjectDocuments($id: String!, $after: String) {
 
 ```bash
 set -euC
+if [ -e project-original.json ] || [ -L project-original.json ]; then
+  echo 'project-original.json exists' >&2
+  exit 1
+fi
 t=$(mktemp project-original.json.XXXXXX)
 linear project view <project> --json >|"$t" || { cat "$t" >&2; rm -f "$t"; exit 1; }
 ln "$t" project-original.json || { rm -f "$t"; exit 1; }
@@ -258,7 +262,7 @@ jq -j '.project.content // ""' project-original.json > project-content.md
 linear project update <project> --content-file project-content.md --base-file project-original.json --json
 ```
 
-读取先写入临时文件，成功后才落为 `project-original.json` 并提取草稿；读取失败时打印结果、不留下文件，修正原因后可以重跑。`ln` 与 `set -C` 拒绝覆盖已有文件。保留 `project-original.json` 原样，只编辑 `project-content.md`。Markdown 往返的富文本限制同样适用，见 `linear guide markdown`。
+读取先写入临时文件，成功后才落为 `project-original.json` 并提取草稿；读取失败时打印结果、不留下文件，修正原因后可以重跑。已有 `project-original.json` 时开头即停止，`ln` 与 `set -C` 拒绝覆盖已有文件。保留 `project-original.json` 原样，只编辑 `project-content.md`。Markdown 往返的富文本限制同样适用，见 `linear guide markdown`。
 
 ### 评论与历史
 
