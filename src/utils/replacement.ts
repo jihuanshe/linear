@@ -49,6 +49,16 @@ export function shellTarget(target: string): string {
   return shellWord(target) ?? "<target>"
 }
 
+/**
+ * POSIX shell line that saves a read as original.json only after it succeeds.
+ * Any existing path there (file, directory or link) is kept and rejected; a
+ * failed read prints its result on stderr and leaves nothing behind, so the
+ * same line can be retried. Safe under `set -e` and `set -C`.
+ */
+export function saveOriginalReadLine(readCommand: string): string {
+  return `(if [ -e original.json ] || [ -L original.json ]; then echo 'original.json exists' >&2; exit 1; fi; t=$(mktemp original.json.XXXXXX) || exit; s=0; ${readCommand} >| "$t" || { cat "$t" >&2; s=1; }; [ "$s" != 0 ] || ln "$t" original.json || s=1; rm -f "$t"; exit "$s")`
+}
+
 function missingBasisSuggestion(read?: ReplacementReadCommand): string {
   const readCommand = read == null
     ? "linear <view-command> <target> --json"
@@ -63,7 +73,9 @@ function missingBasisSuggestion(read?: ReplacementReadCommand): string {
     }; stop if it differs.`
   const afterRead = read?.afterRead ??
     "Pass --base-file original.json to the original update command."
-  return `In a POSIX shell, save a new original read without overwriting an existing basis: (set -C; ${readCommand} > original.json). Stop if the read fails.${workspaceCheck} Review its current values and reconfirm your intended change. ${afterRead}`
+  return `In a POSIX shell, save a new original read without overwriting an existing basis: ${
+    saveOriginalReadLine(readCommand)
+  }. Stop if it fails.${workspaceCheck} Review its current values and reconfirm your intended change. ${afterRead}`
 }
 
 export class ConflictError extends CliError {

@@ -978,7 +978,7 @@ Creates original.json and desired.md in a new directory. Read the saved discussi
       arguments: [],
       description: "Create a linear issue.
 
-Decide ownership before creating: read the project catalog (project list --all-teams --limit 0 --json), the candidate Project's full content (project view <id> --json), the related Initiative content (initiative view <id> --json), then check for an existing issue by its stable source URL (issue query --all-teams --url). Without --project or --parent the command still creates the issue and then prints a reminder on stderr. Order and entry points: linear guide issue-authoring.
+Decide ownership before creating: read the project catalog (project list --all-teams --limit 0 --json), the candidate Project's full content (project view <id> --json), the related Initiative content (initiative view <id> --json), then check for an existing issue by its stable source URL (issue query --all-teams --url <source-url> --json). Without --project or --parent the command still creates the issue and then prints a reminder on stderr. Order and entry points: linear guide issue-authoring.
 
 For API Markdown bodies, prefer a bare Linear URL for mentions.
 Named profile links can also mention people; \`@name\` handling varies by body.

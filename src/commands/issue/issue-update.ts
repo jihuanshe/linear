@@ -80,8 +80,13 @@ export interface UpdateIssueOptions {
   unprotected?: boolean
   expectField?: string[]
   beforeWrite?: () => Promise<void>
-  /** Runs after name resolution and the domain checks, before any write. */
-  afterPrepare?: (prepared: PreparedIssueUpdate) => Promise<void>
+  /**
+   * Runs after name resolution and before the final basis read, so any read it
+   * makes stays inside the window that the final comparison covers.
+   */
+  beforeFinalRead?: (
+    initial: Pick<PreparedIssueUpdate, "current" | "targetState">,
+  ) => Promise<void>
 }
 
 export type PreparedIssueUpdate = Awaited<ReturnType<typeof prepareIssueUpdate>>
@@ -427,6 +432,7 @@ export async function prepareIssueUpdate(
   if (stateId !== undefined) input.stateId = stateId
 
   const { addedLabelIds: add, removedLabelIds: remove, ...replacement } = input
+  await options.beforeFinalRead?.({ current: target, targetState })
   const current = await readIssueBasis(target.issue.id)
   // Name resolution used this team. A concurrent move must not change its scope.
   if (team == null && current.issue.team.id !== target.issue.team.id) {
@@ -476,6 +482,18 @@ export async function prepareIssueUpdate(
     unprotected: options.unprotected || (!hasReplacement && original == null),
     expectFields: options.expectField,
   })
+  // The hook skipped the context because the Issue was already in the target
+  // state; a reopen since then would be closed again unseen.
+  if (
+    options.beforeFinalRead != null && closesIssue(targetState) &&
+    target.issue.state.id === targetState?.id &&
+    current.issue.state.id !== targetState.id
+  ) {
+    throw new ValidationError(
+      "Issue state changed while resolving the closing update",
+      { suggestion: "Rerun the command to review the current context." },
+    )
+  }
   const payload: IssueUpdateInput = {
     ...planned.input,
     ...(add == null ? {} : { addedLabelIds: add }),
@@ -510,9 +528,11 @@ export function closesIssue(
  * blocks: an unavailable read is reported, not thrown.
  */
 export async function printClosingContext(
-  prepared: PreparedIssueUpdate,
+  { targetState, current }: Pick<
+    PreparedIssueUpdate,
+    "current" | "targetState"
+  >,
 ): Promise<void> {
-  const { targetState, current } = prepared
   if (!closesIssue(targetState) || current.issue.state.id === targetState?.id) {
     return
   }
@@ -570,7 +590,6 @@ export async function updateIssue(
   issueArg?: string,
 ) {
   const prepared = await prepareIssueUpdate(options, issueArg)
-  await options.afterPrepare?.(prepared)
   return await executeIssueUpdate(prepared, options.beforeWrite)
 }
 
@@ -602,7 +621,6 @@ export async function updateIssueAndVerify(
   verificationOptions: ReadBackOptions = {},
 ) {
   const prepared = await prepareIssueUpdate(options, issueArg)
-  await options.afterPrepare?.(prepared)
   const result = await executeIssueUpdate(prepared, options.beforeWrite)
   if (result.effect === "none") return result
   const expected = Object.fromEntries(
@@ -774,7 +792,7 @@ export const updateCommand = withUsageMetadata(new Command(), { writes: true })
   .action(async (options, issueArg) => {
     try {
       const result = await updateIssueAndVerify(
-        { ...options, afterPrepare: printClosingContext },
+        { ...options, beforeFinalRead: printClosingContext },
         issueArg,
       )
       if (options.json) console.log(JSON.stringify(result, null, 2))
