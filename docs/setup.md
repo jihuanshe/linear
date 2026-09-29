@@ -22,7 +22,7 @@ linear auth whoami --json
 
 CLI 按以下顺序选择凭据：
 
-1. 环境变量 `LINEAR_API_KEY`；
+1. 环境变量 `LINEAR_API_KEY`（值原样作为 `Authorization` 请求头；OAuth access token 写作 `Bearer <token>`，见 [README 的「给 AI 配置独立身份」](../README.md#给-ai-配置独立身份)）；
 2. `--workspace` 指定的已保存凭据；
 3. 配置 `workspace` 指定的已保存凭据；
 4. 已保存凭据中的默认工作区。

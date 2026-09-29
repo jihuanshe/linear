@@ -1026,3 +1026,53 @@ await snapshotTest({
     }
   },
 })
+
+// The original-read requirement must be discoverable from --help and from the
+// rejection itself, before any request is sent.
+Deno.test("document update explains the required original read before requests", async () => {
+  const server = new MockLinearServer([])
+  try {
+    await server.start()
+    const run = (args: string[]) =>
+      new Deno.Command(Deno.execPath(), {
+        args: [
+          "run",
+          ...commonDenoArgs,
+          "src/main.ts",
+          "document",
+          "update",
+          ...args,
+        ],
+        env: {
+          LINEAR_GRAPHQL_ENDPOINT: server.getEndpoint(),
+          LINEAR_API_KEY: "test-token",
+          NO_COLOR: "1",
+        },
+        stdin: "null",
+        stdout: "piped",
+        stderr: "piped",
+      }).output()
+    const help = new TextDecoder().decode((await run(["--help"])).stdout)
+    assertStringIncludes(
+      help,
+      "`linear document view <document> --json > original.json`",
+    )
+    assertStringIncludes(help, "required unless --edit or --unprotected")
+    const result = await run(["roadmap0c456", "--content", "New", "--json"])
+    const body = JSON.parse(new TextDecoder().decode(result.stdout))
+    assertEquals(result.code, 1)
+    assertEquals(body.effect, "none")
+    assertStringIncludes(
+      body.error.message,
+      "Replacement requires the original read",
+    )
+    assertStringIncludes(
+      body.error.suggestion,
+      "linear document view 'roadmap0c456' --json",
+    )
+    assertStringIncludes(body.error.suggestion, "--base-file original.json")
+    assertEquals(server.graphqlRequests, [])
+  } finally {
+    await server.stop()
+  }
+})

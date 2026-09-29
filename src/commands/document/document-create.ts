@@ -13,6 +13,7 @@ import {
 import { getEditor, openEditor } from "../../utils/editor.ts"
 import { readTextSource } from "../../utils/text-source.ts"
 import { printWriteResult } from "../../utils/write-result.ts"
+import { resolveInitiativeId } from "../initiative/initiative-resolve.ts"
 import {
   assertMutationReferences,
   assertMutationSuccess,
@@ -51,6 +52,11 @@ export const createCommand = withUsageMetadata(new Command(), {
     "Attach to project (UUID, slug ID, name, or Linear URL; exactly one parent is required)",
   )
   .option(
+    "--initiative <initiative:string>",
+    "Attach to initiative (UUID, slug ID, name, or Linear URL; exactly one parent is required)",
+    { preserveEmpty: true },
+  )
+  .option(
     "--issue <issue:string>",
     "Attach to issue (UUID, identifier, number in the configured team, or Linear URL; exactly one parent is required)",
     { preserveEmpty: true },
@@ -64,6 +70,7 @@ export const createCommand = withUsageMetadata(new Command(), {
       contentFile,
       project,
       issue,
+      initiative,
       icon,
       interactive,
       json,
@@ -104,6 +111,9 @@ export const createCommand = withUsageMetadata(new Command(), {
               ? { projectId: result.projectId }
               : {}),
             ...(result.issueId != null ? { issueId: result.issueId } : {}),
+            ...(result.initiativeId != null
+              ? { initiativeId: result.initiativeId }
+              : {}),
           }
 
           await createDocument(client, input)
@@ -116,11 +126,17 @@ export const createCommand = withUsageMetadata(new Command(), {
             suggestion: "Use --title or run with -i for interactive mode.",
           })
         }
-        if ((project == null) === (issue == null)) {
+        if (
+          [project, issue, initiative].filter((parent) => parent != null)
+            .length !== 1
+        ) {
           throw new ValidationError(
             "Exactly one document parent must be provided",
-            { suggestion: "Use either --project or --issue." },
+            { suggestion: "Use one of --project, --issue, or --initiative." },
           )
+        }
+        if (initiative != null && !initiative.trim()) {
+          throw new ValidationError("--initiative cannot be empty")
         }
 
         if (edit) {
@@ -146,6 +162,10 @@ export const createCommand = withUsageMetadata(new Command(), {
           issueId = await requireIssueId(reference)
         }
 
+        const initiativeId = initiative != null
+          ? await resolveInitiativeId(client, initiative)
+          : undefined
+
         // Build input
         const input: DocumentCreateInput = {
           title,
@@ -153,6 +173,7 @@ export const createCommand = withUsageMetadata(new Command(), {
           ...(icon != null ? { icon } : {}),
           ...(projectId != null ? { projectId } : {}),
           ...(issueId != null ? { issueId } : {}),
+          ...(initiativeId != null ? { initiativeId } : {}),
         }
 
         await createDocument(client, input, json)
@@ -168,6 +189,7 @@ async function promptInteractiveCreate(): Promise<{
   icon?: string
   projectId?: string
   issueId?: string
+  initiativeId?: string
 }> {
   // Prompt for title
   const title = await Input.prompt({
@@ -226,12 +248,14 @@ async function promptInteractiveCreate(): Promise<{
       { name: "Nothing (workspace document)", value: "none" },
       { name: "Project", value: "project" },
       { name: "Issue", value: "issue" },
+      { name: "Initiative", value: "initiative" },
     ],
     default: "none",
   })
 
   let projectId: string | undefined
   let issueId: string | undefined
+  let initiativeId: string | undefined
 
   if (attachTo === "project") {
     const projectInput = await Input.prompt({
@@ -247,6 +271,14 @@ async function promptInteractiveCreate(): Promise<{
       throw new ValidationError(`Invalid issue reference: ${issueInput}`)
     }
     issueId = await requireIssueId(reference)
+  } else if (attachTo === "initiative") {
+    const initiativeInput = await Input.prompt({
+      message: "Initiative (UUID, slug ID, name, or Linear URL)",
+    })
+    initiativeId = await resolveInitiativeId(
+      getGraphQLClient(),
+      initiativeInput,
+    )
   }
 
   return {
@@ -255,6 +287,7 @@ async function promptInteractiveCreate(): Promise<{
     icon: icon.trim() || undefined,
     projectId,
     issueId,
+    initiativeId,
   }
 }
 
@@ -278,6 +311,9 @@ async function createDocument(
           issue {
             id
           }
+          initiative {
+            id
+          }
         }
       }
     }
@@ -292,6 +328,7 @@ async function createDocument(
   assertMutationReferences(document, result?.documentCreate, {
     ...(input.projectId != null ? { project: input.projectId } : {}),
     ...(input.issueId != null ? { issue: input.issueId } : {}),
+    ...(input.initiativeId != null ? { initiative: input.initiativeId } : {}),
   })
   if (json) {
     printWriteResult({ document })

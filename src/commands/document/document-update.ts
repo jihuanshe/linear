@@ -102,7 +102,10 @@ export const updateCommand = withUsageMetadata(new Command(), {
   .description(withMarkdownHint(
     "Update an existing document by UUID or slug ID\n\n" +
       "Without --content, --content-file, or --edit, read piped Markdown through EOF.\n" +
-      "Nonempty stdin can be combined with metadata updates; empty stdin leaves content unchanged.",
+      "Nonempty stdin can be combined with metadata updates; empty stdin leaves content unchanged.\n\n" +
+      "Every update except --edit needs the original read: before editing, save\n" +
+      "`linear document view <document> --json > original.json`, then pass\n" +
+      "--base-file original.json. --unprotected skips the comparison instead.",
   ))
   .alias("u")
   .arguments("<document:string>")
@@ -137,7 +140,7 @@ export const updateCommand = withUsageMetadata(new Command(), {
   .option("--json", "Output the write result as JSON; never open an editor")
   .option(
     "--base-file <path:string>",
-    "Saved view --json output from before editing; compare original values before writing",
+    "Saved `document view --json` output from before editing; required unless --edit or --unprotected",
     { preserveEmpty: true },
   )
   .option(

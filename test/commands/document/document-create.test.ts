@@ -11,6 +11,7 @@ import {
 
 const parentProjectId = "11111111-1111-4111-8111-111111111111"
 const parentIssueId = "abcdef01-2345-4678-9abc-def012345678"
+const parentInitiativeId = "22222222-2222-4222-8222-222222222222"
 
 async function interactiveIssue(reference: string, expectedError?: string) {
   const stdin = stub(
@@ -264,9 +265,10 @@ for (
   const parents of [
     [],
     ["--project", parentProjectId, "--issue", "ENG-123"],
+    ["--issue", "ENG-123", "--initiative", parentInitiativeId],
   ]
 ) {
-  Deno.test(`document create requires exactly one parent: ${parents.length / 2}`, async () => {
+  Deno.test(`document create requires exactly one parent: ${parents.join(" ")}`, async () => {
     const server = new MockLinearServer([])
     try {
       await server.start()
@@ -660,6 +662,11 @@ for (
       value: parentIssueId,
       returned: { issue: { id: "ffffffff-ffff-4fff-8fff-ffffffffffff" } },
     },
+    {
+      option: "--initiative",
+      value: parentInitiativeId,
+      returned: { initiative: null, project: { id: parentProjectId } },
+    },
   ]
 ) {
   Deno.test(`document create ${parent.option} keeps applied when the receipt lacks the requested parent`, async () => {
@@ -723,3 +730,181 @@ for (
     }
   })
 }
+
+function runCreate(server: MockLinearServer, args: string[]) {
+  return new Deno.Command(Deno.execPath(), {
+    args: [
+      "run",
+      ...commonDenoArgs,
+      "src/main.ts",
+      "document",
+      "create",
+      "--title",
+      "Roadmap",
+      "--content",
+      "Body",
+      ...args,
+      "--json",
+    ],
+    env: {
+      LINEAR_GRAPHQL_ENDPOINT: server.getEndpoint(),
+      LINEAR_API_KEY: "test-token",
+    },
+    stdin: "null",
+    stdout: "piped",
+    stderr: "piped",
+  }).output()
+}
+
+for (
+  const scenario of [
+    { reference: parentInitiativeId.toUpperCase(), lookups: [] },
+    { reference: "Q4 Roadmap", lookups: ["FindInitiative"] },
+    {
+      reference: "https://linear.app/test/initiative/q4-roadmap-abc123def456",
+      lookups: ["FindInitiativeByUrl"],
+    },
+  ]
+) {
+  Deno.test(`document create --initiative ${scenario.reference} attaches to the resolved initiative`, async () => {
+    const server = new MockLinearServer([
+      {
+        queryName: "FindInitiative",
+        variables: { filter: { slugId: { eq: "Q4 Roadmap" } } },
+        response: {
+          data: {
+            initiatives: {
+              nodes: [],
+              pageInfo: { hasNextPage: false, endCursor: null },
+            },
+          },
+        },
+      },
+      {
+        queryName: "FindInitiative",
+        variables: { filter: { name: { eqIgnoreCase: "Q4 Roadmap" } } },
+        response: {
+          data: {
+            initiatives: {
+              nodes: [{ id: parentInitiativeId }],
+              pageInfo: { hasNextPage: false, endCursor: null },
+            },
+          },
+        },
+      },
+      {
+        queryName: "FindInitiativeByUrl",
+        variables: { slugId: "abc123def456" },
+        response: {
+          data: {
+            organization: { id: "workspace", urlKey: "test" },
+            initiatives: {
+              nodes: [{ id: parentInitiativeId }],
+              pageInfo: { hasNextPage: false, endCursor: null },
+            },
+          },
+        },
+      },
+      {
+        queryName: "CreateDocument",
+        variables: {
+          input: {
+            title: "Roadmap",
+            content: "Body",
+            initiativeId: parentInitiativeId,
+          },
+        },
+        response: {
+          data: {
+            documentCreate: {
+              success: true,
+              document: {
+                id: "doc-initiative",
+                slugId: "roadmap0c456",
+                title: "Roadmap",
+                url: "https://linear.app/test/document/roadmap-roadmap0c456",
+                project: null,
+                issue: null,
+                initiative: { id: parentInitiativeId },
+              },
+            },
+          },
+        },
+      },
+    ])
+    try {
+      await server.start()
+      const result = await runCreate(server, [
+        "--initiative",
+        scenario.reference,
+      ])
+      const body = JSON.parse(new TextDecoder().decode(result.stdout))
+      assertEquals(result.code, 0, JSON.stringify(body))
+      assertEquals(body.ok, true)
+      assertEquals(body.effect, "applied")
+      assertEquals(body.data.document.id, "doc-initiative")
+      assertEquals(body.data.document.initiative, { id: parentInitiativeId })
+      const names = server.graphqlRequests.map((request) =>
+        request.query.match(/(?:query|mutation) (\w+)/)?.[1]
+      )
+      assertEquals(
+        [...new Set(names.slice(0, -1))],
+        scenario.lookups,
+      )
+      assertEquals(names.at(-1), "CreateDocument")
+      assertEquals(
+        server.graphqlRequests.at(-1)?.variables.input,
+        { title: "Roadmap", content: "Body", initiativeId: parentInitiativeId },
+      )
+    } finally {
+      await server.stop()
+    }
+  })
+}
+
+for (const reference of ["", " "]) {
+  Deno.test(`document create rejects empty --initiative ${JSON.stringify(reference)} without requests`, async () => {
+    const server = new MockLinearServer([])
+    try {
+      await server.start()
+      const result = await runCreate(server, ["--initiative", reference])
+      const body = JSON.parse(new TextDecoder().decode(result.stdout))
+      assertEquals(result.code, 1)
+      assertEquals(body.effect, "none")
+      assertStringIncludes(body.error.message, "--initiative cannot be empty")
+      assertEquals(server.graphqlRequests, [])
+    } finally {
+      await server.stop()
+    }
+  })
+}
+
+Deno.test("document create --initiative stops before writing when the initiative is missing", async () => {
+  const empty = {
+    data: {
+      initiatives: {
+        nodes: [],
+        pageInfo: { hasNextPage: false, endCursor: null },
+      },
+    },
+  }
+  const server = new MockLinearServer([
+    { queryName: "FindInitiative", response: empty },
+  ])
+  try {
+    await server.start()
+    const result = await runCreate(server, ["--initiative", "Missing"])
+    const body = JSON.parse(new TextDecoder().decode(result.stdout))
+    assertEquals(result.code, 1)
+    assertEquals(body.effect, "none")
+    assertStringIncludes(body.error.message, "Initiative not found")
+    assertEquals(
+      server.graphqlRequests.some((request) =>
+        request.query.includes("mutation")
+      ),
+      false,
+    )
+  } finally {
+    await server.stop()
+  }
+})
