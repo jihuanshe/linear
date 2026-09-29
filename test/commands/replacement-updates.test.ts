@@ -183,7 +183,10 @@ for (const example of cases) {
         result.json().error.suggestion,
         'confirm organization.urlKey in the saved read is "team space"; stop if it differs',
       )
-      assertStringIncludes(result.json().error.suggestion, "set -C;")
+      assertStringIncludes(
+        result.json().error.suggestion,
+        'ln "$t" original.json',
+      )
       assertStringIncludes(
         result.json().error.suggestion,
         "Review its current values and reconfirm your intended change",

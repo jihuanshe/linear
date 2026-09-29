@@ -7,6 +7,7 @@ import {
 import {
   type FieldReader,
   linearCommandLine,
+  saveOriginalReadLine,
   shellTarget,
 } from "../../utils/replacement.ts"
 import { resolveTeam } from "../../utils/issue-read.ts"
@@ -819,7 +820,9 @@ export function missingProjectReminder(identifier: string): string {
     ],
     workspace,
   )
-  return `${identifier} has no --project or --parent. Decide ownership from the candidate Project's full content and the related Initiative content (linear guide issue-authoring), then save the original read and set the project: (set -C; ${read} > original.json) && ${update}`
+  return `${identifier} has no --project or --parent. Decide ownership from the candidate Project's full content and the related Initiative content (linear guide issue-authoring), then save the original read and set the project: ${
+    saveOriginalReadLine(read)
+  } && ${update}`
 }
 
 export const createCommand = withUsageMetadata(new Command(), {
@@ -829,7 +832,7 @@ export const createCommand = withUsageMetadata(new Command(), {
   .name("create")
   .type("priority", priorityType)
   .description(withMarkdownHint(
-    "Create a linear issue.\n\nDecide ownership before creating: read the project catalog (project list --all-teams --limit 0 --json), the candidate Project's full content (project view <id> --json), the related Initiative content (initiative view <id> --json), then check for an existing issue by its stable source URL (issue query --all-teams --url). Without --project or --parent the command still creates the issue and then prints a reminder on stderr. Order and entry points: linear guide issue-authoring.",
+    "Create a linear issue.\n\nDecide ownership before creating: read the project catalog (project list --all-teams --limit 0 --json), the candidate Project's full content (project view <id> --json), the related Initiative content (initiative view <id> --json), then check for an existing issue by its stable source URL (issue query --all-teams --url <source-url> --json). Without --project or --parent the command still creates the issue and then prints a reminder on stderr. Order and entry points: linear guide issue-authoring.",
   ))
   .option(
     "-a, --assignee <assignee:string>",

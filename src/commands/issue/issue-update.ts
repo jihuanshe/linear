@@ -80,8 +80,12 @@ export interface UpdateIssueOptions {
   unprotected?: boolean
   expectField?: string[]
   beforeWrite?: () => Promise<void>
-  /** Runs after name resolution and the domain checks, before any write. */
-  afterPrepare?: (prepared: PreparedIssueUpdate) => Promise<void>
+  /**
+   * Runs after name resolution and the domain checks, before any write. Return
+   * true after a network read so the update is prepared again and its final
+   * basis read stays next to the mutation.
+   */
+  afterPrepare?: (prepared: PreparedIssueUpdate) => Promise<boolean>
 }
 
 export type PreparedIssueUpdate = Awaited<ReturnType<typeof prepareIssueUpdate>>
@@ -511,10 +515,10 @@ export function closesIssue(
  */
 export async function printClosingContext(
   prepared: PreparedIssueUpdate,
-): Promise<void> {
+): Promise<boolean> {
   const { targetState, current } = prepared
   if (!closesIssue(targetState) || current.issue.state.id === targetState?.id) {
-    return
+    return false
   }
   const lines = [
     `Moving ${current.issue.identifier} to ${targetState?.name}. Context before closing:`,
@@ -538,6 +542,7 @@ export async function printClosingContext(
     )
   }
   console.error(lines.join("\n"))
+  return true
 }
 
 const updateIssueMutation = gql(`
@@ -569,9 +574,18 @@ export async function updateIssue(
   options: UpdateIssueOptions,
   issueArg?: string,
 ) {
-  const prepared = await prepareIssueUpdate(options, issueArg)
-  await options.afterPrepare?.(prepared)
+  const prepared = await prepareForWrite(options, issueArg)
   return await executeIssueUpdate(prepared, options.beforeWrite)
+}
+
+async function prepareForWrite(
+  options: UpdateIssueOptions,
+  issueArg?: string,
+) {
+  const prepared = await prepareIssueUpdate(options, issueArg)
+  if (!await options.afterPrepare?.(prepared)) return prepared
+  // The hook's read widened the gap after the final basis comparison.
+  return await prepareIssueUpdate(options, issueArg)
 }
 
 // Delivery records this receipt before performing its own final verification.
@@ -601,8 +615,7 @@ export async function updateIssueAndVerify(
   issueArg?: string,
   verificationOptions: ReadBackOptions = {},
 ) {
-  const prepared = await prepareIssueUpdate(options, issueArg)
-  await options.afterPrepare?.(prepared)
+  const prepared = await prepareForWrite(options, issueArg)
   const result = await executeIssueUpdate(prepared, options.beforeWrite)
   if (result.effect === "none") return result
   const expected = Object.fromEntries(

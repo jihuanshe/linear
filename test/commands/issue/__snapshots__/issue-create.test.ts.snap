@@ -14,8 +14,8 @@ Description:
                                                                                                                                               
   Decide ownership before creating: read the project catalog (project list --all-teams --limit 0 --json), the candidate Project's full content
   (project view <id> --json), the related Initiative content (initiative view <id> --json), then check for an existing issue by its stable    
-  source URL (issue query --all-teams --url). Without --project or --parent the command still creates the issue and then prints a reminder on 
-  stderr. Order and entry points: linear guide issue-authoring.                                                                               
+  source URL (issue query --all-teams --url <source-url> --json). Without --project or --parent the command still creates the issue and then  
+  prints a reminder on stderr. Order and entry points: linear guide issue-authoring.                                                          
                                                                                                                                               
   For API Markdown bodies, prefer a bare Linear URL for mentions.                                                                             
   Named profile links can also mention people; \`@name\` handling varies by body.                                                               
@@ -61,8 +61,8 @@ stdout:
 https://linear.app/test-team/issue/ENG-123/fix-authentication-bug
 "
 stderr:
-"ENG-123 has no --project or --parent. Decide ownership from the candidate Project's full content and the related Initiative content (linear guide issue-authoring), then save the original read and set the project: (set -C; linear issue view 'ENG-123' --json > original.json) && linear issue update 'ENG-123' --project <project> --base-file original.json
-"
+\`ENG-123 has no --project or --parent. Decide ownership from the candidate Project's full content and the related Initiative content (linear guide issue-authoring), then save the original read and set the project: (t=\$(mktemp original.json.XXXXXX) || exit; linear issue view 'ENG-123' --json >| "\$t" || { cat "\$t" >&2; rm -f "\$t"; exit 1; }; ln "\$t" original.json; s=\$?; rm -f "\$t"; exit "\$s") && linear issue update 'ENG-123' --project <project> --base-file original.json
+\`
 `;
 
 snapshot[`Issue Create Command - With Milestone 1`] = `
@@ -80,8 +80,8 @@ stdout:
 https://linear.app/test-team/issue/ENG-456/test-case-insensitive-labels
 "
 stderr:
-"ENG-456 has no --project or --parent. Decide ownership from the candidate Project's full content and the related Initiative content (linear guide issue-authoring), then save the original read and set the project: (set -C; linear issue view 'ENG-456' --json > original.json) && linear issue update 'ENG-456' --project <project> --base-file original.json
-"
+\`ENG-456 has no --project or --parent. Decide ownership from the candidate Project's full content and the related Initiative content (linear guide issue-authoring), then save the original read and set the project: (t=\$(mktemp original.json.XXXXXX) || exit; linear issue view 'ENG-456' --json >| "\$t" || { cat "\$t" >&2; rm -f "\$t"; exit 1; }; ln "\$t" original.json; s=\$?; rm -f "\$t"; exit "\$s") && linear issue update 'ENG-456' --project <project> --base-file original.json
+\`
 `;
 
 snapshot[`Issue Create Command - Short Flag -p Is Priority 1`] = `
@@ -99,8 +99,8 @@ stdout:
 https://linear.app/test-team/issue/ENG-890/test-cycle-feature
 "
 stderr:
-"ENG-890 has no --project or --parent. Decide ownership from the candidate Project's full content and the related Initiative content (linear guide issue-authoring), then save the original read and set the project: (set -C; linear issue view 'ENG-890' --json > original.json) && linear issue update 'ENG-890' --project <project> --base-file original.json
-"
+\`ENG-890 has no --project or --parent. Decide ownership from the candidate Project's full content and the related Initiative content (linear guide issue-authoring), then save the original read and set the project: (t=\$(mktemp original.json.XXXXXX) || exit; linear issue view 'ENG-890' --json >| "\$t" || { cat "\$t" >&2; rm -f "\$t"; exit 1; }; ln "\$t" original.json; s=\$?; rm -f "\$t"; exit "\$s") && linear issue update 'ENG-890' --project <project> --base-file original.json
+\`
 `;
 
 snapshot[`Issue Create Command - Unknown State Lists Valid States 1`] = `

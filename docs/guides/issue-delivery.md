@@ -13,10 +13,17 @@ commands:
 
 ## 保存清单
 
-先读取要修改的对象。以下命令在当前目录保存原始依据，并拒绝覆盖已有文件：
+先读取要修改的对象。以下命令在当前目录保存原始依据：读取先写入同目录的临时文件，成功后才用 `ln` 落为 `original.json`，已有同名文件时拒绝覆盖；读取失败时把结果打印到 stderr，不留下文件，修正原因后可以原样重跑。
 
 ```bash
-(set -C; linear issue view ENG-123 --json >original.json)
+(
+  t=$(mktemp original.json.XXXXXX) || exit
+  linear issue view ENG-123 --json >|"$t" || { cat "$t" >&2; rm -f "$t"; exit 1; }
+  ln "$t" original.json
+  s=$?
+  rm -f "$t"
+  exit "$s"
+)
 ```
 
 读取成功后，审阅当前内容，再在同一目录编写草稿和交付清单。清单中的文件路径相对清单所在目录。

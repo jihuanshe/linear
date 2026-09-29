@@ -1,4 +1,5 @@
 import {
+  issueWriteBasis,
   issueWriteId,
   setupIssueWriteServer as setupMockLinearServer,
   teamWriteIds,
@@ -2143,6 +2144,84 @@ for (
     }
   })
 }
+
+Deno.test("Issue Update Command - closing update rereads its basis after the context read", async () => {
+  const original = issueWriteBasis()
+  const { server, cleanup } = await setupMockLinearServer([
+    {
+      queryName: "GetTeamIdByKey",
+      variables: { team: "ENG" },
+      response: { data: { teams: { nodes: [{ id: teamWriteIds.ENG }] } } },
+    },
+    {
+      queryName: "GetWorkflowStates",
+      variables: { teamKey: teamWriteIds.ENG },
+      response: closingStates,
+    },
+    {
+      queryName: "GetIssueForWrite",
+      // Someone finishes the Issue while the closing context is being read.
+      response: (_request, history) => {
+        const basis = issueWriteBasis()
+        if (history.some(({ query }) => query.includes("GetIssueContext"))) {
+          basis.issue.state = { id: "s-done", name: "Done", type: "completed" }
+        }
+        return { data: basis }
+      },
+    },
+    {
+      queryName: "GetIssueContext",
+      variables: { id: issueWriteId },
+      response: { data: closingContext(issueWriteId) },
+    },
+  ], { LINEAR_TEAM_KEY: "ENG" })
+  const path = await Deno.makeTempFile({ suffix: ".json" })
+  try {
+    await Deno.writeTextFile(path, JSON.stringify(original))
+    const result = await new Deno.Command(Deno.execPath(), {
+      args: [
+        "run",
+        ...commonDenoArgs,
+        "src/main.ts",
+        "issue",
+        "update",
+        "ENG-123",
+        "--state",
+        "Canceled",
+        "--base-file",
+        path,
+        "--json",
+      ],
+      stdin: "null",
+      stdout: "piped",
+      stderr: "piped",
+    }).output()
+    const body = JSON.parse(new TextDecoder().decode(result.stdout))
+    assertEquals(result.code, 1)
+    assertEquals(body.effect, "none")
+    assertStringIncludes(body.error.message, "Original values changed: state")
+    assertStringIncludes(
+      new TextDecoder().decode(result.stderr),
+      "Moving ENG-123 to Canceled. Context before closing:",
+    )
+    const requests = server.graphqlRequests.map((request) =>
+      request.query.match(/(?:query|mutation)\s+(\w+)/)?.[1]
+    )
+    assertEquals(
+      requests.filter((name) => name === "GetIssueContext").length,
+      1,
+    )
+    assertEquals(
+      requests.lastIndexOf("GetIssueForWrite") >
+        requests.indexOf("GetIssueContext"),
+      true,
+    )
+    assertEquals(requests.includes("UpdateIssue"), false)
+  } finally {
+    await Deno.remove(path)
+    await cleanup()
+  }
+})
 
 Deno.test("Issue Update Command - non-closing state does not read context", async () => {
   const { server, cleanup } = await setupMockLinearServer([

@@ -49,6 +49,15 @@ export function shellTarget(target: string): string {
   return shellWord(target) ?? "<target>"
 }
 
+/**
+ * POSIX shell line that saves a read as original.json only after it succeeds,
+ * never replacing an existing basis; a failed read prints its result on stderr
+ * and leaves nothing behind, so the same line can be retried.
+ */
+export function saveOriginalReadLine(readCommand: string): string {
+  return `(t=$(mktemp original.json.XXXXXX) || exit; ${readCommand} >| "$t" || { cat "$t" >&2; rm -f "$t"; exit 1; }; ln "$t" original.json; s=$?; rm -f "$t"; exit "$s")`
+}
+
 function missingBasisSuggestion(read?: ReplacementReadCommand): string {
   const readCommand = read == null
     ? "linear <view-command> <target> --json"
@@ -63,7 +72,9 @@ function missingBasisSuggestion(read?: ReplacementReadCommand): string {
     }; stop if it differs.`
   const afterRead = read?.afterRead ??
     "Pass --base-file original.json to the original update command."
-  return `In a POSIX shell, save a new original read without overwriting an existing basis: (set -C; ${readCommand} > original.json). Stop if the read fails.${workspaceCheck} Review its current values and reconfirm your intended change. ${afterRead}`
+  return `In a POSIX shell, save a new original read without overwriting an existing basis: ${
+    saveOriginalReadLine(readCommand)
+  }. Stop if it fails.${workspaceCheck} Review its current values and reconfirm your intended change. ${afterRead}`
 }
 
 export class ConflictError extends CliError {

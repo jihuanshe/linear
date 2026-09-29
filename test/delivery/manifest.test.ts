@@ -161,9 +161,9 @@ Deno.test("manifest missing basis explains recovery for the specific entry and w
     const suggestion = error.suggestion!
     assertStringIncludes(
       suggestion,
-      "(set -C; linear --workspace 'delivery-workspace' issue view 'ENG-2048' --json > original.json)",
+      `(t=$(mktemp original.json.XXXXXX) || exit; linear --workspace 'delivery-workspace' issue view 'ENG-2048' --json >| "$t" || { cat "$t" >&2; rm -f "$t"; exit 1; }; ln "$t" original.json; s=$?; rm -f "$t"; exit "$s")`,
     )
-    assertStringIncludes(suggestion, "Stop if the read fails")
+    assertStringIncludes(suggestion, "Stop if it fails")
     assertStringIncludes(
       suggestion,
       'confirm organization.urlKey in the saved read is "delivery-workspace"; stop if it differs',
@@ -196,24 +196,28 @@ for (const credentialSource of ["environment", "dotenv"]) {
     ignore: Deno.build.os === "windows",
     async fn() {
       const original = issue(2048)
+      let detailReads = 0
       const f = await fixture({
         issues: [original],
         overrides: () => [{
           queryName: "GetIssueDetailsWithComments",
-          response: {
-            data: {
-              organization: WORKSPACE,
-              issue: {
-                ...original,
-                comments: connection(),
-                attachments: connection(),
-                children: connection(),
-                documents: connection(),
-                relations: connection(),
-                inverseRelations: connection(),
+          // The first read fails, as a missing permission or object would.
+          response: () => (detailReads++ === 0
+            ? { data: { organization: WORKSPACE, issue: null } }
+            : {
+              data: {
+                organization: WORKSPACE,
+                issue: {
+                  ...original,
+                  comments: connection(),
+                  attachments: connection(),
+                  children: connection(),
+                  documents: connection(),
+                  relations: connection(),
+                  inverseRelations: connection(),
+                },
               },
-            },
-          },
+            }),
         }],
       })
       const run = (command: string) =>
@@ -268,11 +272,22 @@ ${command}`,
         assertStringIncludes(suggestion, "issues[1].baseFile")
         assertEquals(f.server.graphqlRequests, [])
 
-        const readCommand =
-          suggestion.match(/\(set -C; .*? > original\.json\)/)![0]
+        const readCommand = suggestion.match(
+          /\(t=\$\(mktemp original\.json\.XXXXXX\).*?exit "\$s"\)/,
+        )![0]
+        const baseFile = join(f.dir, "original.json")
+        const leftovers = async () =>
+          (await Array.fromAsync(Deno.readDir(f.dir))).map(({ name }) => name)
+            .filter((name) => name.startsWith("original.json"))
+        const failed = await run(readCommand)
+        assertEquals(failed.success, false)
+        assertStringIncludes(
+          new TextDecoder().decode(failed.stderr),
+          "not found",
+        )
+        assertEquals(await leftovers(), [])
         const read = await run(readCommand)
         assertEquals(read.code, 0, new TextDecoder().decode(read.stderr))
-        const baseFile = join(f.dir, "original.json")
         const saved = await Deno.readTextFile(baseFile)
         const originalRead = JSON.parse(saved)
         assertEquals(originalRead.organization.urlKey, "testing")
@@ -284,11 +299,10 @@ ${command}`,
           originalRead.issue,
         )
 
-        const requestsBeforeRepeat = f.server.graphqlRequests.length
         const repeated = await run(readCommand)
         assertEquals(repeated.success, false)
         assertEquals(await Deno.readTextFile(baseFile), saved)
-        assertEquals(f.server.graphqlRequests.length, requestsBeforeRepeat)
+        assertEquals(await leftovers(), ["original.json"])
         originalRead.organization.urlKey = "another-workspace"
         await Deno.writeTextFile(baseFile, JSON.stringify(originalRead))
         await assertRejects(
