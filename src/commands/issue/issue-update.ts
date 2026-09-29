@@ -81,11 +81,12 @@ export interface UpdateIssueOptions {
   expectField?: string[]
   beforeWrite?: () => Promise<void>
   /**
-   * Runs after name resolution and the domain checks, before any write. Return
-   * true after a network read so the update is prepared again and its final
-   * basis read stays next to the mutation.
+   * Runs after name resolution and before the final basis read, so any read it
+   * makes stays inside the window that the final comparison covers.
    */
-  afterPrepare?: (prepared: PreparedIssueUpdate) => Promise<boolean>
+  beforeFinalRead?: (
+    initial: Pick<PreparedIssueUpdate, "current" | "targetState">,
+  ) => Promise<void>
 }
 
 export type PreparedIssueUpdate = Awaited<ReturnType<typeof prepareIssueUpdate>>
@@ -431,6 +432,7 @@ export async function prepareIssueUpdate(
   if (stateId !== undefined) input.stateId = stateId
 
   const { addedLabelIds: add, removedLabelIds: remove, ...replacement } = input
+  await options.beforeFinalRead?.({ current: target, targetState })
   const current = await readIssueBasis(target.issue.id)
   // Name resolution used this team. A concurrent move must not change its scope.
   if (team == null && current.issue.team.id !== target.issue.team.id) {
@@ -514,11 +516,13 @@ export function closesIssue(
  * blocks: an unavailable read is reported, not thrown.
  */
 export async function printClosingContext(
-  prepared: PreparedIssueUpdate,
-): Promise<boolean> {
-  const { targetState, current } = prepared
+  { targetState, current }: Pick<
+    PreparedIssueUpdate,
+    "current" | "targetState"
+  >,
+): Promise<void> {
   if (!closesIssue(targetState) || current.issue.state.id === targetState?.id) {
-    return false
+    return
   }
   const lines = [
     `Moving ${current.issue.identifier} to ${targetState?.name}. Context before closing:`,
@@ -542,7 +546,6 @@ export async function printClosingContext(
     )
   }
   console.error(lines.join("\n"))
-  return true
 }
 
 const updateIssueMutation = gql(`
@@ -574,18 +577,8 @@ export async function updateIssue(
   options: UpdateIssueOptions,
   issueArg?: string,
 ) {
-  const prepared = await prepareForWrite(options, issueArg)
-  return await executeIssueUpdate(prepared, options.beforeWrite)
-}
-
-async function prepareForWrite(
-  options: UpdateIssueOptions,
-  issueArg?: string,
-) {
   const prepared = await prepareIssueUpdate(options, issueArg)
-  if (!await options.afterPrepare?.(prepared)) return prepared
-  // The hook's read widened the gap after the final basis comparison.
-  return await prepareIssueUpdate(options, issueArg)
+  return await executeIssueUpdate(prepared, options.beforeWrite)
 }
 
 // Delivery records this receipt before performing its own final verification.
@@ -615,7 +608,7 @@ export async function updateIssueAndVerify(
   issueArg?: string,
   verificationOptions: ReadBackOptions = {},
 ) {
-  const prepared = await prepareForWrite(options, issueArg)
+  const prepared = await prepareIssueUpdate(options, issueArg)
   const result = await executeIssueUpdate(prepared, options.beforeWrite)
   if (result.effect === "none") return result
   const expected = Object.fromEntries(
@@ -787,7 +780,7 @@ export const updateCommand = withUsageMetadata(new Command(), { writes: true })
   .action(async (options, issueArg) => {
     try {
       const result = await updateIssueAndVerify(
-        { ...options, afterPrepare: printClosingContext },
+        { ...options, beforeFinalRead: printClosingContext },
         issueArg,
       )
       if (options.json) console.log(JSON.stringify(result, null, 2))
