@@ -2243,6 +2243,68 @@ for (
   })
 }
 
+Deno.test("Issue Update Command - closing update rejects a reopen during resolution", async () => {
+  const { server, cleanup } = await setupMockLinearServer([
+    {
+      queryName: "GetTeamIdByKey",
+      variables: { team: "ENG" },
+      response: { data: { teams: { nodes: [{ id: teamWriteIds.ENG }] } } },
+    },
+    {
+      queryName: "GetWorkflowStates",
+      variables: { teamKey: teamWriteIds.ENG },
+      response: closingStates,
+    },
+    {
+      queryName: "GetIssueForWrite",
+      // Already Canceled at the first read, reopened before the final one.
+      response: (_request, history) => {
+        const basis = issueWriteBasis()
+        basis.issue.state = history.some(({ query }) =>
+            query.includes("GetWorkflowStates")
+          )
+          ? { id: "s-done", name: "Done", type: "completed" }
+          : { id: "s-canceled", name: "Canceled", type: "canceled" }
+        return { data: basis }
+      },
+    },
+  ], { LINEAR_TEAM_KEY: "ENG" })
+  try {
+    const result = await new Deno.Command(Deno.execPath(), {
+      args: [
+        "run",
+        ...commonDenoArgs,
+        "src/main.ts",
+        "issue",
+        "update",
+        "ENG-123",
+        "--state",
+        "Canceled",
+        "--unprotected",
+        "--json",
+      ],
+      stdin: "null",
+      stdout: "piped",
+      stderr: "piped",
+    }).output()
+    const body = JSON.parse(new TextDecoder().decode(result.stdout))
+    assertEquals(result.code, 1)
+    assertEquals(body.effect, "none")
+    assertStringIncludes(
+      body.error.message,
+      "Issue state changed while resolving the closing update",
+    )
+    assertEquals(
+      server.graphqlRequests.some((request) =>
+        request.query.includes("mutation UpdateIssue")
+      ),
+      false,
+    )
+  } finally {
+    await cleanup()
+  }
+})
+
 Deno.test("Issue Update Command - non-closing state does not read context", async () => {
   const { server, cleanup } = await setupMockLinearServer([
     {

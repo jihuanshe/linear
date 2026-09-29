@@ -482,6 +482,16 @@ export async function prepareIssueUpdate(
     unprotected: options.unprotected || (!hasReplacement && original == null),
     expectFields: options.expectField,
   })
+  // The hook decided from the initial state; a reopen since then went unseen.
+  if (
+    options.beforeFinalRead != null && closesIssue(targetState) &&
+    current.issue.state.id !== target.issue.state.id
+  ) {
+    throw new ValidationError(
+      "Issue state changed while resolving the closing update",
+      { suggestion: "Rerun the command to review the current context." },
+    )
+  }
   const payload: IssueUpdateInput = {
     ...planned.input,
     ...(add == null ? {} : { addedLabelIds: add }),
