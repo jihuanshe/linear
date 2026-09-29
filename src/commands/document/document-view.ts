@@ -40,6 +40,11 @@ const GetDocument = gql(`
         identifier
         title
       }
+      initiative {
+        id
+        name
+        slugId
+      }
     }
   }
 `)
@@ -70,6 +75,11 @@ const GetDocumentWithComments = gql(`
       issue {
         identifier
         title
+      }
+      initiative {
+        id
+        name
+        slugId
       }
       comments(first: 50, after: $commentsAfter, orderBy: createdAt) {
         nodes {
@@ -205,6 +215,10 @@ export const viewCommand = new Command()
         lines.push(
           `**Issue:** ${document.issue.identifier} - ${document.issue.title}`,
         )
+      }
+
+      if (document.initiative) {
+        lines.push(`**Initiative:** ${document.initiative.name}`)
       }
 
       lines.push(`**Created:** ${formatRelativeTime(document.createdAt)}`)

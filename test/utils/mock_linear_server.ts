@@ -46,6 +46,8 @@ export class MockLinearServer {
   readonly uploadRequests: UploadRequest[] = []
   /** GraphQL requests received, in arrival order. */
   readonly graphqlRequests: MockGraphQLRequest[] = []
+  /** Authorization header of each GraphQL request, in arrival order. */
+  readonly graphqlAuthorizations: (string | null)[] = []
 
   constructor(responses: MockResponse[] = []) {
     this.mockResponses = responses
@@ -138,6 +140,7 @@ export class MockLinearServer {
       const body = await request.json()
       const { query, variables } = body
       this.graphqlRequests.push({ query, variables: variables ?? {} })
+      this.graphqlAuthorizations.push(request.headers.get("authorization"))
 
       // Find matching mock response
       const mockResponse = this.findMatchingResponse(query, variables)

@@ -1,4 +1,5 @@
 import { snapshotTest } from "@cliffy/testing"
+import { assertEquals } from "@std/assert"
 import { viewCommand } from "../../../src/commands/document/document-view.ts"
 import { MockLinearServer } from "../../utils/mock_linear_server.ts"
 import { commonDenoArgs } from "../../utils/test-helpers.ts"
@@ -368,4 +369,83 @@ await snapshotTest({
       Deno.env.delete("LINEAR_API_KEY")
     }
   },
+})
+
+// Documents attached to an initiative read back their parent like project and
+// issue documents, so `document create --initiative` can be verified.
+Deno.test("document view reads back an initiative parent", async () => {
+  const document = {
+    id: "doc-initiative",
+    title: "Roadmap",
+    slugId: "roadmap0c456",
+    icon: null,
+    archivedAt: null,
+    trashed: false,
+    content: "Body",
+    url: "https://linear.app/test/document/roadmap-roadmap0c456",
+    createdAt: "2026-01-15T08:00:00Z",
+    updatedAt: "2026-01-18T10:30:00Z",
+    creator: null,
+    project: null,
+    issue: null,
+    initiative: {
+      id: "22222222-2222-4222-8222-222222222222",
+      name: "Q4 Roadmap",
+      slugId: "abc123def456",
+    },
+  }
+  const server = new MockLinearServer([
+    {
+      queryName: "GetDocument",
+      response: {
+        data: { organization: { id: "workspace-1", urlKey: "test" }, document },
+      },
+    },
+    {
+      queryName: "GetDocumentWithComments",
+      response: {
+        data: {
+          organization: { id: "workspace-1", urlKey: "test" },
+          document: {
+            ...document,
+            comments: {
+              nodes: [],
+              pageInfo: { hasNextPage: false, endCursor: null },
+            },
+          },
+        },
+      },
+    },
+  ])
+  try {
+    await server.start()
+    const run = (args: string[]) =>
+      new Deno.Command(Deno.execPath(), {
+        args: [
+          "run",
+          ...commonDenoArgs,
+          "src/main.ts",
+          "document",
+          "view",
+          "roadmap0c456",
+          ...args,
+        ],
+        env: {
+          LINEAR_GRAPHQL_ENDPOINT: server.getEndpoint(),
+          LINEAR_API_KEY: "test-token",
+          NO_COLOR: "1",
+        },
+        stdin: "null",
+        stdout: "piped",
+        stderr: "piped",
+      }).output()
+    const json = await run(["--json"])
+    assertEquals(json.code, 0, new TextDecoder().decode(json.stderr))
+    assertEquals(
+      JSON.parse(new TextDecoder().decode(json.stdout)).document.initiative,
+      document.initiative,
+    )
+  } finally {
+    await server.stop()
+  }
 })

@@ -13,6 +13,7 @@ const viewerQuery = gql(`
       email
       admin
       guest
+      app
       organization {
         id
         name
@@ -26,7 +27,7 @@ const viewerQuery = gql(`
 export const whoamiCommand = new Command()
   .name("whoami")
   .description(
-    "Print information about the authenticated user. `admin` is the member's workspace role, not the API key's permission scope, which the API does not expose.",
+    "Print information about the authenticated user. `admin` is the member's workspace role, not the API key's permission scope, which the API does not expose. `app` is true for an OAuth application acting as itself (actor=app).",
   )
   .option("-j, --json", "Output as JSON")
   .action(async ({ json }) => {
@@ -51,6 +52,9 @@ export const whoamiCommand = new Command()
         console.log(`  Display name: ${viewer.displayName}`)
       }
       console.log(`  Email: ${viewer.email}`)
+      if (viewer.app) {
+        console.log(`  Actor: app (OAuth application user)`)
+      }
       if (viewer.admin) {
         console.log(
           `  Role: admin (workspace role; API key scopes are not shown)`,

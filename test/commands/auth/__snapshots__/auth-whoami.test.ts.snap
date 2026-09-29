@@ -9,6 +9,7 @@ stdout:
   "email": "pat@example.com",
   "admin": true,
   "guest": false,
+  "app": false,
   "organization": {
     "id": "org-1",
     "name": "Acme",
