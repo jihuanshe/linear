@@ -482,10 +482,12 @@ export async function prepareIssueUpdate(
     unprotected: options.unprotected || (!hasReplacement && original == null),
     expectFields: options.expectField,
   })
-  // The hook decided from the initial state; a reopen since then went unseen.
+  // The hook skipped the context because the Issue was already in the target
+  // state; a reopen since then would be closed again unseen.
   if (
     options.beforeFinalRead != null && closesIssue(targetState) &&
-    current.issue.state.id !== target.issue.state.id
+    target.issue.state.id === targetState?.id &&
+    current.issue.state.id !== targetState.id
   ) {
     throw new ValidationError(
       "Issue state changed while resolving the closing update",

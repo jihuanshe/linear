@@ -2305,6 +2305,71 @@ Deno.test("Issue Update Command - closing update rejects a reopen during resolut
   }
 })
 
+Deno.test("Issue Update Command - closing update accepts a concurrent identical close", async () => {
+  const { server, cleanup } = await setupMockLinearServer([
+    {
+      queryName: "GetTeamIdByKey",
+      variables: { team: "ENG" },
+      response: { data: { teams: { nodes: [{ id: teamWriteIds.ENG }] } } },
+    },
+    {
+      queryName: "GetWorkflowStates",
+      variables: { teamKey: teamWriteIds.ENG },
+      response: closingStates,
+    },
+    {
+      queryName: "GetIssueForWrite",
+      // Someone else cancels the Issue while its context is being read.
+      response: (_request, history) => {
+        const basis = issueWriteBasis()
+        if (history.some(({ query }) => query.includes("GetIssueContext"))) {
+          basis.issue.state = {
+            id: "s-canceled",
+            name: "Canceled",
+            type: "canceled",
+          }
+        }
+        return { data: basis }
+      },
+    },
+    {
+      queryName: "GetIssueContext",
+      variables: { id: issueWriteId },
+      response: { data: closingContext(issueWriteId) },
+    },
+  ], { LINEAR_TEAM_KEY: "ENG" })
+  try {
+    const result = await new Deno.Command(Deno.execPath(), {
+      args: [
+        "run",
+        ...commonDenoArgs,
+        "src/main.ts",
+        "issue",
+        "update",
+        "ENG-123",
+        "--state",
+        "Canceled",
+        "--unprotected",
+        "--json",
+      ],
+      stdin: "null",
+      stdout: "piped",
+      stderr: "piped",
+    }).output()
+    const body = JSON.parse(new TextDecoder().decode(result.stdout))
+    assertEquals(result.code, 0, new TextDecoder().decode(result.stderr))
+    assertEquals(body.effect, "none")
+    assertEquals(
+      server.graphqlRequests.some((request) =>
+        request.query.includes("mutation UpdateIssue")
+      ),
+      false,
+    )
+  } finally {
+    await cleanup()
+  }
+})
+
 Deno.test("Issue Update Command - non-closing state does not read context", async () => {
   const { server, cleanup } = await setupMockLinearServer([
     {
