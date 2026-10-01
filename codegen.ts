@@ -24,6 +24,7 @@ const config: CodegenConfig = {
       presetConfig: {
         gqlTagName: "gql",
         fragmentMasking: false,
+        skipIndexFile: true,
       },
     },
   },

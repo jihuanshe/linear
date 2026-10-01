@@ -11,7 +11,7 @@
     "dev": "deno task generate-graphql-types && deno run --allow-all --quiet src/main.ts ",
     "install": "deno task generate-graphql-types && deno install --compile --frozen --lock=./deno.lock -c ./deno.json --allow-all -g -f -n linear ./src/main.ts",
     "uninstall": "deno uninstall -g linear",
-    "generate-graphql-types": "deno run --allow-all npm:@graphql-codegen/cli@7.4.3/graphql-codegen-esm",
+    "generate-graphql-types": "deno run --allow-all @graphql-codegen/cli/graphql-codegen-esm",
     "sync-graphql-schema": "deno task dev schema -o graphql/schema.graphql && deno task generate-graphql-types",
     "check-types": "deno check src/main.ts",
     "lint:markdown": "mise exec -- markdownlint-cli2 \"**/*.md\" \".agents/**/*.md\"",
