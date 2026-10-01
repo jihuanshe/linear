@@ -94,7 +94,6 @@ export const viewCommand = new Command()
   .description(
     "View a cycle by name, number, active/now, next, previous, or relative offset (e.g. +1 or -1)",
   )
-  .alias("v")
   .arguments("<cycle:string>")
   .option(
     "--team <team:string>",

@@ -2,13 +2,13 @@
   "version": "5",
   "specifiers": {
     "jsr:@cliffy/ansi@^1.3.1": "1.3.1",
-    "jsr:@cliffy/command@1.2.1": "1.2.1",
-    "jsr:@cliffy/internal@1.2.1": "1.2.1",
+    "jsr:@cliffy/command@1.3.1": "1.3.1",
     "jsr:@cliffy/internal@^1.3.1": "1.3.1",
     "jsr:@cliffy/keycode@^1.3.1": "1.3.1",
     "jsr:@cliffy/prompt@^1.3.1": "1.3.1",
-    "jsr:@cliffy/table@1.2.1": "1.2.1",
+    "jsr:@cliffy/table@^1.3.1": "1.3.1",
     "jsr:@cliffy/testing@^1.3.1": "1.3.1",
+    "jsr:@cliffy/upgrade@^1.3.1": "1.3.1",
     "jsr:@littletof/charmd@~0.1.2": "0.1.2",
     "jsr:@opensrc/deno-open@1": "1.0.0",
     "jsr:@std/assert@^1.0.19": "1.0.19",
@@ -30,11 +30,14 @@
     "jsr:@std/path@^1.1.6": "1.1.6",
     "jsr:@std/path@~0.218.2": "0.218.2",
     "jsr:@std/semver@^1.0.8": "1.0.8",
+    "jsr:@std/streams@^1.0.17": "1.2.0",
+    "jsr:@std/tar@~0.1.10": "0.1.10",
     "jsr:@std/testing@1.0.20": "1.0.20",
     "jsr:@std/testing@^1.0.21": "1.0.21",
     "jsr:@std/text@^1.0.19": "1.1.0",
     "jsr:@std/toml@^1.0.11": "1.0.11",
-    "npm:@graphql-codegen/cli@7.4.1": "7.4.1_graphql@17.0.2",
+    "npm:@graphql-codegen/cli@7.4.3": "7.4.3_graphql@17.0.2",
+    "npm:@graphql-codegen/client-preset@6.2.0": "6.2.0_graphql@17.0.2",
     "npm:@graphql-typed-document-node/core@^3.2.0": "3.2.0_graphql@17.0.2",
     "npm:graphql-request@^7.4.0": "7.4.0_graphql@17.0.2",
     "npm:graphql@^17.0.2": "17.0.2",
@@ -48,24 +51,21 @@
     "@cliffy/ansi@1.3.1": {
       "integrity": "b6ffd9c79a42cd68fc412d4e520c6bbbdde3c74dba182d017c46790596e003d7",
       "dependencies": [
-        "jsr:@cliffy/internal@^1.3.1",
+        "jsr:@cliffy/internal",
         "jsr:@std/encoding",
         "jsr:@std/fmt@^1.0.10",
         "jsr:@std/io"
       ]
     },
-    "@cliffy/command@1.2.1": {
-      "integrity": "b7b017c81560d96580ea810c8564566884d8194416f6fc06bfdc8846e8fd590f",
+    "@cliffy/command@1.3.1": {
+      "integrity": "366ab6d5f68abe3ded22c09f65c151cfba600fa26690a4763f390c2f1e07ca4d",
       "dependencies": [
-        "jsr:@cliffy/internal@1.2.1",
+        "jsr:@cliffy/internal",
         "jsr:@cliffy/table",
+        "jsr:@cliffy/upgrade",
         "jsr:@std/fmt@^1.0.10",
-        "jsr:@std/semver",
         "jsr:@std/text"
       ]
-    },
-    "@cliffy/internal@1.2.1": {
-      "integrity": "e398f41c6839d3d4d249c963bfcb1058013091425926d53a3cb482b1ca70684b"
     },
     "@cliffy/internal@1.3.1": {
       "integrity": "b309718fbfb8a226e74bc06f151d4459c2bdfa7ce68482decca75106bbf28816",
@@ -80,7 +80,7 @@
       "integrity": "00802daf9735808373b285c003085121053e7acd6d111c1df04812253b2d363f",
       "dependencies": [
         "jsr:@cliffy/ansi",
-        "jsr:@cliffy/internal@^1.3.1",
+        "jsr:@cliffy/internal",
         "jsr:@cliffy/keycode",
         "jsr:@std/assert@^1.0.19",
         "jsr:@std/fmt@^1.0.10",
@@ -89,8 +89,8 @@
         "jsr:@std/text"
       ]
     },
-    "@cliffy/table@1.2.1": {
-      "integrity": "be333e62f2c754f8bf75a38c8177515b152040572c9f75298e9bcef1314b82ff",
+    "@cliffy/table@1.3.1": {
+      "integrity": "483c43936b9be148cbedd8bd39e5c0d098c9c87c4667fe2ad9b8acff77f79b8b",
       "dependencies": [
         "jsr:@std/fmt@^1.0.10"
       ]
@@ -99,10 +99,21 @@
       "integrity": "655e7da1026cea2918bc1e275a62a881b890b39005f49aad32102c7beca27102",
       "dependencies": [
         "jsr:@cliffy/ansi",
-        "jsr:@cliffy/internal@^1.3.1",
+        "jsr:@cliffy/internal",
         "jsr:@std/assert@^1.0.19",
         "jsr:@std/fmt@^1.0.10",
         "jsr:@std/testing@1.0.20"
+      ]
+    },
+    "@cliffy/upgrade@1.3.1": {
+      "integrity": "9407061b092de52533d291e2488df24ec0718e28e024ac208603c0e16ae6407a",
+      "dependencies": [
+        "jsr:@cliffy/internal",
+        "jsr:@cliffy/table",
+        "jsr:@std/fmt@^1.0.10",
+        "jsr:@std/path@^1.1.6",
+        "jsr:@std/semver",
+        "jsr:@std/tar"
       ]
     },
     "@littletof/charmd@0.1.2": {
@@ -181,6 +192,15 @@
     },
     "@std/semver@1.0.8": {
       "integrity": "dc830e8b8b6a380c895d53fbfd1258dc253704ca57bbe1629ac65fd7830179b7"
+    },
+    "@std/streams@1.2.0": {
+      "integrity": "256b934254778f2bf45f5713b934209ff29e9b4b7fd4ec095219966813758c5f"
+    },
+    "@std/tar@0.1.10": {
+      "integrity": "6bf907f3a4bc8bfef42973ba132d946756a6161ef6b914a9e1c06debe664db17",
+      "dependencies": [
+        "jsr:@std/streams"
+      ]
     },
     "@std/testing@1.0.20": {
       "integrity": "21380ed438672762e4ec549cbf4fe41c5b68f5598773a30b64abe7375513e721",
@@ -382,8 +402,8 @@
         "tslib"
       ]
     },
-    "@graphql-codegen/cli@7.4.1_graphql@17.0.2": {
-      "integrity": "sha512-jDNweI6GC+AwdKn1rXgBI6t2NEk17yEnGCUKeHWa3p8u0zoNNkhGmbL2wEb1XDVqyO3UoCAe8fekR1COhWDf0w==",
+    "@graphql-codegen/cli@7.4.3_graphql@17.0.2": {
+      "integrity": "sha512-NxjXhuy/xE7HAGRYcKrrVCgoPBHLSZJCEuFqy7BTYln+qWNhfJdtD2du0pVwIRoftGfeX87MQzOwU/TG09hlVQ==",
       "dependencies": [
         "@babel/generator",
         "@babel/template",
@@ -1081,8 +1101,8 @@
         "fill-range"
       ]
     },
-    "browserslist@4.29.1": {
-      "integrity": "sha512-AUdjuRyCNGUYtqpqfTmWyM4fXay8yIQhmLnvYe/THMGfT9B/34X7xQd3ifKxwyNPPpowVBjLb+64BN9Rn1mizw==",
+    "browserslist@4.29.3": {
+      "integrity": "sha512-1R4kiYKXGViqEN0CnoDrXc1StD9niAwu+j2dukWzrD4bJgsD4lDmEp0CRbc6E/vYJIfTHwPmwyaKtVSudICdPA==",
       "dependencies": [
         "baseline-browser-mapping",
         "caniuse-lite",
@@ -1095,8 +1115,8 @@
     "callsites@3.1.0": {
       "integrity": "sha512-P8BjAsXvZS+VIDUI11hHCQEv74YT67YUi5JJFNWIqL235sBmjX4+qx9Muvls5ivyNENctx46xQLQ3aTuE7ssaQ=="
     },
-    "caniuse-lite@1.0.30001812": {
-      "integrity": "sha512-qN+QNNBr93TCmFrmte0bBCjSDMuRvt78VlHT99qIGPszm4QsqCX8lnyWUFkHi8B7ZBAPq8SH+UqyXNy/odMdng=="
+    "caniuse-lite@1.0.30001814": {
+      "integrity": "sha512-/Uaf1lAzr59XcMpW0o96WoEfr+VXK2OX4U9AgFoiSHsVJ4HppnIFUjtYzsyDH2+tgANaQb2/oxYGwCPapN1FpA=="
     },
     "ccount@2.0.1": {
       "integrity": "sha512-eyrF0jiFpY+3drT6383f1qhkbGsLSifNAjA61IUjZjmLCWjItY6LB9ft9YhoDgwfmclB2zhu51Lc7+95b8NRAg=="
@@ -1355,7 +1375,7 @@
         "tslib"
       ]
     },
-    "graphql-ws@6.3.0_graphql@17.0.2_ws@8.21.3": {
+    "graphql-ws@6.3.0_graphql@17.0.2_ws@8.22.0": {
       "integrity": "sha512-qBAXPtFjWHF3QypDyNcBp8Rycd+rmofxUSJsu3bGI9QMMq7pImKBSLSg9hZ2ojIMbJ54T/LPjKBIeOUoJbNBnQ==",
       "dependencies": [
         "graphql",
@@ -1445,13 +1465,13 @@
     "is-windows@1.0.2": {
       "integrity": "sha512-eXK1UInq2bPmjyX6e3VHIzMLobc4J94i4AWn+Hpq3OU5KkrRC96OAcR3PRJ/pGu6m8TRnBHP9dkXQVsT/COVIA=="
     },
-    "isomorphic-ws@5.0.0_ws@8.21.3": {
+    "isomorphic-ws@5.0.0_ws@8.22.0": {
       "integrity": "sha512-muId7Zzn9ywDsyXgTIafTry2sV3nySZeUDe6YedVd1Hvuuep5AsIlqK+XefWpYTyJG5e503F2xIuT2lcU6rCSw==",
       "dependencies": [
         "ws"
       ]
     },
-    "isows@1.0.7_ws@8.21.3": {
+    "isows@1.0.7_ws@8.22.0": {
       "integrity": "sha512-I1fSfDCZL5P0v33sVqeTDSpcstAg/N+wF5HS033mogOVIp4B+oHC7oOCsA3axAbBSGTJ8QubbNmnIRN/h8U7hg==",
       "dependencies": [
         "ws"
@@ -2204,7 +2224,7 @@
         "normalize-path"
       ]
     },
-    "update-browserslist-db@1.3.3_browserslist@4.29.1": {
+    "update-browserslist-db@1.3.3_browserslist@4.29.3": {
       "integrity": "sha512-pJ2sYawQS0R/WI928Gj5GlPhTGzbMelq0+4INtSYNDV9ErKJcX6xjGWkoG/VnB3dpUm00zALaqkrUD77pO5TDQ==",
       "dependencies": [
         "browserslist",
@@ -2254,8 +2274,8 @@
         "strip-ansi"
       ]
     },
-    "ws@8.21.3": {
-      "integrity": "sha512-201TZ/kPWxoPr/OKWjquZR1SWKXcvxdH+e1xrx89b3YbmzLMFCLfnaG1HFIgWzJOEWZ7MvpK++odZufgYR50Rw=="
+    "ws@8.22.0": {
+      "integrity": "sha512-Ydggc987+RO0AnWtZ/7Wq9FtNvcrL1b/RO0ud9mWjUPgDrsAAwQSF51sm2hm1XofbU/4jkpGEsLFsZZxU+1DOg=="
     },
     "y18n@5.0.8": {
       "integrity": "sha512-0pfFzegeDWJHJIAmTLRP2DwHjdF5s7jo9tuztdQxAhINCdvS+3nGINqPd00AphqJR/0LhANUS6/+7SCb98YOfA=="
@@ -2294,7 +2314,7 @@
   "workspace": {
     "dependencies": [
       "jsr:@cliffy/ansi@^1.3.1",
-      "jsr:@cliffy/command@1.2.1",
+      "jsr:@cliffy/command@1.3.1",
       "jsr:@cliffy/prompt@^1.3.1",
       "jsr:@cliffy/testing@^1.3.1",
       "jsr:@littletof/charmd@~0.1.2",
@@ -2308,7 +2328,8 @@
       "jsr:@std/path@^1.1.6",
       "jsr:@std/testing@^1.0.21",
       "jsr:@std/toml@^1.0.11",
-      "npm:@graphql-codegen/cli@7.4.1",
+      "npm:@graphql-codegen/cli@7.4.3",
+      "npm:@graphql-codegen/client-preset@6.2.0",
       "npm:@graphql-typed-document-node/core@^3.2.0",
       "npm:graphql-request@^7.4.0",
       "npm:graphql@^17.0.2",

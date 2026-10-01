@@ -43,7 +43,6 @@ export const listCommand = new Command()
   .description(
     "List status updates for a project by UUID, slug ID, exact name, or Linear URL",
   )
-  .alias("l")
   .arguments("<project:string>")
   .option(
     "--json",

@@ -31,7 +31,6 @@ export const createCommand = withUsageMetadata(new Command(), {
     "Output {ok, effect, data}; the created document is in data.document, its UUID in data.document.id",
   )
   .description(withMarkdownHint("Create a new document"))
-  .alias("c")
   .option("-t, --title <title:string>", "Document title (required)")
   .option("-c, --content <content:string>", "Markdown content (inline)", {
     preserveEmpty: true,

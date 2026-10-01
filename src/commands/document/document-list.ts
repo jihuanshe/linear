@@ -67,7 +67,6 @@ const ListDocuments = gql(`
 export const listCommand = new Command()
   .name("list")
   .description("List documents")
-  .alias("l")
   .option(
     "--project <project:string>",
     "Filter by project (UUID, slug ID, exact name, or Linear URL)",

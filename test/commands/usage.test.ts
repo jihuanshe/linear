@@ -115,6 +115,39 @@ Deno.test("usage provides a concise top-level overview", async () => {
   assertStringIncludes(result.stdout, "machine-readable: linear usage --json")
 })
 
+Deno.test("CLI aliases resolve to their canonical command help", async (t) => {
+  for (
+    const [route, canonical] of [
+      [["docs"], "document"],
+      [["doc"], "document"],
+      [["doc", "l"], "document list"],
+      [["docs", "v"], "document view"],
+      [["document", "c"], "document create"],
+      [["doc", "u"], "document update"],
+      [["docs", "d"], "document delete"],
+      [["i", "v"], "issue view"],
+      [["issue", "d"], "issue delete"],
+      [["p", "v"], "project view"],
+      [["pu", "c"], "project-update create"],
+      [["project-update", "l"], "project-update list"],
+      [["cy", "v"], "cycle view"],
+      [["m", "v"], "milestone view"],
+      [["init", "v"], "initiative view"],
+      [["iu", "c"], "initiative-update create"],
+      [["initiative-update", "l"], "initiative-update list"],
+      [["iu", "ls"], "initiative-update list"],
+    ] as const
+  ) {
+    await t.step(route.join(" "), async () => {
+      const result = await run([...route, "--help"])
+
+      assertEquals(result.code, 0, result.stderr)
+      assertEquals(result.stderr, "")
+      assertMatch(result.stdout, new RegExp(`Usage:\\s+linear ${canonical}\\s`))
+    })
+  }
+})
+
 Deno.test("zero-argument root reuses concise usage navigation", async (t) => {
   const [result, explicitUsage] = await Promise.all([
     run([]),

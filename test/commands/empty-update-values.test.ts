@@ -197,6 +197,36 @@ Deno.test("selective empty values - Command parser ownership and repeated parses
   assertEquals(option.args?.[0].optional, false)
 })
 
+Deno.test("selective empty values - required options reject empty unless opted in", async () => {
+  const command = new Command()
+    .throwErrors()
+    .option("--value <value:string>", "Value", { required: true })
+  assertEquals((await command.parse(["--value", "text"])).options, {
+    value: "text",
+  })
+  for (const args of [["--value", ""], ["--value="], ["--value"]]) {
+    await assertRejects(
+      () => command.parse(args),
+      Error,
+      'Missing value for option "--value"',
+    )
+  }
+  const kept = new Command()
+    .throwErrors()
+    .option("--value <value:string>", "Value", {
+      required: true,
+      preserveEmpty: true,
+    })
+  for (const args of [["--value", ""], ["--value="]]) {
+    assertEquals((await kept.parse(args)).options, { value: "" })
+  }
+  await assertRejects(
+    () => kept.parse(["--value"]),
+    Error,
+    'Missing value for option "--value"',
+  )
+})
+
 Deno.test("selective empty values - aliases and global option positions", async () => {
   const root = new Command()
     .throwErrors()
@@ -204,11 +234,11 @@ Deno.test("selective empty values - aliases and global option positions", async 
     .command(
       "update",
       new Command()
-        .alias("u")
         .option("-d, --description <value:string>", "Description", {
           preserveEmpty: true,
         }),
     )
+    .alias("u")
     .reset()
   for (
     const args of [

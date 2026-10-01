@@ -1,4 +1,4 @@
-import { getArgs } from "jsr:@cliffy/internal@1.2.1/runtime/get-args";
+import { getArgs } from "jsr:@cliffy/internal@^1.3.1/runtime/get-args";
 import {
   getDefaultValue,
   getOption,
@@ -227,7 +227,7 @@ export function parseFlags<
   validateOptions(opts);
   const options = parseArgs(ctx, args, opts);
   validateFlags(ctx, opts, options);
-  validateArguments(ctx, opts, options);
+  validateArguments(ctx, opts);
 
   if (opts.dotted) {
     parseDottedOptions(ctx);
@@ -282,7 +282,9 @@ function parseArgs<TFlagOptions extends FlagOptions>(
       inLiteral = true;
       continue;
     } else if (ctx.stopEarly || ctx.stopOnUnknown) {
-      ctx.unknown.push(current);
+      if (!consumeArgument(current)) {
+        ctx.unknown.push(current);
+      }
       continue;
     }
 
@@ -291,8 +293,12 @@ function parseArgs<TFlagOptions extends FlagOptions>(
     if (!maybeIsFlag) {
       if (opts.stopEarly) {
         ctx.stopEarly = true;
+        if (!consumeArgument(current)) {
+          ctx.unknown.push(current);
+        }
+        continue;
       }
-      if (opts.stopEarly || !opts.args?.length) {
+      if (!opts.args?.length) {
         ctx.unknown.push(current);
         continue;
       }
@@ -333,112 +339,34 @@ function parseArgs<TFlagOptions extends FlagOptions>(
         if (!option) {
           if (opts.stopOnUnknown) {
             ctx.stopOnUnknown = true;
-            ctx.unknown.push(args[argsIndex]);
+            if (!consumeArgument(currentRaw)) {
+              ctx.unknown.push(currentRaw);
+            }
             continue;
           }
 
           // Check if value is a positional argument
-          if (opts.args?.length) {
-            const argDef = opts.args[argIndex];
-
-            if (argDef) {
-              const args = ctx.args ??= [];
-
-              if (argDef.optional && currentRaw === "") {
-                if (!argDef.variadic) {
-                  args.push(undefined);
-                  argIndex++;
-                }
-                continue;
-              }
-
-              // Parse argument value
-              if (argDef.list) {
-                args.push(
-                  parseListValue(opts, {
-                    label: "Argument",
-                    name: argDef.name || `arg[${argIndex}]`,
-                    type: argDef.type || "string",
-                    value: currentRaw,
-                    separator: argDef.separator,
-                  }),
-                );
-              } else {
-                args.push(
-                  parseValue(opts, {
-                    label: "Argument",
-                    name: argDef.name || `arg[${argIndex}]`,
-                    type: argDef.type || "string",
-                    value: currentRaw,
-                  }),
-                );
-              }
-
-              // Increase argsIndex by amount of normalized arguments.
-              if (splitCount > 1) {
-                argsIndex += splitCount - 1;
-              }
-
-              if (!argDef.variadic) {
-                argIndex++;
-              } else if (opts.args[argIndex + 1]) {
-                throw new UnexpectedArgumentAfterVariadicArgumentError(
-                  currentRaw,
-                );
-              }
-              continue;
+          if (opts.args?.length && consumeArgument(currentRaw)) {
+            // Increase argsIndex by amount of normalized arguments.
+            if (splitCount > 1) {
+              argsIndex += splitCount - 1;
             }
+            continue;
           }
 
           if (!maybeIsFlag) {
-            throw new TooManyArgumentsError([currentRaw]);
+            // Collect the argument instead of throwing here, so that every
+            // surplus argument is reported and not only the first one. The
+            // error is thrown by `validateArguments` once parsing is done.
+            ctx.unknown.push(currentRaw);
+            continue;
           }
           throw new UnknownOptionError(current, opts.flags);
         }
       }
     } else {
-      if (opts.args?.length && !maybeIsFlag) {
-        const argDef = opts.args[argIndex];
-
-        if (argDef) {
-          const posArgs = ctx.args ??= [];
-
-          if (argDef.optional && currentRaw === "") {
-            if (!argDef.variadic) {
-              posArgs.push(undefined);
-              argIndex++;
-            }
-            continue;
-          }
-
-          if (argDef.list) {
-            posArgs.push(
-              parseListValue(opts, {
-                label: "Argument",
-                name: argDef.name || `arg[${argIndex}]`,
-                type: argDef.type || "string",
-                value: currentRaw,
-                separator: argDef.separator,
-              }),
-            );
-          } else {
-            posArgs.push(
-              parseValue(opts, {
-                label: "Argument",
-                name: argDef.name || `arg[${argIndex}]`,
-                type: argDef.type || "string",
-                value: currentRaw,
-              }),
-            );
-          }
-
-          if (!argDef.variadic) {
-            argIndex++;
-          } else if (opts.args[argIndex + 1]) {
-            throw new UnexpectedArgumentAfterVariadicArgumentError(currentRaw);
-          }
-          continue;
-        }
+      if (opts.args?.length && !maybeIsFlag && consumeArgument(currentRaw)) {
+        continue;
       }
       option = {
         name: current.replace(/^-+/, ""),
@@ -592,7 +520,10 @@ function parseArgs<TFlagOptions extends FlagOptions>(
       let result: unknown;
       let increase = false;
 
-      if (!option.preserveEmpty && hasNext(arg) && (!option.required || arg.optional) && next() === "") {
+      if (!option.preserveEmpty && hasNext(arg) && next() === "") {
+        if (option.required && !arg.optional) {
+          throw new MissingOptionValueError(option.name);
+        }
         // if the value is empty and the argument is optional,
         // we can skip the argument.
         if (arg.variadic) {
@@ -724,6 +655,36 @@ function parseArgs<TFlagOptions extends FlagOptions>(
   }
 
   return optionsMap;
+
+  function consumeArgument(value: string): boolean {
+    const argDef = opts.args?.[argIndex];
+    if (!argDef) {
+      return false;
+    }
+
+    const posArgs: Array<unknown> = ctx.args ??= [];
+
+    if (value === "") {
+      if (argDef.variadic) {
+        return true;
+      } else if (!argDef.optional) {
+        throw new MissingArgumentError(argDef.name ?? `arg[${argIndex}]`);
+      }
+      posArgs.push(undefined);
+      argIndex++;
+      return true;
+    }
+
+    posArgs.push(parseArgument(opts, argDef, argIndex, value));
+
+    if (!argDef.variadic) {
+      argIndex++;
+    } else if (opts.args?.[argIndex + 1]) {
+      throw new UnexpectedArgumentAfterVariadicArgumentError(value);
+    }
+
+    return true;
+  }
 }
 
 function parseDottedOptions(ctx: ParseFlagsContext): void {
@@ -816,6 +777,25 @@ function parseListValue<TFlagOptions extends FlagOptions>(
     });
 }
 
+function parseArgument<TFlagOptions extends FlagOptions>(
+  opts: ParseFlagsOptions<TFlagOptions>,
+  argDef: ArgumentOptions,
+  index: number,
+  value: string,
+): unknown {
+  const name = argDef.name || `arg[${index}]`;
+  const type = argDef.type || "string";
+  return argDef.list
+    ? parseListValue(opts, {
+      label: "Argument",
+      name,
+      type,
+      value,
+      separator: argDef.separator,
+    })
+    : parseValue(opts, { label: "Argument", name, type, value });
+}
+
 function parseDefaultType({
   label,
   name,
@@ -839,7 +819,6 @@ function parseDefaultType({
 function validateArguments<TOptions extends FlagOptions = FlagOptions>(
   ctx: ParseFlagsContext<Record<string, unknown>>,
   opts: ParseFlagsOptions<TOptions>,
-  options: Map<string, FlagOptions> = new Map(),
 ) {
   if (!opts.args?.length) {
     return;
@@ -853,14 +832,8 @@ function validateArguments<TOptions extends FlagOptions = FlagOptions>(
         expectedArg.name ?? `arg[${opts.args?.indexOf(expectedArg)}]`
       );
 
-    if (required.length) {
-      const hasStandaloneOption = [...options.keys()].some((name) =>
-        opts.flags && getOption(opts.flags, name)?.standalone
-      );
-
-      if (!hasStandaloneOption) {
-        throw new MissingArgumentsError(required);
-      }
+    if (required.length && !ctx.standalone) {
+      throw new MissingArgumentsError(required);
     }
   } else {
     ctx.args ??= [];
@@ -890,6 +863,11 @@ function validateArguments<TOptions extends FlagOptions = FlagOptions>(
         if (expectedArg.optional) {
           continue;
         }
+
+        if (ctx.standalone) {
+          return;
+        }
+
         throw new MissingArgumentError(expectedArg.name ?? `arg[${index}]`);
       }
 

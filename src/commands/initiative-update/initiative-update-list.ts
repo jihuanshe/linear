@@ -34,7 +34,6 @@ export const listCommand = new Command()
   .description(
     "List status updates for an initiative by UUID, slug ID, name, or Linear URL",
   )
-  .alias("l")
   .arguments("<initiative:string>")
   .option(
     "-j, --json",

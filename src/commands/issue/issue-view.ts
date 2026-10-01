@@ -66,7 +66,6 @@ export const viewCommand = new Command()
   .description(
     "View issue details with all comments and attachments, or open in browser/app. Accepts an issue UUID, identifier (e.g. ENG-123), number in the configured team, or Linear URL; omit to use the current Git or Jujutsu context.\n\nOutput starts with a Context section: assignee vs. the current account, parent, sub-issues, relations, attachment and comment counts, the latest comment by another account, and state, assignee or project changes by other accounts from the latest 50 history entries. Read it before cancelling, marking as duplicate or re-assigning; the full change log is issue history.",
   )
-  .alias("v")
   .arguments("[issue:string]")
   .option("-w, --web", "Open in web browser")
   .option("-a, --app", "Open in Linear.app")

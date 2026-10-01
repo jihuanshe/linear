@@ -32,7 +32,6 @@ export const viewCommand = new Command()
   .description(
     "View initiative details, full content and document links by UUID, slug ID, name, or Linear URL",
   )
-  .alias("v")
   .arguments("<initiative:string>")
   .option("-w, --web", "Open in web browser")
   .option("-a, --app", "Open in Linear.app")

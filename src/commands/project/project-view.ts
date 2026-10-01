@@ -106,7 +106,6 @@ export const viewCommand = new Command()
   .description(
     "View project details and full overview by UUID, slug ID, exact name, or Linear URL",
   )
-  .alias("v")
   .arguments("<project:string>")
   .option("-w, --web", "Open in web browser")
   .option("-a, --app", "Open in Linear.app")
