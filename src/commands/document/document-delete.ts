@@ -34,7 +34,6 @@ export const deleteCommand = withUsageMetadata(new Command(), {
   .description(
     "Delete a document by UUID or slug ID (moves to trash); requires an explicit document or bulk input",
   )
-  .alias("d")
   .arguments("[document:string]")
   .option("-y, --yes", "Skip confirmation prompt")
   .option(

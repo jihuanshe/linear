@@ -55,7 +55,6 @@ export const viewCommand = new Command()
       " attached issues from the first page of " + PAGE_SIZE +
       "; use --all to paginate the full set.",
   )
-  .alias("v")
   .arguments("<milestone:string>")
   .option(
     "--all",

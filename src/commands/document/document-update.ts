@@ -107,7 +107,6 @@ export const updateCommand = withUsageMetadata(new Command(), {
       "`linear document view <document> --json > original.json`, then pass\n" +
       "--base-file original.json. --unprotected skips the comparison instead.",
   ))
-  .alias("u")
   .arguments("<document:string>")
   .option(
     "-t, --title <title:string>",

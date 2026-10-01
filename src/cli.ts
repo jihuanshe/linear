@@ -104,6 +104,8 @@ Environment Variables:
   .command("label", labelCommand)
   .alias("l")
   .command("document", documentCommand)
+  .alias("docs")
+  .alias("doc")
   .command("guide", guideCommand)
   .command("recipe", recipeCommand)
   .command("completions", new CompletionsCommand())

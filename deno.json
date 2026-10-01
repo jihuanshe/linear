@@ -11,7 +11,7 @@
     "dev": "deno task generate-graphql-types && deno run --allow-all --quiet src/main.ts ",
     "install": "deno task generate-graphql-types && deno install --compile --frozen --lock=./deno.lock -c ./deno.json --allow-all -g -f -n linear ./src/main.ts",
     "uninstall": "deno uninstall -g linear",
-    "generate-graphql-types": "deno run --allow-all npm:@graphql-codegen/cli@7.4.1/graphql-codegen-esm",
+    "generate-graphql-types": "deno run --allow-all @graphql-codegen/cli/graphql-codegen-esm",
     "sync-graphql-schema": "deno task dev schema -o graphql/schema.graphql && deno task generate-graphql-types",
     "check-types": "deno check src/main.ts",
     "lint:markdown": "mise exec -- markdownlint-cli2 \"**/*.md\" \".agents/**/*.md\"",
@@ -24,11 +24,12 @@
   },
   "imports": {
     "@cliffy/ansi": "jsr:@cliffy/ansi@^1.3.1",
-    "@cliffy/command": "jsr:@cliffy/command@1.2.1",
-    "jsr:@cliffy/flags@1.2.1": "./third_party/cliffy-flags/mod.ts",
+    "@cliffy/command": "jsr:@cliffy/command@1.3.1",
+    "jsr:@cliffy/flags@^1.3.1": "./third_party/cliffy-flags/mod.ts",
     "@cliffy/prompt": "jsr:@cliffy/prompt@^1.3.1",
     "@cliffy/testing": "jsr:@cliffy/testing@^1.3.1",
-    "@graphql-codegen/cli": "npm:@graphql-codegen/cli@7.4.1",
+    "@graphql-codegen/cli": "npm:@graphql-codegen/cli@7.4.3",
+    "@graphql-codegen/client-preset": "npm:@graphql-codegen/client-preset@6.2.0",
     "@graphql-typed-document-node/core": "npm:@graphql-typed-document-node/core@^3.2.0",
     "@littletof/charmd": "jsr:@littletof/charmd@^0.1.2",
     "@opensrc/deno-open": "jsr:@opensrc/deno-open@^1.0.0",
@@ -52,6 +53,7 @@
   },
   "fmt": {
     "exclude": [
+      ".mise/locks/",
       "__generated__/",
       "src/__codegen__/",
       "third_party/cliffy-flags/**/*.ts"

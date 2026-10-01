@@ -32,7 +32,6 @@ export const createCommand = withUsageMetadata(new Command(), {
   .description(
     "Create a new status update for an initiative by UUID, slug ID, name, or Linear URL",
   )
-  .alias("c")
   .arguments("<initiative:string>")
   .option("--body <body:string>", "Update content (markdown)", {
     preserveEmpty: true,

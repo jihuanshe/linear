@@ -35,7 +35,8 @@ fi
 
 # mise evaluates min_version before running project-scoped commands. Upgrade
 # first so an existing Orb with the previous mise can recover this checkout.
-if ! MISE_CONFIG_FILE=/dev/null "$mise_bin" self-update -y --no-plugins >/dev/null 2>&1; then
+# Skip the default 24h release delay so a same-day min_version bump can recover.
+if ! MISE_CONFIG_FILE=/dev/null "$mise_bin" self-update -y --no-plugins --minimum-release-age 0s >/dev/null 2>&1; then
   # Distribution-packaged mise builds may disable self-update. The official
   # installer is the recovery path in that case and writes to path_bin_dir.
   curl -fsSL https://mise.run | sh

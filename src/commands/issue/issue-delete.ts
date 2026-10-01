@@ -62,7 +62,6 @@ export const deleteCommand = withUsageMetadata(new Command(), {
   .description(
     "Delete (trash) an issue by UUID, identifier (e.g. ENG-123), number in the configured team, or Linear URL; requires an explicit issue or bulk input. Bulk stops after an unknown outcome.",
   )
-  .alias("d")
   .arguments("[issue:string]")
   .option("-y, --yes", "Skip confirmation prompt")
   .option(

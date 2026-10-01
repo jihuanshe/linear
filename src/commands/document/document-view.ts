@@ -144,7 +144,6 @@ async function getDocumentWithAllComments(
 export const viewCommand = new Command()
   .name("view")
   .description("View a document's content by UUID or slug ID")
-  .alias("v")
   .arguments("<document:string>")
   .option("--raw", "Output raw markdown without rendering")
   .option("-w, --web", "Open document in browser")

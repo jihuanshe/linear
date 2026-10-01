@@ -48,7 +48,6 @@ export const createCommand = withUsageMetadata(new Command(), {
   .description(
     "Create a new status update for a project by UUID, slug ID, exact name, or Linear URL",
   )
-  .alias("c")
   .arguments("<project:string>")
   .option("--body <body:string>", "Update content (inline)", {
     preserveEmpty: true,
