@@ -29,27 +29,27 @@ Deno.test("mise native lock sidecars are tracked", async () => {
   assertEquals(result.code, 0, decoder.decode(result.stderr))
   const inventory: {
     lockfile: string
-    sidecars: { path: string; exists: boolean }[]
+    sidecars: { path: string; graph: string }[]
   }[] = JSON.parse(decoder.decode(result.stdout))
   const lock = inventory.find(({ lockfile }) => lockfile === "mise.lock")
   assert(lock, "mise.lock is missing from the native lock inventory")
 
   // Locked installation validates the graph; this source gate checks that
-  // its assets will also exist in a fresh checkout, including ignored files.
-  for (const { path, exists } of lock.sidecars) {
-    assert(exists, `Missing native lock sidecar: ${path}`)
+  // Aube's two native assets exist in a fresh checkout, not unrelated caches.
+  for (const { path, graph } of lock.sidecars) {
+    assertEquals(graph, "aube", "Add tracking checks for the new graph format")
+    const files = ["package.json", "aube-lock.yaml"].map((file) =>
+      `${path}/${file}`
+    )
+    for (const file of files) {
+      assert(
+        (await Deno.stat(file)).isFile,
+        `Native lock asset is not a file: ${file}`,
+      )
+    }
     const tracked = await new Deno.Command("git", {
-      args: ["ls-files", "--error-unmatch", "--", path],
+      args: ["ls-files", "--error-unmatch", "--", ...files],
     }).output()
     assertEquals(tracked.code, 0, decoder.decode(tracked.stderr))
-    const missing = await new Deno.Command("git", {
-      args: ["ls-files", "--others", "--deleted", "--", path],
-    }).output()
-    assertEquals(
-      decoder.decode(missing.stdout),
-      "",
-      `Native lock assets must be present and tracked: ${path}`,
-    )
-    assertEquals(missing.code, 0, decoder.decode(missing.stderr))
   }
 })
