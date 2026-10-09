@@ -42199,6 +42199,7 @@ enum WorkflowTrigger {
   chatMessagePosted
   chatReactionAdded
   commentAdded
+  commentResolved
   customerRequestAdded
   cycleEnded
   cycleStarted
@@ -42207,6 +42208,7 @@ enum WorkflowTrigger {
   entityRemoved
   entityUnarchived
   entityUpdated
+  reviewSubmitted
   updatePosted
 }
 
@@ -42217,6 +42219,7 @@ enum WorkflowTriggerType {
   initiative
   issue
   project
+  pullRequest
   release
   schedule
   team
