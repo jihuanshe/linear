@@ -1,11 +1,11 @@
-min_version = "2026.9.18"
+min_version = "2026.10.6"
 
 [tools]
 deno = "2.9.7"
-node = "24.21.0"
+node = "26.11.1"
 "npm:markdownlint-cli2" = "0.23.3"
 "github:huacnlee/autocorrect" = "2.16.3"
-prek = "0.5.4"
+prek = "0.5.5"
 
 [settings]
 lockfile = true

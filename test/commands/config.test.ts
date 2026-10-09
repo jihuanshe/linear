@@ -122,7 +122,7 @@ Deno.test("config wizard selects a team UUID but writes only its team_key", asyn
 })
 
 Deno.test("config wizard refuses every selected existing project file before prompting or network", async () => {
-  const root = await Deno.makeTempDir()
+  const root = await Deno.realPath(await Deno.makeTempDir())
   try {
     const git = await new Deno.Command("git", {
       args: ["init", "--quiet", root],

@@ -119,7 +119,7 @@ Deno.test("update - never treats a likely mise install as standalone", async () 
 })
 
 Deno.test("update - explains a stale mise executable selection", async () => {
-  const root = await Deno.makeTempDir()
+  const root = await Deno.realPath(await Deno.makeTempDir())
   try {
     const installs = join(root, "mise", "installs")
     const executable = join(installs, "linear", "1", "bin", "linear")

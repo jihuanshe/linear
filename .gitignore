@@ -1,5 +1,6 @@
 # AI 工具的本地文件与交付物
 .aider.*
+/outputs/
 /.amp/in/artifacts/
 
 # 本地 CLI 配置

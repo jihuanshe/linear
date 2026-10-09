@@ -486,7 +486,7 @@ Deno.test("invalid bool/vcs/sort values are distinct from unset, including envir
 })
 
 Deno.test("project selection rejects bare git-root config and shares the wizard's effective target", async () => {
-  const root = await Deno.makeTempDir()
+  const root = await Deno.realPath(await Deno.makeTempDir())
   try {
     const init = await new Deno.Command("git", {
       args: ["init", "--quiet", root],
