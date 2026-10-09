@@ -1,0 +1,329 @@
+{
+  "capturedAt": "2026-10-09T18:42:11.212Z",
+  "environment": "Production CLI entry against existing MockLinearServer; no real workspace writes",
+  "measurements": [
+    {
+      "name": "create-default-state",
+      "requests": 4,
+      "operations": [
+        "GetWriteTeamByKey",
+        "GetWorkflowStates",
+        "GetTeamStateDefaults",
+        "CreateIssue"
+      ],
+      "mutationCount": 1
+    },
+    {
+      "name": "view-identifier-no-overflow",
+      "requests": 1,
+      "operations": [
+        "GetIssueDetailsWithComments"
+      ],
+      "mutationCount": 0
+    },
+    {
+      "name": "view-url-no-overflow",
+      "requests": 2,
+      "operations": [
+        "GetIssueReferenceWorkspace",
+        "GetIssueDetailsWithComments"
+      ],
+      "mutationCount": 0
+    },
+    {
+      "name": "apply-create-with-ten-comments",
+      "requests": 24,
+      "operations": [
+        "GetDeliveryOrganization",
+        "GetWriteTeamByKey",
+        "CreateIssue",
+        "AddComment",
+        "AddComment",
+        "AddComment",
+        "AddComment",
+        "AddComment",
+        "AddComment",
+        "AddComment",
+        "AddComment",
+        "AddComment",
+        "AddComment",
+        "GetIssueForWrite",
+        "GetDeliveryCommentReceipt",
+        "GetDeliveryCommentReceipt",
+        "GetDeliveryCommentReceipt",
+        "GetDeliveryCommentReceipt",
+        "GetDeliveryCommentReceipt",
+        "GetDeliveryCommentReceipt",
+        "GetDeliveryCommentReceipt",
+        "GetDeliveryCommentReceipt",
+        "GetDeliveryCommentReceipt",
+        "GetDeliveryCommentReceipt"
+      ],
+      "mutationCount": 11
+    },
+    {
+      "name": "query-one-hundred-current-identifiers",
+      "requests": 1,
+      "operations": [
+        "GetIssuesForQuery"
+      ],
+      "mutationCount": 0
+    }
+  ],
+  "candidates": [
+    {
+      "name": "consolidated-team-resolution",
+      "query": "query AuditTeam($key: String!) {\n  teams(first: 2, filter: { key: { eqIgnoreCase: $key } }) {\n    nodes {\n      id key triageEnabled\n      defaultIssueState { id name type }\n      states(first: 50) {\n        nodes { id name type position }\n        pageInfo { hasNextPage endCursor }\n      }\n    }\n    pageInfo { hasNextPage endCursor }\n  }\n}",
+      "schemaErrors": [],
+      "baselineSchemaErrors": []
+    },
+    {
+      "name": "consolidated-readback",
+      "query": "query AuditReceipts($id: String!, $comment: String!, $attachment: String!, $relation: String!) {\n  organization { id urlKey }\n  issue(id: $id) {\n    id identifier archivedAt trashed title description url branchName priority estimate dueDate\n    state { id name type color }\n    assignee { id name displayName }\n    project { id name slugId }\n    projectMilestone { id name }\n    cycle { id number name isActive isNext isPrevious isFuture isPast }\n    team { id key activeCycle { number } }\n    parent { id identifier title state { name color } }\n    labels(first: 250) { nodes { id name color } pageInfo { hasNextPage endCursor } }\n  }\n  c0: comment(id: $comment) { id issue { id } }\n  a0: attachment(id: $attachment) { id issue { id } }\n  r0: issueRelation(id: $relation) { id issue { id } relatedIssue { id } }\n}",
+      "schemaErrors": [],
+      "baselineSchemaErrors": []
+    }
+  ],
+  "schemaSource": "https://api.linear.app/graphql",
+  "schemaSourceAuthentication": "none",
+  "schemaChanges": {
+    "breaking": [],
+    "dangerous": [
+      {
+        "type": "OPTIONAL_INPUT_FIELD_ADDED",
+        "description": "An optional field DocumentCreateInput.parentDocumentId was added."
+      },
+      {
+        "type": "OPTIONAL_INPUT_FIELD_ADDED",
+        "description": "An optional field DocumentCreateInput.subDocumentSortOrder was added."
+      },
+      {
+        "type": "OPTIONAL_INPUT_FIELD_ADDED",
+        "description": "An optional field DocumentUpdateInput.parentDocumentId was added."
+      },
+      {
+        "type": "OPTIONAL_INPUT_FIELD_ADDED",
+        "description": "An optional field DocumentUpdateInput.personalUserId was added."
+      },
+      {
+        "type": "OPTIONAL_INPUT_FIELD_ADDED",
+        "description": "An optional field DocumentUpdateInput.subDocumentSortOrder was added."
+      },
+      {
+        "type": "OPTIONAL_ARG_ADDED",
+        "description": "An optional argument Mutation.documentDelete(ifParentDocumentId:) was added."
+      },
+      {
+        "type": "OPTIONAL_INPUT_FIELD_ADDED",
+        "description": "An optional field OrganizationUpdateInput.suggestedBranchNameEnabled was added."
+      },
+      {
+        "type": "OPTIONAL_INPUT_FIELD_ADDED",
+        "description": "An optional field TeamUpdateInput.agentAutomationEnabled was added."
+      },
+      {
+        "type": "OPTIONAL_INPUT_FIELD_ADDED",
+        "description": "An optional field TeamUpdateInput.codingAgentEnabled was added."
+      },
+      {
+        "type": "VALUE_ADDED_TO_ENUM",
+        "description": "Enum value WorkflowTrigger.commentResolved was added."
+      },
+      {
+        "type": "VALUE_ADDED_TO_ENUM",
+        "description": "Enum value WorkflowTrigger.reviewSubmitted was added."
+      },
+      {
+        "type": "VALUE_ADDED_TO_ENUM",
+        "description": "Enum value WorkflowTrigger.webhookReceived was added."
+      },
+      {
+        "type": "VALUE_ADDED_TO_ENUM",
+        "description": "Enum value WorkflowTriggerType.pullRequest was added."
+      },
+      {
+        "type": "VALUE_ADDED_TO_ENUM",
+        "description": "Enum value WorkflowTriggerType.webhook was added."
+      }
+    ],
+    "addedTypes": [
+      "OrganizationQuota",
+      "OrganizationQuotaConnection",
+      "OrganizationQuotaEdge",
+      "OrganizationQuotaFilter",
+      "OriginInstallUrlPayload",
+      "OriginInstallationCancelPayload",
+      "OriginInstallationDetails"
+    ],
+    "addedFields": [
+      {
+        "name": "AiConversation.subscriberIds",
+        "type": "[String!]",
+        "description": "[Internal] Users subscribed to this run."
+      },
+      {
+        "name": "Document.parentDocument",
+        "type": "Document",
+        "description": "[Internal] The parent document. Null if the document is not a sub-document."
+      },
+      {
+        "name": "Document.subDocumentSortOrder",
+        "type": "Float",
+        "description": "[Internal] The sort order of the sub-document among its siblings. Null if the document is not a sub-document."
+      },
+      {
+        "name": "DocumentCreateInput.parentDocumentId",
+        "type": "String",
+        "description": "[Internal] The parent document of the sub-document. The container of the document must match the container of the parent document."
+      },
+      {
+        "name": "DocumentCreateInput.subDocumentSortOrder",
+        "type": "Float",
+        "description": "[Internal] The sort order of the sub-document among its siblings. Defaults to the last position. Requires `parentDocumentId`."
+      },
+      {
+        "name": "DocumentSearchResult.parentDocument",
+        "type": "Document",
+        "description": "[Internal] The parent document. Null if the document is not a sub-document."
+      },
+      {
+        "name": "DocumentSearchResult.subDocumentSortOrder",
+        "type": "Float",
+        "description": "[Internal] The sort order of the sub-document among its siblings. Null if the document is not a sub-document."
+      },
+      {
+        "name": "DocumentUpdateInput.parentDocumentId",
+        "type": "String",
+        "description": "[Internal] The parent document of the sub-document. The document and its sub-documents move to the container of the parent document. Set to null to make the document a top-level document in its container."
+      },
+      {
+        "name": "DocumentUpdateInput.personalUserId",
+        "type": "String",
+        "description": "[Internal] Moves the document and its sub-documents into this user's personal space. Must be the acting user."
+      },
+      {
+        "name": "DocumentUpdateInput.subDocumentSortOrder",
+        "type": "Float",
+        "description": "[Internal] The sort order of the sub-document among its siblings."
+      },
+      {
+        "name": "Mutation.integrationOriginConnect",
+        "type": "IntegrationPayload!",
+        "description": "[Internal] Completes the Origin app installation so the workspace receives Origin webhooks."
+      },
+      {
+        "name": "Mutation.integrationOriginConnectInstallation",
+        "type": "IntegrationPayload!",
+        "description": "[Internal] Connects an Origin installation that started on Origin, after the workspace admin who installed it confirms."
+      },
+      {
+        "name": "Mutation.originInstallationCancel",
+        "type": "OriginInstallationCancelPayload!",
+        "description": "[Internal] Removes Linear's app from an Origin installation that started on Origin and that no workspace connected."
+      },
+      {
+        "name": "Organization.suggestedBranchNameEnabled",
+        "type": "Boolean!",
+        "description": "Whether the default prompt for copying an issue or opening it in a coding tool includes a suggested Git branch name."
+      },
+      {
+        "name": "OrganizationUpdateInput.suggestedBranchNameEnabled",
+        "type": "Boolean",
+        "description": "Whether the default prompt for copying an issue or opening it in a coding tool includes a suggested Git branch name."
+      },
+      {
+        "name": "Query.originInstallUrl",
+        "type": "OriginInstallUrlPayload!",
+        "description": "[Internal] Builds the URL that starts installing Linear's Origin app into a codebase, or reinstalling it to grant new scopes."
+      },
+      {
+        "name": "Query.originInstallation",
+        "type": "OriginInstallationDetails!",
+        "description": "[Internal] Describes an Origin installation that started on Origin, for its installer to confirm before connecting."
+      },
+      {
+        "name": "Query.originPendingInstallations",
+        "type": "[OriginInstallationDetails!]!",
+        "description": "[Internal] Lists the Origin installations the current user started on Origin that no workspace has connected yet, matched by the user's email."
+      },
+      {
+        "name": "Query.quotas",
+        "type": "OrganizationQuotaConnection!",
+        "description": "Public resource quotas for the authenticated workspace. These are not subscription limits."
+      },
+      {
+        "name": "Team.agentAutomationEnabled",
+        "type": "Boolean!",
+        "description": "[Internal] Whether the team has enabled agent automation."
+      },
+      {
+        "name": "Team.codingAgentEnabled",
+        "type": "Boolean!",
+        "description": "[Internal] Whether the team has enabled Coding Sessions."
+      },
+      {
+        "name": "Team.viewerCanJoin",
+        "type": "Boolean!",
+        "description": "Whether the viewer can add themselves to the team. False when the viewer is already a member, the team is archived, retired, or SCIM-managed, the viewer lacks the plan access or permission to add themselves, or the viewer has reached their team membership limit. Runs the same checks `teamMembershipCreate` applies to a viewer joining on their own."
+      },
+      {
+        "name": "Team.viewerCanLeave",
+        "type": "Boolean!",
+        "description": "Whether the viewer can remove themselves from the team. False when the viewer is not a member, the team is SCIM-managed, the viewer is an app user the team does not accept, or leaving would leave the viewer without an active team. Otherwise mirrors the checks `teamMembershipDelete` applies to a viewer leaving on their own."
+      },
+      {
+        "name": "Team.viewerMembership",
+        "type": "TeamMembership",
+        "description": "The viewer's membership in the team. Null when the viewer is not a member."
+      },
+      {
+        "name": "TeamUpdateInput.agentAutomationEnabled",
+        "type": "Boolean",
+        "description": "[Internal] Whether the team has enabled agent automation."
+      },
+      {
+        "name": "TeamUpdateInput.codingAgentEnabled",
+        "type": "Boolean",
+        "description": "[Internal] Whether the team has enabled Coding Sessions."
+      }
+    ],
+    "addedArgs": [
+      {
+        "name": "Mutation.documentDelete(ifParentDocumentId)",
+        "type": "String"
+      }
+    ],
+    "addedEnums": [
+      "WorkflowTrigger.commentResolved",
+      "WorkflowTrigger.reviewSubmitted",
+      "WorkflowTrigger.webhookReceived",
+      "WorkflowTriggerType.pullRequest",
+      "WorkflowTriggerType.webhook"
+    ]
+  },
+  "dependencies": {
+    "graphql": "17.0.2",
+    "graphql-request": "7.4.0",
+    "@graphql-typed-document-node/core": "3.2.0",
+    "@graphql-codegen/cli": "7.4.6",
+    "@graphql-codegen/client-preset": "6.2.3"
+  },
+  "publicBatchProbe": {
+    "singleStatus": 200,
+    "arrayStatus": 400,
+    "error": "Operation batching disabled."
+  },
+  "optimizationsImplemented": false,
+  "verification": {
+    "sourceChecks": "passed",
+    "typeGeneration": "passed",
+    "typeCheck": "passed",
+    "testExecution": "four independent OS processes, repository test task, shard 1/4 through 4/4",
+    "testPassed": 2077,
+    "testStepsPassed": 151,
+    "testIgnored": 4,
+    "testFailed": 0,
+    "keyringIntegration": "excluded",
+    "githubCI": "not run at the time of this local verification snapshot"
+  }
+}

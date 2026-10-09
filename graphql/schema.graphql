@@ -1251,6 +1251,9 @@ type AiConversation implements Node {
   """
   status: AiConversationStatus!
 
+  """[Internal] Users subscribed to this run."""
+  subscriberIds: [String!]
+
   """A summary of the conversation."""
   summary: String
 
@@ -3978,7 +3981,7 @@ type AuthResolverResponse {
   users: [AuthUser!]!
 }
 
-"""A user that has access to the the resources of an organization."""
+"""A user that has access to the resources of an organization."""
 type AuthUser {
   """Whether the user is active."""
   active: Boolean!
@@ -7909,6 +7912,11 @@ type Document implements Node {
   owner: User
 
   """
+  [Internal] The parent document. Null if the document is not a sub-document.
+  """
+  parentDocument: Document
+
+  """
   The project that the document is associated with. Null if the document belongs to a different parent entity type.
   """
   project: Project
@@ -7925,6 +7933,11 @@ type Document implements Node {
   The sort order of the document in its parent entity's resources list. This order is shared with other resource types such as external links.
   """
   sortOrder: Float!
+
+  """
+  [Internal] The sort order of the sub-document among its siblings. Null if the document is not a sub-document.
+  """
+  subDocumentSortOrder: Float
 
   """Users who are subscribed to the document."""
   subscribers(
@@ -8324,6 +8337,11 @@ input DocumentCreateInput {
   ownerId: String
 
   """
+  [Internal] The parent document of the sub-document. The container of the document must match the container of the parent document.
+  """
+  parentDocumentId: String
+
+  """
   Related project for the document. Can be a UUID or project identifier (e.g., 'P-LIN-123').
   """
   projectId: String
@@ -8336,6 +8354,11 @@ input DocumentCreateInput {
 
   """The order of the item in the resources list."""
   sortOrder: Float
+
+  """
+  [Internal] The sort order of the sub-document among its siblings. Defaults to the last position. Requires `parentDocumentId`.
+  """
+  subDocumentSortOrder: Float
 
   """[INTERNAL] The identifiers of the users subscribing to this document."""
   subscriberIds: [String!]
@@ -8688,6 +8711,11 @@ type DocumentSearchResult implements Node {
   owner: User
 
   """
+  [Internal] The parent document. Null if the document is not a sub-document.
+  """
+  parentDocument: Document
+
+  """
   The project that the document is associated with. Null if the document belongs to a different parent entity type.
   """
   project: Project
@@ -8704,6 +8732,11 @@ type DocumentSearchResult implements Node {
   The sort order of the document in its parent entity's resources list. This order is shared with other resource types such as external links.
   """
   sortOrder: Float!
+
+  """
+  [Internal] The sort order of the sub-document among its siblings. Null if the document is not a sub-document.
+  """
+  subDocumentSortOrder: Float
 
   """Users who are subscribed to the document."""
   subscribers(
@@ -8840,6 +8873,16 @@ input DocumentUpdateInput {
   ownerId: String
 
   """
+  [Internal] The parent document of the sub-document. The document and its sub-documents move to the container of the parent document. Set to null to make the document a top-level document in its container.
+  """
+  parentDocumentId: String
+
+  """
+  [Internal] Moves the document and its sub-documents into this user's personal space. Must be the acting user.
+  """
+  personalUserId: String
+
+  """
   Related project for the document. Can be a UUID or project identifier (e.g., 'P-LIN-123').
   """
   projectId: String
@@ -8852,6 +8895,9 @@ input DocumentUpdateInput {
 
   """The order of the item in the resources list."""
   sortOrder: Float
+
+  """[Internal] The sort order of the sub-document among its siblings."""
+  subDocumentSortOrder: Float
 
   """[INTERNAL] The identifiers of the users subscribing to this document."""
   subscriberIds: [String!]
@@ -11240,7 +11286,7 @@ type Initiative implements Node {
   id: ID!
 
   """
-  [Internal] The human-readable identifier of the initiative. Returns the custom identifier override when set, otherwise the workspace default `<prefix>-<number>`. Null for legacy initiatives that have not been backfilled and while initiative identifiers are not enabled for the workspace.
+  [Internal] The human-readable identifier of the initiative. Returns the custom identifier override when set, otherwise the workspace default `<prefix>-<number>`. Null for legacy initiatives that have not been backfilled.
   """
   identifier: String
 
@@ -19252,6 +19298,11 @@ type Mutation {
   documentDelete(
     """The identifier of the document to delete."""
     id: String!
+
+    """
+    [Internal] Only trash the document if it is still a sub-document of this document. Otherwise the mutation fails and the document is left unchanged.
+    """
+    ifParentDocumentId: String
   ): DocumentArchivePayload!
 
   """Restores a previously trashed document by unarchiving it."""
@@ -20094,6 +20145,24 @@ type Mutation {
 
   """[INTERNAL] Refresh Opsgenie schedule mappings."""
   integrationOpsgenieRefreshScheduleMappings: IntegrationPayload!
+
+  """
+  [Internal] Completes the Origin app installation so the workspace receives Origin webhooks.
+  """
+  integrationOriginConnect(
+    """
+    The signed `installation_receipt` Origin returned to the install callback.
+    """
+    installationReceipt: String!
+  ): IntegrationPayload!
+
+  """
+  [Internal] Connects an Origin installation that started on Origin, after the workspace admin who installed it confirms.
+  """
+  integrationOriginConnectInstallation(
+    """The Origin installation id from the install redirect."""
+    installationId: String!
+  ): IntegrationPayload!
 
   """[INTERNAL] Integrates the workspace with PagerDuty."""
   integrationPagerDutyConnect(
@@ -21107,6 +21176,14 @@ type Mutation {
     """A partial workspace object to update the workspace with."""
     input: OrganizationUpdateInput!
   ): OrganizationPayload!
+
+  """
+  [Internal] Removes Linear's app from an Origin installation that started on Origin and that no workspace connected.
+  """
+  originInstallationCancel(
+    """The Origin installation id from the install redirect."""
+    installationId: String!
+  ): OriginInstallationCancelPayload!
 
   """
   [INTERNAL] Submits a Startup Program partner application from the website, creating a triage issue for the startup team.
@@ -24851,6 +24928,11 @@ type Organization implements Node {
   subscription: PaidSubscription
 
   """
+  Whether the default prompt for copying an issue or opening it in a coding tool includes a suggested Git branch name.
+  """
+  suggestedBranchNameEnabled: Boolean!
+
+  """
   Teams in the workspace. Returns only teams visible to the requesting user (all public teams plus private teams the user is a member of).
   """
   teams(
@@ -25418,6 +25500,40 @@ type OrganizationPayload {
   success: Boolean!
 }
 
+"""A public resource quota for the current workspace."""
+type OrganizationQuota implements Node {
+  description: String!
+
+  """The unique identifier of the entity."""
+  id: ID!
+
+  """Stable quota key."""
+  key: String!
+
+  """Effective quota limit, including workspace overrides."""
+  limit: Float!
+  name: String!
+}
+
+type OrganizationQuotaConnection {
+  edges: [OrganizationQuotaEdge!]!
+  nodes: [OrganizationQuota!]!
+  pageInfo: PageInfo!
+}
+
+type OrganizationQuotaEdge {
+  """Used in `before` and `after` args"""
+  cursor: String!
+  node: OrganizationQuota!
+}
+
+"""Filter public workspace quotas by key."""
+input OrganizationQuotaFilter {
+  and: [OrganizationQuotaFilter!]
+  key: StringComparator
+  or: [OrganizationQuotaFilter!]
+}
+
 """
 Input for updating workspace security settings such as role-based access controls.
 """
@@ -25670,6 +25786,11 @@ input OrganizationUpdateInput {
   """
   slackProjectChannelsEnabled: Boolean
 
+  """
+  Whether the default prompt for copying an issue or opening it in a coding tool includes a suggested Git branch name.
+  """
+  suggestedBranchNameEnabled: Boolean
+
   """[ALPHA] Theme settings for the workspace."""
   themeSettings: OrganizationThemeSettingsInput
 
@@ -25678,6 +25799,37 @@ input OrganizationUpdateInput {
 
   """[Internal] The list of working days. Sunday is 0, Monday is 1, etc."""
   workingDays: [Float!]
+}
+
+type OriginInstallUrlPayload {
+  """The Origin URL to send the user to in order to install Linear's app."""
+  installUrl: String!
+}
+
+type OriginInstallationCancelPayload {
+  """Whether Linear's app was removed from the installation."""
+  success: Boolean!
+}
+
+type OriginInstallationDetails {
+  """
+  Whether the installation is already connected to the current workspace, as after a reinstall that updated it.
+  """
+  connectedToWorkspace: Boolean!
+
+  """The Origin installation id."""
+  installationId: String!
+
+  """The slug of the Origin owner the app was installed on."""
+  ownerSlug: String!
+
+  """Whether the Origin owner is a `team` or a `user`."""
+  ownerType: String
+
+  """
+  Whether the installation covers `all` repositories of the owner or only `selected` ones.
+  """
+  repositorySelection: String!
 }
 
 """Customer owner sorting options."""
@@ -26647,7 +26799,7 @@ type Project implements Node {
   id: ID!
 
   """
-  [Internal] The human-readable identifier of the project. Returns the custom identifier override when set, otherwise the default `P-<leadTeamKey>-<number>`. Null for projects without a lead team, for legacy projects that have not been backfilled, and while project identifiers are not enabled for the workspace.
+  [Internal] The human-readable identifier of the project. Returns the custom identifier override when set, otherwise the default `P-<leadTeamKey>-<number>`. Null for projects without a lead team and for legacy projects that have not been backfilled.
   """
   identifier: String
 
@@ -28993,7 +29145,7 @@ type ProjectSearchResult implements Node {
   id: ID!
 
   """
-  [Internal] The human-readable identifier of the project. Returns the custom identifier override when set, otherwise the default `P-<leadTeamKey>-<number>`. Null for projects without a lead team, for legacy projects that have not been backfilled, and while project identifiers are not enabled for the workspace.
+  [Internal] The human-readable identifier of the project. Returns the custom identifier override when set, otherwise the default `P-<leadTeamKey>-<number>`. Null for projects without a lead team and for legacy projects that have not been backfilled.
   """
   identifier: String
 
@@ -32330,6 +32482,24 @@ type Query {
   ): OrganizationMeta
 
   """
+  [Internal] Builds the URL that starts installing Linear's Origin app into a codebase, or reinstalling it to grant new scopes.
+  """
+  originInstallUrl: OriginInstallUrlPayload!
+
+  """
+  [Internal] Describes an Origin installation that started on Origin, for its installer to confirm before connecting.
+  """
+  originInstallation(
+    """The Origin installation id from the install redirect."""
+    installationId: String!
+  ): OriginInstallationDetails!
+
+  """
+  [Internal] Lists the Origin installations the current user started on Origin that no workspace has connected yet, matched by the user's email.
+  """
+  originPendingInstallations: [OriginInstallationDetails!]!
+
+  """
   [Internal] Fetches public details of an active partner-program offer by its partner slug. Returns null when no active offer matches the slug.
   """
   partnerOfferDetails(
@@ -32587,6 +32757,28 @@ type Query {
     """Whether to send to mobile devices."""
     targetMobile: Boolean = false
   ): PushSubscriptionTestPayload!
+
+  """
+  Public resource quotas for the authenticated workspace. These are not subscription limits.
+  """
+  quotas(
+    """A cursor to be used with first for forward pagination"""
+    after: String
+
+    """A cursor to be used with last for backward pagination."""
+    before: String
+    filter: OrganizationQuotaFilter
+
+    """
+    The number of items to forward paginate (used with after). Defaults to 50.
+    """
+    first: Int
+
+    """
+    The number of items to backward paginate (used with before). Defaults to 50.
+    """
+    last: Int
+  ): OrganizationQuotaConnection!
 
   """
   The current rate limit status for the authenticated client, including remaining quota and reset timing for each limit type.
@@ -36478,7 +36670,7 @@ type Subscription {
   """Triggered when a comment is deleted"""
   commentDeleted: Comment!
 
-  """Triggered when a a comment is unarchived"""
+  """Triggered when a comment is unarchived"""
   commentUnarchived: Comment!
 
   """Triggered when a comment is updated"""
@@ -36523,7 +36715,7 @@ type Subscription {
   """Triggered when a document is created"""
   documentCreated: Document!
 
-  """Triggered when a a document is unarchived"""
+  """Triggered when a document is unarchived"""
   documentUnarchived: Document!
 
   """Triggered when a document is updated"""
@@ -36598,7 +36790,7 @@ type Subscription {
   """Triggered when an issue relation is updated"""
   issueRelationUpdated: IssueRelation!
 
-  """Triggered when a an issue is unarchived"""
+  """Triggered when an issue is unarchived"""
   issueUnarchived: Issue!
 
   """Triggered when an issue is updated"""
@@ -36616,7 +36808,7 @@ type Subscription {
   """Triggered when a notification is deleted"""
   notificationDeleted: Notification!
 
-  """Triggered when a a notification is unarchived"""
+  """Triggered when a notification is unarchived"""
   notificationUnarchived: Notification!
 
   """Triggered when a notification is updated"""
@@ -36640,7 +36832,7 @@ type Subscription {
   """Triggered when a project label is updated"""
   projectLabelUpdated: ProjectLabel!
 
-  """Triggered when a a project is unarchived"""
+  """Triggered when a project is unarchived"""
   projectUnarchived: Project!
 
   """Triggered when a project update is archived"""
@@ -36833,6 +37025,9 @@ type Team implements Node {
   """Team's currently active cycle."""
   activeCycle: Cycle
 
+  """[Internal] Whether the team has enabled agent automation."""
+  agentAutomationEnabled: Boolean!
+
   """Whether to enable AI discussion summaries for issues in this team."""
   aiDiscussionSummariesEnabled: Boolean!
 
@@ -36881,6 +37076,9 @@ type Team implements Node {
 
   """[Internal] The team's sub-teams."""
   children: [Team!]!
+
+  """[Internal] Whether the team has enabled Coding Sessions."""
+  codingAgentEnabled: Boolean!
 
   """The team's color."""
   color: String
@@ -37500,6 +37698,21 @@ type Team implements Node {
   updatedAt: DateTime!
 
   """
+  Whether the viewer can add themselves to the team. False when the viewer is already a member, the team is archived, retired, or SCIM-managed, the viewer lacks the plan access or permission to add themselves, or the viewer has reached their team membership limit. Runs the same checks `teamMembershipCreate` applies to a viewer joining on their own.
+  """
+  viewerCanJoin: Boolean!
+
+  """
+  Whether the viewer can remove themselves from the team. False when the viewer is not a member, the team is SCIM-managed, the viewer is an app user the team does not accept, or leaving would leave the viewer without an active team. Otherwise mirrors the checks `teamMembershipDelete` applies to a viewer leaving on their own.
+  """
+  viewerCanLeave: Boolean!
+
+  """
+  The viewer's membership in the team. Null when the viewer is not a member.
+  """
+  viewerMembership: TeamMembership
+
+  """
   The visibility of the team. Returns public for teams visible to all workspace members, private for teams visible only to members, and restricted for non-private teams inside a private-team boundary.
   """
   visibility: TeamVisibility!
@@ -37610,7 +37823,7 @@ input TeamCreateInput {
   """Auto assign started issues to current active cycle setting."""
   cycleIssueAutoAssignStarted: Boolean
 
-  """Only allow issues issues with cycles in Active Issues."""
+  """Only allow issues with cycles in Active Issues."""
   cycleLockToActive: Boolean
 
   """The day of the week that a new cycle starts."""
@@ -38126,6 +38339,9 @@ input TeamSort {
 }
 
 input TeamUpdateInput {
+  """[Internal] Whether the team has enabled agent automation."""
+  agentAutomationEnabled: Boolean
+
   """Whether to enable AI discussion summaries for issues."""
   aiDiscussionSummariesEnabled: Boolean
 
@@ -38157,6 +38373,9 @@ input TeamUpdateInput {
 
   """The canceled workflow state which auto closed issues will be set to."""
   autoCloseStateId: String
+
+  """[Internal] Whether the team has enabled Coding Sessions."""
+  codingAgentEnabled: Boolean
 
   """The color of the team."""
   color: String
@@ -42199,6 +42418,7 @@ enum WorkflowTrigger {
   chatMessagePosted
   chatReactionAdded
   commentAdded
+  commentResolved
   customerRequestAdded
   cycleEnded
   cycleStarted
@@ -42207,7 +42427,9 @@ enum WorkflowTrigger {
   entityRemoved
   entityUnarchived
   entityUpdated
+  reviewSubmitted
   updatePosted
+  webhookReceived
 }
 
 enum WorkflowTriggerType {
@@ -42217,9 +42439,11 @@ enum WorkflowTriggerType {
   initiative
   issue
   project
+  pullRequest
   release
   schedule
   team
+  webhook
 }
 
 enum WorkflowType {
