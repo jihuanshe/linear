@@ -21,6 +21,8 @@ class LinearGateway:
     ):
         self.requests: list[dict] = []
         self.lock = threading.Lock()
+        self._settled = threading.Condition(self.lock)
+        self._pending: dict[str, int] = {}
         self._mutations_enabled = False
         self._commands: dict[str, bool] = {}
         outer = self
@@ -30,6 +32,18 @@ class LinearGateway:
                 pass
 
             def do_POST(self) -> None:
+                with outer._settled:
+                    outer._pending[self.path] = outer._pending.get(self.path, 0) + 1
+                try:
+                    self.forward_request()
+                finally:
+                    with outer._settled:
+                        outer._pending[self.path] -= 1
+                        if not outer._pending[self.path]:
+                            del outer._pending[self.path]
+                        outer._settled.notify_all()
+
+            def forward_request(self) -> None:
                 raw = request_body(self)
                 body = json.loads(raw)
                 # Record dispatch before contacting Linear, even if a reply is
@@ -114,7 +128,8 @@ class LinearGateway:
                     entry["clientDisconnected"] = True
 
         self.server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
-        self.server.daemon_threads = True
+        # server_close joins request handlers so their evidence is not lost.
+        self.server.daemon_threads = False
         self.thread = threading.Thread(
             target=self.server.serve_forever,
             kwargs={"poll_interval": 0.01},
@@ -148,8 +163,13 @@ class LinearGateway:
         try:
             yield f"http://127.0.0.1:{self.server.server_port}{path}"
         finally:
-            with self.lock:
+            with self._settled:
                 del self._commands[path]
+                if may_write:
+                    # A CLI can exit with an unknown result while the upstream
+                    # request is still running. Retain its eventual receipt
+                    # before LiveRun reconciles creations and starts cleanup.
+                    self._settled.wait_for(lambda: path not in self._pending)
 
 
 def mutations(requests: list[dict]) -> int:

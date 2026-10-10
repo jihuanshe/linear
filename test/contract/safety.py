@@ -11,6 +11,7 @@ import subprocess
 import sys
 import tempfile
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import live
@@ -292,6 +293,108 @@ def offline_failure_skips_live(binary: Path) -> None:
         equal(evidence["live"]["error"], "offline connector boundary")
 
 
+def late_creation_receipt(binary: Path) -> None:
+    # The external executable fixture times out after dispatch; the production
+    # live driver must retain the later receipt and use the real CLI to clean it.
+    label_id = "12345678-1234-1234-1234-123456789abc"
+    prefix = "cli-contract-late-receipt"
+    label = {"id": label_id, "name": prefix, "color": "#112233", "team": None}
+    with tempfile.TemporaryDirectory(prefix="linear-safety-late-") as temporary:
+        root = Path(temporary)
+        candidate = root / "early-create-timeout"
+        candidate.write_text(f"""#!{sys.executable}
+import json,os,sys,urllib.request
+if sys.argv[1:3] == ["label", "create"]:
+    body={{"query":"mutation {{ issueLabelCreate(input: {{ name: \\\"{prefix}\\\" }}) {{ success issueLabel {{ id name }} }} }}"}}
+    request=urllib.request.Request(os.environ["LINEAR_GRAPHQL_ENDPOINT"],data=json.dumps(body).encode(),headers={{"Content-Type":"application/json","Authorization":os.environ["LINEAR_API_KEY"]}},method="POST")
+    try:
+        urllib.request.urlopen(request,timeout=.025).close()
+    except TimeoutError:
+        print(json.dumps({{"ok":False,"effect":"unknown"}}))
+        sys.exit(1)
+    sys.exit(2)
+os.execv({str(binary)!r}, [{str(binary)!r}, *sys.argv[1:]])
+""")
+        candidate.chmod(0o700)
+        progress = root / "live-progress.json"
+        with (
+            ProtocolServer(
+                [
+                    Reply(
+                        {
+                            "data": {
+                                "issueLabelCreate": {
+                                    "success": True,
+                                    "issueLabel": label,
+                                }
+                            }
+                        },
+                        delay=0.2,
+                    ),
+                    Reply({"data": {"issueLabel": label}}),
+                    Reply({"data": {"issueLabelDelete": {"success": True}}}),
+                ]
+            ) as upstream,
+            ProtocolServer(
+                [
+                    Reply({"data": {"issueLabel": label}}),
+                    Reply({"data": {"issueLabel": None}}),
+                ]
+            ) as oracle,
+        ):
+            run_type = live.LiveRun
+            gateway = LinearGateway(upstream=upstream.endpoint)
+
+            def local_run(target: Path, key: str, journal: Path | None) -> live.LiveRun:
+                run = run_type(target, key, journal, oracle_endpoint=oracle.endpoint)
+                run.prefix = prefix
+                return run
+
+            def workflow(run: live.LiveRun, gateway: LinearGateway) -> None:
+                # Identity is tested separately. Only this disposable local
+                # connector is opened to exercise the late-receipt boundary.
+                gateway.enable_mutations()
+                run.step(
+                    "late-create-receipt",
+                    ["label create"],
+                    lambda: run.create("label", "issueLabel", prefix, name=prefix),
+                )
+
+            with (
+                patch.object(run_type, "workflow", workflow),
+                patch.object(live, "LiveRun", side_effect=local_run),
+                patch.object(live, "LinearGateway", return_value=gateway),
+                patch.object(
+                    live,
+                    "os",
+                    SimpleNamespace(
+                        environ={"LINEAR_KADORABA_API_KEY": "offline-contract-key"}
+                    ),
+                ),
+            ):
+                report = live.run_live(candidate, progress=progress)
+            equal(report["passed"], False)
+            equal(report["steps"][0]["passed"], False)
+            equal(json.loads(report["processes"][0]["stdout"])["effect"], "unknown")
+            equal([resource["id"] for resource in report["resources"]], [label_id])
+            require(
+                not any(
+                    intent["outcome"] == "unresolved-creation-receipt"
+                    for intent in report["intents"]
+                ),
+                "known late receipt remained unresolved",
+            )
+            equal(len(report["cleanup"]), 1)
+            equal(report["cleanup"][0]["passed"], True)
+            equal(report["cleanup"][0]["state"], "absent")
+            upstream.count(3)
+            oracle.count(2)
+            equal(upstream.requests[2]["body"]["variables"]["id"], label_id)
+            saved = json.loads(progress.read_text())
+            equal(saved["resources"], report["resources"])
+            equal(saved["cleanup"], report["cleanup"])
+
+
 def resume_missing_tools(_binary: Path) -> None:
     for missing in ("python", "uv"):
         with tempfile.TemporaryDirectory(prefix="linear-safety-orb-") as temporary:
@@ -344,6 +447,7 @@ def main() -> int:
         unexpected_identity_write,
         live_deadlines,
         offline_failure_skips_live,
+        late_creation_receipt,
         resume_missing_tools,
     ):
         error = None
