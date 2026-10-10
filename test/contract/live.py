@@ -65,6 +65,7 @@ class LiveRun:
         self.progress = progress
         self.intents: list[dict] = []
         self.file_evidence: dict = {}
+        self.catalog_user_ids: set[str] = set()
 
     def save_progress(self) -> None:
         if self.progress is None:
@@ -471,6 +472,13 @@ class LiveRun:
             )
             require(not oracle.get("errors"), "catalog oracle failed")
             catalog_data = oracle["data"]
+            self.catalog_user_ids = {
+                node["id"] for node in catalog_data["users"]["nodes"]
+            }
+            require(
+                len(self.catalog_user_ids) >= 2,
+                "Kadoraba needs at least two API-visible users for pagination acceptance",
+            )
             equal(
                 sorted(states["nodes"], key=lambda item: item["id"]),
                 sorted(
@@ -1061,19 +1069,19 @@ class LiveRun:
         )
 
         def real_pagination() -> None:
-            query = "query ContractPages($after: String, $ids: [ID!]) { issues(first: 1, after: $after, filter: {id: {in: $ids}}) { nodes {id title} pageInfo {hasNextPage endCursor} } }"
-            variables = json.dumps({"ids": [issue["id"], child["id"]]})
-            page = s.run("api", query, "--variables-json", variables)
-            equal(page.document()["data"]["issues"]["pageInfo"]["hasNextPage"], True)
+            # Use a stable independently-read catalog for the success path.
+            # Filtered Issue cursors were observed failing at Linear itself;
+            # preserving failed pages is covered by protocol fault scenarios.
+            query = "query ContractPages($after: String) { users(first: 1, after: $after) { nodes {id} pageInfo {hasNextPage endCursor} } }"
+            page = s.run("api", query)
+            equal(page.document()["data"]["users"]["pageInfo"]["hasNextPage"], True)
             require("more pages" in page.stderr, "live API truncation was silent")
-            document = s.run(
-                "api", query, "--variables-json", variables, "--paginate"
-            ).document()
+            document = s.run("api", query, "--paginate").document()
             equal(
-                {node["id"] for node in document["data"]["issues"]["nodes"]},
-                {issue["id"], child["id"]},
+                {node["id"] for node in document["data"]["users"]["nodes"]},
+                self.catalog_user_ids,
             )
-            equal(document["data"]["issues"]["pageInfo"]["hasNextPage"], False)
+            equal(document["data"]["users"]["pageInfo"]["hasNextPage"], False)
 
         self.step("real-api-pagination", ["api"], real_pagination)
 
