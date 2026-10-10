@@ -30,6 +30,11 @@ DEFECTS = [
         "delivery.external-checkpoint-lock",
         "did not wait for the held checkpoint lock",
     ),
+    (
+        "open-without-locking",
+        "delivery.external-checkpoint-lock",
+        "did not wait for the held checkpoint lock",
+    ),
 ]
 
 
@@ -40,8 +45,17 @@ def run(binary: Path) -> dict:
     )
     by_name = {case.name: case for case in cases()}
     results: list[dict] = []
+    skipped: list[dict] = []
     with tempfile.TemporaryDirectory(prefix="linear-defects-") as directory:
         for defect, name, expected in DEFECTS:
+            if name not in by_name:
+                skipped.append(
+                    {
+                        "defect": defect,
+                        "reason": "kernel lock contention proof is Linux-only",
+                    }
+                )
+                continue
             wrapper = Path(directory) / defect
             wrapper.write_text(
                 f"""#!{sys.executable}
@@ -61,9 +75,11 @@ if {defect!r} == "unexpected-get":
         urllib.request.urlopen(os.environ["LINEAR_GRAPHQL_ENDPOINT"]).close()
     except urllib.error.HTTPError:
         pass
-if {defect!r} == "bypass-delivery-lock":
+if {defect!r} in ("bypass-delivery-lock", "open-without-locking"):
     index = args.index("--file") + 1
     original = Path(args[index])
+    if {defect!r} == "open-without-locking":
+        opened_without_lock = open(str(original) + ".checkpoint.json.lock", "r+b")
     unlocked = original.with_name("unlocked-manifest.json")
     shutil.copyfile(original, unlocked)
     shutil.copyfile(str(original) + ".checkpoint.json", str(unlocked) + ".checkpoint.json")
@@ -113,7 +129,11 @@ sys.exit(0 if {defect!r} == "false-success" else result.returncode)
                 }
             )
             print(f"{'PASS' if detected else 'FAIL'} detect.{defect}", flush=True)
-    return {"passed": all(result["detected"] for result in results), "defects": results}
+    return {
+        "passed": all(result["detected"] for result in results),
+        "defects": results,
+        "skipped": skipped,
+    }
 
 
 def main() -> int:

@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 import subprocess
+import sys
 import time
 from collections.abc import Callable
 from pathlib import Path
@@ -174,7 +175,7 @@ def cases(*, include_slow: bool = False) -> list[Case]:
 
     add("transport.live-batch-guard-before-forwarding", ("api",), guarded_batch)
 
-    if os.name == "posix":
+    if sys.platform == "linux":
 
         def locked_checkpoint(s: Scenario) -> None:
             import fcntl
@@ -237,24 +238,15 @@ def cases(*, include_slow: bool = False) -> list[Case]:
                     try:
                         observed = False
                         while time.monotonic() - start < 8 and process.poll() is None:
-                            if Path("/proc/locks").exists():
-                                lines = Path("/proc/locks").read_text().splitlines()
-                                pids = [
-                                    int(row.split()[5])
-                                    for row in lines
-                                    if " -> " in row
-                                    and row.split()[6].endswith(
-                                        ":" + str(lock_path.stat().st_ino)
-                                    )
-                                ]
-                            else:
-                                owners = subprocess.run(
-                                    ["/usr/sbin/lsof", "-t", str(lock_path)],
-                                    capture_output=True,
-                                    text=True,
-                                    check=False,
+                            lines = Path("/proc/locks").read_text().splitlines()
+                            pids = [
+                                int(row.split()[5])
+                                for row in lines
+                                if " -> " in row
+                                and row.split()[6].endswith(
+                                    ":" + str(lock_path.stat().st_ino)
                                 )
-                                pids = [int(pid) for pid in owners.stdout.split()]
+                            ]
                             for pid in pids:
                                 try:
                                     observed |= os.getpgid(pid) == process.pid
@@ -459,7 +451,10 @@ def cases(*, include_slow: bool = False) -> list[Case]:
                     {"data": {"viewer": {"id": "probe"}}},
                 )
                 server.count(3)
-                equal([r["body"] for r in server.requests], [{"query": QUERY}] * 3)
+                for request in server.requests:
+                    equal(request["body"]["query"], QUERY)
+                    equal(request["body"].get("variables") or {}, {})
+                    equal(operation_kind(request["body"]), "query")
 
             s.protocol(
                 [

@@ -15,7 +15,7 @@ from typing import TypeVar
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
-from gateway import LinearGateway, mutations
+from gateway import LinearGateway, mutations, operation_kind, single_mutation_root
 from harness import Scenario, equal, require
 
 ENDPOINT = "https://api.linear.app/graphql"
@@ -37,6 +37,17 @@ ENTITY_NAMES = {
     "projectMilestone": "ProjectMilestone",
     "initiative": "Initiative",
     "issueLabel": "IssueLabel",
+}
+
+
+CREATIONS = {
+    "issueCreate": ("issue", "issue"),
+    "commentCreate": ("comment", "comment"),
+    "projectCreate": ("project", "project"),
+    "projectMilestoneCreate": ("milestone", "projectMilestone"),
+    "issueLabelCreate": ("label", "issueLabel"),
+    "documentCreate": ("document", "document"),
+    "initiativeCreate": ("initiative", "initiative"),
 }
 
 
@@ -80,6 +91,51 @@ class LiveRun:
         )
         temporary.replace(self.progress)
 
+    def reconcile_creations(self, start: int) -> None:
+        """Retain every known create receipt, including duplicates rejected by an oracle."""
+        for index, request in enumerate(self.requests[start:], start):
+            if (
+                not request.get("forwarded")
+                or operation_kind(request["body"]) != "mutation"
+            ):
+                continue
+            alias, field = single_mutation_root(request["body"])
+            if field not in CREATIONS:
+                continue
+            domain, kind = CREATIONS[field]
+            data = request.get("response", {}).get("data")
+            payload = data.get(alias) if isinstance(data, dict) else None
+            entity = payload.get(kind) if isinstance(payload, dict) else None
+            if (
+                isinstance(entity, dict)
+                and isinstance(entity.get("id"), str)
+                and entity["id"]
+            ):
+                if not any(
+                    resource["kind"] == kind and resource["id"] == entity["id"]
+                    for resource in self.resources
+                ):
+                    self.resources.append(
+                        {
+                            "domain": domain,
+                            "kind": kind,
+                            "id": entity["id"],
+                            "name": self.prefix,
+                            "requestIndex": index,
+                        }
+                    )
+            else:
+                self.intents.append(
+                    {
+                        "domain": domain,
+                        "kind": kind,
+                        "name": self.prefix,
+                        "requestIndex": index,
+                        "outcome": "unresolved-creation-receipt",
+                    }
+                )
+        self.save_progress()
+
     def step(self, name: str, commands: list[str], check: Callable[[], T]) -> T:
         start = time.monotonic()
         before = len(self.requests)
@@ -118,6 +174,7 @@ class LiveRun:
             entry["error"] = f"{type(error).__name__}: {error}"
             raise
         finally:
+            self.reconcile_creations(before)
             entry["seconds"] = time.monotonic() - start
             entry["requests"] = len(self.requests) - before
             entry["mutations"] = mutations(self.requests[before:])
@@ -407,13 +464,42 @@ class LiveRun:
             equal(teams["pageInfo"]["hasNextPage"], False)
             require(teams["nodes"], "Kadoraba needs at least one team")
             team = teams["nodes"][0]
-            s.run("team", "states", team["key"], "--json").document()
+            states = s.run("team", "states", team["key"], "--json").document()
+            oracle = self.read_query(
+                "query ContractCatalog($id: String!) { team(id: $id) { id states { nodes { id name type position } } members { nodes { id name active } pageInfo { hasNextPage } } } users(first: 250) { nodes { id name active } pageInfo { hasNextPage } } }",
+                {"id": team["id"]},
+            )
+            require(not oracle.get("errors"), "catalog oracle failed")
+            catalog_data = oracle["data"]
+            equal(
+                sorted(states["nodes"], key=lambda item: item["id"]),
+                sorted(
+                    catalog_data["team"]["states"]["nodes"], key=lambda item: item["id"]
+                ),
+            )
             members = s.run("team", "members", team["key"], "--json").document()
             require(
                 "nodes" in members and "pageInfo" in members,
                 "member connection lost API shape",
             )
-            s.run("user", "list", "--json").document()
+            users = s.run("user", "list", "--json").document()
+            for actual, expected in (
+                (members, catalog_data["team"]["members"]),
+                (users, catalog_data["users"]),
+            ):
+                equal(expected["pageInfo"]["hasNextPage"], False)
+                equal(actual["pageInfo"]["hasNextPage"], False)
+                equal(
+                    sorted(
+                        (node["id"], node["name"], node["active"])
+                        for node in actual["nodes"]
+                    ),
+                    sorted(
+                        (node["id"], node["name"], node["active"])
+                        for node in expected["nodes"]
+                        if node["active"]
+                    ),
+                )
             return team
 
         team = self.step(
@@ -444,7 +530,13 @@ class LiveRun:
                 team["id"] in [node["id"] for node in remote["teams"]["nodes"]],
                 "wrong project team",
             )
-            s.run("project", "teams", project["id"], "--json").document()
+            displayed = s.run("project", "teams", project["id"], "--json").document()
+            equal(displayed["id"], project["id"])
+            equal(
+                sorted(node["id"] for node in displayed["teams"]["nodes"]),
+                sorted(node["id"] for node in remote["teams"]["nodes"]),
+            )
+            equal(displayed["teams"]["pageInfo"]["hasNextPage"], False)
             return project
 
         project = self.step(
@@ -890,7 +982,21 @@ class LiveRun:
             s.run(
                 "issue", "relation", "add", issue["id"], "blocks", child["id"], "--json"
             ).write(effect="none", success=False)
-            s.run("issue", "relation", "list", issue["id"], "--json").document()
+            displayed = s.run(
+                "issue", "relation", "list", issue["id"], "--json"
+            ).document()["issue"]
+            equal(displayed["id"], issue["id"])
+            equal(displayed["relations"]["pageInfo"]["hasNextPage"], False)
+            equal(
+                [
+                    (node["id"], node["type"], node["relatedIssue"]["id"])
+                    for node in displayed["relations"]["nodes"]
+                ],
+                [
+                    (node["id"], node["type"], node["relatedIssue"]["id"])
+                    for node in before
+                ],
+            )
             s.run(
                 "issue",
                 "relation",
@@ -1285,6 +1391,10 @@ def run_live(binary: Path, *, progress: Path | None = None) -> dict:
             "prefix": run.prefix,
             "workspace": run.workspace,
             "passed": error is None
+            and not any(
+                intent["outcome"] == "unresolved-creation-receipt"
+                for intent in run.intents
+            )
             and all(entry["passed"] for entry in run.cleanup_results),
             "error": error,
             "seconds": time.monotonic() - started,

@@ -128,7 +128,7 @@ def mutations(requests: list[dict]) -> int:
     )
 
 
-def single_mutation_root(body: dict) -> None:
+def single_mutation_root(body: dict) -> tuple[str, str]:
     """Conservative live guard: one direct root response key per mutation.
 
     Root fragments and batching are intentionally refused before dispatch until
@@ -181,7 +181,7 @@ def single_mutation_root(body: dict) -> None:
         raise ValueError("cannot identify one selected live mutation")
     index = selections[0] + 1
     end = closing(selections[0], "{", "}")
-    fields: set[str] = set()
+    fields: dict[str, str] = {}
     while index < end:
         token = tokens[index]
         if token == "...":
@@ -190,10 +190,12 @@ def single_mutation_root(body: dict) -> None:
             )
         if not re.fullmatch(r"[A-Za-z_]\w*", token):
             raise ValueError("cannot account for live mutation fields")
-        fields.add(token)
         index += 1
+        field_name = token
         if tokens[index] == ":":
+            field_name = tokens[index + 1]
             index += 2
+        fields[token] = field_name
         while index < end and tokens[index] in ("(", "@"):
             if tokens[index] == "@":
                 index += 2
@@ -205,6 +207,7 @@ def single_mutation_root(body: dict) -> None:
         raise ValueError(
             "live safety guard requires one root mutation field; batching is not yet supported"
         )
+    return next(iter(fields.items()))
 
 
 def operation_kind(body: dict) -> str:
