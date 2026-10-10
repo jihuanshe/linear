@@ -11,3 +11,7 @@
 
 # GraphQL 生成代码
 src/__codegen__/
+
+# Python acceptance runner caches (reports and binaries stay under outputs/)
+test/contract/__pycache__/
+test/contract/.ruff_cache/

@@ -6,6 +6,8 @@ node = "26.11.1"
 "npm:markdownlint-cli2" = "0.23.3"
 "github:huacnlee/autocorrect" = "2.16.3"
 prek = "0.5.5"
+python = "3.14.8"
+uv = "0.12.23"
 
 [settings]
 lockfile = true
@@ -16,3 +18,27 @@ task.run_auto_install = false
 [tasks."hooks:install"]
 description = "Install the repository's pre-commit checks"
 run = "prek install"
+
+[tasks."test:contract:build"]
+description = "Compile the production CLI into an isolated acceptance directory"
+run = "python test/contract/build.py"
+
+[tasks."test:contract"]
+description = "Run language-independent executable acceptance (pass --binary and --report)"
+run = "python test/contract/run.py"
+
+[tasks."test:contract:check"]
+description = "Check the standalone acceptance runner"
+run = [
+  "uv run --no-project --with ruff==0.16.10 ruff check test/contract",
+  "uv run --no-project --with ruff==0.16.10 ruff format --check test/contract",
+  "uv run --no-project --with ty==0.0.85 ty check test/contract",
+]
+
+[tasks."test:contract:canaries"]
+description = "Verify the contract rejects known executable defects"
+run = "python test/contract/canaries.py"
+
+[tasks."test:contract:safety"]
+description = "Check the acceptance driver's live-write boundaries using only local fixtures"
+run = "python test/contract/safety.py"

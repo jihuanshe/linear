@@ -178,13 +178,13 @@ linear issue apply --file delivery.json --confirm-workspace acme
 
 ## 开发
 
-`mise.toml` 固定 Deno、Node.js、markdownlint-cli2、AutoCorrect 和 prek 版本，`mise.lock` 记录可锁定工具的下载地址与校验和，`deno.json` 定义开发任务：
+`mise.toml` 固定 Deno、Node.js、Python、uv、markdownlint-cli2、AutoCorrect 和 prek 版本，`mise.lock` 记录可锁定工具的下载地址与校验和，`deno.json` 定义源码开发任务：
 
 ```bash
 git clone https://github.com/jihuanshe/linear
 cd linear
 mise trust
-mise install --locked deno node npm:markdownlint-cli2 github:huacnlee/autocorrect prek
+mise install --locked deno node python uv npm:markdownlint-cli2 github:huacnlee/autocorrect prek
 mise run hooks:install
 mise exec -- deno task verify-release
 ```
@@ -192,6 +192,15 @@ mise exec -- deno task verify-release
 pre-commit hook 只检查暂存文件的 Deno 格式、Markdown 结构和中英文排版，不自动改文件。hook 脚本记录安装时 prek 的绝对路径，`mise.toml` 升级 prek 后需重新运行 `mise run hooks:install`，否则 hook 仍调用旧版本。手动全量检查用 `mise exec -- prek run --all-files`；单独检查结构用 `mise exec -- deno task lint:markdown`，排版用 `mise exec -- deno task lint:copy`。Markdown 格式由 Deno 负责，markdownlint 关闭与 `proseWrap: "never"` 冲突的行长规则；AutoCorrect 检查 Markdown 文案，代码块保留原样。
 
 `deno task verify-release` 是本地完整门禁，也是 Pull Request 的源码门禁。它会生成 GraphQL 类型、检查格式、代码 lint、Markdown 结构与文案排版、执行类型检查，并运行除 Linux 密钥环集成测试外的测试。具体模块、指南、真实 API 实验和发布约束见 [`AGENTS.md`](AGENTS.md)；`main` 的滚动发布只按[发布 Skill](.agents/skills/releasing/SKILL.md)执行。
+
+[可执行文件验收](test/contract/README.md)直接运行 CLI 二进制，测试程序只依赖 Python 标准库。离线场景检查输出、校验、分页与 HTTP 故障；真实业务场景在获得授权的 Kadoraba 工作区创建可丢弃对象，再通过独立只读 GraphQL 请求核验和清理。未来使用其他语言实现 CLI 时，传入新二进制即可复用验收；离线通过不能替代真实 API 验收。
+
+```bash
+mise run test:contract:check
+mise run test:contract:build
+mise run test:contract -- --binary "$PWD/outputs/contract-install/bin/linear" \
+  --report outputs/contract-offline.json
+```
 
 ## 上游、反馈与许可证
 

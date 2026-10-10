@@ -128,20 +128,77 @@ jobs:
           git diff --exit-code
           test -z "$(git ls-files --others --exclude-standard)"
 
+  contract:
+    name: Executable acceptance
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca # v5.1.1
+        with:
+          version: "2026.10.6"
+          install_args: "--locked deno node python uv"
+
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/deno
+          key: deno-${{ runner.os }}-${{ hashFiles('mise.lock', 'deno.lock') }}
+
+      - name: Check the independent runner
+        run: mise run test:contract:check
+
+      - name: Compile once with the production install task
+        run: mise run test:contract:build
+
+      - name: Test the packaged executable
+        run: >-
+          mise run test:contract -- --binary "$PWD/outputs/contract-install/bin/linear"
+          --report outputs/contract-offline.json
+
+      - name: Verify the acceptance oracle catches known defects
+        run: >-
+          mise run test:contract:canaries -- --binary "$PWD/outputs/contract-install/bin/linear"
+          --report outputs/contract-canaries.json
+
+      - name: Check the acceptance driver's live-write boundaries offline
+        run: >-
+          mise run test:contract:safety -- --binary "$PWD/outputs/contract-install/bin/linear"
+          --report outputs/contract-safety.json
+
+      - name: Preserve executable acceptance evidence
+        if: ${{ always() }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: executable-acceptance
+          path: |
+            outputs/contract-offline.json
+            outputs/contract-canaries.json
+            outputs/contract-safety.json
+          if-no-files-found: ignore
+
+      - name: Check acceptance left the checkout unchanged
+        run: |
+          git diff --exit-code
+          test -z "$(git ls-files --others --exclude-standard)"
+
   source:
     name: Source gate
     if: ${{ always() }}
-    needs: [quality, tests]
+    needs: [quality, tests, contract]
     runs-on: ubuntu-latest
     timeout-minutes: 5
 
     steps:
-      - name: Require quality checks and tests
-        if: ${{ needs.quality.result != 'success' || needs.tests.result != 'success' }}
+      - name: Require quality checks, tests and executable acceptance
+        if: ${{ needs.quality.result != 'success' || needs.tests.result != 'success' || needs.contract.result != 'success' }}
         run: |
           echo "Quality checks: ${{ needs.quality.result }}"
           echo "Tests: ${{ needs.tests.result }}"
+          echo "Executable acceptance: ${{ needs.contract.result }}"
           exit 1
 
       - name: Source gate passed
-        run: echo "GraphQL types, quality checks, and tests passed in parallel jobs."
+        run: echo "GraphQL types, quality checks, source tests and executable acceptance passed."
