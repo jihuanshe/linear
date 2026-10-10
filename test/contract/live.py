@@ -52,7 +52,14 @@ CREATIONS = {
 
 
 class LiveRun:
-    def __init__(self, binary: Path, key: str, progress: Path | None = None):
+    def __init__(
+        self,
+        binary: Path,
+        key: str,
+        progress: Path | None = None,
+        *,
+        oracle_endpoint: str = ENDPOINT,
+    ):
         self.scenario = Scenario(binary, key=key)
         self.key = key
         self.prefix = "cli-contract-" + uuid.uuid4().hex[:12]
@@ -66,6 +73,7 @@ class LiveRun:
         self.intents: list[dict] = []
         self.file_evidence: dict = {}
         self.catalog_user_ids: set[str] = set()
+        self.oracle_endpoint = oracle_endpoint
 
     def save_progress(self) -> None:
         if self.progress is None:
@@ -150,6 +158,10 @@ class LiveRun:
         self.save_progress()
         try:
             value = check()
+            require(
+                not any(request.get("rejected") for request in self.requests[before:]),
+                "live gateway refused command traffic",
+            )
             expected_mutations = {
                 "project-create-and-team-membership": 1,
                 "milestone-create": 1,
@@ -193,7 +205,7 @@ class LiveRun:
         )
         payload = {"query": query, "variables": variables or {}}
         request = Request(
-            ENDPOINT,
+            self.oracle_endpoint,
             data=json.dumps(payload).encode(),
             headers={
                 "Content-Type": "application/json",
@@ -259,7 +271,9 @@ class LiveRun:
         }
         self.intents.append(intent)
         self.save_progress()
-        result = self.scenario.run(domain, "create", *args, "--json", timeout=45)
+        result = self.scenario.run(
+            domain, "create", *args, "--json", timeout=45, may_write=True
+        )
         document = result.document(success=result.code == 0)
         # Save a returned identity before asserting any other receipt field.
         data = document.get("data")
@@ -324,7 +338,7 @@ class LiveRun:
                 args = [resource["domain"], "delete", resource["id"], "--yes", "--json"]
                 if resource["domain"] == "comment":
                     args = ["issue", *args]
-                result = self.scenario.run(*args, timeout=45)
+                result = self.scenario.run(*args, timeout=45, may_write=True)
                 if result.code == 0:
                     result.write()
                 # Deletion may return not-found if a preceding workflow already
@@ -376,7 +390,7 @@ class LiveRun:
             "--json",
         )
         with ThreadPoolExecutor(max_workers=2) as pool:
-            futures = [pool.submit(s.run, *args) for _ in range(2)]
+            futures = [pool.submit(s.run, *args, may_write=True) for _ in range(2)]
             results = [future.result() for future in futures]
         documents = [result.document() for result in results]
         equal(sorted(document["effect"] for document in documents), ["applied", "none"])
@@ -426,7 +440,7 @@ class LiveRun:
         )
         self.file_evidence["concurrent/checkpoint.json"] = ledger
         before = len(self.requests)
-        replayed = s.run(*args).write(effect="none")
+        replayed = s.run(*args, may_write=True).write(effect="none")
         equal(replayed["data"]["status"], "completed")
         equal(mutations(self.requests[before:]), 0)
         equal(json.loads(Path(str(path) + ".checkpoint.json").read_text()), ledger)
@@ -436,7 +450,7 @@ class LiveRun:
             "delivery lock file was removed",
         )
 
-    def workflow(self) -> None:
+    def verify_identity(self, gateway: LinearGateway) -> dict:
         s = self.scenario
 
         def identity() -> dict:
@@ -447,16 +461,27 @@ class LiveRun:
                 or organization.get("urlKey") == "kadoraba",
                 f"refusing live writes in workspace {organization.get('name')!r}",
             )
-            self.workspace = organization
             independent = self.read_query(
                 "query ContractIdentity { organization { id name urlKey } viewer { id } }"
             )
             require(not independent.get("errors"), "independent identity read failed")
-            equal(independent["data"]["organization"]["id"], organization["id"])
+            actual = independent["data"]["organization"]
+            require(
+                actual.get("name") == "Kadoraba" or actual.get("urlKey") == "kadoraba",
+                "independent identity is not Kadoraba",
+            )
+            equal(actual["id"], organization["id"])
             equal(independent["data"]["viewer"]["id"], viewer["id"])
+            self.workspace = actual
             return viewer
 
         viewer = self.step("workspace-identity", ["auth whoami"], identity)
+        gateway.enable_mutations()
+        return viewer
+
+    def workflow(self, gateway: LinearGateway) -> None:
+        s = self.scenario
+        viewer = self.verify_identity(gateway)
 
         def catalog() -> dict:
             teams = s.run(
@@ -714,6 +739,7 @@ class LiveRun:
                 "--json",
                 stdin=changed,
                 timeout=40,
+                may_write=True,
             ).write()
             equal(r["verification"]["status"], "verified")
             self.verify(
@@ -738,6 +764,7 @@ class LiveRun:
                 "--base-file",
                 str(base),
                 "--json",
+                may_write=True,
             ).write(effect="none", success=False)
             self.verify("issue", issue["id"], {"title": self.prefix + " updated"})
 
@@ -754,6 +781,7 @@ class LiveRun:
                 "--base-file",
                 str(base),
                 "--json",
+                may_write=True,
             ).write(effect="none")
             equal(self.read("issue", issue["id"]), before)
 
@@ -771,6 +799,7 @@ class LiveRun:
                 "--base-file",
                 str(path),
                 "--json",
+                may_write=True,
             ).write(effect="none", success=False)
             self.verify("issue", issue["id"], {"title": self.prefix + " updated"})
 
@@ -793,6 +822,7 @@ class LiveRun:
                 str(path),
                 "--json",
                 timeout=40,
+                may_write=True,
             ).write()
             remote = self.verify(
                 "issue",
@@ -838,6 +868,7 @@ class LiveRun:
                 "-",
                 "--json",
                 stdin=comment_body,
+                may_write=True,
             ).document()
             comment = r["data"]["comment"]
             self.resources.append(
@@ -876,6 +907,7 @@ class LiveRun:
                 "--base-file",
                 str(base_comment),
                 "--json",
+                may_write=True,
             ).write()
             self.verify("comment", comment["id"], {"body": "Updated discussion 中文"})
             s.run(
@@ -888,6 +920,7 @@ class LiveRun:
                 "--base-file",
                 str(base_comment),
                 "--json",
+                may_write=True,
             ).write(effect="none", success=False)
             self.verify("comment", comment["id"], {"body": "Updated discussion 中文"})
             listing = s.run(
@@ -916,6 +949,7 @@ class LiveRun:
                 "--body",
                 "Resolution " + self.prefix,
                 "--json",
+                may_write=True,
             ).write()
             reply = result["data"]["comment"]
             self.resources.append(
@@ -939,6 +973,7 @@ class LiveRun:
                 "--resolving-comment",
                 reply["id"],
                 "--json",
+                may_write=True,
             ).write()
             require(
                 self.present("comment", comment["id"])["resolvedAt"],
@@ -950,7 +985,9 @@ class LiveRun:
                 in [node["id"] for node in view["issue"]["comments"]["nodes"]],
                 "view omitted a resolved thread",
             )
-            s.run("issue", "comment", "unresolve", comment["id"], "--json").write()
+            s.run(
+                "issue", "comment", "unresolve", comment["id"], "--json", may_write=True
+            ).write()
             self.verify("comment", comment["id"], {"resolvedAt": None})
 
         self.step(
@@ -973,6 +1010,7 @@ class LiveRun:
                 "related",
                 child["id"],
                 "--json",
+                may_write=True,
             ).write()
             before = self.present("issue", issue["id"])["relations"]["nodes"]
             equal(len(before), 1)
@@ -985,10 +1023,18 @@ class LiveRun:
                 "related",
                 child["id"],
                 "--json",
+                may_write=True,
             ).write(effect="none")
             equal(self.present("issue", issue["id"])["relations"]["nodes"], before)
             s.run(
-                "issue", "relation", "add", issue["id"], "blocks", child["id"], "--json"
+                "issue",
+                "relation",
+                "add",
+                issue["id"],
+                "blocks",
+                child["id"],
+                "--json",
+                may_write=True,
             ).write(effect="none", success=False)
             displayed = s.run(
                 "issue", "relation", "list", issue["id"], "--json"
@@ -1013,6 +1059,7 @@ class LiveRun:
                 "related",
                 child["id"],
                 "--json",
+                may_write=True,
             ).write()
             equal(self.present("issue", issue["id"])["relations"]["nodes"], [])
             s.run(
@@ -1023,6 +1070,7 @@ class LiveRun:
                 "related",
                 child["id"],
                 "--json",
+                may_write=True,
             ).write(effect="none")
 
         self.step(
@@ -1119,6 +1167,7 @@ class LiveRun:
                 "--confirm-workspace",
                 "wrong-contract-workspace",
                 "--json",
+                may_write=True,
             ).write(effect="none", success=False)
             equal(self.read("issue", issue["id"]), before)
             args = (
@@ -1130,7 +1179,7 @@ class LiveRun:
                 self.workspace["urlKey"],
                 "--json",
             )
-            applied = s.run(*args, timeout=45).write()
+            applied = s.run(*args, timeout=45, may_write=True).write()
             equal(applied["data"]["status"], "completed")
             require(
                 all(
@@ -1167,7 +1216,7 @@ class LiveRun:
                 ),
                 "lost delivery receipt",
             )
-            resumed = s.run(*args, timeout=45).write(effect="none")
+            resumed = s.run(*args, timeout=45, may_write=True).write(effect="none")
             equal(resumed["data"]["status"], "completed")
             equal(self.read("issue", issue["id"]), remote)
             equal(json.loads(Path(str(path) + ".checkpoint.json").read_text()), ledger)
@@ -1209,6 +1258,7 @@ class LiveRun:
                     "--base-file",
                     str(path),
                     "--json",
+                    may_write=True,
                 ).write()
                 self.verify(field, entity["id"], {"name": value})
                 s.run(
@@ -1220,6 +1270,7 @@ class LiveRun:
                     "--base-file",
                     str(path),
                     "--json",
+                    may_write=True,
                 ).write(effect="none", success=False)
                 self.verify(field, entity["id"], {"name": value})
 
@@ -1261,6 +1312,7 @@ class LiveRun:
                 "--base-file",
                 str(path),
                 "--json",
+                may_write=True,
             ).write()
             self.verify("document", document["id"], {"title": self.prefix + " changed"})
             s.run(
@@ -1272,6 +1324,7 @@ class LiveRun:
                 "--base-file",
                 str(path),
                 "--json",
+                may_write=True,
             ).write(effect="none", success=False)
             self.verify("document", document["id"], {"title": self.prefix + " changed"})
 
@@ -1305,6 +1358,7 @@ class LiveRun:
                 "--base-file",
                 str(path),
                 "--json",
+                may_write=True,
             ).write()
             self.verify(
                 "initiative", initiative["id"], {"name": self.prefix + " changed"}
@@ -1318,17 +1372,28 @@ class LiveRun:
                 "--base-file",
                 str(path),
                 "--json",
+                may_write=True,
             ).write(effect="none", success=False)
             self.verify(
                 "initiative", initiative["id"], {"name": self.prefix + " changed"}
             )
             s.run(
-                "initiative", "add-project", initiative["id"], project["id"], "--json"
+                "initiative",
+                "add-project",
+                initiative["id"],
+                project["id"],
+                "--json",
+                may_write=True,
             ).write()
             remote = self.present("initiative", initiative["id"])
             equal([node["id"] for node in remote["projects"]["nodes"]], [project["id"]])
             s.run(
-                "initiative", "add-project", initiative["id"], project["id"], "--json"
+                "initiative",
+                "add-project",
+                initiative["id"],
+                project["id"],
+                "--json",
+                may_write=True,
             ).write(effect="none")
             s.run(
                 "initiative",
@@ -1337,15 +1402,28 @@ class LiveRun:
                 project["id"],
                 "--yes",
                 "--json",
+                may_write=True,
             ).write()
             equal(self.present("initiative", initiative["id"])["projects"]["nodes"], [])
-            s.run("initiative", "archive", initiative["id"], "--yes", "--json").write()
+            s.run(
+                "initiative",
+                "archive",
+                initiative["id"],
+                "--yes",
+                "--json",
+                may_write=True,
+            ).write()
             require(
                 self.present("initiative", initiative["id"])["archivedAt"],
                 "archive did not land",
             )
             s.run(
-                "initiative", "unarchive", initiative["id"], "--yes", "--json"
+                "initiative",
+                "unarchive",
+                initiative["id"],
+                "--yes",
+                "--json",
+                may_write=True,
             ).write()
             self.verify("initiative", initiative["id"], {"archivedAt": None})
 
@@ -1387,9 +1465,9 @@ def run_live(binary: Path, *, progress: Path | None = None) -> dict:
     started = time.monotonic()
     with LinearGateway() as gateway:
         run.requests = gateway.requests
-        run.scenario.env["LINEAR_GRAPHQL_ENDPOINT"] = gateway.endpoint
+        run.scenario.live_scope = lambda may_write: gateway.command(may_write=may_write)
         try:
-            run.workflow()
+            run.workflow(gateway)
         except Exception as exception:
             error = f"{type(exception).__name__}: {exception}"
         finally:

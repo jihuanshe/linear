@@ -111,6 +111,7 @@ def main() -> int:
         "deadlineCasesRequested": args.slow,
         "cases": [],
         "live": None,
+        "liveSkippedReason": None,
         "limitations": [
             "Offline server is a scripted HTTP fault injector, not a Linear domain implementation.",
             "No keyring, browser/editor interaction, uploads, download authorization, or all flag combinations.",
@@ -121,11 +122,15 @@ def main() -> int:
     with ThreadPoolExecutor(max_workers=args.jobs) as pool:
         report["cases"] = list(pool.map(lambda case: execute(binary, case), selected))
     if args.live:
-        from live import run_live
+        if any(not case["passed"] for case in report["cases"]):
+            report["liveSkippedReason"] = "offline-failures"
+            print("Skipping live acceptance: offline cases failed", flush=True)
+        else:
+            from live import run_live
 
-        report["live"] = run_live(
-            binary, progress=args.report.with_suffix(".live-progress.json")
-        )
+            report["live"] = run_live(
+                binary, progress=args.report.with_suffix(".live-progress.json")
+            )
     report["seconds"] = time.monotonic() - started
     report["summary"] = {
         "passed": sum(case["passed"] for case in report["cases"]),

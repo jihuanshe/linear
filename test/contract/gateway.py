@@ -4,6 +4,9 @@ import json
 import re
 import threading
 import time
+import uuid
+from collections.abc import Generator
+from contextlib import contextmanager
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Self
 from urllib.error import HTTPError
@@ -18,6 +21,8 @@ class LinearGateway:
     ):
         self.requests: list[dict] = []
         self.lock = threading.Lock()
+        self._mutations_enabled = False
+        self._commands: dict[str, bool] = {}
         outer = self
 
         class Handler(BaseHTTPRequestHandler):
@@ -37,7 +42,16 @@ class LinearGateway:
                 with outer.lock:
                     outer.requests.append(entry)
                 try:
+                    with outer.lock:
+                        if self.path != "/graphql" and self.path not in outer._commands:
+                            raise ValueError("inactive live command permission")
+                        may_write = outer._commands.get(self.path, False)
+                        verified = outer._mutations_enabled
                     if operation_kind(body) == "mutation":
+                        if not verified:
+                            raise ValueError("workspace identity is not verified")
+                        if not may_write:
+                            raise ValueError("live command is read-only")
                         single_mutation_root(body)
                 except (AssertionError, ValueError) as error:
                     # Refuse unaccounted writes before they reach real Linear.
@@ -119,6 +133,23 @@ class LinearGateway:
     @property
     def endpoint(self) -> str:
         return f"http://127.0.0.1:{self.server.server_port}/graphql"
+
+    def enable_mutations(self) -> None:
+        """Called only after both identity reads and their step checks pass."""
+        with self.lock:
+            self._mutations_enabled = True
+
+    @contextmanager
+    def command(self, *, may_write: bool) -> Generator[str, None, None]:
+        """Scope permission to one subprocess, including concurrent executors."""
+        path = "/graphql/" + uuid.uuid4().hex
+        with self.lock:
+            self._commands[path] = may_write
+        try:
+            yield f"http://127.0.0.1:{self.server.server_port}{path}"
+        finally:
+            with self.lock:
+                del self._commands[path]
 
 
 def mutations(requests: list[dict]) -> int:

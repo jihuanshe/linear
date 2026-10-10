@@ -9,6 +9,7 @@ import tempfile
 import threading
 import time
 from collections.abc import Callable
+from contextlib import AbstractContextManager, ExitStack
 from dataclasses import dataclass, field
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -218,6 +219,7 @@ class Scenario:
         self.discovered_commands: list[str] = []
         self.discovery_gaps: list[str] = []
         self.live = key is not None
+        self.live_scope: Callable[[bool], AbstractContextManager[str]] | None = None
         # Deliberately select allowed names, never inspect the existing API key.
         self.env = {
             name: os.environ[name]
@@ -257,6 +259,7 @@ class Scenario:
         timeout: float = 20,
         endpoint: str | None = None,
         extra_env: dict[str, str] | None = None,
+        may_write: bool = False,
     ) -> Result:
         env = self.env | (extra_env or {})
         if endpoint is not None:
@@ -268,18 +271,23 @@ class Scenario:
             )
         start = time.monotonic()
         try:
-            process = subprocess.run(
-                [str(self.binary), *args],
-                cwd=self.cwd,
-                env=env,
-                input=stdin,
-                capture_output=True,
-                encoding="utf-8",
-                # Live transport owns its deadline. Never kill a real mutation
-                # to manufacture an unknown outcome; faults are offline only.
-                timeout=None if self.live else timeout,
-                check=False,
-            )
+            with ExitStack() as scopes:
+                if self.live_scope is not None:
+                    env["LINEAR_GRAPHQL_ENDPOINT"] = scopes.enter_context(
+                        self.live_scope(may_write)
+                    )
+                process = subprocess.run(
+                    [str(self.binary), *args],
+                    cwd=self.cwd,
+                    env=env,
+                    input=stdin,
+                    capture_output=True,
+                    encoding="utf-8",
+                    # Only explicitly writable live commands are unbounded.
+                    # Their gateway scope prevents bounded reads from writing.
+                    timeout=None if self.live and may_write else timeout,
+                    check=False,
+                )
         except subprocess.TimeoutExpired as error:
             raise AssertionError(
                 f"command exceeded {timeout}s: {list(args)!r}"

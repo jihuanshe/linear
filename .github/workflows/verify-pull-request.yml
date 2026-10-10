@@ -163,6 +163,11 @@ jobs:
           mise run test:contract:canaries -- --binary "$PWD/outputs/contract-install/bin/linear"
           --report outputs/contract-canaries.json
 
+      - name: Check the acceptance driver's live-write boundaries offline
+        run: >-
+          mise run test:contract:safety -- --binary "$PWD/outputs/contract-install/bin/linear"
+          --report outputs/contract-safety.json
+
       - name: Preserve executable acceptance evidence
         if: ${{ always() }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -171,6 +176,7 @@ jobs:
           path: |
             outputs/contract-offline.json
             outputs/contract-canaries.json
+            outputs/contract-safety.json
           if-no-files-found: ignore
 
       - name: Check acceptance left the checkout unchanged

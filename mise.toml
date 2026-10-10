@@ -38,3 +38,7 @@ run = [
 [tasks."test:contract:canaries"]
 description = "Verify the contract rejects known executable defects"
 run = "python test/contract/canaries.py"
+
+[tasks."test:contract:safety"]
+description = "Check the acceptance driver's live-write boundaries using only local fixtures"
+run = "python test/contract/safety.py"

@@ -160,14 +160,20 @@ def cases(*, include_slow: bool = False) -> list[Case]:
     def guarded_batch(s: Scenario) -> None:
         def check(server: ProtocolServer) -> None:
             with LinearGateway(upstream=server.endpoint) as gateway:
+                gateway.enable_mutations()
                 doc = 'mutation Batch { a: issueDelete(id: "a") { success } b: issueDelete(id: "b") { success } }'
-                failed = s.run("api", doc, "--unprotected", endpoint=gateway.endpoint)
+                with gateway.command(may_write=True) as endpoint:
+                    failed = s.run("api", doc, "--unprotected", endpoint=endpoint)
                 require(failed.code != 0, "live safety guard accepted a mutation batch")
                 equal(len(gateway.requests), 1)
                 equal(gateway.requests[0]["forwarded"], False)
                 require(
                     gateway.requests[0].get("rejected"),
                     "missing safety refusal evidence",
+                )
+                require(
+                    "one root mutation field" in gateway.requests[0]["rejected"],
+                    "wrong batch refusal",
                 )
             server.count(0)
 
