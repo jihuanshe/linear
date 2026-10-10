@@ -9,9 +9,13 @@ from typing import Self
 from urllib.error import HTTPError
 from urllib.request import Request, urlopen
 
+from harness import request_body
+
 
 class LinearGateway:
-    def __init__(self):
+    def __init__(
+        self, *, upstream: str = "https://api.linear.app/graphql", chunked: bool = False
+    ):
         self.requests: list[dict] = []
         self.lock = threading.Lock()
         outer = self
@@ -21,16 +25,34 @@ class LinearGateway:
                 pass
 
             def do_POST(self) -> None:
-                raw = self.rfile.read(int(self.headers.get("Content-Length", "0")))
+                raw = request_body(self)
                 body = json.loads(raw)
                 # Record dispatch before contacting Linear, even if a reply is
                 # lost. Authentication values never enter the evidence log.
-                entry: dict = {"body": body, "started": time.monotonic()}
+                entry: dict = {
+                    "body": body,
+                    "started": time.monotonic(),
+                    "forwarded": False,
+                }
                 with outer.lock:
                     outer.requests.append(entry)
+                try:
+                    if operation_kind(body) == "mutation":
+                        single_mutation_root(body)
+                except (AssertionError, ValueError) as error:
+                    # Refuse unaccounted writes before they reach real Linear.
+                    # This is an experiment safety boundary, not CLI validation.
+                    entry["rejected"] = str(error)
+                    payload = json.dumps({"errors": [{"message": str(error)}]}).encode()
+                    self.send_response(400)
+                    self.send_header("Content-Type", "application/json")
+                    self.send_header("Content-Length", str(len(payload)))
+                    self.end_headers()
+                    self.wfile.write(payload)
+                    return
                 request = Request(
-                    "https://api.linear.app/graphql",
-                    data=raw,
+                    upstream,
+                    data=iter((raw[:3], raw[3:])) if chunked else raw,
                     headers={
                         "Content-Type": self.headers.get(
                             "Content-Type", "application/json"
@@ -40,6 +62,7 @@ class LinearGateway:
                     },
                     method="POST",
                 )
+                entry["forwarded"] = True
                 try:
                     with urlopen(request, timeout=65) as response:
                         payload = response.read()
@@ -99,7 +122,89 @@ class LinearGateway:
 
 
 def mutations(requests: list[dict]) -> int:
-    return sum(operation_kind(request["body"]) == "mutation" for request in requests)
+    return sum(
+        request.get("forwarded", True) and operation_kind(request["body"]) == "mutation"
+        for request in requests
+    )
+
+
+def single_mutation_root(body: dict) -> None:
+    """Conservative live guard: one direct root response key per mutation.
+
+    Root fragments and batching are intentionally refused before dispatch until
+    the suite can independently account for and clean every resulting write.
+    Nested fragments and aliases do not constrain the implementation.
+    """
+    scanned = re.findall(
+        r'"""(?:\\.|(?!""").)*"""|"(?:\\.|[^"\\])*"|#[^\r\n]*|\.\.\.|[A-Za-z_]\w*|[{}():@]',
+        body["query"],
+        re.DOTALL,
+    )
+    tokens = [token for token in scanned if not token.startswith(('"', "#"))]
+
+    def closing(start: int, left: str, right: str) -> int:
+        depth = 1
+        for index in range(start + 1, len(tokens)):
+            if tokens[index] == left:
+                depth += 1
+            elif tokens[index] == right:
+                depth -= 1
+                if not depth:
+                    return index
+        raise ValueError("incomplete selection in live mutation")
+
+    index = 0
+    selections: list[int] = []
+    while index < len(tokens):
+        token = tokens[index]
+        kind = (
+            token
+            if token in ("query", "mutation", "subscription", "fragment")
+            else "query"
+        )
+        name = tokens[index + 1] if token != "{" and index + 1 < len(tokens) else None
+        if name in ("(", "{"):
+            name = None
+        while index < len(tokens) and tokens[index] != "{":
+            if tokens[index] == "(":
+                index = closing(index, "(", ")")
+            index += 1
+        if index == len(tokens):
+            break
+        end = closing(index, "{", "}")
+        if kind == "mutation" and (
+            not body.get("operationName") or name == body["operationName"]
+        ):
+            selections.append(index)
+        index = end + 1
+    if len(selections) != 1:
+        raise ValueError("cannot identify one selected live mutation")
+    index = selections[0] + 1
+    end = closing(selections[0], "{", "}")
+    fields: set[str] = set()
+    while index < end:
+        token = tokens[index]
+        if token == "...":
+            raise ValueError(
+                "live safety guard does not yet support root mutation fragments"
+            )
+        if not re.fullmatch(r"[A-Za-z_]\w*", token):
+            raise ValueError("cannot account for live mutation fields")
+        fields.add(token)
+        index += 1
+        if tokens[index] == ":":
+            index += 2
+        while index < end and tokens[index] in ("(", "@"):
+            if tokens[index] == "@":
+                index += 2
+            if index < end and tokens[index] == "(":
+                index = closing(index, "(", ")") + 1
+        if index < end and tokens[index] == "{":
+            index = closing(index, "{", "}") + 1
+    if len(fields) != 1:
+        raise ValueError(
+            "live safety guard requires one root mutation field; batching is not yet supported"
+        )
 
 
 def operation_kind(body: dict) -> str:

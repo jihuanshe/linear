@@ -15,6 +15,26 @@ from pathlib import Path
 from typing import Self
 
 
+def request_body(handler: BaseHTTPRequestHandler) -> bytes:
+    """Decode HTTP framing without constraining the executable's client library."""
+    if handler.headers.get("Transfer-Encoding", "").lower() == "chunked":
+        parts: list[bytes] = []
+        while True:
+            line = handler.rfile.readline()
+            if not line:
+                raise ValueError("incomplete chunk header")
+            length = int(line.split(b";", 1)[0], 16)
+            if length == 0:
+                while handler.rfile.readline() not in (b"\r\n", b"\n", b""):
+                    pass
+                return b"".join(parts)
+            chunk = handler.rfile.read(length)
+            if len(chunk) != length or handler.rfile.read(2) != b"\r\n":
+                raise ValueError("incomplete chunk body")
+            parts.append(chunk)
+    return handler.rfile.read(int(handler.headers.get("Content-Length", "0")))
+
+
 def require(condition: object, message: str) -> None:
     if not condition:
         raise AssertionError(message)
@@ -90,25 +110,33 @@ class ProtocolServer:
             def log_message(self, format: str, *_args: object) -> None:
                 pass
 
+            def parse_request(self) -> bool:
+                accepted = super().parse_request()
+                if accepted:
+                    with outer.lock:
+                        self.index = len(outer.requests)
+                        self.entry = {
+                            "method": self.command,
+                            "path": self.path,
+                            "body": None,
+                            "authenticated": self.headers.get("Authorization")
+                            == "offline-contract-key",
+                            "contentType": self.headers.get("Content-Type"),
+                            "transferEncoding": self.headers.get("Transfer-Encoding"),
+                            "at": time.monotonic(),
+                        }
+                        outer.requests.append(self.entry)
+                return accepted
+
             def do_POST(self) -> None:
-                raw = self.rfile.read(int(self.headers.get("Content-Length", "0")))
+                raw = request_body(self)
                 try:
                     body = json.loads(raw)
                 except ValueError:
                     body = raw.decode("utf-8", errors="replace")
                 with outer.lock:
-                    index = len(outer.requests)
-                    outer.requests.append(
-                        {
-                            "method": "POST",
-                            "path": self.path,
-                            "body": body,
-                            "authenticated": self.headers.get("Authorization")
-                            == "offline-contract-key",
-                            "contentType": self.headers.get("Content-Type"),
-                            "at": time.monotonic(),
-                        }
-                    )
+                    index = self.index
+                    self.entry["body"] = body
                     reply = (
                         outer.replies[index]
                         if index < len(outer.replies)

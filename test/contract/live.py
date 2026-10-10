@@ -204,15 +204,25 @@ class LiveRun:
         result = self.scenario.run(domain, "create", *args, "--json", timeout=45)
         document = result.document(success=result.code == 0)
         # Save a returned identity before asserting any other receipt field.
-        entity = document.get("data", {}).get(field, {})
-        if document.get("effect") == "applied" and entity.get("id"):
+        data = document.get("data")
+        entity = data.get(field) if isinstance(data, dict) else None
+        if (
+            isinstance(entity, dict)
+            and isinstance(entity.get("id"), str)
+            and entity["id"]
+        ):
             self.resources.append(
                 {"domain": domain, "kind": field, "id": entity["id"], "name": name}
             )
             intent.update({"id": entity["id"], "outcome": "identity-received"})
             self.save_progress()
         result.write()
-        require(entity.get("id"), "created resource has no usable identity")
+        require(
+            isinstance(entity, dict) and entity.get("id"),
+            "created resource has no usable identity",
+        )
+        if not isinstance(entity, dict):
+            raise AssertionError("created resource has no usable identity")
         return entity
 
     def cleanup(self) -> None:
@@ -331,11 +341,38 @@ class LiveRun:
         self.save_progress()
         equal(len(matching), 1)
         ledger = json.loads(Path(str(path) + ".checkpoint.json").read_text())
+        items = list(ledger["items"].values())
         require(
-            all(item["status"] == "completed" for item in ledger["items"].values()),
+            items
+            and all(
+                item["status"] == "completed" and item.get("receipt") for item in items
+            ),
             "concurrent receipt lost",
         )
+        equal(
+            [
+                item["receipt"]["id"]
+                for item in items
+                if item["receipt"].get("kind") == "comment"
+            ],
+            [matching[0]["id"]],
+        )
+        equal(ledger["schemaVersion"], 2)
+        equal(
+            ledger["workspace"],
+            {"id": self.workspace["id"], "urlKey": self.workspace["urlKey"]},
+        )
+        equal(
+            sorted((item["receipt"]["kind"], item["receipt"]["id"]) for item in items),
+            sorted((("issue", issue["id"]), ("comment", matching[0]["id"]))),
+        )
         self.file_evidence["concurrent/checkpoint.json"] = ledger
+        before = len(self.requests)
+        replayed = s.run(*args).write(effect="none")
+        equal(replayed["data"]["status"], "completed")
+        equal(mutations(self.requests[before:]), 0)
+        equal(json.loads(Path(str(path) + ".checkpoint.json").read_text()), ledger)
+        equal(self.present("issue", issue["id"]), remote)
         require(
             Path(str(path) + ".checkpoint.json.lock").exists(),
             "delivery lock file was removed",

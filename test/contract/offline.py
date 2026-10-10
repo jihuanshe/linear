@@ -3,11 +3,23 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
+import time
 from collections.abc import Callable
+from pathlib import Path
 
-from gateway import operation_kind
-from harness import Case, ProtocolServer, Reply, Scenario, connection, equal, require
+from gateway import LinearGateway, operation_kind
+from harness import (
+    Case,
+    ProtocolServer,
+    Reply,
+    Result,
+    Scenario,
+    connection,
+    equal,
+    require,
+)
 
 QUERY = "query Probe { viewer { id } }"
 MUTATION = 'mutation Probe { issueDelete(id: "disposable-protocol-probe") { success } }'
@@ -131,6 +143,163 @@ def cases(*, include_slow: bool = False) -> list[Case]:
         equal(r.stderr, "")
 
     add("local.issue-identifier-from-git", ("issue identifier",), vcs_identifier)
+
+    def chunked_request(s: Scenario) -> None:
+        def check(server: ProtocolServer) -> None:
+            with LinearGateway(upstream=server.endpoint, chunked=True) as gateway:
+                doc = s.run("api", QUERY, endpoint=gateway.endpoint).document()
+                equal(doc, {"data": {"viewer": {"id": "probe"}}})
+            server.count(1)
+            equal(server.requests[0]["transferEncoding"], "chunked")
+
+        s.protocol([Reply()], check)
+
+    add("transport.chunked-request-framing", ("api",), chunked_request)
+
+    def guarded_batch(s: Scenario) -> None:
+        def check(server: ProtocolServer) -> None:
+            with LinearGateway(upstream=server.endpoint) as gateway:
+                doc = 'mutation Batch { a: issueDelete(id: "a") { success } b: issueDelete(id: "b") { success } }'
+                failed = s.run("api", doc, "--unprotected", endpoint=gateway.endpoint)
+                require(failed.code != 0, "live safety guard accepted a mutation batch")
+                equal(len(gateway.requests), 1)
+                equal(gateway.requests[0]["forwarded"], False)
+                require(
+                    gateway.requests[0].get("rejected"),
+                    "missing safety refusal evidence",
+                )
+            server.count(0)
+
+        s.protocol([], check)
+
+    add("transport.live-batch-guard-before-forwarding", ("api",), guarded_batch)
+
+    if os.name == "posix":
+
+        def locked_checkpoint(s: Scenario) -> None:
+            import fcntl
+
+            manifest = s.file(
+                "locked/manifest.json",
+                {
+                    "schemaVersion": 2,
+                    "workspace": "kadoraba",
+                    "issues": [
+                        {
+                            "operation": "update",
+                            "identifier": "00000000-0000-4000-8000-000000000001",
+                            "comments": [{"body": "offline lock boundary"}],
+                        }
+                    ],
+                },
+            )
+            s.file(
+                "locked/manifest.json.checkpoint.json",
+                "invalid ledger must only be read after locking",
+            )
+            lock_path = Path(str(manifest) + ".checkpoint.json.lock")
+            lock_path.touch()
+            organization = {
+                "data": {
+                    "organization": {
+                        "id": "00000000-0000-4000-8000-000000000002",
+                        "urlKey": "kadoraba",
+                    }
+                }
+            }
+            args = [
+                "issue",
+                "apply",
+                "--file",
+                str(manifest),
+                "--confirm-workspace",
+                "kadoraba",
+                "--json",
+            ]
+
+            def check(server: ProtocolServer) -> None:
+                with lock_path.open("r+b") as held:
+                    fcntl.flock(held, fcntl.LOCK_EX)
+                    process = subprocess.Popen(
+                        [str(s.binary), *args],
+                        cwd=s.cwd,
+                        env=s.env
+                        | {
+                            "LINEAR_API_KEY": "offline-contract-key",
+                            "LINEAR_GRAPHQL_ENDPOINT": server.endpoint,
+                        },
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.PIPE,
+                        text=True,
+                        start_new_session=True,
+                    )
+                    start = time.monotonic()
+                    try:
+                        observed = False
+                        while time.monotonic() - start < 8 and process.poll() is None:
+                            if Path("/proc/locks").exists():
+                                lines = Path("/proc/locks").read_text().splitlines()
+                                pids = [
+                                    int(row.split()[5])
+                                    for row in lines
+                                    if " -> " in row
+                                    and row.split()[6].endswith(
+                                        ":" + str(lock_path.stat().st_ino)
+                                    )
+                                ]
+                            else:
+                                owners = subprocess.run(
+                                    ["/usr/sbin/lsof", "-t", str(lock_path)],
+                                    capture_output=True,
+                                    text=True,
+                                    check=False,
+                                )
+                                pids = [int(pid) for pid in owners.stdout.split()]
+                            for pid in pids:
+                                try:
+                                    observed |= os.getpgid(pid) == process.pid
+                                except ProcessLookupError:
+                                    pass
+                            if observed:
+                                break
+                            time.sleep(0.05)
+                        require(
+                            observed,
+                            "executor did not wait for the held checkpoint lock",
+                        )
+                        # The holder is another actor. The target reached this
+                        # exact lock while the ledger remained unreadable.
+                        require(process.poll() is None, "executor bypassed held lock")
+                        equal(lock_path.stat().st_ino, os.fstat(held.fileno()).st_ino)
+                        fcntl.flock(held, fcntl.LOCK_UN)
+                        stdout, stderr = process.communicate(timeout=20)
+                        result = Result(
+                            args,
+                            process.returncode,
+                            stdout,
+                            stderr,
+                            time.monotonic() - start,
+                        )
+                        s.results.append(result)
+                        result.write(effect="none", success=False)
+                        require(lock_path.exists(), "fixed lock file was removed")
+                        require(
+                            all(
+                                operation_kind(request["body"]) == "query"
+                                for request in server.requests
+                            ),
+                            "mutation dispatched despite invalid locked ledger",
+                        )
+                    finally:
+                        # Fault experiments are offline only; no real mutation
+                        # is ever interrupted to manufacture an unknown result.
+                        if process.poll() is None:
+                            process.kill()
+                            process.communicate()
+
+            s.protocol([Reply(organization)], check)
+
+        add("delivery.external-checkpoint-lock", ("issue apply",), locked_checkpoint)
 
     invalid = [
         ("mutation-guard", ["api", MUTATION]),

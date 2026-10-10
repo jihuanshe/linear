@@ -24,6 +24,12 @@ DEFECTS = [
     ("lost-page", "pagination.all-pages-and-api-shape", "three"),
     ("lost-variables", "api.stdin-and-variable-roundtrip", "nested"),
     ("unknown-as-none", "transport.mutation-unknown-disconnect", "expected 'unknown'"),
+    ("unexpected-get", "validation.mutation-guard", "expected 0, received 1"),
+    (
+        "bypass-delivery-lock",
+        "delivery.external-checkpoint-lock",
+        "did not wait for the held checkpoint lock",
+    ),
 ]
 
 
@@ -40,11 +46,28 @@ def run(binary: Path) -> dict:
             wrapper.write_text(
                 f"""#!{sys.executable}
 import json
+import os
+import shutil
 import subprocess
 import sys
+import urllib.error
+import urllib.request
+from pathlib import Path
 
 args = sys.argv[1:]
 stdin = sys.stdin.read()
+if {defect!r} == "unexpected-get":
+    try:
+        urllib.request.urlopen(os.environ["LINEAR_GRAPHQL_ENDPOINT"]).close()
+    except urllib.error.HTTPError:
+        pass
+if {defect!r} == "bypass-delivery-lock":
+    index = args.index("--file") + 1
+    original = Path(args[index])
+    unlocked = original.with_name("unlocked-manifest.json")
+    shutil.copyfile(original, unlocked)
+    shutil.copyfile(str(original) + ".checkpoint.json", str(unlocked) + ".checkpoint.json")
+    args[index] = str(unlocked)
 if {defect!r} == "lost-variables":
     for option in ("--variables-file", "--variables-json"):
         if option in args:
