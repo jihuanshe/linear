@@ -1,0 +1,32 @@
+--unassign clears the assignee, alone or with other fields; --assignee self assigns; both together are rejected before any request.
+-- seed.json --
+{"Issue": [{"id": "1a000000-0000-4000-8000-000000000123", "identifier": "ENG-123", "title": "Existing issue", "state": "0d000000-0000-4000-8000-000000000002", "assignee": "0b000000-0000-4000-8000-000000000001"}]}
+-- run --
+linear issue update --unprotected ENG-123 --unassign
+-- stdout --
+✓ Updated issue ENG-123: Existing issue
+https://linear.app/kadoraba/issue/ENG-123/existing-issue
+-- state.json --
+{"Issue": [{"identifier": "ENG-123", "assignee": null}]}
+-- run --
+linear issue update --unprotected ENG-123 --assignee self
+-- stdout --
+✓ Updated issue ENG-123: Existing issue
+https://linear.app/kadoraba/issue/ENG-123/existing-issue
+-- state.json --
+{"Issue": [{"identifier": "ENG-123", "assignee": "0b000000-0000-4000-8000-000000000001"}]}
+-- run --
+linear issue update --unprotected ENG-123 --unassign --title Renamed
+-- stdout --
+✓ Updated issue ENG-123: Renamed
+https://linear.app/kadoraba/issue/ENG-123/renamed
+-- state.json --
+{"Issue": [{"identifier": "ENG-123", "title": "Renamed", "assignee": null}]}
+-- run --
+linear issue update --unprotected ENG-123 --assignee self --unassign
+-- stderr --
+✗ Failed to update issue: Cannot specify both --assignee and --unassign
+  Use --assignee <user> to set an assignee, or --unassign on its own to clear it.
+-- exit --
+1
+-- no-requests --

@@ -126,7 +126,7 @@ const RELATIONS: Record<string, [string, string]> = {
 
 /** Root fields that look up one entity, with natural keys accepted as IDs. */
 const ROOT_LOOKUPS: Record<string, string[]> = {
-  issue: ["identifier"],
+  issue: ["identifier", "previousIdentifiers"],
   team: ["key"],
   project: ["slugId"],
   document: ["slugId"],
@@ -170,8 +170,9 @@ export function lookup(
   for (const key of naturalKeys) {
     for (const type of types) {
       const match = ctx.store.all(type).find((record) =>
-        typeof record[key] === "string" &&
-        (record[key] as string).toLowerCase() === id.toLowerCase()
+        [record[key]].flat().some((value) =>
+          typeof value === "string" && value.toLowerCase() === id.toLowerCase()
+        )
       )
       if (match != null) return match
     }

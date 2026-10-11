@@ -179,10 +179,33 @@ const issueUpdate: RootField = ({ id, input }, ctx) => {
     ],
     "issueUpdate",
   )
-  const issue = lookup(ctx, "Issue", String(id), ["identifier"])
+  const issue = lookup(ctx, "Issue", String(id), [
+    "identifier",
+    "previousIdentifiers",
+  ])
   // A rejected input leaves the issue unchanged.
   const next = structuredClone(issue)
-  if ("teamId" in data) next.team = ref(ctx, "Team", data.teamId)
+  if ("teamId" in data) {
+    next.team = ref(ctx, "Team", data.teamId)
+    if (next.team !== issue.team) {
+      // Moving teams renumbers the issue; the old identifier still resolves.
+      const team = ctx.store.find("Team", next.team as string)!
+      next.previousIdentifiers = [
+        ...((issue.previousIdentifiers as string[] | undefined) ?? []),
+        issue.identifier,
+      ]
+      next.number = nextIssueNumber(ctx.store, team.id)
+      next.identifier = `${team.key}-${next.number}`
+    }
+    // Moving teams without a state keeps the state's type in the new team.
+    if (next.team !== issue.team && !("stateId" in data)) {
+      const type = ctx.store.find("WorkflowState", issue.state as string)?.type
+      const match = ctx.store.all("WorkflowState")
+        .filter((state) => state.team === next.team && state.type === type)
+        .sort((a, b) => Number(a.position) - Number(b.position))[0]
+      next.state = match?.id ?? defaultState(ctx.store, next.team as string)
+    }
+  }
   applyIssueInput(ctx, next, data)
   Object.assign(issue, next)
   touch(ctx, issue)
@@ -190,7 +213,10 @@ const issueUpdate: RootField = ({ id, input }, ctx) => {
 }
 
 const issueDelete: RootField = ({ id, permanentlyDelete }, ctx) => {
-  const issue = lookup(ctx, "Issue", String(id), ["identifier"])
+  const issue = lookup(ctx, "Issue", String(id), [
+    "identifier",
+    "previousIdentifiers",
+  ])
   if (permanentlyDelete === true) {
     ctx.store.remove("Issue", issue.id)
   } else {

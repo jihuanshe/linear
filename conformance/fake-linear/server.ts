@@ -23,6 +23,7 @@ import {
   type SelectionSetNode,
   validate,
   type VariableValues,
+  visit,
 } from "graphql"
 import { type Context, fieldResolver, typeResolver } from "./resolve.ts"
 import { rootValue } from "./root.ts"
@@ -54,6 +55,8 @@ export interface LoggedRequest {
  */
 export interface FaultRule {
   on: string
+  /** Also require the document to select a field with this name anywhere. */
+  selects?: string
   nth?: number
   times?: number
   /**
@@ -126,12 +129,17 @@ export class FakeLinear {
     return this.store.snapshot()
   }
 
-  #fault(operation: string, fields: string[]): FaultRule | undefined {
+  #fault(
+    operation: string,
+    fields: string[],
+    selected: Set<string>,
+  ): FaultRule | undefined {
     for (const rule of this.faults) {
       const [kind, field] = rule.on.split(":")
       if (kind !== operation || (field != null && !fields.includes(field))) {
         continue
       }
+      if (rule.selects != null && !selected.has(rule.selects)) continue
       const seen = (this.#seen.get(rule) ?? 0) + 1
       this.#seen.set(rule, seen)
       const nth = rule.nth ?? 1
@@ -227,7 +235,13 @@ export class FakeLinear {
       ? []
       : [...rootFields(operation.selectionSet, fragments, coerced).values()]
 
-    const fault = this.#fault(kind, fields)
+    const selected = new Set<string>()
+    visit(document, {
+      Field: (node) => {
+        selected.add(node.name.value)
+      },
+    })
+    const fault = this.#fault(kind, fields, selected)
     if (fault?.action === "status") {
       return this.#log(
         kind,

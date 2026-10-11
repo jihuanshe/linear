@@ -33,6 +33,7 @@ const TYPE_DEFAULTS: Record<string, Defaults> = {
       dueDate: null,
       sortOrder: 0,
       labels: [],
+      previousIdentifiers: [],
       subscribers: [],
       creator: viewer(store),
       assignee: null,
@@ -74,6 +75,13 @@ const TYPE_DEFAULTS: Record<string, Defaults> = {
     sourceType: "api",
     metadata: {},
     creator: viewer(store),
+  }),
+  IssueLabel: () => ({
+    isGroup: false,
+    team: null,
+    parent: null,
+    description: null,
+    color: "#bec2c8",
   }),
   Cycle: () => ({
     name: null,

@@ -1,0 +1,12 @@
+--cycle fails helpfully when the team has cycles disabled.
+-- seed.json --
+{"Issue": [{"id": "1a000000-0000-4000-8000-000000000123", "identifier": "ENG-123", "title": "Existing issue", "state": "0d000000-0000-4000-8000-000000000002"}]}
+-- run --
+linear issue update --unprotected ENG-123 --cycle active
+-- stderr --
+✗ Failed to update issue: Cycles are not enabled for team ENG
+  Enable cycles for the team in Linear's settings before filtering or assigning by cycle.
+-- exit --
+1
+-- mutations.json --
+{}

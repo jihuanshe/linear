@@ -1,0 +1,93 @@
+--json prints exactly one write result whose data is the mutation payload, including the resulting priority and labels.
+-- seed.json --
+{"Issue": [{"id": "1a000000-0000-4000-8000-000000000123", "identifier": "ENG-123", "title": "Existing issue", "state": "0d000000-0000-4000-8000-000000000002", "labels": ["0e000000-0000-4000-8000-000000000002"]}]}
+-- run --
+linear issue update --unprotected ENG-123 --priority 2 --json
+-- stdout.json --
+{
+  "ok": true,
+  "effect": "applied",
+  "data": {
+    "success": true,
+    "issue": {
+      "id": "1a000000-0000-4000-8000-000000000123",
+      "identifier": "ENG-123",
+      "url": "https://linear.app/kadoraba/issue/ENG-123/existing-issue",
+      "title": "Existing issue",
+      "priority": 2,
+      "labels": {
+        "nodes": [
+          {
+            "id": "0e000000-0000-4000-8000-000000000002",
+            "name": "Bug"
+          }
+        ],
+        "pageInfo": {
+          "hasNextPage": false,
+          "endCursor": "0e000000-0000-4000-8000-000000000002"
+        }
+      }
+    }
+  },
+  "fields": [
+    {
+      "field": "priority",
+      "inputField": "priority",
+      "desired": 2,
+      "remote": 0,
+      "verdict": "write"
+    }
+  ],
+  "verification": {
+    "scope": "issue-fields",
+    "status": "verified"
+  },
+  "readBack": {
+    "organization": {
+      "id": "0a000000-0000-4000-8000-000000000001",
+      "urlKey": "kadoraba"
+    },
+    "issue": {
+      "id": "1a000000-0000-4000-8000-000000000123",
+      "identifier": "ENG-123",
+      "archivedAt": null,
+      "trashed": null,
+      "title": "Existing issue",
+      "description": null,
+      "url": "https://linear.app/kadoraba/issue/ENG-123/existing-issue",
+      "branchName": "alex/eng-123-existing-issue",
+      "priority": 2,
+      "estimate": null,
+      "dueDate": null,
+      "state": {
+        "id": "0d000000-0000-4000-8000-000000000002",
+        "name": "Todo",
+        "type": "unstarted",
+        "color": "#e2e2e2"
+      },
+      "assignee": null,
+      "project": null,
+      "projectMilestone": null,
+      "cycle": null,
+      "team": {
+        "id": "0c000000-0000-4000-8000-000000000001",
+        "key": "ENG",
+        "activeCycle": null
+      },
+      "parent": null,
+      "labels": {
+        "nodes": [
+          {
+            "id": "0e000000-0000-4000-8000-000000000002",
+            "name": "Bug",
+            "color": "#eb5757"
+          }
+        ],
+        "pageInfo": {
+          "hasNextPage": false,
+          "endCursor": "0e000000-0000-4000-8000-000000000002"
+        }
+      }
+    }
+  }
+}

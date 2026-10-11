@@ -1,0 +1,10 @@
+--label replaces the labels, matching names case-insensitively.
+-- seed.json --
+{"Issue": [{"id": "1a000000-0000-4000-8000-000000000123", "identifier": "ENG-123", "title": "Existing issue", "state": "0d000000-0000-4000-8000-000000000002", "labels": ["0e000000-0000-4000-8000-000000000001"]}]}
+-- run --
+linear issue update --unprotected ENG-123 --label BUG
+-- stdout --
+✓ Updated issue ENG-123: Existing issue
+https://linear.app/kadoraba/issue/ENG-123/existing-issue
+-- state.json --
+{"Issue": [{"identifier": "ENG-123", "labels": ["0e000000-0000-4000-8000-000000000002"]}]}

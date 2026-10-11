@@ -1,0 +1,38 @@
+--add-label and --remove-label change only those labels; mixing them with --label, adding and removing the same label, or giving no update option at all is rejected.
+-- seed.json --
+{"IssueLabel": [{"id": "0e000000-0000-4000-8000-000000000011", "name": "frontend", "color": "#00ff00"}, {"id": "0e000000-0000-4000-8000-000000000012", "name": "before", "color": "#0000ff"}],
+ "Issue": [{"id": "1a000000-0000-4000-8000-000000000123", "identifier": "ENG-123", "title": "Existing issue", "state": "0d000000-0000-4000-8000-000000000002", "labels": ["0e000000-0000-4000-8000-000000000012", "0e000000-0000-4000-8000-000000000003"]}]}
+-- run --
+linear issue update --unprotected ENG-123 --add-label frontend --add-label Bug --remove-label before
+-- stdout --
+✓ Updated issue ENG-123: Existing issue
+https://linear.app/kadoraba/issue/ENG-123/existing-issue
+-- mutations.json --
+{"issueUpdate": 1}
+-- state.json --
+{"Issue": [{"identifier": "ENG-123", "labels": ["0e000000-0000-4000-8000-000000000003", "0e000000-0000-4000-8000-000000000011", "0e000000-0000-4000-8000-000000000002"]}]}
+-- run --
+linear issue update --unprotected ENG-123 --label Bug --add-label frontend
+-- stderr --
+✗ Failed to update issue: Cannot combine --label with --add-label or --remove-label
+  Use --label to replace all labels, or use --add-label and --remove-label for incremental changes.
+-- exit --
+1
+-- no-requests --
+-- run --
+linear issue update --unprotected ENG-123 --add-label frontend --remove-label frontend
+-- stderr --
+✗ Failed to update issue: Cannot add and remove the same label in one update
+  Remove the duplicate label from either --add-label or --remove-label.
+-- exit --
+1
+-- mutations.json --
+{}
+-- run --
+linear issue update --unprotected ENG-123
+-- stderr --
+✗ Failed to update issue: At least one update option must be provided
+  Use a field option such as --title, --state, --add-label, or --remove-label.
+-- exit --
+1
+-- no-requests --

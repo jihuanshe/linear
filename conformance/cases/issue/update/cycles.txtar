@@ -1,0 +1,60 @@
+--cycle accepts active, next, a relative offset and a number; --clear-cycle removes the issue from its cycle.
+-- seed.json --
+{"Team": [{"id": "0c000000-0000-4000-8000-000000000001", "cyclesEnabled": true}], "Cycle": [{"id": "1d000000-0000-4000-8000-000000000005", "team": "0c000000-0000-4000-8000-000000000001", "number": 5, "name": null, "startsAt": "2025-12-11T00:00:00.000Z", "endsAt": "2025-12-25T00:00:00.000Z"}, {"id": "1d000000-0000-4000-8000-000000000006", "team": "0c000000-0000-4000-8000-000000000001", "number": 6, "name": "Sprint 6", "startsAt": "2025-12-25T00:00:00.000Z", "endsAt": "2026-01-08T00:00:00.000Z"}, {"id": "1d000000-0000-4000-8000-000000000007", "team": "0c000000-0000-4000-8000-000000000001", "number": 7, "name": "Sprint 7", "startsAt": "2026-01-08T00:00:00.000Z", "endsAt": "2026-01-22T00:00:00.000Z"}, {"id": "1d000000-0000-4000-8000-000000000008", "team": "0c000000-0000-4000-8000-000000000001", "number": 8, "name": null, "startsAt": "2026-01-22T00:00:00.000Z", "endsAt": "2026-02-05T00:00:00.000Z"}], "Issue": [{"id": "1a000000-0000-4000-8000-000000000123", "identifier": "ENG-123", "title": "Existing issue", "state": "0d000000-0000-4000-8000-000000000002"}]}
+-- run --
+linear issue update --unprotected ENG-123 --cycle active
+-- stdout --
+✓ Updated issue ENG-123: Existing issue
+https://linear.app/kadoraba/issue/ENG-123/existing-issue
+-- state.json --
+{"Issue": [{"identifier": "ENG-123", "cycle": "1d000000-0000-4000-8000-000000000006"}]}
+-- run --
+linear issue update --unprotected ENG-123 --cycle next
+-- stdout --
+✓ Updated issue ENG-123: Existing issue
+https://linear.app/kadoraba/issue/ENG-123/existing-issue
+-- state.json --
+{"Issue": [{"identifier": "ENG-123", "cycle": "1d000000-0000-4000-8000-000000000007"}]}
+-- run --
+linear issue update --unprotected ENG-123 --cycle +2
+-- stdout --
+✓ Updated issue ENG-123: Existing issue
+https://linear.app/kadoraba/issue/ENG-123/existing-issue
+-- state.json --
+{"Issue": [{"identifier": "ENG-123", "cycle": "1d000000-0000-4000-8000-000000000008"}]}
+-- run --
+linear issue update --unprotected ENG-123 --cycle=-1
+-- stdout --
+✓ Updated issue ENG-123: Existing issue
+https://linear.app/kadoraba/issue/ENG-123/existing-issue
+-- state.json --
+{"Issue": [{"identifier": "ENG-123", "cycle": "1d000000-0000-4000-8000-000000000005"}]}
+-- run --
+linear issue update --unprotected ENG-123 --cycle 7
+-- stdout --
+✓ Updated issue ENG-123: Existing issue
+https://linear.app/kadoraba/issue/ENG-123/existing-issue
+-- state.json --
+{"Issue": [{"identifier": "ENG-123", "cycle": "1d000000-0000-4000-8000-000000000007"}]}
+-- run --
+linear issue update --unprotected ENG-123 --cycle "Sprint 6"
+-- stdout --
+✓ Updated issue ENG-123: Existing issue
+https://linear.app/kadoraba/issue/ENG-123/existing-issue
+-- state.json --
+{"Issue": [{"identifier": "ENG-123", "cycle": "1d000000-0000-4000-8000-000000000006"}]}
+-- run --
+linear issue update --unprotected ENG-123 --clear-cycle
+-- stdout --
+✓ Updated issue ENG-123: Existing issue
+https://linear.app/kadoraba/issue/ENG-123/existing-issue
+-- state.json --
+{"Issue": [{"identifier": "ENG-123", "cycle": null}]}
+-- run --
+linear issue update --unprotected ENG-123 --cycle 7 --clear-cycle
+-- stderr --
+✗ Failed to update issue: Cannot specify both --cycle and --clear-cycle
+  Use --cycle <cycle> to set a cycle, or --clear-cycle on its own to remove it.
+-- exit --
+1
+-- no-requests --

@@ -44,7 +44,7 @@ if (cases.length === 0) {
 const options: RunOptions = {
   binary,
   world: JSON.parse(await Deno.readTextFile(join(root, "world.json"))),
-  vars: { TEAM: "ENG", RUN: "zrun" },
+  vars: { TEAM: "ENG", OTHER_TEAM: "P38IT", RUN: "zrun" },
   update: args.update,
   timeoutMs: Number(args.timeout ?? 30_000),
 }
