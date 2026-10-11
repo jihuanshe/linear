@@ -369,6 +369,43 @@ const commentUnresolve: RootField = ({ id }, ctx) => {
 }
 
 // ---------------------------------------------------------------------------
+// File upload: grants a signed PUT URL on the fake itself. The asset URL keeps
+// Linear's host so the executable's host checks see a real-looking asset.
+
+const fileUpload: RootField = (args, ctx) => {
+  const id = ctx.store.newId()
+  const org = ctx.store.singleton("Organization").id
+  const host = args.makePublic === true
+    ? "public.linear.app"
+    : "uploads.linear.app"
+  const assetUrl = `https://${host}/${org}/${id}/${id}`
+  ctx.store.insert({
+    id,
+    __typename: "Upload",
+    filename: args.filename,
+    contentType: args.contentType,
+    size: args.size,
+    public: args.makePublic === true,
+    assetUrl,
+    received: false,
+    createdAt: ctx.store.now(),
+  })
+  return {
+    success: true,
+    lastSyncId: ctx.store.nextSyncId(),
+    uploadFile: {
+      assetUrl,
+      uploadUrl: `${ctx.origin}/upload/${id}`,
+      headers: [{ key: "x-fake-upload", value: id }],
+      contentType: args.contentType,
+      filename: args.filename,
+      size: args.size,
+      metaData: args.metaData ?? null,
+    },
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Attachment: one per issue and URL; linking a known URL updates it.
 
 function upsertAttachment(
@@ -595,6 +632,7 @@ export function rootValue(): Record<string, RootField> {
     issueCreate,
     issueUpdate,
     issueDelete,
+    fileUpload,
     attachmentLinkURL,
     attachmentCreate,
     favoriteCreate,

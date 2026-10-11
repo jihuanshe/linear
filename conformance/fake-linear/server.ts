@@ -151,6 +151,9 @@ export class FakeLinear {
   async #handle(request: Request): Promise<Response> {
     this.#attempts++
     const url = new URL(request.url)
+    if (request.method === "PUT" && url.pathname.startsWith("/upload/")) {
+      return await this.#upload(url.pathname.slice("/upload/".length), request)
+    }
     if (request.method !== "POST" || url.pathname !== "/graphql") {
       return new Response("Not Found", { status: 404 })
     }
@@ -254,7 +257,11 @@ export class FakeLinear {
       return this.#log(kind, fields, variables, dropped())
     }
 
-    const ctx: Context = { store: this.store, schema }
+    const ctx: Context = {
+      store: this.store,
+      schema,
+      origin: new URL(this.endpoint).origin,
+    }
     const result = await execute({
       schema,
       document,
@@ -317,6 +324,27 @@ export class FakeLinear {
       )
     }
     return this.#log(kind, fields, variables, json(200, payload))
+  }
+
+  /**
+   * Accept a signed upload once. The executable must send the headers the
+   * grant returned; whether it also sent its Linear credential is recorded.
+   */
+  async #upload(id: string, request: Request): Promise<Response> {
+    const upload = this.store.find("Upload", id)
+    const body = new Uint8Array(await request.arrayBuffer())
+    if (upload == null || upload.received === true) {
+      return new Response("Forbidden", { status: 403 })
+    }
+    if (request.headers.get("x-fake-upload") !== id) {
+      return new Response("Missing signed headers", { status: 403 })
+    }
+    upload.received = true
+    upload.receivedContentType = request.headers.get("content-type")
+    upload.receivedSize = body.byteLength
+    upload.sentAuthorization = request.headers.has("authorization")
+    upload.text = new TextDecoder("utf-8", { fatal: false }).decode(body)
+    return new Response(null, { status: 200 })
   }
 
   #log(

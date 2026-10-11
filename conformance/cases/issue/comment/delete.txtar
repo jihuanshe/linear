@@ -1,0 +1,58 @@
+comment delete removes a comment after confirmation; without --yes and without a terminal it refuses; a success false receipt is unknown.
+-- seed.json --
+{"Issue": [{"id": "1a000000-0000-4000-8000-000000000001", "identifier": "ENG-1", "title": "Thread"}],
+ "Comment": [{"id": "1c000000-0000-4000-8000-000000000001", "issue": "1a000000-0000-4000-8000-000000000001", "body": "Delete me"}, {"id": "1c000000-0000-4000-8000-000000000002", "issue": "1a000000-0000-4000-8000-000000000001", "body": "Keep me"}]}
+-- run --
+linear issue comment delete 1c000000-0000-4000-8000-000000000001 --json
+-- stdout.json --
+{
+  "ok": false,
+  "effect": "none",
+  "error": {
+    "code": "ValidationError",
+    "message": "Failed to delete comment: Interactive prompting requires a terminal",
+    "suggestion": "Use --yes to skip."
+  }
+}
+-- exit --
+1
+-- mutations.json --
+{}
+-- env --
+LINEAR_PROMPT_DISABLED=1
+-- run --
+linear issue comment delete 1c000000-0000-4000-8000-000000000001
+-- stderr --
+✗ Failed to delete comment: Interactive prompting is disabled by LINEAR_PROMPT_DISABLED
+  Use --yes to skip.
+-- exit --
+1
+-- mutations.json --
+{}
+-- run --
+linear issue comment delete 1c000000-0000-4000-8000-000000000001 --yes
+-- stdout --
+✓ Comment deleted
+-- state.json --
+{"Comment": [{"body": "Keep me"}]}
+-- faults.json --
+[{"on": "mutation:commentDelete", "action": "status", "status": 200, "body": {"data": {"commentDelete": {"success": false}}}}]
+-- run --
+linear issue comment delete 1c000000-0000-4000-8000-000000000002 --yes --json
+-- stdout.json --
+{
+  "ok": false,
+  "effect": "unknown",
+  "data": {
+    "commentDelete": {
+      "success": false
+    }
+  },
+  "error": {
+    "code": "WriteError",
+    "message": "Failed to delete comment: Mutation was not confirmed",
+    "suggestion": "Reconcile the remote outcome before retrying this write."
+  }
+}
+-- exit --
+1

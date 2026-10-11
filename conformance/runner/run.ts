@@ -282,6 +282,9 @@ export async function runCase(
         await Deno.mkdir(join(target, ".."), { recursive: true })
         await Deno.writeTextFile(target, substitute(content, vars))
       }
+      for (const path of step.executables) {
+        await Deno.chmod(join(work, substitute(path, vars)), 0o755)
+      }
       for (const [path, patch] of Object.entries(step.patches)) {
         const target = join(work, substitute(path, vars))
         const patched = applyPatch(

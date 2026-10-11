@@ -1,0 +1,16 @@
+A reply created with comment add can conclude its thread: the add result's comment ID resolves the same root without creating another root comment.
+-- seed.json --
+{"Issue": [{"id": "1a000000-0000-4000-8000-000000000001", "identifier": "ENG-1", "title": "Thread"}, {"id": "1a000000-0000-4000-8000-000000000002", "identifier": "ENG-2", "title": "Elsewhere"}],
+ "Comment": [
+  {"id": "abcdefab-1234-4567-89ab-abcdefabcdef", "issue": "1a000000-0000-4000-8000-000000000001", "body": "Root"},
+  {"id": "fedcbafe-1234-4567-89ab-fedcbafedcba", "issue": "1a000000-0000-4000-8000-000000000001", "parent": "abcdefab-1234-4567-89ab-abcdefabcdef", "body": "Conclusion"},
+  {"id": "1c000000-0000-4000-8000-000000000003", "issue": "1a000000-0000-4000-8000-000000000001", "parent": "abcdefab-1234-4567-89ab-abcdefabcdef", "body": "Another reply"},
+  {"id": "1c000000-0000-4000-8000-000000000009", "issue": "1a000000-0000-4000-8000-000000000002", "body": "Other issue"}]}
+-- run --
+linear issue comment add ENG-1 --parent abcdefab-1234-4567-89ab-abcdefabcdef --body "Decided." --json
+-- stdout.json --
+{"ok": true, "effect": "applied", "data": {"comment": {"id": "{{=NEW}}", "parent": {"id": "abcdefab-1234-4567-89ab-abcdefabcdef", "...": true}, "...": true}, "...": true}, "...": true}
+-- run --
+linear issue comment resolve abcdefab-1234-4567-89ab-abcdefabcdef --resolving-comment {{NEW}} --json
+-- stdout.json --
+{"ok": true, "effect": "applied", "data": {"comment": {"id": "abcdefab-1234-4567-89ab-abcdefabcdef", "resolvingCommentId": "{{NEW}}", "resolvedAt": "{{*}}", "...": true}, "...": true}, "...": true}

@@ -26,6 +26,8 @@ import { LinearError } from "./errors.ts"
 export interface Context {
   store: Store
   schema: GraphQLSchema
+  /** The fake's own origin, for URLs it hands out (e.g. signed uploads). */
+  origin: string
 }
 
 type Computed = (record: EntityRecord, ctx: Context) => unknown

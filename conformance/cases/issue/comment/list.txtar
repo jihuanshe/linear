@@ -1,0 +1,102 @@
+comment list shows threads in human and JSON output, says when there are none, and reports truncation with --limit.
+-- seed.json --
+{"User": [{"id": "1b000000-0000-4000-8000-000000000002", "name": "testuser", "displayName": "Test User"}],
+ "Issue": [{"id": "1a000000-0000-4000-8000-000000000001", "identifier": "ENG-1", "title": "Thread"}, {"identifier": "ENG-2", "title": "Silent"}],
+ "Comment": [
+  {"id": "1c000000-0000-4000-8000-000000000001", "issue": "1a000000-0000-4000-8000-000000000001", "user": "1b000000-0000-4000-8000-000000000002", "body": "First root", "createdAt": "2025-09-01T10:00:00.000Z"},
+  {"issue": "1a000000-0000-4000-8000-000000000001", "parent": "1c000000-0000-4000-8000-000000000001", "body": "A reply", "createdAt": "2025-09-01T11:00:00.000Z"},
+  {"issue": "1a000000-0000-4000-8000-000000000001", "user": "1b000000-0000-4000-8000-000000000002", "body": "Second root", "createdAt": "2025-09-02T10:00:00.000Z"}]}
+-- run --
+linear issue comment list ENG-1
+-- stdout --
+@Test User commented 9/2/2025 [f0000000-0000-4000-8000-000000000003]
+Second root
+
+@Test User commented 9/1/2025 [1c000000-0000-4000-8000-000000000001]
+First root
+
+  @alex replied 9/1/2025 [f0000000-0000-4000-8000-000000000002]
+  A reply
+
+-- run --
+linear issue comment list ENG-1 --json
+-- stdout.json --
+{
+  "nodes": [
+    {
+      "id": "f0000000-0000-4000-8000-000000000003",
+      "body": "Second root",
+      "quotedText": null,
+      "documentContentId": null,
+      "createdAt": "2025-09-02T10:00:00.000Z",
+      "updatedAt": "2025-09-02T10:00:00.000Z",
+      "url": "https://linear.app/kadoraba/issue/ENG-1/thread#comment-f0000000",
+      "resolvedAt": null,
+      "resolvingCommentId": null,
+      "resolvingUser": null,
+      "user": {
+        "id": "1b000000-0000-4000-8000-000000000002",
+        "name": "testuser",
+        "displayName": "Test User"
+      },
+      "externalUser": null,
+      "parent": null
+    },
+    {
+      "id": "f0000000-0000-4000-8000-000000000002",
+      "body": "A reply",
+      "quotedText": null,
+      "documentContentId": null,
+      "createdAt": "2025-09-01T11:00:00.000Z",
+      "updatedAt": "2025-09-01T11:00:00.000Z",
+      "url": "https://linear.app/kadoraba/issue/ENG-1/thread#comment-f0000000",
+      "resolvedAt": null,
+      "resolvingCommentId": null,
+      "resolvingUser": null,
+      "user": {
+        "id": "0b000000-0000-4000-8000-000000000001",
+        "name": "Alex",
+        "displayName": "alex"
+      },
+      "externalUser": null,
+      "parent": {
+        "id": "1c000000-0000-4000-8000-000000000001"
+      }
+    },
+    {
+      "id": "1c000000-0000-4000-8000-000000000001",
+      "body": "First root",
+      "quotedText": null,
+      "documentContentId": null,
+      "createdAt": "2025-09-01T10:00:00.000Z",
+      "updatedAt": "2025-09-01T10:00:00.000Z",
+      "url": "https://linear.app/kadoraba/issue/ENG-1/thread#comment-1c000000",
+      "resolvedAt": null,
+      "resolvingCommentId": null,
+      "resolvingUser": null,
+      "user": {
+        "id": "1b000000-0000-4000-8000-000000000002",
+        "name": "testuser",
+        "displayName": "Test User"
+      },
+      "externalUser": null,
+      "parent": null
+    }
+  ],
+  "pageInfo": {
+    "hasNextPage": false,
+    "endCursor": "1c000000-0000-4000-8000-000000000001"
+  }
+}
+-- run --
+linear issue comment list ENG-2
+-- stdout --
+No comments found for this issue
+-- run --
+linear issue comment list ENG-1 --limit 1
+-- stdout --
+@Test User commented 9/2/2025 [f0000000-0000-4000-8000-000000000003]
+Second root
+
+-- stderr --
+Showing the first 1 comment; more exist. Use --limit 0 to fetch all pages.

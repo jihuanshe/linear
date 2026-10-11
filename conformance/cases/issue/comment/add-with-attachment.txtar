@@ -1,0 +1,19 @@
+comment add --attach uploads each file once with the signed headers and without the Linear credential, then appends the file Markdown after the body.
+-- seed.json --
+{"Issue": [{"id": "1a000000-0000-4000-8000-000000000123", "identifier": "ENG-123", "title": "Discussed"}]}
+-- file screenshot.png --
+pretend png
+-- file evidence]draft.txt --
+private evidence
+-- file note.md --
+See the evidence.
+-- run --
+linear issue comment add ENG-123 --body-file note.md --attach screenshot.png --attach 'evidence]draft.txt' --json > out.json
+-- stderr --
+✓ Uploaded screenshot.png
+✓ Uploaded evidence]draft.txt
+-- mutations.json --
+{"fileUpload": 2, "commentCreate": 1}
+-- state.json --
+{"Upload": [{"filename": "screenshot.png", "received": true, "sentAuthorization": false, "text": "pretend png\n"}, {"filename": "evidence]draft.txt", "received": true, "sentAuthorization": false, "text": "private evidence\n"}],
+ "Comment": [{"body": "See the evidence.\n\n\n![screenshot.png]({{*}})\n\n[evidence\\]draft.txt]({{*}})"}]}

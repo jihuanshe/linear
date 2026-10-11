@@ -27,6 +27,8 @@ export interface Step {
   files: Record<string, string>
   /** JSON merge patches (RFC 7386) for existing workdir files. */
   patches: Record<string, string>
+  /** Workdir files to make executable after writing. */
+  executables: string[]
   faults?: unknown[]
   stdout?: Section
   stderr?: Section
@@ -178,6 +180,7 @@ export function parseCase(path: string, name: string, text: string): Case {
     env,
     files: {},
     patches: {},
+    executables: [],
   }
   let step: Step | undefined
   let readback: Step | undefined
@@ -212,6 +215,10 @@ export function parseCase(path: string, name: string, text: string): Case {
       case "file":
         pending.files[section.arg ?? ""] = section.content
         break
+      case "exec":
+        pending.files[section.arg ?? ""] = section.content
+        pending.executables.push(section.arg ?? "")
+        break
       case "patch.json":
         pending.patches[section.arg ?? ""] = section.content
         break
@@ -244,7 +251,7 @@ export function parseCase(path: string, name: string, text: string): Case {
           filesAfter: [],
         }
         result.steps.push(step)
-        pending = { env, files: {}, patches: {} }
+        pending = { env, files: {}, patches: {}, executables: [] }
         break
       case "stdout":
       case "stdout.json":
@@ -277,6 +284,7 @@ export function parseCase(path: string, name: string, text: string): Case {
           env,
           files: {},
           patches: {},
+          executables: [],
           command: section.content.trim(),
           ...parseCommand(section.content, where),
           exit: 0,
