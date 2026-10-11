@@ -1,0 +1,25 @@
+The project and milestone the issue belongs to are shown by name.
+-- seed.json --
+{"User": [{"id": "1b000000-0000-4000-8000-000000000001", "name": "john.doe", "displayName": "John Doe"},
+  {"id": "1b000000-0000-4000-8000-000000000002", "name": "jane.smith", "displayName": "Jane Smith"},
+  {"id": "1b000000-0000-4000-8000-000000000003", "name": "alice.dev", "displayName": "Alice Developer"},
+  {"id": "1b000000-0000-4000-8000-000000000004", "name": "bob.senior", "displayName": "Bob Senior"}],
+ "Project": [{"id": "1e000000-0000-4000-8000-000000000001", "name": "Platform Infrastructure Q1", "slugId": "a1b2c3d4e5f6", "teams": ["0c000000-0000-4000-8000-000000000001"]}],
+ "ProjectMilestone": [{"id": "1f000000-0000-4000-8000-000000000001", "name": "Phase 2: Observability", "project": "1e000000-0000-4000-8000-000000000001"}],
+ "Issue": [{"identifier": "ENG-789", "title": "Add monitoring dashboards", "state": "0d000000-0000-4000-8000-000000000003", "priority": 3, "assignee": "1b000000-0000-4000-8000-000000000004",
+   "project": "1e000000-0000-4000-8000-000000000001", "projectMilestone": "1f000000-0000-4000-8000-000000000001", "description": "Set up Datadog dashboards for the new service."}]}
+-- run --
+linear issue view ENG-789 --no-comments
+-- stdout --
+# ENG-789: Add monitoring dashboards
+
+**State:** In Progress | **Priority:** ▄▆  | **Assignee:** @Bob Senior | **Project:** Platform Infrastructure Q1 | **Milestone:** Phase 2: Observability
+
+## Context
+
+- Assignee: @Bob Senior (not the current account)
+- Parent / Sub-issues / Relations: none
+- Attachments: 0 | Comments: not fetched
+- Changes by other accounts: none (all 0 history entries)
+
+Set up Datadog dashboards for the new service.

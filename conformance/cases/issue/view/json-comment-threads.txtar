@@ -1,0 +1,237 @@
+JSON output keeps the GraphQL shape: comments are one connection with parent references, plus the context summary.
+-- seed.json --
+{"User": [
+  {"id": "1b000000-0000-4000-8000-000000000001", "name": "john.doe", "displayName": "John Doe"},
+  {"id": "1b000000-0000-4000-8000-000000000002", "name": "jane.smith", "displayName": "Jane Smith"},
+  {"id": "1b000000-0000-4000-8000-000000000003", "name": "alice.dev", "displayName": "Alice Developer"},
+  {"id": "1b000000-0000-4000-8000-000000000004", "name": "bob.senior", "displayName": "Bob Senior"}
+],
+ "Issue": [{"id": "1a000000-0000-4000-8000-000000000123", "identifier": "ENG-123", "title": "Fix authentication bug in login flow", "state": "0d000000-0000-4000-8000-000000000003", "priority": 1, "assignee": "1b000000-0000-4000-8000-000000000001", "description": "Users are experiencing issues logging in when their session expires."}],
+ "Comment": [
+   {"id": "1c000000-0000-4000-8000-000000000001", "issue": "1a000000-0000-4000-8000-000000000123", "user": "1b000000-0000-4000-8000-000000000001", "createdAt": "2024-01-15T10:30:00.000Z", "body": "I've reproduced this issue on staging. The session timeout seems to be too aggressive."},
+   {"id": "1c000000-0000-4000-8000-000000000002", "issue": "1a000000-0000-4000-8000-000000000123", "user": "1b000000-0000-4000-8000-000000000002", "createdAt": "2024-01-15T14:22:00.000Z", "parent": "1c000000-0000-4000-8000-000000000001", "body": "Working on a fix. Will increase the session timeout and add proper error handling."},
+   {"id": "1c000000-0000-4000-8000-000000000003", "issue": "1a000000-0000-4000-8000-000000000123", "user": "1b000000-0000-4000-8000-000000000003", "createdAt": "2024-01-15T15:10:00.000Z", "parent": "1c000000-0000-4000-8000-000000000001", "body": "Sounds good! Also, we should add better error messaging for expired sessions."},
+   {"id": "1c000000-0000-4000-8000-000000000004", "issue": "1a000000-0000-4000-8000-000000000123", "user": "1b000000-0000-4000-8000-000000000004", "createdAt": "2024-01-15T16:00:00.000Z", "body": "Should we also consider implementing automatic session refresh?"}
+ ]}
+-- run --
+linear issue view ENG-123 --json
+-- stdout.json --
+{
+  "organization": {
+    "id": "0a000000-0000-4000-8000-000000000001",
+    "urlKey": "kadoraba"
+  },
+  "viewer": {
+    "id": "0b000000-0000-4000-8000-000000000001"
+  },
+  "issue": {
+    "id": "1a000000-0000-4000-8000-000000000123",
+    "identifier": "ENG-123",
+    "archivedAt": null,
+    "trashed": null,
+    "title": "Fix authentication bug in login flow",
+    "description": "Users are experiencing issues logging in when their session expires.",
+    "url": "https://linear.app/kadoraba/issue/ENG-123/fix-authentication-bug-in-login-flow",
+    "branchName": "alex/eng-123-fix-authentication-bug-in-login-flow",
+    "priority": 1,
+    "estimate": null,
+    "dueDate": null,
+    "state": {
+      "id": "0d000000-0000-4000-8000-000000000003",
+      "name": "In Progress",
+      "type": "started",
+      "color": "#f2c94c"
+    },
+    "assignee": {
+      "id": "1b000000-0000-4000-8000-000000000001",
+      "name": "john.doe",
+      "displayName": "John Doe"
+    },
+    "project": null,
+    "projectMilestone": null,
+    "cycle": null,
+    "team": {
+      "id": "0c000000-0000-4000-8000-000000000001",
+      "key": "ENG",
+      "activeCycle": null
+    },
+    "parent": null,
+    "labels": {
+      "nodes": [],
+      "pageInfo": {
+        "hasNextPage": false,
+        "endCursor": null
+      }
+    },
+    "history": {
+      "nodes": [],
+      "pageInfo": {
+        "hasNextPage": false,
+        "endCursor": null
+      }
+    },
+    "children": {
+      "nodes": [],
+      "pageInfo": {
+        "hasNextPage": false
+      }
+    },
+    "comments": {
+      "nodes": [
+        {
+          "id": "1c000000-0000-4000-8000-000000000004",
+          "body": "Should we also consider implementing automatic session refresh?",
+          "quotedText": null,
+          "documentContentId": null,
+          "createdAt": "2024-01-15T16:00:00.000Z",
+          "updatedAt": "2024-01-15T16:00:00.000Z",
+          "url": "https://linear.app/kadoraba/issue/ENG-123/fix-authentication-bug-in-login-flow#comment-1c000000",
+          "resolvedAt": null,
+          "resolvingCommentId": null,
+          "resolvingUser": null,
+          "user": {
+            "id": "1b000000-0000-4000-8000-000000000004",
+            "name": "bob.senior",
+            "displayName": "Bob Senior"
+          },
+          "externalUser": null,
+          "parent": null
+        },
+        {
+          "id": "1c000000-0000-4000-8000-000000000003",
+          "body": "Sounds good! Also, we should add better error messaging for expired sessions.",
+          "quotedText": null,
+          "documentContentId": null,
+          "createdAt": "2024-01-15T15:10:00.000Z",
+          "updatedAt": "2024-01-15T15:10:00.000Z",
+          "url": "https://linear.app/kadoraba/issue/ENG-123/fix-authentication-bug-in-login-flow#comment-1c000000",
+          "resolvedAt": null,
+          "resolvingCommentId": null,
+          "resolvingUser": null,
+          "user": {
+            "id": "1b000000-0000-4000-8000-000000000003",
+            "name": "alice.dev",
+            "displayName": "Alice Developer"
+          },
+          "externalUser": null,
+          "parent": {
+            "id": "1c000000-0000-4000-8000-000000000001"
+          }
+        },
+        {
+          "id": "1c000000-0000-4000-8000-000000000002",
+          "body": "Working on a fix. Will increase the session timeout and add proper error handling.",
+          "quotedText": null,
+          "documentContentId": null,
+          "createdAt": "2024-01-15T14:22:00.000Z",
+          "updatedAt": "2024-01-15T14:22:00.000Z",
+          "url": "https://linear.app/kadoraba/issue/ENG-123/fix-authentication-bug-in-login-flow#comment-1c000000",
+          "resolvedAt": null,
+          "resolvingCommentId": null,
+          "resolvingUser": null,
+          "user": {
+            "id": "1b000000-0000-4000-8000-000000000002",
+            "name": "jane.smith",
+            "displayName": "Jane Smith"
+          },
+          "externalUser": null,
+          "parent": {
+            "id": "1c000000-0000-4000-8000-000000000001"
+          }
+        },
+        {
+          "id": "1c000000-0000-4000-8000-000000000001",
+          "body": "I've reproduced this issue on staging. The session timeout seems to be too aggressive.",
+          "quotedText": null,
+          "documentContentId": null,
+          "createdAt": "2024-01-15T10:30:00.000Z",
+          "updatedAt": "2024-01-15T10:30:00.000Z",
+          "url": "https://linear.app/kadoraba/issue/ENG-123/fix-authentication-bug-in-login-flow#comment-1c000000",
+          "resolvedAt": null,
+          "resolvingCommentId": null,
+          "resolvingUser": null,
+          "user": {
+            "id": "1b000000-0000-4000-8000-000000000001",
+            "name": "john.doe",
+            "displayName": "John Doe"
+          },
+          "externalUser": null,
+          "parent": null
+        }
+      ],
+      "pageInfo": {
+        "hasNextPage": false,
+        "endCursor": "1c000000-0000-4000-8000-000000000001"
+      }
+    },
+    "attachments": {
+      "nodes": [],
+      "pageInfo": {
+        "hasNextPage": false,
+        "endCursor": null
+      }
+    },
+    "relations": {
+      "nodes": [],
+      "pageInfo": {
+        "hasNextPage": false
+      }
+    },
+    "inverseRelations": {
+      "nodes": [],
+      "pageInfo": {
+        "hasNextPage": false
+      }
+    },
+    "documents": {
+      "nodes": [],
+      "pageInfo": {
+        "hasNextPage": false,
+        "endCursor": null
+      }
+    }
+  },
+  "contextSummary": {
+    "viewerId": "0b000000-0000-4000-8000-000000000001",
+    "assignee": {
+      "id": "1b000000-0000-4000-8000-000000000001",
+      "name": "John Doe"
+    },
+    "viewerIsAssignee": false,
+    "parent": null,
+    "subIssues": {
+      "fetched": true,
+      "count": 0,
+      "complete": true,
+      "byState": {},
+      "items": []
+    },
+    "relations": {
+      "fetched": true,
+      "complete": true,
+      "items": []
+    },
+    "attachments": {
+      "fetched": true,
+      "count": 0,
+      "complete": true
+    },
+    "comments": {
+      "fetched": true,
+      "count": 4,
+      "complete": true,
+      "unresolvedThreads": 2,
+      "byOtherAccounts": 4,
+      "latestByOtherAccount": {
+        "author": "Bob Senior",
+        "createdAt": "2024-01-15T16:00:00.000Z"
+      }
+    },
+    "history": {
+      "fetched": true,
+      "entries": 0,
+      "complete": true,
+      "changesByOtherAccounts": []
+    }
+  }
+}

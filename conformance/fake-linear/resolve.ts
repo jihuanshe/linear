@@ -53,8 +53,52 @@ const COMPUTED: Record<string, Computed> = {
       slugify(String(issue.title))
     }`
   },
+  // Observed on Kadoraba: the issue URL plus the comment ID's first 8 characters.
+  "Comment.url": (comment, ctx) => {
+    const issue = ctx.store.find("Issue", comment.issue as string)
+    return issue == null
+      ? null
+      : `${COMPUTED["Issue.url"](issue, ctx)}#comment-${comment.id.slice(0, 8)}`
+  },
+  // Observed on Kadoraba: /document/<title slug>-<slugId>.
+  "Document.url": (document, { store }) =>
+    `https://linear.app/${store.singleton("Organization").urlKey}/document/${
+      slugify(String(document.title))
+    }-${document.slugId}`,
   "User.isMe": (user, { store }) => user.id === store.viewer().id,
+  // Cycle state follows from its dates relative to the world's current time.
+  "Cycle.isActive": (cycle, { store }) =>
+    cyclePhase(cycle, store.worldNow()) === "active",
+  "Cycle.isFuture": (cycle, { store }) =>
+    cyclePhase(cycle, store.worldNow()) === "future",
+  "Cycle.isPast": (cycle, { store }) =>
+    cyclePhase(cycle, store.worldNow()) === "past",
+  "Cycle.isNext": (cycle, { store }) =>
+    teamCycles(store, cycle.team as string)
+      .find((c) => cyclePhase(c, store.worldNow()) === "future")?.id ===
+      cycle.id,
+  "Cycle.isPrevious": (cycle, { store }) =>
+    teamCycles(store, cycle.team as string)
+      .findLast((c) => cyclePhase(c, store.worldNow()) === "past")?.id ===
+      cycle.id,
+  "Team.activeCycle": (team, { store }) =>
+    teamCycles(store, team.id)
+      .find((c) => cyclePhase(c, store.worldNow()) === "active")?.id ?? null,
   "Team.organization": (_, { store }) => store.singleton("Organization").id,
+}
+
+function cyclePhase(
+  cycle: EntityRecord,
+  now: string,
+): "past" | "active" | "future" {
+  if (String(cycle.startsAt) > now) return "future"
+  if (String(cycle.endsAt) <= now) return "past"
+  return "active"
+}
+
+function teamCycles(store: Context["store"], teamId: string): EntityRecord[] {
+  return store.all("Cycle").filter((c) => c.team === teamId)
+    .sort((a, b) => String(a.startsAt).localeCompare(String(b.startsAt)))
 }
 
 /**
@@ -476,6 +520,13 @@ export const fieldResolver: GraphQLFieldResolver<unknown, Context> = (
       return value.map((item) => resolveRef(ctx, named.name, item))
     }
     return resolveRef(ctx, named.name, value)
+  }
+  // `fooId` scalars mirror the stored reference `foo`.
+  if (
+    value === undefined && isEntity(record) && name.endsWith("Id") &&
+    typeof record[name.slice(0, -2)] === "string"
+  ) {
+    return record[name.slice(0, -2)]
   }
   if (value === undefined && isEntity(record)) {
     if (missingRequired(record.__typename, name, field.type)) {

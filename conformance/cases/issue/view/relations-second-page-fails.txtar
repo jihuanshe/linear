@@ -1,0 +1,31 @@
+If reading the rest of more than 50 relations fails, the view fails without printing a partial result.
+-- seed.json --
+{"Issue": [
+  {"id": "1a000000-0000-4000-8000-000000000321", "identifier": "ENG-321", "title": "Hub issue"},
+  {"$repeat": 51, "id": "2a000000-0000-4000-8000-000000000{{n:3}}", "identifier": "ENG-{{n:3}}", "number": 1000, "title": "Related {{n}}"}],
+ "IssueRelation": [{"$repeat": 51, "type": "related", "issue": "1a000000-0000-4000-8000-000000000321", "relatedIssue": "2a000000-0000-4000-8000-000000000{{n:3}}"}]}
+-- faults.json --
+[{"on": "query", "nth": 2, "action": "status", "status": 200, "body": {"data": null, "errors": [{"message": "Internal server error", "extensions": {"code": "INTERNAL_SERVER_ERROR"}}]}}]
+-- run --
+linear issue view ENG-321 --no-comments --json
+-- stdout.json --
+{
+  "ok": false,
+  "effect": "none",
+  "error": {
+    "code": "Error",
+    "message": "Failed to view issue: Internal server error",
+    "details": {
+      "errors": [
+        {
+          "message": "Internal server error",
+          "extensions": {
+            "code": "INTERNAL_SERVER_ERROR"
+          }
+        }
+      ]
+    }
+  }
+}
+-- exit --
+1

@@ -1,0 +1,69 @@
+Sub-issues and comments come back in the order Linear returns them; this calibrates the fake's default connection order.
+
+live: true
+-- run --
+linear issue create --team {{TEAM}} --title "{{RUN}} order parent" --json
+-- stdout.json --
+{"ok": true, "effect": "applied", "data": {"success": true, "issue": {"identifier": "{{=PARENT}}", "...": true}}, "fields": "{{*}}"}
+-- stderr --
+{{*}}
+-- run --
+linear issue create --team {{TEAM}} --title "{{RUN}} order child one" --parent {{PARENT}} --json
+-- stdout.json --
+{"ok": true, "effect": "applied", "data": {"success": true, "issue": {"identifier": "{{=CHILD1}}", "...": true}}, "fields": "{{*}}"}
+-- run --
+linear issue create --team {{TEAM}} --title "{{RUN}} order child two" --parent {{PARENT}} --json
+-- stdout.json --
+{"ok": true, "effect": "applied", "data": {"success": true, "issue": {"identifier": "{{=CHILD2}}", "...": true}}, "fields": "{{*}}"}
+-- run --
+linear issue comment add {{PARENT}} --body "first comment" --json
+-- stdout.json --
+{"...": true, "ok": true}
+-- run --
+linear issue comment add {{PARENT}} --body "second comment" --json
+-- stdout.json --
+{"...": true, "ok": true}
+-- run --
+linear issue view {{PARENT}}
+-- stdout --
+# {{PARENT}}: {{RUN}} order parent
+
+**State:** Backlog | **Priority:** --- | **Assignee:** Unassigned | **Unresolved threads:** 2
+
+## Context
+
+- Assignee: Unassigned
+- Parent: none
+- Sub-issues: 2 (Backlog 2): {{CHILD2}}, {{CHILD1}}
+- Relations: none
+- Attachments: 0 | Comments: 2 (2 unresolved threads; none by other accounts)
+- Changes by other accounts: none (all 0 history entries)
+
+
+## Sub-issues
+
+- **{{CHILD2}}**: {{RUN}} order child two _[Backlog]_
+- **{{CHILD1}}**: {{RUN}} order child one _[Backlog]_
+
+
+## Comments
+
+- **@alex** - *{{*}}* [thread: {{*}}]
+
+  first comment
+
+- **@alex** - *{{*}}* [thread: {{*}}]
+
+  second comment
+
+
+-- cleanup --
+linear issue delete {{CHILD1}} -y
+-- cleanup --
+linear issue delete {{CHILD2}} -y
+-- cleanup --
+linear issue delete {{PARENT}} -y
+-- readback --
+linear issue view {{PARENT}} --json
+-- stdout.json --
+{"issue": {"identifier": "{{PARENT}}", "trashed": true, "...": true}, "...": true}

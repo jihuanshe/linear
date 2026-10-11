@@ -1,0 +1,22 @@
+With more than 50 relations, every relation is read before output; the context reports them as complete.
+-- seed.json --
+{"Issue": [
+  {"id": "1a000000-0000-4000-8000-000000000321", "identifier": "ENG-321", "title": "Hub issue"},
+  {"$repeat": 51, "id": "2a000000-0000-4000-8000-000000000{{n:3}}", "identifier": "ENG-{{n:3}}", "number": 1000, "title": "Related {{n}}"}],
+ "IssueRelation": [{"$repeat": 51, "type": "related", "issue": "1a000000-0000-4000-8000-000000000321", "relatedIssue": "2a000000-0000-4000-8000-000000000{{n:3}}"}]}
+-- run --
+linear issue view ENG-321 --no-comments
+-- stdout --
+# ENG-321: Hub issue
+
+**State:** Backlog | **Priority:** --- | **Assignee:** Unassigned
+
+## Context
+
+- Assignee: Unassigned
+- Parent: none
+- Sub-issues: none
+- Relations: related ENG-051; related ENG-050; related ENG-049; related ENG-048; related ENG-047; related ENG-046; related ENG-045; related ENG-044; related ENG-043; related ENG-042; related ENG-041; related ENG-040; related ENG-039; related ENG-038; related ENG-037; related ENG-036; related ENG-035; related ENG-034; related ENG-033; related ENG-032; related ENG-031; related ENG-030; related ENG-029; related ENG-028; related ENG-027; related ENG-026; related ENG-025; related ENG-024; related ENG-023; related ENG-022; related ENG-021; related ENG-020; related ENG-019; related ENG-018; related ENG-017; related ENG-016; related ENG-015; related ENG-014; related ENG-013; related ENG-012; related ENG-011; related ENG-010; related ENG-009; related ENG-008; related ENG-007; related ENG-006; related ENG-005; related ENG-004; related ENG-003; related ENG-002; related ENG-001
+- Attachments: 0 | Comments: not fetched
+- Changes by other accounts: none (all 0 history entries)
+

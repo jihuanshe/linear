@@ -50,7 +50,6 @@
       "issueEstimationType": "exponential",
       "triageEnabled": false,
       "defaultIssueState": "0d000000-0000-4000-8000-000000000001",
-      "activeCycle": null,
       "createdAt": "2025-01-01T00:00:00.000Z",
       "updatedAt": "2025-01-01T00:00:00.000Z"
     }

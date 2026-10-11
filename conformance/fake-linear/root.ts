@@ -4,6 +4,7 @@
  * real API, records its write, and returns its payload.
  */
 import type { GraphQLResolveInfo } from "graphql"
+import { defaultState, nextIssueNumber } from "./defaults.ts"
 import { LinearError } from "./errors.ts"
 import { type Context, lookup } from "./resolve.ts"
 import type { EntityRecord } from "./store.ts"
@@ -103,16 +104,6 @@ function applyIssueInput(ctx: Context, issue: EntityRecord, input: Input) {
   }
 }
 
-function defaultState(ctx: Context, teamId: string): string {
-  const team = ctx.store.find("Team", teamId)!
-  if (typeof team.defaultIssueState === "string") return team.defaultIssueState
-  const states = ctx.store.all("WorkflowState")
-    .filter((state) => state.team === teamId && state.type === "backlog")
-    .sort((a, b) => Number(a.position) - Number(b.position))
-  if (states[0] == null) throw new Error("fake: team has no backlog state")
-  return states[0].id
-}
-
 const issueCreate: RootField = ({ input }, ctx) => {
   const data = input as Input
   rejectUnknown(
@@ -130,9 +121,7 @@ const issueCreate: RootField = ({ input }, ctx) => {
     "issueCreate",
   )
   const team = lookup(ctx, "Team", String(data.teamId))
-  const number = ctx.store.all("Issue")
-    .filter((issue) => issue.team === team.id)
-    .reduce((max, issue) => Math.max(max, Number(issue.number)), 0) + 1
+  const number = nextIssueNumber(ctx.store, team.id)
   const now = ctx.store.now()
   const issue: EntityRecord = {
     id: typeof data.id === "string" ? data.id : ctx.store.newId(),
@@ -154,7 +143,7 @@ const issueCreate: RootField = ({ input }, ctx) => {
     project: null,
     projectMilestone: null,
     cycle: null,
-    state: defaultState(ctx, team.id),
+    state: defaultState(ctx.store, team.id),
     createdAt: now,
     updatedAt: now,
     archivedAt: null,
@@ -222,6 +211,106 @@ const issueDelete: RootField = ({ id, permanentlyDelete }, ctx) => {
 }
 
 // ---------------------------------------------------------------------------
+// Comment
+
+const commentCreate: RootField = ({ input }, ctx) => {
+  const data = input as Input
+  rejectUnknown(
+    data,
+    [
+      "id",
+      "issueId",
+      "documentContentId",
+      "parentId",
+      "body",
+      "quotedText",
+      "doNotSubscribeToIssue",
+    ],
+    "commentCreate",
+  )
+  const issue = data.issueId == null
+    ? null
+    : lookup(ctx, "Issue", String(data.issueId), ["identifier"])
+  const parent = data.parentId == null
+    ? null
+    : lookup(ctx, "Comment", String(data.parentId))
+  if (issue == null && data.documentContentId == null && parent == null) {
+    throw LinearError.input(
+      "Argument Validation Error",
+      "A comment needs a parent entity.",
+    )
+  }
+  const now = ctx.store.now()
+  const comment = ctx.store.insert({
+    id: typeof data.id === "string" ? data.id : ctx.store.newId(),
+    __typename: "Comment",
+    body: normalizeMarkdown(data.body ?? ""),
+    issue: issue?.id ?? parent?.issue ?? null,
+    documentContentId: data.documentContentId ?? parent?.documentContentId ??
+      null,
+    parent: parent?.id ?? null,
+    quotedText: data.quotedText ?? null,
+    user: ctx.store.viewer().id,
+    resolvedAt: null,
+    resolvingUser: null,
+    resolvingComment: null,
+    editedAt: null,
+    reactionData: [],
+    createdAt: now,
+    updatedAt: now,
+    archivedAt: null,
+  })
+  return payload(ctx, "comment", comment)
+}
+
+const commentUpdate: RootField = ({ id, input }, ctx) => {
+  const data = input as Input
+  rejectUnknown(data, ["body", "quotedText"], "commentUpdate")
+  const comment = lookup(ctx, "Comment", String(id))
+  if ("body" in data) {
+    comment.body = normalizeMarkdown(data.body)
+    comment.editedAt = ctx.store.now()
+  }
+  if ("quotedText" in data) comment.quotedText = data.quotedText
+  touch(ctx, comment)
+  return payload(ctx, "comment", comment)
+}
+
+const commentDelete: RootField = ({ id }, ctx) => {
+  const comment = lookup(ctx, "Comment", String(id))
+  for (const reply of ctx.store.all("Comment")) {
+    if (reply.parent === comment.id) ctx.store.remove("Comment", reply.id)
+  }
+  ctx.store.remove("Comment", comment.id)
+  return {
+    success: true,
+    lastSyncId: ctx.store.nextSyncId(),
+    entityId: comment.id,
+  }
+}
+
+const commentResolve: RootField = ({ id, resolvingCommentId }, ctx) => {
+  const comment = lookup(ctx, "Comment", String(id))
+  const resolving = resolvingCommentId == null
+    ? null
+    : lookup(ctx, "Comment", String(resolvingCommentId))
+  comment.resolvedAt = ctx.store.now()
+  comment.resolvingUser = ctx.store.viewer().id
+  comment.resolvingComment = resolving?.id ?? null
+  touch(ctx, comment)
+  return payload(ctx, "comment", comment)
+}
+
+const commentUnresolve: RootField = ({ id }, ctx) => {
+  const comment = lookup(ctx, "Comment", String(id))
+  comment.resolvedAt = null
+  comment.resolvingUser = null
+  comment.resolvingComment = null
+  touch(ctx, comment)
+  return payload(ctx, "comment", comment)
+}
+
+// ---------------------------------------------------------------------------
 
 export function rootValue(): Record<string, RootField> {
   return {
@@ -230,5 +319,10 @@ export function rootValue(): Record<string, RootField> {
     issueCreate,
     issueUpdate,
     issueDelete,
+    commentCreate,
+    commentUpdate,
+    commentDelete,
+    commentResolve,
+    commentUnresolve,
   }
 }

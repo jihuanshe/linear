@@ -15,12 +15,17 @@ export interface EntityRecord {
 
 export type Seed = Record<string, Record<string, unknown>[]>
 
+import { expandRepeats, withDefaults } from "./defaults.ts"
+
 const EPOCH = Date.parse("2026-01-01T00:00:00.000Z")
+/** Seeded records predate every write a case makes. */
+const SEED_EPOCH = Date.parse("2025-06-01T00:00:00.000Z")
 
 export class Store {
   readonly #types = new Map<string, Map<string, EntityRecord>>()
   #ids = 0
   #ticks = 0
+  #seedTicks = 0
   #syncId = 1000
 
   constructor(...seeds: Seed[]) {
@@ -29,18 +34,34 @@ export class Store {
 
   seed(seed: Seed): void {
     for (const [typename, records] of Object.entries(seed)) {
-      for (const record of records) {
+      for (const record of expandRepeats(records)) {
         const id = typeof record.id === "string" ? record.id : this.newId()
         const existing = this.find(typename, id)
         if (existing != null) Object.assign(existing, record)
-        else this.insert({ ...record, id, __typename: typename })
+        else {
+          this.insert({
+            ...withDefaults(this, typename, record),
+            id,
+            __typename: typename,
+          })
+        }
       }
     }
+  }
+
+  seedTimestamp(): string {
+    this.#seedTicks++
+    return new Date(SEED_EPOCH + this.#seedTicks * 1000).toISOString()
   }
 
   newId(): string {
     this.#ids++
     return `f0000000-0000-4000-8000-${this.#ids.toString().padStart(12, "0")}`
+  }
+
+  /** The world's current time, for date-derived fields such as cycle state. */
+  worldNow(): string {
+    return new Date(EPOCH).toISOString()
   }
 
   /** Deterministic, strictly increasing timestamps for writes. */
