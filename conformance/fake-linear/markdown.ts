@@ -20,7 +20,7 @@ function trimWhitespace(text: string): string {
 function rewriteLinks(line: string): string {
   return line.replace(/\]\(([^)<>\s]+)\)/g, (_, url: string) => {
     const encoded = url.replace(
-      /[^\x00-\x7f]/gu,
+      /[^\p{ASCII}]/gu,
       (char) => encodeURIComponent(char),
     )
     return `](<${encoded}>)`

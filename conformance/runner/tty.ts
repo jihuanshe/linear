@@ -28,12 +28,19 @@ export function decodeKeys(text: string): string {
   )
 }
 
+const ESC = "\u001b"
+const BEL = "\u0007"
+// Built from strings: lint rejects control characters in regex literals.
+const OSC = new RegExp(`${ESC}\\][^${BEL}${ESC}]*(?:${BEL}|${ESC}\\\\)`, "g")
+const CSI = new RegExp(`${ESC}\\[[0-9;?]*[ -/]*[@-~]`, "g")
+const OTHER_ESCAPE = new RegExp(`${ESC}[@-_]`, "g")
+
 /** Remove terminal control sequences and normalize line endings. */
 export function cleanTranscript(raw: string): string {
   return raw
-    .replace(/\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)/g, "")
-    .replace(/\x1b\[[0-9;?]*[ -/]*[@-~]/g, "")
-    .replace(/\x1b[@-_]/g, "")
+    .replace(OSC, "")
+    .replace(CSI, "")
+    .replace(OTHER_ESCAPE, "")
     .replace(/\r\n/g, "\n")
     .replace(/\r/g, "\n")
 }

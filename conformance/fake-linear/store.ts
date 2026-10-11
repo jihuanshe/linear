@@ -131,7 +131,7 @@ export class Store {
   /** An independent copy, for answering reads from an earlier moment. */
   clone(): Store {
     const copy = new Store()
-    for (const [typename, table] of this.#types) {
+    for (const table of this.#types.values()) {
       for (const record of table.values()) copy.insert(structuredClone(record))
     }
     copy.#ids = this.#ids

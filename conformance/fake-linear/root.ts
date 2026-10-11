@@ -17,7 +17,6 @@ type RootField = (args: Args, ctx: Context, info: GraphQLResolveInfo) => unknown
 /** A root connection of the viewer's own records. */
 function viewerConnection(
   ctx: Context,
-  info: GraphQLResolveInfo,
   typename: string,
   ownerField: string,
   args: Args,
@@ -629,8 +628,7 @@ export function rootValue(): Record<string, RootField> {
     organization: (_, ctx) => ctx.store.singleton("Organization"),
     userSettings: (_, ctx) => ctx.store.singleton("UserSettings"),
     searchIssues: (args, ctx) => searchIssues(ctx, args),
-    favorites: (args, ctx, info) =>
-      viewerConnection(ctx, info, "Favorite", "owner", args),
+    favorites: (args, ctx) => viewerConnection(ctx, "Favorite", "owner", args),
     issueCreate,
     issueUpdate,
     issueDelete,
