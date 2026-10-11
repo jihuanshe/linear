@@ -65,3 +65,7 @@ linear issue view {{ISSUE}}
 2. 中文 + emoji ✅
 -- cleanup --
 linear issue delete {{ISSUE}} -y
+-- readback --
+linear issue view {{ISSUE}} --json
+-- stdout.json --
+{"issue": {"identifier": "{{ISSUE}}", "trashed": true, "...": true}, "...": true}

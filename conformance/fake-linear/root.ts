@@ -134,7 +134,7 @@ const issueCreate: RootField = ({ input }, ctx) => {
     .filter((issue) => issue.team === team.id)
     .reduce((max, issue) => Math.max(max, Number(issue.number)), 0) + 1
   const now = ctx.store.now()
-  const issue = ctx.store.insert({
+  const issue: EntityRecord = {
     id: typeof data.id === "string" ? data.id : ctx.store.newId(),
     __typename: "Issue",
     number,
@@ -162,9 +162,10 @@ const issueCreate: RootField = ({ input }, ctx) => {
     completedAt: null,
     startedAt: null,
     trashed: null,
-  })
+  }
   // Observed on Kadoraba: creating an issue records no history entry.
   applyIssueInput(ctx, issue, data)
+  ctx.store.insert(issue)
   return payload(ctx, "issue", issue)
 }
 
@@ -184,8 +185,11 @@ const issueUpdate: RootField = ({ id, input }, ctx) => {
     "issueUpdate",
   )
   const issue = lookup(ctx, "Issue", String(id), ["identifier"])
-  if ("teamId" in data) issue.team = ref(ctx, "Team", data.teamId)
-  applyIssueInput(ctx, issue, data)
+  // A rejected input leaves the issue unchanged.
+  const next = structuredClone(issue)
+  if ("teamId" in data) next.team = ref(ctx, "Team", data.teamId)
+  applyIssueInput(ctx, next, data)
+  Object.assign(issue, next)
   touch(ctx, issue)
   return payload(ctx, "issue", issue)
 }
