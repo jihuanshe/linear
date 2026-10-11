@@ -16,6 +16,7 @@
 | Linear GraphQL schema 与有类型约束的文档 | `graphql/schema.graphql`、`codegen.ts`、`src/**` 中的 `gql`                                                               |
 | 认证、配置与凭据解析                     | `src/config.ts`、`src/credentials.ts`、`src/utils/graphql.ts`、`docs/setup.md`                                            |
 | Issue 交付清单、执行和恢复               | `src/delivery/`、`src/commands/issue/issue-plan.ts`、`src/commands/issue/issue-apply.ts`、`docs/guides/issue-delivery.md` |
+| 语言无关的行为用例与 fake Linear         | `conformance/`（格式与校准见 `conformance/README.md`）                                                                    |
 | 开发工具版本、任务与权限                 | `mise.toml`、`mise.lock`、`deno.json`、`docs/deno-permissions.md`                                                         |
 | 提交前检查与 Markdown 规则               | `prek.toml`、`.markdownlint-cli2.jsonc`、`.autocorrectrc`                                                                 |
 | Orb 工具链                               | `.agents/setup`、`.agents/resume`                                                                                         |

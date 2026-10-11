@@ -4,18 +4,19 @@ CLI 使用 `--allow-all`。Linear 正文中的图片和附件可以来自外部�
 
 ## 权限入口
 
-| 入口                              | 用途                                 |
-| --------------------------------- | ------------------------------------ |
-| `deno.json`                       | 开发、安装、测试和类型生成任务       |
-| `.agents/resume`                  | 当前工作副本的 `linear` 源码包装脚本 |
-| `.github/workflows/ship-main.yml` | 发布编译                             |
-| `test/`                           | 命令和快照测试启动的 Deno 子进程     |
+| 入口                              | 用途                                                  |
+| --------------------------------- | ----------------------------------------------------- |
+| `deno.json`                       | 开发、安装、测试和类型生成任务                        |
+| `.agents/resume`                  | 当前工作副本的 `linear` 源码包装脚本                  |
+| `.github/workflows/ship-main.yml` | 发布编译                                              |
+| `test/`                           | 命令和快照测试启动的 Deno 子进程                      |
+| `conformance/`                    | 用例 runner 与 fake Linear（由 `deno.json` 任务启动） |
 
 修改权限前，搜索所有实际使用的选项，不能只依赖此表：
 
 ```bash
 rg -n --glob '!deno.lock' -- '--allow-|--deny-' \
-  deno.json .agents .github test
+  deno.json .agents .github test conformance
 ```
 
 更新所有会执行受影响代码路径的入口，然后运行 `deno task verify-source`。工作流示例的脚本权限由各自运行命令声明；查看或导出示例不会执行脚本。

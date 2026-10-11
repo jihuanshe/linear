@@ -184,21 +184,56 @@ jobs:
           git diff --exit-code
           test -z "$(git ls-files --others --exclude-standard)"
 
+  conformance:
+    name: Conformance cases
+    needs: prepare
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: jdx/mise-action@2d8d4cafcbd33be2ea37d2b6f5ad595363d1f1ca # v5.1.1
+        with:
+          version: "2026.10.6"
+          install_args: "--locked deno node"
+
+      - name: Cache Deno dependencies
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/deno
+          key: deno-${{ runner.os }}-${{ hashFiles('mise.lock', 'deno.lock') }}
+          restore-keys: |
+            deno-${{ runner.os }}-
+
+      - name: Compile the executable
+        run: deno task conformance:build
+
+      - name: Run conformance cases against the executable
+        run: deno task conformance --binary "$PWD/outputs/conformance/linear"
+
+      - name: Check conformance left the checkout unchanged
+        run: |
+          git diff --exit-code
+          test -z "$(git ls-files --others --exclude-standard)"
+
   source:
     name: Source gate
     if: ${{ always() }}
-    needs: [quality, tests, contract]
+    needs: [quality, tests, contract, conformance]
     runs-on: ubuntu-latest
     timeout-minutes: 5
 
     steps:
       - name: Require quality checks, tests and executable acceptance
-        if: ${{ needs.quality.result != 'success' || needs.tests.result != 'success' || needs.contract.result != 'success' }}
+        if: ${{ needs.quality.result != 'success' || needs.tests.result != 'success' || needs.contract.result != 'success' || needs.conformance.result != 'success' }}
         run: |
           echo "Quality checks: ${{ needs.quality.result }}"
           echo "Tests: ${{ needs.tests.result }}"
           echo "Executable acceptance: ${{ needs.contract.result }}"
+          echo "Conformance cases: ${{ needs.conformance.result }}"
           exit 1
 
       - name: Source gate passed
-        run: echo "GraphQL types, quality checks, source tests and executable acceptance passed."
+        run: echo "GraphQL types, quality checks, source tests, executable acceptance and conformance cases passed."
