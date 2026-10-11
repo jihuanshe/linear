@@ -1,0 +1,175 @@
+{
+  "Organization": [
+    {
+      "id": "0a000000-0000-4000-8000-000000000001",
+      "name": "Kadoraba",
+      "urlKey": "kadoraba",
+      "gitBranchFormat": null,
+      "createdAt": "2025-01-01T00:00:00.000Z",
+      "updatedAt": "2025-01-01T00:00:00.000Z"
+    }
+  ],
+  "User": [
+    {
+      "id": "0b000000-0000-4000-8000-000000000001",
+      "isMe": true,
+      "name": "Alex",
+      "displayName": "alex",
+      "email": "alex@example.com",
+      "active": true,
+      "admin": true,
+      "guest": false,
+      "app": false,
+      "createdAt": "2025-01-01T00:00:00.000Z",
+      "updatedAt": "2025-01-01T00:00:00.000Z"
+    },
+    {
+      "id": "0b000000-0000-4000-8000-000000000002",
+      "name": "Linear",
+      "displayName": "linear",
+      "email": "linear@example.com",
+      "active": true,
+      "admin": false,
+      "guest": false,
+      "app": true,
+      "createdAt": "2025-01-01T00:00:01.000Z",
+      "updatedAt": "2025-01-01T00:00:01.000Z"
+    }
+  ],
+  "Team": [
+    {
+      "id": "0c000000-0000-4000-8000-000000000001",
+      "key": "ENG",
+      "name": "Engineering",
+      "description": null,
+      "color": "#eb5757",
+      "icon": "Wrench",
+      "private": false,
+      "timezone": "Asia/Shanghai",
+      "cyclesEnabled": false,
+      "issueEstimationType": "exponential",
+      "triageEnabled": false,
+      "defaultIssueState": "0d000000-0000-4000-8000-000000000001",
+      "activeCycle": null,
+      "createdAt": "2025-01-01T00:00:00.000Z",
+      "updatedAt": "2025-01-01T00:00:00.000Z"
+    }
+  ],
+  "WorkflowState": [
+    {
+      "id": "0d000000-0000-4000-8000-000000000001",
+      "team": "0c000000-0000-4000-8000-000000000001",
+      "name": "Backlog",
+      "type": "backlog",
+      "position": 0,
+      "color": "#bec2c8",
+      "description": null,
+      "createdAt": "2025-01-01T00:00:00.000Z",
+      "updatedAt": "2025-01-01T00:00:00.000Z"
+    },
+    {
+      "id": "0d000000-0000-4000-8000-000000000002",
+      "team": "0c000000-0000-4000-8000-000000000001",
+      "name": "Todo",
+      "type": "unstarted",
+      "position": 1,
+      "color": "#e2e2e2",
+      "description": null,
+      "createdAt": "2025-01-01T00:00:01.000Z",
+      "updatedAt": "2025-01-01T00:00:01.000Z"
+    },
+    {
+      "id": "0d000000-0000-4000-8000-000000000003",
+      "team": "0c000000-0000-4000-8000-000000000001",
+      "name": "In Progress",
+      "type": "started",
+      "position": 2,
+      "color": "#f2c94c",
+      "description": null,
+      "createdAt": "2025-01-01T00:00:02.000Z",
+      "updatedAt": "2025-01-01T00:00:02.000Z"
+    },
+    {
+      "id": "0d000000-0000-4000-8000-000000000004",
+      "team": "0c000000-0000-4000-8000-000000000001",
+      "name": "In Review",
+      "type": "started",
+      "position": 1002,
+      "color": "#0f783c",
+      "description": "Pull request is being reviewed",
+      "createdAt": "2025-01-01T00:00:03.000Z",
+      "updatedAt": "2025-01-01T00:00:03.000Z"
+    },
+    {
+      "id": "0d000000-0000-4000-8000-000000000005",
+      "team": "0c000000-0000-4000-8000-000000000001",
+      "name": "Done",
+      "type": "completed",
+      "position": 3,
+      "color": "#5e6ad2",
+      "description": null,
+      "createdAt": "2025-01-01T00:00:04.000Z",
+      "updatedAt": "2025-01-01T00:00:04.000Z"
+    },
+    {
+      "id": "0d000000-0000-4000-8000-000000000006",
+      "team": "0c000000-0000-4000-8000-000000000001",
+      "name": "Canceled",
+      "type": "canceled",
+      "position": 4,
+      "color": "#95a2b3",
+      "description": null,
+      "createdAt": "2025-01-01T00:00:05.000Z",
+      "updatedAt": "2025-01-01T00:00:05.000Z"
+    },
+    {
+      "id": "0d000000-0000-4000-8000-000000000007",
+      "team": "0c000000-0000-4000-8000-000000000001",
+      "name": "Duplicate",
+      "type": "duplicate",
+      "position": 5,
+      "color": "#95a2b3",
+      "description": null,
+      "createdAt": "2025-01-01T00:00:06.000Z",
+      "updatedAt": "2025-01-01T00:00:06.000Z"
+    }
+  ],
+  "IssueLabel": [
+    {
+      "id": "0e000000-0000-4000-8000-000000000001",
+      "name": "Feature",
+      "color": "#bb87fc",
+      "team": null,
+      "parent": null,
+      "isGroup": false,
+      "description": null,
+      "createdAt": "2025-01-01T00:00:00.000Z",
+      "updatedAt": "2025-01-01T00:00:00.000Z",
+      "archivedAt": null
+    },
+    {
+      "id": "0e000000-0000-4000-8000-000000000002",
+      "name": "Bug",
+      "color": "#eb5757",
+      "team": null,
+      "parent": null,
+      "isGroup": false,
+      "description": null,
+      "createdAt": "2025-01-01T00:00:01.000Z",
+      "updatedAt": "2025-01-01T00:00:01.000Z",
+      "archivedAt": null
+    },
+    {
+      "id": "0e000000-0000-4000-8000-000000000003",
+      "name": "Improvement",
+      "color": "#4ea7fc",
+      "team": null,
+      "parent": null,
+      "isGroup": false,
+      "description": null,
+      "createdAt": "2025-01-01T00:00:02.000Z",
+      "updatedAt": "2025-01-01T00:00:02.000Z",
+      "archivedAt": null
+    }
+  ]
+}

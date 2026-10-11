@@ -1,0 +1,18 @@
+An invalid priority is rejected before any request reaches Linear.
+
+live: true
+-- run --
+linear issue create --team {{TEAM}} --title "{{RUN}} never created" --priority 9 --json
+-- stdout.json --
+{
+  "ok": false,
+  "effect": "none",
+  "error": {
+    "code": "ValidationError",
+    "message": "Invalid priority: 9",
+    "suggestion": "Use 0/none, 1/urgent, 2/high, 3/medium, or 4/low (names are case-insensitive)."
+  }
+}
+-- exit --
+1
+-- no-requests --

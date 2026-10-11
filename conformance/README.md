@@ -1,0 +1,58 @@
+# Conformance cases
+
+These cases describe the CLI only through what a user can observe: arguments, stdin, environment and files go in; stdout, stderr, the exit code, written files and the resulting Linear state come out. They run against any `linear` executable, whatever language implements it. A replacement implementation is done when it passes them.
+
+```bash
+deno task conformance:build
+deno task conformance --binary "$PWD/outputs/conformance/linear"
+```
+
+`--filter <text>` selects cases by path, `--jobs <n>` sets parallelism (default: CPU count), and `--update` rewrites only the stdout, stderr and exit expectations that failed. Review every rewritten expectation before committing it: `--update` records what the executable did, not what it should do.
+
+## Fake Linear
+
+Offline, each case gets its own [fake Linear](fake-linear/) on a local port, seeded with [world.json](world.json) plus the case's `seed.json`. The fake:
+
+- validates every request against Linear's published schema (`graphql/schema.graphql`); an invalid query fails like it does on api.linear.app;
+- answers any valid query from stored records, so cases do not depend on which queries an implementation sends;
+- implements mutation semantics and records mutation counts per root field;
+- injects transport faults on request (`faults.json`).
+
+When the executable uses something the fake does not implement yet, the case reports `GAP` instead of a CLI failure. Implement the missing behavior in the fake, matching what the real API does.
+
+## Calibrating against the real API
+
+A fake is only useful while it behaves like Linear. Cases marked `live: true` also run unchanged against the disposable Kadoraba workspace:
+
+```bash
+deno task conformance --binary "$PWD/outputs/conformance/linear" --live kadoraba
+```
+
+Live mode needs `LINEAR_KADORABA_API_KEY` and explicit authorization for the experiment (see the repository's AGENTS.md). Before running any case, it runs `auth whoami --json` with the target executable and refuses to continue unless the workspace `urlKey` matches. Live cases may only use objects they create themselves, and their `cleanup` sections delete them. A live case that passes offline but fails live means the fake has drifted: fix the fake first. [world.json](world.json) mirrors Kadoraba's ENG team so the same expectations hold on both sides.
+
+## Case format
+
+A case is a [txtar](https://pkg.go.dev/golang.org/x/tools/txtar) archive. The text before the first section describes what the case protects; a line `live: true` there opts into live runs. Sections are read in order: inputs apply to the next `run`, expectations check the preceding one.
+
+| Section                  | Meaning                                                                                                      |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------ |
+| `seed.json`              | Extra fake records keyed by GraphQL type name; references hold IDs. Offline only.                            |
+| `file <path>`            | Write a file in the working directory before the next run.                                                   |
+| `stdin`                  | Standard input for the next run.                                                                             |
+| `env`                    | `KEY=VALUE` lines added to the environment of later runs.                                                    |
+| `faults.json`            | Transport faults for the next run, e.g. `[{"on": "mutation:issueUpdate", "action": "drop-after"}]`. Offline. |
+| `run`                    | One command line starting with `linear`. A trailing `> path` saves stdout to a file instead of checking it.  |
+| `stdout` / `stdout.json` | Expected stdout as text, or as one JSON document. Missing means stdout must be empty.                        |
+| `stderr`                 | Expected stderr. Missing means stderr must be empty.                                                         |
+| `exit`                   | Expected exit code. Missing means 0.                                                                         |
+| `mutations.json`         | Exact mutation counts by root field during the run, e.g. `{"issueUpdate": 1}`; `{}` means none. Offline.     |
+| `no-requests`            | The run must not send any request. Offline.                                                                  |
+| `state.json`             | Expected fake records by type, in creation order; listed fields must match, others are ignored. Offline.     |
+| `file-after <path>`      | Expected content of a file after the run (`file-after.json` compares JSON).                                  |
+| `cleanup`                | A command that always runs after the case, even when it failed.                                              |
+
+Command lines split on whitespace; single quotes are literal, double quotes allow `\"` and `\\`. Nothing is expanded except the tokens below.
+
+In arguments, inputs and expectations, `{{NAME}}` inserts a variable and `{{NAME|lower}}` its lowercase form. `TEAM`, `RUN` (a per-run prefix for titles), `WORK` and `HOME` are predefined. In expectations, `{{*}}` matches anything and `{{=NAME}}` matches anything and binds it for later steps. In JSON expectations these tokens work inside string values, and an object entry `"...": true` allows keys the expectation does not list; everything else must match exactly.
+
+Expectations should hold for any correct implementation. Leave values open when they depend on implementation choices rather than behavior, such as GraphQL error `locations`, which point into the client's query text.

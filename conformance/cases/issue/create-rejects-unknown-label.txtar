@@ -1,0 +1,18 @@
+An unknown label fails the create without writing anything.
+
+live: true
+-- run --
+linear issue create --team {{TEAM}} --title "{{RUN}} never created" --label "No Such Label" --json
+-- stdout.json --
+{
+  "ok": false,
+  "effect": "none",
+  "error": {
+    "code": "NotFoundError",
+    "message": "Failed to create issue: Issue label not found: No Such Label"
+  }
+}
+-- exit --
+1
+-- mutations.json --
+{}

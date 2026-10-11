@@ -1,0 +1,97 @@
+A protected update compares the saved original, writes only changed fields once, and reads back.
+-- seed.json --
+{"Issue": [{"id": "1a000000-0000-4000-8000-000000000001", "identifier": "ENG-7", "number": 7, "team": "0c000000-0000-4000-8000-000000000001", "state": "0d000000-0000-4000-8000-000000000002", "title": "Old title", "description": "Body", "priority": 0, "labels": [], "creator": "0b000000-0000-4000-8000-000000000001", "createdAt": "2025-06-01T00:00:00.000Z", "updatedAt": "2025-06-01T00:00:00.000Z", "archivedAt": null, "trashed": null}]}
+-- run --
+linear issue view ENG-7 --json > original.json
+-- run --
+linear issue update ENG-7 --title "New title" --state "In Progress" --base-file original.json --json
+-- stdout.json --
+{
+  "ok": true,
+  "effect": "applied",
+  "data": {
+    "success": true,
+    "issue": {
+      "id": "1a000000-0000-4000-8000-000000000001",
+      "identifier": "ENG-7",
+      "url": "https://linear.app/kadoraba/issue/ENG-7/new-title",
+      "title": "New title",
+      "priority": 0,
+      "labels": {
+        "nodes": [],
+        "pageInfo": {
+          "hasNextPage": false,
+          "endCursor": null
+        }
+      }
+    }
+  },
+  "fields": [
+    {
+      "field": "title",
+      "inputField": "title",
+      "base": "Old title",
+      "desired": "New title",
+      "remote": "Old title",
+      "verdict": "write"
+    },
+    {
+      "field": "state",
+      "inputField": "stateId",
+      "base": "0d000000-0000-4000-8000-000000000002",
+      "desired": "0d000000-0000-4000-8000-000000000003",
+      "remote": "0d000000-0000-4000-8000-000000000002",
+      "verdict": "write"
+    }
+  ],
+  "verification": {
+    "scope": "issue-fields",
+    "status": "verified"
+  },
+  "readBack": {
+    "organization": {
+      "id": "0a000000-0000-4000-8000-000000000001",
+      "urlKey": "kadoraba"
+    },
+    "issue": {
+      "id": "1a000000-0000-4000-8000-000000000001",
+      "identifier": "ENG-7",
+      "archivedAt": null,
+      "trashed": null,
+      "title": "New title",
+      "description": "Body",
+      "url": "https://linear.app/kadoraba/issue/ENG-7/new-title",
+      "branchName": "alex/eng-7-new-title",
+      "priority": 0,
+      "estimate": null,
+      "dueDate": null,
+      "state": {
+        "id": "0d000000-0000-4000-8000-000000000003",
+        "name": "In Progress",
+        "type": "started",
+        "color": "#f2c94c"
+      },
+      "assignee": null,
+      "project": null,
+      "projectMilestone": null,
+      "cycle": null,
+      "team": {
+        "id": "0c000000-0000-4000-8000-000000000001",
+        "key": "ENG",
+        "activeCycle": null
+      },
+      "parent": null,
+      "labels": {
+        "nodes": [],
+        "pageInfo": {
+          "hasNextPage": false,
+          "endCursor": null
+        }
+      }
+    }
+  }
+}
+-- mutations.json --
+{"issueUpdate": 1}
+-- state.json --
+{"Issue": [{"identifier": "ENG-7", "title": "New title", "description": "Body", "state": "0d000000-0000-4000-8000-000000000003"}]}

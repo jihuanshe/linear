@@ -1,0 +1,125 @@
+If the issue changed after the original was saved, the protected update writes nothing.
+
+live: true
+-- run --
+linear issue create --team {{TEAM}} --title "{{RUN}} conflict original" --json
+-- stdout.json --
+{"ok": true, "effect": "applied", "data": {"success": true, "issue": {"identifier": "{{=ISSUE}}", "...": true}}, "fields": "{{*}}"}
+-- stderr --
+{{*}}
+-- run --
+linear issue view {{ISSUE}} --json > original.json
+-- run --
+linear issue update {{ISSUE}} --title "{{RUN}} conflict concurrent" --unprotected --json
+-- stdout.json --
+{
+  "ok": true,
+  "effect": "applied",
+  "data": {
+    "success": true,
+    "issue": {
+      "id": "{{*}}",
+      "identifier": "{{ISSUE}}",
+      "url": "https://linear.app/kadoraba/issue/{{ISSUE}}/{{RUN}}-conflict-concurrent",
+      "title": "{{RUN}} conflict concurrent",
+      "priority": 0,
+      "labels": {
+        "nodes": [],
+        "pageInfo": {
+          "hasNextPage": false,
+          "endCursor": null
+        }
+      }
+    }
+  },
+  "fields": [
+    {
+      "field": "title",
+      "inputField": "title",
+      "desired": "{{RUN}} conflict concurrent",
+      "remote": "{{RUN}} conflict original",
+      "verdict": "write"
+    }
+  ],
+  "verification": {
+    "scope": "issue-fields",
+    "status": "verified"
+  },
+  "readBack": {
+    "organization": {
+      "id": "{{*}}",
+      "urlKey": "kadoraba"
+    },
+    "issue": {
+      "id": "{{*}}",
+      "identifier": "{{ISSUE}}",
+      "archivedAt": null,
+      "trashed": null,
+      "title": "{{RUN}} conflict concurrent",
+      "description": null,
+      "url": "https://linear.app/kadoraba/issue/{{ISSUE}}/{{RUN}}-conflict-concurrent",
+      "branchName": "alex/{{ISSUE|lower}}-{{RUN}}-conflict-concurrent",
+      "priority": 0,
+      "estimate": null,
+      "dueDate": null,
+      "state": {
+        "id": "{{*}}",
+        "name": "Backlog",
+        "type": "backlog",
+        "color": "#bec2c8"
+      },
+      "assignee": null,
+      "project": null,
+      "projectMilestone": null,
+      "cycle": null,
+      "team": {
+        "id": "{{*}}",
+        "key": "ENG",
+        "activeCycle": null
+      },
+      "parent": null,
+      "labels": {
+        "nodes": [],
+        "pageInfo": {
+          "hasNextPage": false,
+          "endCursor": null
+        }
+      }
+    }
+  }
+}
+-- run --
+linear issue update {{ISSUE}} --title "{{RUN}} conflict mine" --base-file original.json --json
+-- stdout.json --
+{
+  "ok": false,
+  "effect": "none",
+  "error": {
+    "code": "ConflictError",
+    "message": "Failed to update issue: Original values changed: title",
+    "suggestion": "Read the current object and reconsider the change; do not refresh the original file merely to bypass this conflict.",
+    "details": {
+      "fields": [
+        {
+          "field": "title",
+          "inputField": "title",
+          "base": "{{RUN}} conflict original",
+          "desired": "{{RUN}} conflict mine",
+          "remote": "{{RUN}} conflict concurrent",
+          "verdict": "conflict"
+        }
+      ],
+      "dependencies": []
+    }
+  }
+}
+-- exit --
+1
+-- mutations.json --
+{}
+-- run --
+linear issue title {{ISSUE}}
+-- stdout --
+{{RUN}} conflict concurrent
+-- cleanup --
+linear issue delete {{ISSUE}} -y

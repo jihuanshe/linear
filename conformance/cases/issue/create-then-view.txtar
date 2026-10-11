@@ -1,0 +1,67 @@
+Create an issue with labels, priority and a Markdown description, then read it back.
+
+live: true
+-- file desc.md --
+## Steps
+
+1. Open `linear`
+2. 中文 + emoji ✅
+-- run --
+linear issue create --team {{TEAM}} --title "{{RUN}} create: hello+world" --label Bug --label Feature --priority high --description-file desc.md --json
+-- stdout.json --
+{
+  "ok": true,
+  "effect": "applied",
+  "data": {
+    "success": true,
+    "issue": {
+      "id": "{{=ISSUE_ID}}",
+      "identifier": "{{=ISSUE}}",
+      "title": "{{RUN}} create: hello+world",
+      "url": "https://linear.app/kadoraba/issue/{{ISSUE}}/{{RUN}}-create-helloworld",
+      "team": { "key": "ENG" },
+      "state": { "id": "{{*}}", "name": "Backlog", "type": "backlog" },
+      "assignee": null,
+      "project": null,
+      "parent": null,
+      "labels": {
+        "nodes": [
+          { "id": "{{*}}", "name": "Bug" },
+          { "id": "{{*}}", "name": "Feature" }
+        ],
+        "pageInfo": { "hasNextPage": false, "endCursor": "{{*}}" }
+      }
+    }
+  },
+  "fields": [
+    { "inputField": "title", "field": "title", "desired": "{{RUN}} create: hello+world", "verdict": "write" },
+    { "inputField": "priority", "field": "priority", "desired": 2, "verdict": "write" },
+    { "inputField": "labelIds", "field": "labels", "desired": ["{{*}}", "{{*}}"], "verdict": "write" },
+    { "inputField": "teamId", "field": "team", "desired": "{{*}}", "verdict": "write" },
+    { "inputField": "description", "field": "description", "desired": "## Steps\n\n1. Open `linear`\n2. 中文 + emoji ✅\n", "verdict": "write" }
+  ]
+}
+-- stderr --
+{{ISSUE}} has no --project or --parent. Decide ownership from the candidate Project's full content and the related Initiative content (linear guide issue-authoring), then save the original read and set the project: (if [ -e original.json ] || [ -L original.json ]; then echo 'original.json exists' >&2; exit 1; fi; t=$(mktemp original.json.XXXXXX) || exit; s=0; linear issue view '{{ISSUE}}' --json >| "$t" || { cat "$t" >&2; s=1; }; [ "$s" != 0 ] || ln "$t" original.json || s=1; rm -f "$t"; exit "$s") && linear issue update '{{ISSUE}}' --project <project> --base-file original.json
+-- mutations.json --
+{"issueCreate": 1}
+-- run --
+linear issue view {{ISSUE}}
+-- stdout --
+# {{ISSUE}}: {{RUN}} create: hello+world
+
+**State:** Backlog | **Priority:** ▄▆█ | **Assignee:** Unassigned | **Unresolved threads:** 0
+
+## Context
+
+- Assignee: Unassigned
+- Parent / Sub-issues / Relations: none
+- Attachments: 0 | Comments: 0 (0 unresolved threads; none by other accounts)
+- Changes by other accounts: none (all 0 history entries)
+
+## Steps
+
+1. Open `linear`
+2. 中文 + emoji ✅
+-- cleanup --
+linear issue delete {{ISSUE}} -y
