@@ -342,46 +342,50 @@ export async function runCase(
     failures.push(message)
     unfixable.push(message)
   } finally {
-    for (const argv of testCase.cleanup) {
-      let words: string[]
-      try {
-        words = argv.map((arg) => substitute(arg, vars))
-      } catch (error) {
-        // A step that should have bound the variable failed. Offline, the fake
-        // goes away with the case; live, what the case created may remain.
-        if (options.live != null) {
-          const message = `cleanup skipped: linear ${argv.join(" ")}: ${
-            (error as Error).message
-          }\nobjects this case created may remain in Kadoraba; find them by the run prefix ${vars.RUN}`
+    // Teardown runs even if a cleanup or readback throws.
+    try {
+      for (const argv of testCase.cleanup) {
+        let words: string[]
+        try {
+          words = argv.map((arg) => substitute(arg, vars))
+        } catch (error) {
+          // A step that should have bound the variable failed. Offline, the fake
+          // goes away with the case; live, what the case created may remain.
+          if (options.live != null) {
+            const message = `cleanup skipped: linear ${argv.join(" ")}: ${
+              (error as Error).message
+            }\nobjects this case created may remain in Kadoraba; find them by the run prefix ${vars.RUN}`
+            failures.push(message)
+            unfixable.push(message)
+          }
+          continue
+        }
+        const output = await execute(
+          options,
+          words,
+          childEnv(options, home, fake?.endpoint, {}, vars),
+          work,
+          undefined,
+        )
+        if (output.code !== 0) {
+          const message = `cleanup failed: linear ${
+            words.join(" ")
+          }\n${output.stderr}${output.stdout}`
           failures.push(message)
           unfixable.push(message)
         }
-        continue
       }
-      const output = await execute(
-        options,
-        words,
-        childEnv(options, home, fake?.endpoint, {}, vars),
-        work,
-        undefined,
-      )
-      if (output.code !== 0) {
-        const message = `cleanup failed: linear ${
-          words.join(" ")
-        }\n${output.stderr}${output.stdout}`
-        failures.push(message)
-        unfixable.push(message)
+      for (const check of testCase.readbacks) {
+        const problem = await readback(options, check, vars, home, work, fake)
+        if (problem != null) {
+          failures.push(problem)
+          unfixable.push(problem)
+        }
       }
+    } finally {
+      await fake?.stop()
+      await Deno.remove(root, { recursive: true }).catch(() => {})
     }
-    for (const check of testCase.readbacks) {
-      const problem = await readback(options, check, vars, home, work, fake)
-      if (problem != null) {
-        failures.push(problem)
-        unfixable.push(problem)
-      }
-    }
-    await fake?.stop()
-    await Deno.remove(root, { recursive: true }).catch(() => {})
   }
 
   // A killed run's output is not an expectation to record.
@@ -423,8 +427,10 @@ async function readback(
   fake: FakeLinear | undefined,
 ): Promise<string | undefined> {
   let words: string[]
+  let env: Record<string, string>
   try {
     words = check.argv.map((arg) => substitute(arg, vars))
+    env = childEnv(options, home, fake?.endpoint, check.env, vars)
   } catch (error) {
     return `readback skipped: linear ${check.argv.join(" ")}: ${
       (error as Error).message
@@ -439,12 +445,15 @@ async function readback(
     const output = await execute(
       options,
       words,
-      childEnv(options, home, fake?.endpoint, check.env, vars),
+      env,
       work,
       undefined,
     )
     problems = []
     const bindings: Vars = {}
+    if (output.timedOut) {
+      problems.push(`timed out after ${options.timeoutMs}ms`)
+    }
     if (output.code !== check.exit) {
       problems.push(`exit code ${output.code}, expected ${check.exit}`)
     }

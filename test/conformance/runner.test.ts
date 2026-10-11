@@ -26,7 +26,8 @@ const SEED = JSON.stringify({
 })
 
 /**
- * `linear echo ...` prints its arguments, `linear sleep` hangs,
+ * `linear echo ...` prints its arguments, `linear sleep` hangs, `linear hang`
+ * prints "ok" and exits 0 once terminated,
  * `linear auth whoami --json` reports the workspace named by LINEAR_API_KEY,
  * and anything else fails.
  */
@@ -34,6 +35,7 @@ const STUB = `#!/bin/sh
 case "$1" in
   echo) shift; echo "$@" ;;
   sleep) exec sleep 10 ;;
+  hang) trap 'exit 0' TERM; echo ok; sleep 10 >/dev/null 2>&1 & wait ;;
   auth) printf '{"organization":{"name":"%s","urlKey":"%s"}}\\n' "$LINEAR_API_KEY" "$LINEAR_API_KEY" ;;
   *) exit 1 ;;
 esac
@@ -133,6 +135,15 @@ Deno.test("conformance runner - readbacks check what cleanup left", async () => 
       assertEquals(result.status, "fail", readback)
       assertStringIncludes(result.messages.join("\n"), "readback")
     }
+    // Matching output and exit code do not count once the readback timed out.
+    const hung = await runText(
+      dir,
+      binary,
+      `-- run --\nlinear echo hi\n-- stdout --\nhi\n-- readback --\nlinear hang\n-- stdout --\nok\n`,
+      { timeoutMs: 300 },
+    )
+    assertEquals(hung.result.status, "fail")
+    assertStringIncludes(hung.result.messages.join("\n"), "timed out")
   })
 })
 
