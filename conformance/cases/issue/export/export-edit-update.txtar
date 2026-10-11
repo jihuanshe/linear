@@ -1,0 +1,84 @@
+issue export saves the original read and an editable desired.md; updating from them writes the edited description once, and an unedited copy writes nothing.
+-- seed.json --
+{"Issue": [{"id": "1a000000-0000-4000-8000-000000000123", "identifier": "ENG-123", "title": "Exported", "description": "原文 **Markdown**"}]}
+-- run --
+linear issue export ENG-123 --output out --json
+-- stdout.json --
+{
+  "organization": {
+    "id": "0a000000-0000-4000-8000-000000000001",
+    "urlKey": "kadoraba"
+  },
+  "issue": {
+    "id": "1a000000-0000-4000-8000-000000000123",
+    "identifier": "ENG-123"
+  },
+  "baseFile": "{{WORK}}/out/original.json",
+  "descriptionFile": "{{WORK}}/out/desired.md"
+}
+-- run --
+linear issue update ENG-123 --base-file out/original.json --description-file out/desired.md --json
+-- stdout.json --
+{
+  "ok": true,
+  "effect": "none",
+  "data": {
+    "success": true,
+    "issue": {
+      "id": "1a000000-0000-4000-8000-000000000123",
+      "identifier": "ENG-123",
+      "archivedAt": null,
+      "trashed": null,
+      "title": "Exported",
+      "description": "原文 **Markdown**",
+      "url": "https://linear.app/kadoraba/issue/ENG-123/exported",
+      "branchName": "alex/eng-123-exported",
+      "priority": 0,
+      "estimate": null,
+      "dueDate": null,
+      "state": {
+        "id": "0d000000-0000-4000-8000-000000000001",
+        "name": "Backlog",
+        "type": "backlog",
+        "color": "#bec2c8"
+      },
+      "assignee": null,
+      "project": null,
+      "projectMilestone": null,
+      "cycle": null,
+      "team": {
+        "id": "0c000000-0000-4000-8000-000000000001",
+        "key": "ENG",
+        "activeCycle": null
+      },
+      "parent": null,
+      "labels": {
+        "nodes": [],
+        "pageInfo": {
+          "hasNextPage": false,
+          "endCursor": null
+        }
+      }
+    }
+  },
+  "fields": [
+    {
+      "field": "description",
+      "inputField": "description",
+      "base": "原文 **Markdown**",
+      "desired": "原文 **Markdown**",
+      "remote": "原文 **Markdown**",
+      "verdict": "idempotent"
+    }
+  ]
+}
+-- mutations.json --
+{}
+-- file out/desired.md --
+新的 **Markdown**
+-- run --
+linear issue update ENG-123 --base-file out/original.json --description-file out/desired.md --json > edited.json
+-- mutations.json --
+{"issueUpdate": 1}
+-- state.json --
+{"Issue": [{"identifier": "ENG-123", "description": "新的 **Markdown**"}]}

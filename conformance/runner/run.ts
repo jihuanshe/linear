@@ -608,6 +608,11 @@ const EXPECTATIONS = new Set(["stdout", "stdout.json", "stderr", "exit"])
  * timestamps open, so the expectation holds for whatever the real API assigns.
  */
 function templatize(text: string, vars: Vars, names: string[] | null): string {
+  // Per-run directories differ every time, in every case.
+  for (const name of ["WORK", "HOME"]) {
+    const value = vars[name]
+    if (value != null) text = text.replaceAll(value, `{{${name}}}`)
+  }
   if (names == null) return text
   for (const name of names) {
     const value = vars[name]
