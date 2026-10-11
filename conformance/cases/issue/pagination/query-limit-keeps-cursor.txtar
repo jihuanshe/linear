@@ -1,0 +1,11 @@
+A --limit above one page reads only what it needs and keeps the connection's cursor, so the caller can tell more issues exist; search also reports the total count.
+-- seed.json --
+{"Issue": [{"$repeat": 200, "identifier": "ENG-{{n:3}}", "title": "Read all evidence {{n}}"}]}
+-- run --
+linear issue query --all-teams --limit 101 --json > query.json
+-- file-after.json query.json --
+{"nodes": "{{*}}", "pageInfo": {"hasNextPage": true, "endCursor": "{{*}}"}}
+-- run --
+linear issue query --all-teams --limit 101 --search evidence --json > search.json
+-- file-after.json search.json --
+{"nodes": "{{*}}", "pageInfo": {"hasNextPage": true, "endCursor": "{{*}}"}, "totalCount": 200}
