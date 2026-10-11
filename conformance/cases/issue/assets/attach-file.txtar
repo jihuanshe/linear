@@ -1,10 +1,10 @@
-issue attach uploads a file privately and creates a sidebar attachment titled as requested; images get a hint on how to show them inline (keeping --public and quoting unusual paths), other files do not.
+issue attach uploads a file's exact bytes privately and creates a sidebar attachment titled as requested; images get a hint on how to show them inline (keeping --public and quoting unusual paths), other files do not.
 -- seed.json --
 {"Issue": [{"id": "1a000000-0000-4000-8000-000000000017", "identifier": "ENG-17", "title": "Evidence"}]}
 -- file evidence]draft.txt --
 private evidence
--- file screenshot.png --
-pretend png
+-- file.b64 screenshot.png --
+iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==
 -- file it's here.png --
 pretend png
 -- run --
@@ -60,5 +60,5 @@ Hint: Sidebar attachments do not render images inline. For inline display, run: 
 -- stderr --
 ⚠ Uploaded to a public URL readable by anyone: https://public.linear.app/0a000000-0000-4000-8000-000000000001/f0000000-0000-4000-8000-000000000007/f0000000-0000-4000-8000-000000000007
 -- state.json --
-{"Upload": [{"filename": "evidence]draft.txt", "public": false, "received": true, "sentAuthorization": false}, {"filename": "screenshot.png"}, {"filename": "it's here.png"}, {"filename": "screenshot.png", "public": true, "received": true}],
+{"Upload": [{"filename": "evidence]draft.txt", "public": false, "received": true, "sentAuthorization": false}, {"filename": "screenshot.png", "sha256": "c414cd0e204de974f73753c7e28d7638e7b3691bb8b1a2bab6b25bb7fed7ce77", "receivedContentType": "image/png"}, {"filename": "it's here.png"}, {"filename": "screenshot.png", "public": true, "received": true}],
  "Attachment": [{"title": "复查证据", "url": "https://uploads.linear.app/{{*}}"}, {"title": "screenshot.png"}, {"title": "it's here.png"}, {"title": "screenshot.png", "url": "https://public.linear.app/{{*}}"}]}

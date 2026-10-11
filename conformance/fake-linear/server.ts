@@ -25,6 +25,7 @@ import {
   type VariableValues,
   visit,
 } from "graphql"
+import { encodeHex } from "@std/encoding/hex"
 import { type Context, fieldResolver, typeResolver } from "./resolve.ts"
 import { rootValue } from "./root.ts"
 import { LinearError } from "./errors.ts"
@@ -69,8 +70,17 @@ export interface FaultRule {
    * `stale` answers from the data as it was before the latest mutation, like
    * a read replica that has not caught up.
    * `patch` applies `seed` to the data, as a concurrent edit, then proceeds.
+   * `patch-after` answers the request first, then applies `seed`: an edit
+   * made right after the executable read something.
    */
-  action: "status" | "drop-before" | "drop-after" | "stall" | "stale" | "patch"
+  action:
+    | "status"
+    | "drop-before"
+    | "drop-after"
+    | "stall"
+    | "stale"
+    | "patch"
+    | "patch-after"
   /** Records merged into the data by the `patch` action. */
   seed?: Seed
   status?: number
@@ -100,6 +110,8 @@ export class FakeLinear {
   #beforeMutation?: Store
   #server?: Deno.HttpServer
   #stalls = new Set<ReadableStreamDefaultController<Uint8Array>>()
+  /** Responses withheld by upload stalls, released when the fake stops. */
+  #pending = new Set<() => void>()
 
   constructor(readonly store: Store) {}
 
@@ -122,6 +134,7 @@ export class FakeLinear {
   }
 
   async stop(): Promise<void> {
+    for (const release of this.#pending) release()
     for (const controller of this.#stalls) {
       try {
         controller.error(new Error("stopped"))
@@ -326,6 +339,9 @@ export class FakeLinear {
     if (fault?.action === "drop-after") {
       return this.#log(kind, fields, variables, dropped())
     }
+    if (fault?.action === "patch-after" && fault.seed != null) {
+      this.store.seed(fault.seed)
+    }
     const payload = {
       ...(result as object),
       errors: errors.length > 0
@@ -372,6 +388,11 @@ export class FakeLinear {
     if (fault?.action === "patch" && fault.seed != null) {
       this.store.seed(fault.seed)
     }
+    // Deno.serve cannot cut a connection before its status line, so a dropped
+    // upload response cannot be modeled; refuse rather than pretend.
+    if (fault?.action === "drop-before" || fault?.action === "drop-after") {
+      throw new Error(`fake: ${fault.action} is not supported for uploads`)
+    }
     if (upload == null || upload.received === true) {
       return new Response("Forbidden", { status: 403 })
     }
@@ -382,7 +403,13 @@ export class FakeLinear {
     upload.receivedContentType = request.headers.get("content-type")
     upload.receivedSize = body.byteLength
     upload.sentAuthorization = request.headers.has("authorization")
+    upload.sha256 = encodeHex(await crypto.subtle.digest("SHA-256", body))
     upload.text = new TextDecoder("utf-8", { fatal: false }).decode(body)
+    if (fault?.action === "stall") {
+      // The upload is stored, but no response ever arrives.
+      await new Promise<void>((resolve) => this.#pending.add(resolve))
+      return new Response(null, { status: 504 })
+    }
     return new Response(null, { status: 200 })
   }
 

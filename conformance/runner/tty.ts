@@ -72,7 +72,8 @@ export async function executeTty(
   const child = new Deno.Command("script", {
     args,
     cwd,
-    env: { TERM: "xterm-256color", ...env },
+    // A pseudo-terminal advertises a real terminal type, whatever the pipes had.
+    env: { ...env, TERM: "xterm-256color" },
     clearEnv: true,
     stdin: "piped",
     stdout: "piped",

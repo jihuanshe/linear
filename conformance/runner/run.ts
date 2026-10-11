@@ -108,6 +108,18 @@ function applyPatch(target: unknown, patch: unknown): unknown {
       parent = parent[key] as Record<string, unknown>
     }
     const last = keys.at(-1)!
+    if (Array.isArray(parent)) {
+      // Arrays insert, append ("-"), replace and remove by index.
+      const index = last === "-" ? parent.length : Number(last)
+      if (!Number.isInteger(index) || index < 0 || index > parent.length) {
+        throw new Error(`JSON Patch index out of range: ${path}`)
+      }
+      if (op === "add") parent.splice(index, 0, value)
+      else if (op === "replace") parent[index] = value
+      else if (op === "remove") parent.splice(index, 1)
+      else throw new Error(`unsupported JSON Patch op ${op}`)
+      continue
+    }
     if (op === "remove") delete parent[last]
     else if (op === "add" || op === "replace") parent[last] = value
     else throw new Error(`unsupported JSON Patch op ${op}`)

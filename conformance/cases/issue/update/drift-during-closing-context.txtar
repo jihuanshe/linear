@@ -1,0 +1,43 @@
+A state change made while the closing context is read is noticed by the final read, so the protected close writes nothing.
+-- seed.json --
+{"Issue": [{"id": "1a000000-0000-4000-8000-000000000123", "identifier": "ENG-123", "title": "Closing", "state": "0d000000-0000-4000-8000-000000000002"}]}
+-- run --
+linear issue view ENG-123 --json > original.json
+-- faults.json --
+[{"on": "query", "selects": "history", "action": "patch-after", "seed": {"Issue": [{"id": "1a000000-0000-4000-8000-000000000123", "state": "0d000000-0000-4000-8000-000000000005"}]}}]
+-- run --
+linear issue update ENG-123 --state Canceled --base-file original.json --json
+-- stdout.json --
+{
+  "ok": false,
+  "effect": "none",
+  "error": {
+    "code": "ConflictError",
+    "message": "Failed to update issue: Original values changed: state",
+    "suggestion": "Read the current object and reconsider the change; do not refresh the original file merely to bypass this conflict.",
+    "details": {
+      "fields": [
+        {
+          "field": "state",
+          "inputField": "stateId",
+          "base": "0d000000-0000-4000-8000-000000000002",
+          "desired": "0d000000-0000-4000-8000-000000000006",
+          "remote": "0d000000-0000-4000-8000-000000000005",
+          "verdict": "conflict"
+        }
+      ],
+      "dependencies": []
+    }
+  }
+}
+-- stderr --
+Moving ENG-123 to Canceled. Context before closing:
+- Assignee: Unassigned
+- Parent / Sub-issues / Relations: none
+- Attachments: 0 | Comments: 0 (0 unresolved threads; none by other accounts)
+- Changes by other accounts: none (all 0 history entries)
+No sub-issues, relations, comments or changes by other accounts were found.
+-- exit --
+1
+-- mutations.json --
+{}
