@@ -1,0 +1,20 @@
+If loading the project choices fails, interactive create reports the error like any other failure: no stack trace and nothing created.
+-- env --
+LINEAR_TEAM_KEY=ENG
+LINEAR_ISSUE_CREATE_ASSIGN_SELF=never
+LINEAR_ISSUE_CREATE_ASK_PROJECT=true
+-- faults.json --
+[{"on": "query:projects", "action": "status", "status": 200, "body": {"data": null, "errors": [{"message": "Projects unavailable"}]}}]
+-- tty --
+expect What's the title of your issue?
+send Draft\r
+expect Description
+send \r
+-- run --
+linear issue create
+-- stdout --
+{{*}}✗ Failed to create issue: Projects unavailable
+-- exit --
+1
+-- mutations.json --
+{}
