@@ -1,0 +1,42 @@
+Viewing a missing issue fails with a not-found error and no partial output.
+
+live: true
+-- run --
+linear issue view ENG-999999 --json
+-- stdout.json --
+{
+  "ok": false,
+  "effect": "none",
+  "error": {
+    "code": "NotFoundError",
+    "message": "Failed to view issue: Could not find referenced Issue.",
+    "suggestion": "Check the identifier and that it belongs to the selected workspace (`linear auth whoami`).",
+    "details": {
+      "errors": [
+        {
+          "message": "Entity not found: Issue",
+          "path": [
+            "issue"
+          ],
+          "locations": "{{*}}",
+          "extensions": {
+            "type": "invalid input",
+            "code": "INPUT_ERROR",
+            "statusCode": 400,
+            "userError": true,
+            "userPresentableMessage": "Could not find referenced Issue."
+          }
+        }
+      ]
+    }
+  }
+}
+-- exit --
+1
+-- run --
+linear issue view ENG-999999
+-- stderr --
+✗ Failed to view issue: Could not find referenced Issue.
+  Check the identifier and that it belongs to the selected workspace (`linear auth whoami`).
+-- exit --
+1

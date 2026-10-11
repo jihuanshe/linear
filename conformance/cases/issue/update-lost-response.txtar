@@ -1,0 +1,23 @@
+When the update response is lost after Linear applied it, the CLI reports an unknown effect and does not retry.
+-- seed.json --
+{"Issue": [{"id": "1a000000-0000-4000-8000-000000000001", "identifier": "ENG-7", "number": 7, "team": "0c000000-0000-4000-8000-000000000001", "state": "0d000000-0000-4000-8000-000000000002", "title": "Old title", "description": null, "priority": 0, "labels": [], "creator": "0b000000-0000-4000-8000-000000000001", "createdAt": "2025-06-01T00:00:00.000Z", "updatedAt": "2025-06-01T00:00:00.000Z", "archivedAt": null, "trashed": null}]}
+-- faults.json --
+[{"on": "mutation:issueUpdate", "action": "drop-after"}]
+-- run --
+linear issue update ENG-7 --title "New title" --unprotected --json
+-- stdout.json --
+{
+  "ok": false,
+  "effect": "unknown",
+  "error": {
+    "code": "WriteError",
+    "message": "Failed to update issue: Mutation response was not received",
+    "suggestion": "Reconcile the remote outcome before retrying this write."
+  }
+}
+-- exit --
+1
+-- mutations.json --
+{"issueUpdate": 1}
+-- state.json --
+{"Issue": [{"identifier": "ENG-7", "title": "New title"}]}
