@@ -425,8 +425,10 @@ async function readback(
   let words: string[]
   try {
     words = check.argv.map((arg) => substitute(arg, vars))
-  } catch {
-    return undefined // its cleanup was skipped too, and reported when live
+  } catch (error) {
+    return `readback skipped: linear ${check.argv.join(" ")}: ${
+      (error as Error).message
+    }`
   }
   const attempts = options.live == null ? 1 : READBACK_ATTEMPTS
   let problems: string[] = []
@@ -442,6 +444,7 @@ async function readback(
       undefined,
     )
     problems = []
+    const bindings: Vars = {}
     if (output.code !== check.exit) {
       problems.push(`exit code ${output.code}, expected ${check.exit}`)
     }
@@ -452,13 +455,20 @@ async function readback(
       ] as const
     ) {
       try {
-        const checked = checkStream(stream, section, actual, vars)
+        const checked = checkStream(stream, section, actual, {
+          ...vars,
+          ...bindings,
+        })
         if (typeof checked === "string") problems.push(checked)
+        else Object.assign(bindings, checked)
       } catch (error) {
         problems.push(`${stream}: ${(error as Error).message}`)
       }
     }
-    if (problems.length === 0) return undefined
+    if (problems.length === 0) {
+      Object.assign(vars, bindings)
+      return undefined
+    }
   }
   return `readback failed after cleanup: linear ${words.join(" ")}\n${
     problems.join("\n")
