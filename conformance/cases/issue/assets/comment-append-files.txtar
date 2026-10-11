@@ -1,0 +1,19 @@
+Attaching files to an existing comment keeps its body and appends the file Markdown, checked against the saved original; replacing the body with --body-file and attaching works too.
+-- seed.json --
+{"Issue": [{"id": "1a000000-0000-4000-8000-000000000017", "identifier": "ENG-17", "title": "Evidence"}], "Comment": [{"id": "1c000000-0000-4000-8000-000000000001", "issue": "1a000000-0000-4000-8000-000000000017", "body": "Existing note"}]}
+-- file screenshot.png --
+pretend png
+-- file evidence]draft.txt --
+private evidence
+-- file new.md --
+Replaced note
+-- run --
+linear issue comment view 1c000000-0000-4000-8000-000000000001 --json > comment-base.json
+-- run --
+linear issue comment update 1c000000-0000-4000-8000-000000000001 --base-file comment-base.json --attach screenshot.png --attach 'evidence]draft.txt' --json > appended.json
+-- state.json --
+{"Comment": [{"body": "Existing note\n\n![screenshot.png](https://uploads.linear.app/{{*}})\n\n[evidence\\]draft.txt](https://uploads.linear.app/{{*}})"}]}
+-- run --
+linear issue comment update 1c000000-0000-4000-8000-000000000001 --unprotected --body-file new.md --attach screenshot.png --json > replaced.json
+-- state.json --
+{"Comment": [{"body": "Replaced note\n\n\n![screenshot.png](https://uploads.linear.app/{{*}})"}]}

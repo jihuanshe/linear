@@ -1,0 +1,71 @@
+Failures around uploads keep what is known: a failed attachment association keeps the upload receipt and leaves the effect unknown; a failed second upload grant stops before writing the comment.
+-- seed.json --
+{"Issue": [{"id": "1a000000-0000-4000-8000-000000000017", "identifier": "ENG-17", "title": "Evidence"}]}
+-- file one.txt --
+one
+-- file two.txt --
+two
+-- faults.json --
+[{"on": "mutation:attachmentCreate", "action": "status", "status": 200, "body": {"data": {"attachmentCreate": {"success": false, "attachment": null}}}}]
+-- run --
+linear issue attach ENG-17 one.txt --json
+-- stdout.json --
+{
+  "ok": false,
+  "effect": "unknown",
+  "data": {
+    "attachmentCreate": {
+      "success": false,
+      "attachment": null
+    }
+  },
+  "receipts": [
+    {
+      "kind": "upload",
+      "assetUrl": "https://uploads.linear.app/0a000000-0000-4000-8000-000000000001/f0000000-0000-4000-8000-000000000001/f0000000-0000-4000-8000-000000000001",
+      "filename": "one.txt",
+      "size": 4,
+      "contentType": "text/plain",
+      "public": false
+    }
+  ],
+  "error": {
+    "code": "WriteError",
+    "message": "Failed to attach file: Mutation was not confirmed",
+    "suggestion": "Reconcile the remote outcome before retrying this write."
+  }
+}
+-- stderr --
+✓ Uploaded one.txt
+-- exit --
+1
+-- faults.json --
+[{"on": "mutation:fileUpload", "nth": 2, "action": "status", "status": 200, "body": {"data": null, "errors": [{"message": "Upload grant refused"}]}}]
+-- run --
+linear issue comment add ENG-17 --body "With files" --attach one.txt --attach two.txt --json
+-- stdout.json --
+{
+  "ok": false,
+  "effect": "unknown",
+  "receipts": [
+    {
+      "kind": "upload",
+      "assetUrl": "https://uploads.linear.app/0a000000-0000-4000-8000-000000000001/f0000000-0000-4000-8000-000000000002/f0000000-0000-4000-8000-000000000002",
+      "filename": "one.txt",
+      "size": 4,
+      "contentType": "text/plain",
+      "public": false
+    }
+  ],
+  "error": {
+    "code": "WriteError",
+    "message": "Failed to add comment: Upload grant request did not provide a usable receipt",
+    "suggestion": "Reconcile the upload grant before retrying; no file transfer was confirmed."
+  }
+}
+-- stderr --
+✓ Uploaded one.txt
+-- exit --
+1
+-- mutations.json --
+{"fileUpload": 2}

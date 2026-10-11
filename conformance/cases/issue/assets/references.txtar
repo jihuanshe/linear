@@ -1,0 +1,78 @@
+attach and comment add resolve the issue reference before uploading: lower-case identifiers and issue URLs work; a missing, blank or malformed reference, or a URL from another workspace, uploads nothing.
+-- seed.json --
+{"Issue": [{"id": "1a000000-0000-4000-8000-000000000017", "identifier": "ENG-17", "title": "Evidence"}]}
+-- file proof.txt --
+proof
+-- run --
+linear issue attach eng-17 proof.txt --json > a1.json
+-- stderr --
+✓ Uploaded proof.txt
+-- run --
+linear issue comment add https://linear.app/kadoraba/issue/ENG-17/evidence --attach proof.txt --json > c1.json
+-- stderr --
+✓ Uploaded proof.txt
+-- state.json --
+{"Upload": [{"filename": "proof.txt", "received": true}, {"filename": "proof.txt", "received": true}]}
+-- run --
+linear issue attach ' ' proof.txt --json
+-- stdout.json --
+{
+  "ok": false,
+  "effect": "none",
+  "error": {
+    "code": "ValidationError",
+    "message": "Failed to attach file: Issue reference cannot be empty"
+  }
+}
+-- exit --
+1
+-- no-requests --
+-- run --
+linear issue attach not-an-issue proof.txt --json
+-- stdout.json --
+{
+  "ok": false,
+  "effect": "none",
+  "error": {
+    "code": "ValidationError",
+    "message": "Failed to attach file: Could not determine issue reference",
+    "suggestion": "Provide an Issue UUID, identifier such as ENG-123, or Linear Issue URL."
+  }
+}
+-- exit --
+1
+-- no-requests --
+-- run --
+linear issue attach https://linear.app/other/issue/ENG-17/title proof.txt --json
+-- stdout.json --
+{
+  "ok": false,
+  "effect": "none",
+  "error": {
+    "code": "ValidationError",
+    "message": "Failed to attach file: Issue URL belongs to a different workspace",
+    "suggestion": "Select the URL's workspace with --workspace before continuing."
+  }
+}
+-- exit --
+1
+-- mutations.json --
+{}
+-- run --
+linear issue comment add https://linear.app/other/issue/ENG-17/title --attach proof.txt --json
+-- stdout.json --
+{
+  "ok": false,
+  "effect": "none",
+  "error": {
+    "code": "ValidationError",
+    "message": "Failed to add comment: Issue URL belongs to a different workspace",
+    "suggestion": "Select the URL's workspace with --workspace before continuing."
+  }
+}
+-- exit --
+1
+-- mutations.json --
+{}
+-- state.json --
+{"Upload": [{}, {}]}

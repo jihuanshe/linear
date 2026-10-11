@@ -68,8 +68,11 @@ export interface FaultRule {
    * `stall` executes, sends headers and part of the body, then stalls.
    * `stale` answers from the data as it was before the latest mutation, like
    * a read replica that has not caught up.
+   * `patch` applies `seed` to the data, as a concurrent edit, then proceeds.
    */
-  action: "status" | "drop-before" | "drop-after" | "stall" | "stale"
+  action: "status" | "drop-before" | "drop-after" | "stall" | "stale" | "patch"
+  /** Records merged into the data by the `patch` action. */
+  seed?: Seed
   status?: number
   body?: unknown
   headers?: Record<string, string>
@@ -275,6 +278,9 @@ export class FakeLinear {
     if (fault?.action === "drop-before") {
       return this.#log(kind, fields, variables, dropped())
     }
+    if (fault?.action === "patch" && fault.seed != null) {
+      this.store.seed(fault.seed)
+    }
 
     if (kind === "mutation") {
       this.#beforeMutation = this.store.clone()
@@ -359,6 +365,13 @@ export class FakeLinear {
   async #upload(id: string, request: Request): Promise<Response> {
     const upload = this.store.find("Upload", id)
     const body = new Uint8Array(await request.arrayBuffer())
+    const fault = this.#fault("upload", [], new Set())
+    if (fault?.action === "status") {
+      return json(fault.status ?? 500, fault.body ?? {}, fault.headers)
+    }
+    if (fault?.action === "patch" && fault.seed != null) {
+      this.store.seed(fault.seed)
+    }
     if (upload == null || upload.received === true) {
       return new Response("Forbidden", { status: 403 })
     }

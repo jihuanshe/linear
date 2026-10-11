@@ -1,0 +1,11 @@
+linear upload uploads a file and prints the Markdown snippet to paste.
+-- file evidence]draft.txt --
+private evidence
+-- run --
+linear upload 'evidence]draft.txt'
+-- stdout --
+evidence]draft.txt (0.0KB, text/plain, private)
+  url: https://uploads.linear.app/0a000000-0000-4000-8000-000000000001/f0000000-0000-4000-8000-000000000001/f0000000-0000-4000-8000-000000000001
+  markdown: [evidence\]draft.txt](https://uploads.linear.app/0a000000-0000-4000-8000-000000000001/f0000000-0000-4000-8000-000000000001/f0000000-0000-4000-8000-000000000001)
+-- state.json --
+{"Upload": [{"filename": "evidence]draft.txt", "received": true, "sentAuthorization": false}]}

@@ -1,0 +1,52 @@
+If the comment changes while files upload, the update is refused after the upload: the uploads are reported as applied, the comment keeps the other edit.
+-- seed.json --
+{"Issue": [{"id": "1a000000-0000-4000-8000-000000000017", "identifier": "ENG-17", "title": "Evidence"}], "Comment": [{"id": "1c000000-0000-4000-8000-000000000001", "issue": "1a000000-0000-4000-8000-000000000017", "body": "Existing note"}]}
+-- file screenshot.png --
+pretend png
+-- run --
+linear issue comment view 1c000000-0000-4000-8000-000000000001 --json > comment-base.json
+-- faults.json --
+[{"on": "upload", "action": "patch", "seed": {"Comment": [{"id": "1c000000-0000-4000-8000-000000000001", "body": "Someone else's edit"}]}}]
+-- run --
+linear issue comment update 1c000000-0000-4000-8000-000000000001 --base-file comment-base.json --attach screenshot.png --json
+-- stdout.json --
+{
+  "ok": false,
+  "effect": "applied",
+  "receipts": [
+    {
+      "kind": "upload",
+      "assetUrl": "https://uploads.linear.app/0a000000-0000-4000-8000-000000000001/f0000000-0000-4000-8000-000000000001/f0000000-0000-4000-8000-000000000001",
+      "filename": "screenshot.png",
+      "size": 12,
+      "contentType": "image/png",
+      "public": false
+    }
+  ],
+  "error": {
+    "code": "WriteError",
+    "message": "Failed to update comment: Original values changed: body",
+    "suggestion": "Read the current object and reconsider the change; do not refresh the original file merely to bypass this conflict.",
+    "details": {
+      "fields": [
+        {
+          "field": "body",
+          "inputField": "body",
+          "base": "Existing note",
+          "desired": "Existing note\n\n![screenshot.png](https://uploads.linear.app/0a000000-0000-4000-8000-000000000001/f0000000-0000-4000-8000-000000000001/f0000000-0000-4000-8000-000000000001)",
+          "remote": "Someone else's edit",
+          "verdict": "conflict"
+        }
+      ],
+      "dependencies": [
+        "body"
+      ]
+    }
+  }
+}
+-- exit --
+1
+-- mutations.json --
+{"fileUpload": 1}
+-- state.json --
+{"Comment": [{"body": "Someone else's edit"}], "Upload": [{"received": true}]}

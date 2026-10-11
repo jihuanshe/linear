@@ -1,0 +1,64 @@
+issue attach uploads a file privately and creates a sidebar attachment titled as requested; images get a hint on how to show them inline (keeping --public and quoting unusual paths), other files do not.
+-- seed.json --
+{"Issue": [{"id": "1a000000-0000-4000-8000-000000000017", "identifier": "ENG-17", "title": "Evidence"}]}
+-- file evidence]draft.txt --
+private evidence
+-- file screenshot.png --
+pretend png
+-- file it's here.png --
+pretend png
+-- run --
+linear issue attach ENG-17 'evidence]draft.txt' --title 复查证据 --json
+-- stdout.json --
+{
+  "ok": true,
+  "effect": "applied",
+  "data": {
+    "attachment": {
+      "id": "f0000000-0000-4000-8000-000000000002",
+      "url": "https://uploads.linear.app/0a000000-0000-4000-8000-000000000001/f0000000-0000-4000-8000-000000000001/f0000000-0000-4000-8000-000000000001",
+      "title": "复查证据",
+      "issue": {
+        "id": "1a000000-0000-4000-8000-000000000017"
+      }
+    }
+  },
+  "receipts": [
+    {
+      "kind": "upload",
+      "assetUrl": "https://uploads.linear.app/0a000000-0000-4000-8000-000000000001/f0000000-0000-4000-8000-000000000001/f0000000-0000-4000-8000-000000000001",
+      "filename": "evidence]draft.txt",
+      "size": 17,
+      "contentType": "text/plain",
+      "public": false
+    }
+  ]
+}
+-- stderr --
+✓ Uploaded evidence]draft.txt
+-- run --
+linear issue attach ENG-17 screenshot.png
+-- stdout --
+✓ Uploaded screenshot.png
+✓ Sidebar attachment created: screenshot.png
+https://uploads.linear.app/0a000000-0000-4000-8000-000000000001/f0000000-0000-4000-8000-000000000003/f0000000-0000-4000-8000-000000000003
+Hint: Sidebar attachments do not render images inline. For inline display, run: linear issue comment add ENG-17 --attach screenshot.png
+-- run --
+linear issue attach ENG-17 "it's here.png"
+-- stdout --
+✓ Uploaded it's here.png
+✓ Sidebar attachment created: it's here.png
+https://uploads.linear.app/0a000000-0000-4000-8000-000000000001/f0000000-0000-4000-8000-000000000005/f0000000-0000-4000-8000-000000000005
+Hint: Sidebar attachments do not render images inline. For inline display, run: linear issue comment add ENG-17 --attach 'it'\''s here.png'
+-- run --
+linear issue attach ENG-17 screenshot.png --public
+-- stdout --
+✓ Uploaded screenshot.png
+✓ Sidebar attachment created: screenshot.png
+https://public.linear.app/0a000000-0000-4000-8000-000000000001/f0000000-0000-4000-8000-000000000007/f0000000-0000-4000-8000-000000000007
+Hint: Sidebar attachments do not render images inline. For inline display, run: linear issue comment add ENG-17 --attach screenshot.png --public
+-- stderr --
+⚠ Uploaded to a public URL readable by anyone: https://public.linear.app/0a000000-0000-4000-8000-000000000001/f0000000-0000-4000-8000-000000000007/f0000000-0000-4000-8000-000000000007
+-- state.json --
+{"Upload": [{"filename": "evidence]draft.txt", "public": false, "received": true, "sentAuthorization": false}, {"filename": "screenshot.png"}, {"filename": "it's here.png"}, {"filename": "screenshot.png", "public": true, "received": true}],
+ "Attachment": [{"title": "复查证据", "url": "https://uploads.linear.app/{{*}}"}, {"title": "screenshot.png"}, {"title": "it's here.png"}, {"title": "screenshot.png", "url": "https://public.linear.app/{{*}}"}]}
