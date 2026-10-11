@@ -1,0 +1,75 @@
+An assignee given as a UUID (any case) is looked up and used instead of the default self-assignment.
+-- seed.json --
+{"User": [{"id": "abcdef01-2345-4678-9abc-def012345678", "name": "Jane Developer", "displayName": "jane"}]}
+-- env --
+LINEAR_ISSUE_CREATE_ASSIGN_SELF=always
+-- run --
+linear issue create --title "Assigned by UUID" --team ENG --assignee ABCDEF01-2345-4678-9ABC-DEF012345678 --no-interactive --json
+-- stdout.json --
+{
+  "ok": true,
+  "effect": "applied",
+  "data": {
+    "success": true,
+    "issue": {
+      "id": "f0000000-0000-4000-8000-000000000001",
+      "identifier": "ENG-1",
+      "title": "Assigned by UUID",
+      "url": "https://linear.app/kadoraba/issue/ENG-1/assigned-by-uuid",
+      "team": {
+        "key": "ENG"
+      },
+      "state": {
+        "id": "0d000000-0000-4000-8000-000000000001",
+        "name": "Backlog",
+        "type": "backlog"
+      },
+      "assignee": {
+        "id": "abcdef01-2345-4678-9abc-def012345678",
+        "name": "Jane Developer",
+        "email": "jane.developer@example.com"
+      },
+      "project": null,
+      "parent": null,
+      "labels": {
+        "nodes": [],
+        "pageInfo": {
+          "hasNextPage": false,
+          "endCursor": null
+        }
+      }
+    }
+  },
+  "fields": [
+    {
+      "inputField": "title",
+      "field": "title",
+      "desired": "Assigned by UUID",
+      "verdict": "write"
+    },
+    {
+      "inputField": "assigneeId",
+      "field": "assignee",
+      "desired": "abcdef01-2345-4678-9abc-def012345678",
+      "verdict": "write"
+    },
+    {
+      "inputField": "labelIds",
+      "field": "labels",
+      "desired": [],
+      "verdict": "write"
+    },
+    {
+      "inputField": "teamId",
+      "field": "team",
+      "desired": "0c000000-0000-4000-8000-000000000001",
+      "verdict": "write"
+    }
+  ]
+}
+-- stderr --
+ENG-1 has no --project or --parent. Decide ownership from the candidate Project's full content and the related Initiative content (linear guide issue-authoring), then save the original read and set the project: (if [ -e original.json ] || [ -L original.json ]; then echo 'original.json exists' >&2; exit 1; fi; t=$(mktemp original.json.XXXXXX) || exit; s=0; linear issue view 'ENG-1' --json >| "$t" || { cat "$t" >&2; s=1; }; [ "$s" != 0 ] || ln "$t" original.json || s=1; rm -f "$t"; exit "$s") && linear issue update 'ENG-1' --project <project> --base-file original.json
+-- mutations.json --
+{"issueCreate": 1}
+-- state.json --
+{"Issue": [{"title": "Assigned by UUID", "assignee": "abcdef01-2345-4678-9abc-def012345678"}]}

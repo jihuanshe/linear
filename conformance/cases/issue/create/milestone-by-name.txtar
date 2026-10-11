@@ -1,0 +1,15 @@
+A milestone given by name is resolved within the given project.
+-- seed.json --
+{"Project": [{"id": "1e000000-0000-4000-8000-000000000001", "name": "My Project", "slugId": "a1b2c3d4e5f6", "teams": ["0c000000-0000-4000-8000-000000000001"]}],
+ "ProjectMilestone": [
+  {"id": "1f000000-0000-4000-8000-000000000001", "name": "Phase 1", "project": "1e000000-0000-4000-8000-000000000001"},
+  {"id": "1f000000-0000-4000-8000-000000000002", "name": "Phase 2", "project": "1e000000-0000-4000-8000-000000000001"}]}
+-- run --
+linear issue create --title "Test milestone feature" --team ENG --project "My Project" --milestone "Phase 1" --no-interactive
+-- stdout --
+✓ Created issue ENG-1: Test milestone feature
+https://linear.app/kadoraba/issue/ENG-1/test-milestone-feature
+-- mutations.json --
+{"issueCreate": 1}
+-- state.json --
+{"Issue": [{"title": "Test milestone feature", "project": "1e000000-0000-4000-8000-000000000001", "projectMilestone": "1f000000-0000-4000-8000-000000000001"}]}

@@ -1,0 +1,18 @@
+An assignee UUID that matches no user fails the create without falling back to self.
+-- env --
+LINEAR_ISSUE_CREATE_ASSIGN_SELF=always
+-- run --
+linear issue create --title "Assigned by UUID" --team ENG --assignee abcdef01-2345-4678-9abc-def012345678 --no-interactive --json
+-- stdout.json --
+{
+  "ok": false,
+  "effect": "none",
+  "error": {
+    "code": "NotFoundError",
+    "message": "Failed to create issue: User not found: abcdef01-2345-4678-9abc-def012345678"
+  }
+}
+-- exit --
+1
+-- mutations.json --
+{}

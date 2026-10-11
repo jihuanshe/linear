@@ -1,0 +1,29 @@
+If looking up the assignee fails, the create fails without falling back to self.
+-- seed.json --
+{"User": [{"id": "abcdef01-2345-4678-9abc-def012345678", "name": "Jane Developer", "displayName": "jane"}]}
+-- env --
+LINEAR_ISSUE_CREATE_ASSIGN_SELF=always
+-- faults.json --
+[{"on": "query:users", "action": "status", "status": 200, "body": {"data": null, "errors": [{"message": "User lookup unavailable"}]}}]
+-- run --
+linear issue create --title "Assigned by UUID" --team ENG --assignee abcdef01-2345-4678-9abc-def012345678 --no-interactive --json
+-- stdout.json --
+{
+  "ok": false,
+  "effect": "none",
+  "error": {
+    "code": "Error",
+    "message": "Failed to create issue: User lookup unavailable",
+    "details": {
+      "errors": [
+        {
+          "message": "User lookup unavailable"
+        }
+      ]
+    }
+  }
+}
+-- exit --
+1
+-- mutations.json --
+{}

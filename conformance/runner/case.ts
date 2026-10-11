@@ -21,6 +21,8 @@ export interface Step {
   /** Workdir-relative file that receives stdout instead of the stdout check. */
   redirect?: string
   stdin?: string
+  /** expect/send script: run on a pseudo-terminal instead of pipes. */
+  tty?: string
   env: Record<string, string>
   files: Record<string, string>
   faults?: unknown[]
@@ -209,6 +211,9 @@ export function parseCase(path: string, name: string, text: string): Case {
         break
       case "stdin":
         pending.stdin = section.content
+        break
+      case "tty":
+        pending.tty = section.content
         break
       case "env":
         env = { ...env }

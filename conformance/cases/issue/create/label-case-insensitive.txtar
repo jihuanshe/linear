@@ -1,0 +1,15 @@
+Label names match case-insensitively.
+
+live: true
+-- run --
+linear issue create --title "{{RUN}} case insensitive labels" --label BUG --team {{TEAM}} --no-interactive --json
+-- stdout.json --
+{"ok": true, "effect": "applied", "data": {"success": true, "issue": {"identifier": "{{=ISSUE}}", "labels": {"nodes": [{"id": "{{*}}", "name": "Bug"}], "pageInfo": "{{*}}"}, "...": true}}, "fields": "{{*}}"}
+-- stderr --
+{{*}}
+-- cleanup --
+linear issue delete {{ISSUE}} -y
+-- readback --
+linear issue view {{ISSUE}} --json
+-- stdout.json --
+{"issue": {"identifier": "{{ISSUE}}", "trashed": true, "...": true}, "...": true}

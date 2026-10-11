@@ -1,0 +1,27 @@
+The interactive project prompt offers only projects the team can use.
+-- seed.json --
+{"Project": [
+  {"id": "1e000000-0000-4000-8000-000000000001", "name": "Dashboard", "slugId": "a1b2c3d4e5f6", "teams": ["0c000000-0000-4000-8000-000000000001"]},
+  {"id": "1e000000-0000-4000-8000-000000000002", "name": "Parent project", "slugId": "b1b2c3d4e5f6", "teams": ["0c000000-0000-4000-8000-000000000001"]},
+  {"id": "1e000000-0000-4000-8000-000000000003", "name": "Other team project", "slugId": "c1b2c3d4e5f6", "teams": ["0c000000-0000-4000-8000-000000000002"]}],
+ "Team": [{"id": "0c000000-0000-4000-8000-000000000002", "key": "OPS", "name": "Operations"}]}
+-- env --
+LINEAR_TEAM_KEY=ENG
+LINEAR_ISSUE_CREATE_ASK_PROJECT=true
+-- tty --
+expect What's the title of your issue?
+send Issue with prompted project\r
+expect Description
+send \r
+expect Which project should this issue belong to?
+send \e[B\r
+expect What's next?
+send \r
+-- run --
+linear issue create
+-- stdout --
+{{*}}  Dashboard
+  Parent project{{*}}✓ Created issue ENG-1: Issue with prompted project
+https://linear.app/kadoraba/issue/ENG-1/issue-with-prompted-project
+-- state.json --
+{"Issue": [{"title": "Issue with prompted project", "project": "1e000000-0000-4000-8000-000000000001"}]}

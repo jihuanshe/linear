@@ -1,0 +1,21 @@
+If the team has a state literally named "default", --state default is ambiguous and rejected.
+-- seed.json --
+{"WorkflowState": [{"id": "0d000000-0000-4000-8000-000000000009", "team": "0c000000-0000-4000-8000-000000000001", "name": "default", "type": "unstarted", "position": 9, "color": "#000000"}]}
+-- env --
+LINEAR_ISSUE_CREATE_ASSIGN_SELF=never
+-- run --
+linear issue create --json --title "Ambiguous default" --team ENG --state default
+-- stdout.json --
+{
+  "ok": false,
+  "effect": "none",
+  "error": {
+    "code": "ValidationError",
+    "message": "Failed to create issue: Team ENG has a workflow state named \"default\", which conflicts with --state default",
+    "suggestion": "Pass that state's UUID instead."
+  }
+}
+-- exit --
+1
+-- mutations.json --
+{}

@@ -27,6 +27,12 @@ export function normalizeMarkdown(value: unknown): unknown {
   return typeof value === "string" ? value.replace(/\n+$/, "") : value
 }
 
+/** Observed on Kadoraba: an empty issue description is stored as null. */
+function normalizeDescription(value: unknown): unknown {
+  const text = normalizeMarkdown(value)
+  return text === "" ? null : text
+}
+
 function touch(ctx: Context, record: EntityRecord): void {
   record.updatedAt = ctx.store.now()
 }
@@ -69,7 +75,7 @@ function applyIssueInput(ctx: Context, issue: EntityRecord, input: Input) {
   for (const key of ISSUE_SCALARS) {
     if (key in input) {
       issue[key] = key === "description"
-        ? normalizeMarkdown(input[key])
+        ? normalizeDescription(input[key])
         : input[key]
     }
   }
@@ -316,6 +322,7 @@ export function rootValue(): Record<string, RootField> {
   return {
     viewer: (_, ctx) => ctx.store.viewer(),
     organization: (_, ctx) => ctx.store.singleton("Organization"),
+    userSettings: (_, ctx) => ctx.store.singleton("UserSettings"),
     issueCreate,
     issueUpdate,
     issueDelete,

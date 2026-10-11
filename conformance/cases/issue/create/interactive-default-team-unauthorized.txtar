@@ -1,0 +1,19 @@
+When looking up the configured default team fails (unauthorized), interactive create fails instead of silently asking for another team.
+-- env --
+LINEAR_TEAM_KEY=OLD
+LINEAR_ISSUE_CREATE_ASSIGN_SELF=never
+LINEAR_ISSUE_CREATE_ASK_PROJECT=false
+-- faults.json --
+[{"on": "query", "nth": 1, "action": "status", "status": 401, "body": {"errors": [{"message": "Authentication required, not authenticated", "extensions": {"code": "AUTHENTICATION_ERROR"}}]}}]
+-- tty --
+expect What's the title of your issue?
+send Draft\r
+-- run --
+linear issue create
+-- stdout --
+{{*}}✗ Failed to create issue: Authentication required, not authenticated
+{{*}}
+-- exit --
+1
+-- mutations.json --
+{}

@@ -1,0 +1,10 @@
+An unknown --state fails before writing and lists the team's valid states.
+-- run --
+linear issue create --title "Bad state" --team ENG --state Nope --no-interactive
+-- stderr --
+✗ Failed to create issue: Workflow state not found: 'Nope' for team ENG
+  Valid states: "Backlog" (backlog), "Todo" (unstarted), "In Progress" (started), "Done" (completed), "Canceled" (canceled), "Duplicate" (duplicate), "In Review" (started). Run `linear team states ENG` to list them.
+-- exit --
+1
+-- mutations.json --
+{}

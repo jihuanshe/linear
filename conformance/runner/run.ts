@@ -10,6 +10,7 @@ import { join } from "@std/path"
 import { API_KEY, FakeLinear, type FaultRule } from "../fake-linear/server.ts"
 import { type Seed, Store } from "../fake-linear/store.ts"
 import { type Case, formatTxtar, type Section, type Step } from "./case.ts"
+import { executeTty, ttySupported } from "./tty.ts"
 import {
   lineDiff,
   matchJson,
@@ -240,13 +241,38 @@ export async function runCase(
         unfixable.push(message)
         break
       }
-      const output = await execute(
-        options,
-        argv,
-        childEnv(options, home, fake?.endpoint, step.env, vars),
-        work,
-        step.stdin == null ? undefined : substitute(step.stdin, vars),
-      )
+      const env = childEnv(options, home, fake?.endpoint, step.env, vars)
+      let output: Output
+      if (step.tty != null) {
+        if (!ttySupported()) {
+          return result("skip", [
+            `${label}: no pseudo-terminal on ${Deno.build.os}`,
+          ])
+        }
+        const tty = await executeTty(
+          options.binary,
+          argv,
+          env,
+          work,
+          substitute(step.tty, vars),
+          options.timeoutMs,
+        )
+        if (tty.problem != null) {
+          const message = `${label}: ${tty.problem}\n${tty.stdout.slice(-2000)}`
+          failures.push(message)
+          unfixable.push(message)
+          break
+        }
+        output = tty
+      } else {
+        output = await execute(
+          options,
+          argv,
+          env,
+          work,
+          step.stdin == null ? undefined : substitute(step.stdin, vars),
+        )
+      }
       if (step.redirect != null) {
         await Deno.writeTextFile(
           join(work, substitute(step.redirect, vars)),
@@ -263,7 +289,11 @@ export async function runCase(
         blocking.push(problem)
       }
       if (output.timedOut) {
-        problems.push(`timed out after ${options.timeoutMs}ms`)
+        problems.push(
+          `timed out after ${options.timeoutMs}ms; output so far:\n${
+            (output.stdout + output.stderr).slice(-1500)
+          }`,
+        )
       }
       if (output.code !== step.exit) {
         failed.add("exit")
@@ -277,8 +307,13 @@ export async function runCase(
       ) {
         const checked = checkStream(stream, section, actual, vars)
         if (typeof checked === "string") {
-          failed.add(stream)
-          problems.push(checked)
+          // A terminal transcript changes with keystroke timing; write its
+          // expectation by hand rather than recording one run.
+          if (step.tty != null) block(checked)
+          else {
+            failed.add(stream)
+            problems.push(checked)
+          }
         } else Object.assign(vars, checked)
       }
       if (fake != null) {

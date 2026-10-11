@@ -1,0 +1,40 @@
+When Linear rejects the create with an error, the message is surfaced and the write is reported as not applied.
+-- seed.json --
+{"Project": [
+  {"id": "1e000000-0000-4000-8000-000000000001", "name": "Dashboard", "slugId": "a1b2c3d4e5f6", "teams": ["0c000000-0000-4000-8000-000000000001"]},
+  {"id": "1e000000-0000-4000-8000-000000000002", "name": "Parent project", "slugId": "b1b2c3d4e5f6", "teams": ["0c000000-0000-4000-8000-000000000001"]},
+  {"id": "1e000000-0000-4000-8000-000000000003", "name": "Other team project", "slugId": "c1b2c3d4e5f6", "teams": ["0c000000-0000-4000-8000-000000000002"]}],
+ "Team": [{"id": "0c000000-0000-4000-8000-000000000002", "key": "OPS", "name": "Operations"}], "Issue": [{"id": "1a000000-0000-4000-8000-000000000123", "identifier": "ENG-123", "title": "Parent issue", "project": "1e000000-0000-4000-8000-000000000002"}]}
+-- faults.json --
+[{"on": "mutation:issueCreate", "action": "status", "status": 200, "body": {"data": null, "errors": [{"message": "Parent issue and project are incompatible", "extensions": {"code": "INPUT_ERROR", "type": "invalid input", "userError": true}}]}}]
+-- run --
+linear issue create --title "Child issue" --team ENG --parent ENG-123 --project Dashboard --no-interactive --json
+-- stdout.json --
+{
+  "ok": false,
+  "effect": "unknown",
+  "data": null,
+  "error": {
+    "code": "Error",
+    "message": "Failed to create issue: Parent issue and project are incompatible",
+    "suggestion": "Reconcile the remote outcome before retrying this write.",
+    "details": {
+      "errors": [
+        {
+          "message": "Parent issue and project are incompatible",
+          "extensions": {
+            "code": "INPUT_ERROR",
+            "type": "invalid input",
+            "userError": true
+          }
+        }
+      ]
+    }
+  }
+}
+-- exit --
+1
+-- mutations.json --
+{"issueCreate": 1}
+-- state.json --
+{"Issue": [{"identifier": "ENG-123"}]}

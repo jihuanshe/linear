@@ -1,0 +1,12 @@
+-p means --priority, not --parent; the parent is read once and set.
+-- seed.json --
+{"Issue": [{"id": "1a000000-0000-4000-8000-000000000220", "identifier": "ENG-220", "title": "Parent Issue"}]}
+-- run --
+linear issue create --title "Test priority flag" --team ENG -p 2 --parent ENG-220 --no-interactive
+-- stdout --
+✓ Created issue ENG-221: Test priority flag
+https://linear.app/kadoraba/issue/ENG-221/test-priority-flag
+-- mutations.json --
+{"issueCreate": 1}
+-- state.json --
+{"Issue": [{"identifier": "ENG-220"}, {"title": "Test priority flag", "priority": 2, "parent": "1a000000-0000-4000-8000-000000000220"}]}

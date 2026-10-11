@@ -301,11 +301,17 @@ function compare(op: string, actual: unknown, expected: unknown): boolean {
   throw new Error(`fake: unsupported comparator ${op}`)
 }
 
+/** Filter keys that name a relation differently from the object field. */
+const FILTER_ALIASES: Record<string, string> = {
+  "Project.accessibleTeams": "teams",
+}
+
 function fieldValue(
   ctx: Context,
   record: EntityRecord,
-  name: string,
+  filterKey: string,
 ): unknown {
+  const name = FILTER_ALIASES[`${record.__typename}.${filterKey}`] ?? filterKey
   const type = ctx.schema.getType(record.__typename)
   if (!isObjectType(type)) return record[name]
   const field = type.getFields()[name]

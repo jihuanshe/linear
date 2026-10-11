@@ -1,0 +1,28 @@
+--state triage on a team without triage fails with TriageDisabledError naming the default state.
+
+live: true
+-- env --
+LINEAR_ISSUE_CREATE_ASSIGN_SELF=never
+-- run --
+linear issue create --json --title "{{RUN}} triage" --team {{TEAM}} --state triage
+-- stdout.json --
+{
+  "ok": false,
+  "effect": "none",
+  "error": {
+    "code": "TriageDisabledError",
+    "message": "Failed to create issue: Team ENG has triage disabled",
+    "suggestion": "Omit --state (or pass --state default) to use the team default \"Backlog\" (backlog); run `linear team states ENG` for other states.",
+    "details": {
+      "team": "ENG",
+      "triageEnabled": false,
+      "defaultState": {
+        "id": "{{*}}",
+        "name": "Backlog",
+        "type": "backlog"
+      }
+    }
+  }
+}
+-- exit --
+1

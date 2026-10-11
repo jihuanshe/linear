@@ -1,0 +1,21 @@
+A title pasted into the interactive prompt keeps Chinese and emoji intact, and skipping the description leaves it empty.
+-- env --
+LINEAR_TEAM_KEY=ENG
+LINEAR_ISSUE_CREATE_ASSIGN_SELF=never
+LINEAR_ISSUE_CREATE_ASK_PROJECT=false
+-- tty --
+expect What's the title of your issue?
+send Release-17 发布总控🙂与回滚演练\r
+expect Description
+send \r
+expect What's next?
+send \r
+-- run --
+linear issue create
+-- stdout --
+{{*}}✓ Created issue ENG-1: Release-17 发布总控🙂与回滚演练
+{{*}}
+-- mutations.json --
+{"issueCreate": 1}
+-- state.json --
+{"Issue": [{"title": "Release-17 发布总控🙂与回滚演练", "description": null}]}

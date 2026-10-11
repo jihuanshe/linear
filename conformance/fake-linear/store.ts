@@ -18,14 +18,21 @@ export type Seed = Record<string, Record<string, unknown>[]>
 import { expandRepeats, withDefaults } from "./defaults.ts"
 
 const EPOCH = Date.parse("2026-01-01T00:00:00.000Z")
-/** Seeded records predate every write a case makes. */
-const SEED_EPOCH = Date.parse("2025-06-01T00:00:00.000Z")
+/**
+ * Seeded records predate every write a case makes. The world and each case
+ * seed count from their own epoch, so adding world records does not shift the
+ * timestamps a case's records get.
+ */
+const WORLD_SEED_EPOCH = Date.parse("2025-01-01T00:00:00.000Z")
+const CASE_SEED_EPOCH = Date.parse("2025-06-01T00:00:00.000Z")
 
 export class Store {
   readonly #types = new Map<string, Map<string, EntityRecord>>()
   #ids = 0
   #ticks = 0
   #seedTicks = 0
+  #seedEpoch = WORLD_SEED_EPOCH
+  #seeds = 0
   #syncId = 1000
 
   constructor(...seeds: Seed[]) {
@@ -33,6 +40,8 @@ export class Store {
   }
 
   seed(seed: Seed): void {
+    this.#seedEpoch = this.#seeds++ === 0 ? WORLD_SEED_EPOCH : CASE_SEED_EPOCH
+    this.#seedTicks = 0
     for (const [typename, records] of Object.entries(seed)) {
       for (const record of expandRepeats(records)) {
         const id = typeof record.id === "string" ? record.id : this.newId()
@@ -51,7 +60,7 @@ export class Store {
 
   seedTimestamp(): string {
     this.#seedTicks++
-    return new Date(SEED_EPOCH + this.#seedTicks * 1000).toISOString()
+    return new Date(this.#seedEpoch + this.#seedTicks * 1000).toISOString()
   }
 
   newId(): string {

@@ -1,0 +1,14 @@
+If reading the parent fails, interactive create stops before its first prompt.
+-- env --
+LINEAR_TEAM_KEY=ENG
+-- faults.json --
+[{"on": "query:issue", "action": "status", "status": 200, "body": {"data": null, "errors": [{"message": "Parent project read failed"}]}}]
+-- tty --
+-- run --
+linear issue create --parent ENG-123
+-- stdout --
+✗ Failed to create issue: Parent project read failed
+-- exit --
+1
+-- mutations.json --
+{}
