@@ -19,7 +19,7 @@ const args = parseArgs(Deno.args, {
 })
 if (args.binary == null) {
   console.error(
-    "usage: main.ts --binary <path> [--filter <text>] [--jobs <n>] [--update] [--live <workspace-url-key>]",
+    "usage: main.ts --binary <path> [--filter <text>] [--jobs <n>] [--update] [--live kadoraba]",
   )
   Deno.exit(2)
 }
@@ -32,6 +32,14 @@ for await (const entry of expandGlob("cases/**/*.txtar", { root })) {
   cases.push(parseCase(entry.path, name, await Deno.readTextFile(entry.path)))
 }
 cases.sort((a, b) => a.name.localeCompare(b.name))
+if (cases.length === 0) {
+  console.error(
+    args.filter == null
+      ? "no conformance cases found"
+      : `--filter ${JSON.stringify(args.filter)} selects no cases`,
+  )
+  Deno.exit(2)
+}
 
 const options: RunOptions = {
   binary,
@@ -42,6 +50,11 @@ const options: RunOptions = {
 }
 
 if (args.live != null) {
+  // Live runs create and delete issues, so they only ever target Kadoraba.
+  if (args.live !== "kadoraba") {
+    console.error("--live only accepts kadoraba")
+    Deno.exit(2)
+  }
   const apiKey = Deno.env.get("LINEAR_KADORABA_API_KEY")
   if (apiKey == null || apiKey === "") {
     console.error("--live needs LINEAR_KADORABA_API_KEY")
@@ -59,14 +72,16 @@ if (args.live != null) {
     clearEnv: true,
   }).output()
   await Deno.remove(home, { recursive: true })
-  const urlKey = whoami.code === 0
-    ? JSON.parse(new TextDecoder().decode(whoami.stdout)).organization?.urlKey
+  const organization = whoami.code === 0
+    ? JSON.parse(new TextDecoder().decode(whoami.stdout)).organization
     : undefined
-  if (urlKey !== args.live) {
+  if (
+    organization?.name !== "Kadoraba" && organization?.urlKey !== "kadoraba"
+  ) {
     console.error(
       `refusing live run: executable reports workspace ${
-        urlKey ?? "(none)"
-      }, expected ${args.live}`,
+        organization?.urlKey ?? "(none)"
+      }, expected kadoraba`,
     )
     Deno.exit(2)
   }

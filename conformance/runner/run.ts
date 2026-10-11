@@ -115,24 +115,32 @@ function checkStream(
   return bindings
 }
 
+/** Compare the fake's records; return bindings, or an error message. */
 function checkState(
   pattern: string,
   snapshot: Seed,
   vars: Vars,
-): string | undefined {
+): Vars | string {
   const expected = JSON.parse(substitute(pattern, vars)) as Record<
     string,
     unknown[]
   >
+  const bindings: Vars = {}
   for (const [typename, records] of Object.entries(expected)) {
     const open = records.map((record) => ({
       "...": true,
       ...(record as object),
     }))
-    const result = matchJson(open, snapshot[typename] ?? [], vars, typename)
+    const result = matchJson(
+      open,
+      snapshot[typename] ?? [],
+      { ...vars, ...bindings },
+      typename,
+    )
     if ("path" in result) return `state ${result.path}: ${result.message}`
+    Object.assign(bindings, result.bindings)
   }
-  return undefined
+  return bindings
 }
 
 function childEnv(
@@ -206,12 +214,15 @@ export async function runCase(
 
   const vars: Vars = { ...options.vars, WORK: work, HOME: home }
   const failures: string[] = []
+  // The subset of failures that --update cannot rewrite.
+  const unfixable: string[] = []
   const updates = new Map<Step, { output: Output; failed: Set<string> }>()
+  let label = ""
   try {
     for (const [index, step] of testCase.steps.entries()) {
       // Update mode keeps going to record every step's output.
       if (failures.length > 0 && !options.update) break
-      const label = `step ${index + 1} (${step.command})`
+      label = `step ${index + 1} (${step.command})`
       for (const [path, content] of Object.entries(step.files)) {
         const target = join(work, substitute(path, vars))
         await Deno.mkdir(join(target, ".."), { recursive: true })
@@ -219,11 +230,14 @@ export async function runCase(
       }
       if (fake != null) fake.faults = (step.faults ?? []) as FaultRule[]
       const before = fake?.requests.length ?? 0
+      const attemptsBefore = fake?.attempts ?? 0
       let argv: string[]
       try {
         argv = step.argv.map((arg) => substitute(arg, vars))
       } catch (error) {
-        failures.push(`${label}: ${(error as Error).message}`)
+        const message = `${label}: ${(error as Error).message}`
+        failures.push(message)
+        unfixable.push(message)
         break
       }
       const output = await execute(
@@ -243,6 +257,11 @@ export async function runCase(
       const failed = new Set<string>()
       updates.set(step, { output, failed })
       const problems: string[] = []
+      const blocking: string[] = []
+      const block = (problem: string) => {
+        problems.push(problem)
+        blocking.push(problem)
+      }
       if (output.timedOut) {
         problems.push(`timed out after ${options.timeoutMs}ms`)
       }
@@ -263,9 +282,9 @@ export async function runCase(
         } else Object.assign(vars, checked)
       }
       if (fake != null) {
-        if (step.noRequests && fake.requests.length > before) {
-          problems.push(
-            `expected no requests, got ${fake.requests.length - before}`,
+        if (step.noRequests && fake.attempts > attemptsBefore) {
+          block(
+            `expected no requests, got ${fake.attempts - attemptsBefore}`,
           )
         }
         if (step.mutations != null) {
@@ -276,12 +295,13 @@ export async function runCase(
             "mutations",
           )
           if ("path" in result) {
-            problems.push(`${result.path}: ${result.message}`)
+            block(`${result.path}: ${result.message}`)
           }
         }
         if (step.state != null) {
-          const problem = checkState(step.state, fake.snapshot(), vars)
-          if (problem != null) problems.push(problem)
+          const checked = checkState(step.state, fake.snapshot(), vars)
+          if (typeof checked === "string") block(checked)
+          else Object.assign(vars, checked)
         }
       }
       for (const section of step.filesAfter) {
@@ -290,7 +310,7 @@ export async function runCase(
         try {
           content = await Deno.readTextFile(path)
         } catch {
-          problems.push(`file ${section.arg} does not exist`)
+          block(`file ${section.arg} does not exist`)
           continue
         }
         const checked = checkStream(
@@ -299,7 +319,7 @@ export async function runCase(
           content,
           vars,
         )
-        if (typeof checked === "string") problems.push(checked)
+        if (typeof checked === "string") block(checked)
         else Object.assign(vars, checked)
       }
       if (fake != null && fake.gaps.length > 0) {
@@ -311,14 +331,32 @@ export async function runCase(
       if (problems.length > 0) {
         failures.push(`${label}:\n${problems.join("\n")}`)
       }
+      const kept = output.timedOut ? problems : blocking
+      if (kept.length > 0) {
+        unfixable.push(`${label}:\n${kept.join("\n")}`)
+      }
     }
+  } catch (error) {
+    // E.g. an expectation uses a variable an earlier mismatch left unbound.
+    const message = `${label}: ${(error as Error).message}`
+    failures.push(message)
+    unfixable.push(message)
   } finally {
     for (const argv of testCase.cleanup) {
       let words: string[]
       try {
         words = argv.map((arg) => substitute(arg, vars))
-      } catch {
-        continue // the object this cleanup removes was never created
+      } catch (error) {
+        // A step that should have bound the variable failed. Offline, the fake
+        // goes away with the case; live, what the case created may remain.
+        if (options.live != null) {
+          const message = `cleanup skipped: linear ${argv.join(" ")}: ${
+            (error as Error).message
+          }\nobjects this case created may remain in Kadoraba; find them by the run prefix ${vars.RUN}`
+          failures.push(message)
+          unfixable.push(message)
+        }
+        continue
       }
       const output = await execute(
         options,
@@ -328,18 +366,25 @@ export async function runCase(
         undefined,
       )
       if (output.code !== 0) {
-        failures.push(
-          `cleanup failed: linear ${
-            words.join(" ")
-          }\n${output.stderr}${output.stdout}`,
-        )
+        const message = `cleanup failed: linear ${
+          words.join(" ")
+        }\n${output.stderr}${output.stdout}`
+        failures.push(message)
+        unfixable.push(message)
       }
     }
     await fake?.stop()
     await Deno.remove(root, { recursive: true }).catch(() => {})
   }
 
-  if (failures.length > 0 && options.update && options.live == null) {
+  // A killed run's output is not an expectation to record.
+  for (const { output, failed } of updates.values()) {
+    if (output.timedOut) failed.clear()
+  }
+  const rewritten = [...updates.values()].some(({ failed }) => failed.size > 0)
+  if (
+    failures.length > 0 && options.update && options.live == null && rewritten
+  ) {
     const names = testCase.live
       ? Object.keys(vars).filter((name) =>
         name === "RUN" ||
@@ -350,7 +395,9 @@ export async function runCase(
       testCase.path,
       rewrite(testCase, updates, vars, names),
     )
-    return result("pass", ["updated expectations"], true)
+    return unfixable.length > 0
+      ? result("fail", ["updated expectations", ...unfixable], true)
+      : result("pass", ["updated expectations"], true)
   }
   return result(failures.length > 0 ? "fail" : "pass", failures)
 }

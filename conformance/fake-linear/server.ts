@@ -9,12 +9,20 @@
 import {
   buildSchema,
   execute,
+  type FragmentDefinitionNode,
+  getDirectiveValues,
+  getVariableValues,
   type GraphQLError,
+  GraphQLIncludeDirective,
   type GraphQLSchema,
+  GraphQLSkipDirective,
   Kind,
   type OperationDefinitionNode,
   parse,
+  type SelectionNode,
+  type SelectionSetNode,
   validate,
+  type VariableValues,
 } from "graphql"
 import { type Context, fieldResolver, typeResolver } from "./resolve.ts"
 import { rootValue } from "./root.ts"
@@ -64,6 +72,7 @@ export class FakeLinear {
   readonly requests: LoggedRequest[] = []
   readonly gaps: string[] = []
   faults: FaultRule[] = []
+  #attempts = 0
   #seen = new Map<FaultRule, number>()
   #server?: Deno.HttpServer
   #stalls = new Set<ReadableStreamDefaultController<Uint8Array>>()
@@ -97,6 +106,11 @@ export class FakeLinear {
     await this.#server?.shutdown()
   }
 
+  /** Every HTTP request received, including ones rejected before GraphQL. */
+  get attempts(): number {
+    return this.#attempts
+  }
+
   mutationCounts(since = 0): Record<string, number> {
     const counts: Record<string, number> = {}
     for (const request of this.requests.slice(since)) {
@@ -127,6 +141,7 @@ export class FakeLinear {
   }
 
   async #handle(request: Request): Promise<Response> {
+    this.#attempts++
     const url = new URL(request.url)
     if (request.method !== "POST" || url.pathname !== "/graphql") {
       return new Response("Not Found", { status: 404 })
@@ -196,10 +211,21 @@ export class FakeLinear {
         definition.name?.value === body.operationName)
     )
     const kind = operation?.operation === "mutation" ? "mutation" : "query"
-    const fields =
-      operation?.selectionSet.selections.flatMap((selection) =>
-        selection.kind === Kind.FIELD ? [selection.name.value] : []
-      ) ?? []
+    const fragments = new Map(
+      document.definitions
+        .filter((definition): definition is FragmentDefinitionNode =>
+          definition.kind === Kind.FRAGMENT_DEFINITION
+        )
+        .map((fragment) => [fragment.name.value, fragment]),
+    )
+    const coerced = operation == null ? undefined : getVariableValues(
+      schema,
+      operation.variableDefinitions ?? [],
+      variables,
+    ).variableValues
+    const fields = operation == null
+      ? []
+      : [...rootFields(operation.selectionSet, fragments, coerced).values()]
 
     const fault = this.#fault(kind, fields)
     if (fault?.action === "status") {
@@ -293,6 +319,50 @@ export class FakeLinear {
     })
     return response
   }
+}
+
+/** Whether `@skip` and `@include` keep a selection, as execution decides. */
+function included(
+  selection: SelectionNode,
+  variables: VariableValues | undefined,
+): boolean {
+  // Invalid variables fail the whole operation in execute().
+  if (variables == null) return true
+  const skip = getDirectiveValues(GraphQLSkipDirective, selection, variables)
+  const include = getDirectiveValues(
+    GraphQLIncludeDirective,
+    selection,
+    variables,
+  )
+  return skip?.if !== true && include?.if !== false
+}
+
+/**
+ * Root fields that execute, by response key, through inline fragments and
+ * fragment spreads. Selections with the same response key execute once.
+ */
+function rootFields(
+  selectionSet: SelectionSetNode,
+  fragments: Map<string, FragmentDefinitionNode>,
+  variables: VariableValues | undefined,
+  fields = new Map<string, string>(),
+): Map<string, string> {
+  for (const selection of selectionSet.selections) {
+    if (!included(selection, variables)) continue
+    if (selection.kind === Kind.FIELD) {
+      const key = selection.alias?.value ?? selection.name.value
+      fields.set(key, selection.name.value)
+    } else if (selection.kind === Kind.INLINE_FRAGMENT) {
+      rootFields(selection.selectionSet, fragments, variables, fields)
+    } else {
+      // Validation has already rejected unknown and cyclic fragments.
+      const fragment = fragments.get(selection.name.value)
+      if (fragment != null) {
+        rootFields(fragment.selectionSet, fragments, variables, fields)
+      }
+    }
+  }
+  return fields
 }
 
 /** Headers arrive, then the connection fails before a complete body. */

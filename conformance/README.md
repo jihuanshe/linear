@@ -7,7 +7,7 @@ deno task conformance:build
 deno task conformance --binary "$PWD/outputs/conformance/linear"
 ```
 
-`--filter <text>` selects cases by path, `--jobs <n>` sets parallelism (default: CPU count), and `--update` rewrites only the stdout, stderr and exit expectations that failed. Review every rewritten expectation before committing it: `--update` records what the executable did, not what it should do.
+`--filter <text>` selects cases by path and fails when it selects none, `--jobs <n>` sets parallelism (default: CPU count), and `--update` rewrites only the stdout, stderr and exit expectations that failed; any other failure still fails the case. Review every rewritten expectation before committing it: `--update` records what the executable did, not what it should do.
 
 ## Fake Linear
 
@@ -28,7 +28,7 @@ A fake is only useful while it behaves like Linear. Cases marked `live: true` al
 deno task conformance --binary "$PWD/outputs/conformance/linear" --live kadoraba
 ```
 
-Live mode needs `LINEAR_KADORABA_API_KEY` and explicit authorization for the experiment (see the repository's AGENTS.md). Before running any case, it runs `auth whoami --json` with the target executable and refuses to continue unless the workspace `urlKey` matches. Live cases may only use objects they create themselves, and their `cleanup` sections delete them. A live case that passes offline but fails live means the fake has drifted: fix the fake first. [world.json](world.json) mirrors Kadoraba's ENG team so the same expectations hold on both sides.
+Live mode needs `LINEAR_KADORABA_API_KEY` and explicit authorization for the experiment (see the repository's AGENTS.md). Before running any case, it runs `auth whoami --json` with the target executable and refuses to continue unless the organization `name` is `Kadoraba` or its `urlKey` is `kadoraba`. Live cases may only use objects they create themselves, and their `cleanup` sections delete them. Live titles start with `{{RUN}}`; when a cleanup cannot run because the step that binds its object failed, the case fails and reports that prefix so leftovers can be found. A live case that passes offline but fails live means the fake has drifted: fix the fake first. [world.json](world.json) mirrors Kadoraba's ENG team so the same expectations hold on both sides.
 
 ## Case format
 
