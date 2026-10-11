@@ -8,7 +8,7 @@
  */
 import { join } from "@std/path"
 import { API_KEY, FakeLinear, type FaultRule } from "../fake-linear/server.ts"
-import { type Seed, Store } from "../fake-linear/store.ts"
+import { type Seed, Store, WORLD_NOW } from "../fake-linear/store.ts"
 import { type Case, formatTxtar, type Section, type Step } from "./case.ts"
 import { executeTty, ttySupported } from "./tty.ts"
 import {
@@ -163,7 +163,11 @@ function childEnv(
     TERM: "dumb",
     LINEAR_API_KEY: options.live?.apiKey ?? API_KEY,
   }
-  if (endpoint != null) env.LINEAR_GRAPHQL_ENDPOINT = endpoint
+  if (endpoint != null) {
+    env.LINEAR_GRAPHQL_ENDPOINT = endpoint
+    // Relative dates count from the fake world's current time.
+    env.LINEAR_NOW = WORLD_NOW
+  }
   for (const [key, value] of Object.entries(extra)) {
     env[key] = substitute(value, vars)
   }
@@ -307,10 +311,11 @@ export async function runCase(
       ) {
         const checked = checkStream(stream, section, actual, vars)
         if (typeof checked === "string") {
-          // A terminal transcript changes with keystroke timing; write its
-          // expectation by hand rather than recording one run.
-          if (step.tty != null) block(checked)
-          else {
+          // A terminal transcript changes with keystroke timing, and a pattern
+          // that binds variables would lose them; fix those by hand.
+          if (step.tty != null || section?.content.includes("{{=")) {
+            block(checked)
+          } else {
             failed.add(stream)
             problems.push(checked)
           }

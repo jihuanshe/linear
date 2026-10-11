@@ -17,7 +17,9 @@ export type Seed = Record<string, Record<string, unknown>[]>
 
 import { expandRepeats, withDefaults } from "./defaults.ts"
 
-const EPOCH = Date.parse("2026-01-01T00:00:00.000Z")
+/** The world's current time; writes count up from it. */
+export const WORLD_NOW = "2026-01-01T00:00:00.000Z"
+const EPOCH = Date.parse(WORLD_NOW)
 /**
  * Seeded records predate every write a case makes. The world and each case
  * seed count from their own epoch, so adding world records does not shift the

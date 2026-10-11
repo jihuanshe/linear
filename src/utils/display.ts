@@ -1,6 +1,7 @@
 import { unicodeWidth } from "@std/cli"
 import { green } from "@std/fmt/colors"
 import { muted } from "./styling.ts"
+import { currentTime } from "./clock.ts"
 
 export function padDisplay(s: string, width: number): string {
   const w = unicodeWidth(s)
@@ -8,7 +9,7 @@ export function padDisplay(s: string, width: number): string {
 }
 
 export function getTimeAgo(date: Date): string {
-  const now = new Date()
+  const now = currentTime()
   const diffMs = now.getTime() - date.getTime()
   const diffMins = Math.floor(diffMs / 60000)
   const diffHours = Math.floor(diffMins / 60)
@@ -137,7 +138,7 @@ export function colorCycleShort({ text, kind }: CycleShort): string {
 }
 
 export function formatRelativeTime(dateString: string): string {
-  const now = new Date()
+  const now = currentTime()
   const commentDate = new Date(dateString)
   const diffMs = now.getTime() - commentDate.getTime()
   const diffMinutes = Math.floor(diffMs / (1000 * 60))
