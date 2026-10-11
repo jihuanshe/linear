@@ -5,6 +5,7 @@
  */
 import type { GraphQLResolveInfo } from "graphql"
 import { defaultState, nextIssueNumber } from "./defaults.ts"
+import { normalizeLinearMarkdown } from "./markdown.ts"
 import { LinearError } from "./errors.ts"
 import { connectionOf, type Context, lookup, searchIssues } from "./resolve.ts"
 import type { EntityRecord } from "./store.ts"
@@ -38,9 +39,9 @@ function refs(ctx: Context, typename: string, ids: unknown): string[] {
   return (ids as unknown[]).map((id) => lookup(ctx, typename, String(id)).id)
 }
 
-/** Linear stores Markdown without trailing newlines (observed on Kadoraba). */
+/** Linear rewrites issue descriptions (not comment bodies); see markdown.ts. */
 export function normalizeMarkdown(value: unknown): unknown {
-  return typeof value === "string" ? value.replace(/\n+$/, "") : value
+  return typeof value === "string" ? normalizeLinearMarkdown(value) : value
 }
 
 /**
@@ -302,7 +303,8 @@ const commentCreate: RootField = ({ input }, ctx) => {
   const comment = ctx.store.insert({
     id: typeof data.id === "string" ? data.id : ctx.store.newId(),
     __typename: "Comment",
-    body: normalizeMarkdown(data.body ?? ""),
+    // Observed on Kadoraba: comment bodies are stored verbatim.
+    body: data.body ?? "",
     issue: issue?.id ?? parent?.issue ?? null,
     documentContentId: data.documentContentId ?? parent?.documentContentId ??
       null,
@@ -326,7 +328,7 @@ const commentUpdate: RootField = ({ id, input }, ctx) => {
   rejectUnknown(data, ["body", "quotedText"], "commentUpdate")
   const comment = lookup(ctx, "Comment", String(id))
   if ("body" in data) {
-    comment.body = normalizeMarkdown(data.body)
+    comment.body = data.body
     comment.editedAt = ctx.store.now()
   }
   if ("quotedText" in data) comment.quotedText = data.quotedText

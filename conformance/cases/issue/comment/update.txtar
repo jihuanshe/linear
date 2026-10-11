@@ -18,7 +18,7 @@ linear issue comment update 1c000000-0000-4000-8000-000000000001 --body "New bod
 -- run --
 linear issue comment update 1c000000-0000-4000-8000-000000000001 --body-file body.md --unprotected --json > second.json
 -- state.json --
-{"Comment": [{"body": "From a file"}]}
+{"Comment": [{"body": "From a file\n"}]}
 -- env --
 EDITOR={{WORK}}/editor
 -- run --

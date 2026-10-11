@@ -7,6 +7,7 @@
  * counts) are skipped.
  */
 import { join } from "@std/path"
+import { decodeBase64 } from "@std/encoding/base64"
 import { API_KEY, FakeLinear, type FaultRule } from "../fake-linear/server.ts"
 import { type Seed, Store, WORLD_NOW } from "../fake-linear/store.ts"
 import { type Case, formatTxtar, type Section, type Step } from "./case.ts"
@@ -50,7 +51,7 @@ async function execute(
   argv: string[],
   env: Record<string, string>,
   cwd: string,
-  stdin: string | undefined,
+  stdin: string | Uint8Array | undefined,
 ): Promise<Output> {
   const signal = AbortSignal.timeout(options.timeoutMs)
   const child = new Deno.Command(options.binary, {
@@ -65,7 +66,11 @@ async function execute(
   }).spawn()
   const writer = child.stdin.getWriter()
   try {
-    if (stdin != null) await writer.write(new TextEncoder().encode(stdin))
+    if (stdin != null) {
+      await writer.write(
+        typeof stdin === "string" ? new TextEncoder().encode(stdin) : stdin,
+      )
+    }
   } catch { /* the executable may exit without reading stdin */ }
   await writer.close().catch(() => {})
   const output = await child.output()
@@ -282,6 +287,11 @@ export async function runCase(
         await Deno.mkdir(join(target, ".."), { recursive: true })
         await Deno.writeTextFile(target, substitute(content, vars))
       }
+      for (const [path, base64] of Object.entries(step.binaryFiles)) {
+        const target = join(work, substitute(path, vars))
+        await Deno.mkdir(join(target, ".."), { recursive: true })
+        await Deno.writeFile(target, decodeBase64(base64))
+      }
       for (const path of step.executables) {
         await Deno.chmod(join(work, substitute(path, vars)), 0o755)
       }
@@ -337,7 +347,11 @@ export async function runCase(
           argv,
           env,
           work,
-          step.stdin == null ? undefined : substitute(step.stdin, vars),
+          step.stdinBytes != null
+            ? decodeBase64(step.stdinBytes)
+            : step.stdin == null
+            ? undefined
+            : substitute(step.stdin, vars),
         )
       }
       if (step.redirect != null) {

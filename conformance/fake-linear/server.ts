@@ -57,6 +57,8 @@ export interface FaultRule {
   on: string
   /** Also require the document to select a field with this name anywhere. */
   selects?: string
+  /** Count only requests after the step's first mutation. */
+  after?: "mutation"
   nth?: number
   times?: number
   /**
@@ -64,8 +66,10 @@ export interface FaultRule {
    * `drop-before` closes the connection without executing.
    * `drop-after` executes, then closes the connection without a response.
    * `stall` executes, sends headers and part of the body, then stalls.
+   * `stale` answers from the data as it was before the latest mutation, like
+   * a read replica that has not caught up.
    */
-  action: "status" | "drop-before" | "drop-after" | "stall"
+  action: "status" | "drop-before" | "drop-after" | "stall" | "stale"
   status?: number
   body?: unknown
   headers?: Record<string, string>
@@ -74,9 +78,23 @@ export interface FaultRule {
 export class FakeLinear {
   readonly requests: LoggedRequest[] = []
   readonly gaps: string[] = []
-  faults: FaultRule[] = []
+  #faults: FaultRule[] = []
+  #mutatedSinceFaults = false
+
+  /** The current step's fault rules; counting starts over with each set. */
+  get faults(): FaultRule[] {
+    return this.#faults
+  }
+
+  set faults(rules: FaultRule[]) {
+    this.#faults = rules
+    this.#seen.clear()
+    this.#mutatedSinceFaults = false
+  }
   #attempts = 0
   #seen = new Map<FaultRule, number>()
+  /** The data just before the latest mutation, for `stale` reads. */
+  #beforeMutation?: Store
   #server?: Deno.HttpServer
   #stalls = new Set<ReadableStreamDefaultController<Uint8Array>>()
 
@@ -134,12 +152,13 @@ export class FakeLinear {
     fields: string[],
     selected: Set<string>,
   ): FaultRule | undefined {
-    for (const rule of this.faults) {
+    for (const rule of this.#faults) {
       const [kind, field] = rule.on.split(":")
       if (kind !== operation || (field != null && !fields.includes(field))) {
         continue
       }
       if (rule.selects != null && !selected.has(rule.selects)) continue
+      if (rule.after === "mutation" && !this.#mutatedSinceFaults) continue
       const seen = (this.#seen.get(rule) ?? 0) + 1
       this.#seen.set(rule, seen)
       const nth = rule.nth ?? 1
@@ -257,8 +276,15 @@ export class FakeLinear {
       return this.#log(kind, fields, variables, dropped())
     }
 
+    if (kind === "mutation") {
+      this.#beforeMutation = this.store.clone()
+      this.#mutatedSinceFaults = true
+    }
+    const store = fault?.action === "stale" && this.#beforeMutation != null
+      ? this.#beforeMutation
+      : this.store
     const ctx: Context = {
-      store: this.store,
+      store,
       schema,
       origin: new URL(this.endpoint).origin,
     }

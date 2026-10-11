@@ -128,6 +128,18 @@ export class Store {
     return viewer
   }
 
+  /** An independent copy, for answering reads from an earlier moment. */
+  clone(): Store {
+    const copy = new Store()
+    for (const [typename, table] of this.#types) {
+      for (const record of table.values()) copy.insert(structuredClone(record))
+    }
+    copy.#ids = this.#ids
+    copy.#ticks = this.#ticks
+    copy.#syncId = this.#syncId
+    return copy
+  }
+
   snapshot(): Seed {
     const result: Seed = {}
     for (const [typename, table] of this.#types) {

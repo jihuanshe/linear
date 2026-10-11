@@ -1,0 +1,200 @@
+If the read-back never shows the write, or fails, the update reports the applied receipt with an error and never repeats the mutation.
+-- seed.json --
+{"Issue": [{"id": "1a000000-0000-4000-8000-000000000123", "identifier": "ENG-123", "title": "Verified", "description": "Before"}]}
+-- faults.json --
+[{"on": "query:issue", "after": "mutation", "action": "stale", "times": 99}]
+-- run --
+linear issue update ENG-123 --unprotected --description "Desired" --json
+-- stdout.json --
+{
+  "ok": false,
+  "effect": "applied",
+  "data": {
+    "success": true,
+    "issue": {
+      "id": "1a000000-0000-4000-8000-000000000123",
+      "identifier": "ENG-123",
+      "url": "https://linear.app/kadoraba/issue/ENG-123/verified",
+      "title": "Verified",
+      "priority": 0,
+      "labels": {
+        "nodes": [],
+        "pageInfo": {
+          "hasNextPage": false,
+          "endCursor": null
+        }
+      }
+    }
+  },
+  "error": {
+    "code": "WriteError",
+    "message": "Failed to update issue: Issue mutation succeeded but read-back did not verify",
+    "suggestion": "Read the issue before continuing; do not repeat the mutation.",
+    "details": {
+      "verification": {
+        "scope": "issue-fields",
+        "status": "different",
+        "fields": [
+          "description"
+        ]
+      },
+      "readBack": {
+        "organization": {
+          "id": "0a000000-0000-4000-8000-000000000001",
+          "urlKey": "kadoraba"
+        },
+        "issue": {
+          "id": "1a000000-0000-4000-8000-000000000123",
+          "identifier": "ENG-123",
+          "archivedAt": null,
+          "trashed": null,
+          "title": "Verified",
+          "description": "Before",
+          "url": "https://linear.app/kadoraba/issue/ENG-123/verified",
+          "branchName": "alex/eng-123-verified",
+          "priority": 0,
+          "estimate": null,
+          "dueDate": null,
+          "state": {
+            "id": "0d000000-0000-4000-8000-000000000001",
+            "name": "Backlog",
+            "type": "backlog",
+            "color": "#bec2c8"
+          },
+          "assignee": null,
+          "project": null,
+          "projectMilestone": null,
+          "cycle": null,
+          "team": {
+            "id": "0c000000-0000-4000-8000-000000000001",
+            "key": "ENG",
+            "activeCycle": null
+          },
+          "parent": null,
+          "labels": {
+            "nodes": [],
+            "pageInfo": {
+              "hasNextPage": false,
+              "endCursor": null
+            }
+          }
+        }
+      },
+      "fields": [
+        {
+          "field": "description",
+          "inputField": "description",
+          "desired": "Desired",
+          "remote": "Before",
+          "verdict": "write"
+        }
+      ]
+    }
+  }
+}
+-- exit --
+1
+-- mutations.json --
+{"issueUpdate": 1}
+-- faults.json --
+[{"on": "query:issue", "after": "mutation", "action": "status", "status": 200, "times": 99, "body": {"data": null, "errors": [{"message": "Read permission lost"}]}}]
+-- run --
+linear issue update ENG-123 --unprotected --description "Desired again" --json
+-- stdout.json --
+{
+  "ok": false,
+  "effect": "applied",
+  "data": {
+    "success": true,
+    "issue": {
+      "id": "1a000000-0000-4000-8000-000000000123",
+      "identifier": "ENG-123",
+      "url": "https://linear.app/kadoraba/issue/ENG-123/verified",
+      "title": "Verified",
+      "priority": 0,
+      "labels": {
+        "nodes": [],
+        "pageInfo": {
+          "hasNextPage": false,
+          "endCursor": null
+        }
+      }
+    }
+  },
+  "error": {
+    "code": "WriteError",
+    "message": "Failed to update issue: Issue mutation succeeded but read-back did not verify",
+    "suggestion": "Read the issue before continuing; do not repeat the mutation.",
+    "details": {
+      "verification": {
+        "scope": "issue-fields",
+        "status": "unavailable",
+        "detail": "Read permission lost"
+      },
+      "fields": [
+        {
+          "field": "description",
+          "inputField": "description",
+          "desired": "Desired again",
+          "remote": "Desired",
+          "verdict": "write"
+        }
+      ]
+    }
+  }
+}
+-- exit --
+1
+-- mutations.json --
+{"issueUpdate": 1}
+-- faults.json --
+[{"on": "query:issue", "after": "mutation", "action": "status", "status": 401, "times": 99, "body": {"errors": [{"message": "Authentication required, not authenticated", "extensions": {"code": "AUTHENTICATION_ERROR"}}]}}]
+-- run --
+linear issue update ENG-123 --unprotected --description "Desired thrice" --json
+-- stdout.json --
+{
+  "ok": false,
+  "effect": "applied",
+  "data": {
+    "success": true,
+    "issue": {
+      "id": "1a000000-0000-4000-8000-000000000123",
+      "identifier": "ENG-123",
+      "url": "https://linear.app/kadoraba/issue/ENG-123/verified",
+      "title": "Verified",
+      "priority": 0,
+      "labels": {
+        "nodes": [],
+        "pageInfo": {
+          "hasNextPage": false,
+          "endCursor": null
+        }
+      }
+    }
+  },
+  "error": {
+    "code": "WriteError",
+    "message": "Failed to update issue: Issue mutation succeeded but read-back did not verify",
+    "suggestion": "Read the issue before continuing; do not repeat the mutation.",
+    "details": {
+      "verification": {
+        "scope": "issue-fields",
+        "status": "unavailable",
+        "detail": "Authentication required, not authenticated"
+      },
+      "fields": [
+        {
+          "field": "description",
+          "inputField": "description",
+          "desired": "Desired thrice",
+          "remote": "Desired again",
+          "verdict": "write"
+        }
+      ]
+    }
+  }
+}
+-- exit --
+1
+-- mutations.json --
+{"issueUpdate": 1}
