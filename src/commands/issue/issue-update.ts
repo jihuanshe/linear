@@ -23,7 +23,9 @@ import {
 } from "../../utils/linear.ts"
 import {
   errorResult,
+  extractGraphQLMessage,
   handleError,
+  isClientError,
   NotFoundError,
   ValidationError,
   WriteError,
@@ -551,10 +553,14 @@ export async function printClosingContext(
         }. Explain the decision in the closing comment; a duplicate must name the kept Issue.`,
     )
   } catch (error) {
+    // A GraphQL client error's own message embeds the request and response.
+    const reason = isClientError(error)
+      ? extractGraphQLMessage(error)
+      : error instanceof Error
+      ? error.message
+      : String(error)
     lines.push(
-      `Context unavailable: ${
-        error instanceof Error ? error.message : String(error)
-      }. Read issue view ${current.issue.identifier} before closing.`,
+      `Context unavailable: ${reason}. Read issue view ${current.issue.identifier} before closing.`,
     )
   }
   console.error(lines.join("\n"))
