@@ -1,4 +1,4 @@
-With --expect-field project, a milestone name is refused when the issue has moved to another project since the original read. (Without it, the name currently resolves in the issue's current project; see the open question in ARCH-399.)
+A milestone name means the one in the project the original read showed: if the issue has since moved to another project, the update is refused, with or without --expect-field project.
 -- seed.json --
 {"Project": [{"id": "1e000000-0000-4000-8000-000000000001", "name": "Alpha", "slugId": "a1b2c3d4e5f6", "teams": ["0c000000-0000-4000-8000-000000000001"]},
   {"id": "1e000000-0000-4000-8000-000000000002", "name": "Beta", "slugId": "b1b2c3d4e5f6", "teams": ["0c000000-0000-4000-8000-000000000001"]}],
@@ -10,6 +10,37 @@ With --expect-field project, a milestone name is refused when the issue has move
 linear issue view ENG-123 --json > original.json
 -- run --
 linear issue update ENG-123 --unprotected --project Beta --json > moved.json
+-- run --
+linear issue update ENG-123 --milestone Launch --base-file original.json --json
+-- stdout.json --
+{
+  "ok": false,
+  "effect": "none",
+  "error": {
+    "code": "ConflictError",
+    "message": "Failed to update issue: Original values changed: project",
+    "suggestion": "Read the current object and reconsider the change; do not refresh the original file merely to bypass this conflict.",
+    "details": {
+      "fields": [
+        {
+          "field": "projectMilestone",
+          "inputField": "projectMilestoneId",
+          "base": null,
+          "desired": "1f000000-0000-4000-8000-000000000002",
+          "remote": null,
+          "verdict": "write"
+        }
+      ],
+      "dependencies": [
+        "project"
+      ]
+    }
+  }
+}
+-- exit --
+1
+-- mutations.json --
+{}
 -- run --
 linear issue update ENG-123 --milestone Launch --expect-field project --base-file original.json --json
 -- stdout.json --
