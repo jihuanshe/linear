@@ -1,10 +1,10 @@
 issue view reads every page of comments and attachments: a reply posted after more than a page of comments and the last of many attachments both appear.
 -- seed.json --
 {"Issue": [{"id": "1a000000-0000-4000-8000-000000000123", "identifier": "ENG-123", "title": "Read all evidence", "description": "Issue body"}],
- "Comment": [{"id": "1c000000-0000-4000-8000-000000000000", "issue": "1a000000-0000-4000-8000-000000000123", "body": "Comment root", "createdAt": "2025-07-01T00:00:00.000Z"},
-  {"$repeat": 50, "issue": "1a000000-0000-4000-8000-000000000123", "body": "Comment {{n}}", "createdAt": "2025-07-02T00:{{n:2}}:00.000Z"},
+ "Comment": [{"id": "1c000000-0000-4000-8000-000000000000", "issue": "1a000000-0000-4000-8000-000000000123", "body": "Comment root", "createdAt": "2025-05-31T00:00:00.000Z"},
+  {"$repeat": 50, "issue": "1a000000-0000-4000-8000-000000000123", "body": "Comment {{n}}"},
   {"issue": "1a000000-0000-4000-8000-000000000123", "parent": "1c000000-0000-4000-8000-000000000000", "body": "Comment late-reply", "createdAt": "2025-08-01T00:00:00.000Z"}],
- "Attachment": [{"$repeat": 60, "issue": "1a000000-0000-4000-8000-000000000123", "title": "PR {{n}}", "url": "https://github.com/example/repo/pull/{{n}}", "sourceType": "github", "metadata": {"state": "merged"}, "createdAt": "2025-07-03T00:{{n:2}}:00.000Z"}]}
+ "Attachment": [{"$repeat": 60, "issue": "1a000000-0000-4000-8000-000000000123", "title": "PR {{n}}", "url": "https://github.com/example/repo/pull/{{n}}", "sourceType": "github", "metadata": {"state": "merged"}}]}
 -- run --
 linear issue view ENG-123 --no-pager
 -- stdout --
@@ -87,7 +87,7 @@ Issue body
 
 ## Comments
 
-- **@alex** - *7/1/2025* [thread: 1c000000-0000-4000-8000-000000000000]
+- **@alex** - *5/31/2025* [thread: 1c000000-0000-4000-8000-000000000000]
 
   Comment root
 
@@ -95,203 +95,203 @@ Issue body
 
     Comment late-reply
 
-- **@alex** - *7/2/2025* [thread: f0000000-0000-4000-8000-000000000001]
+- **@alex** - *6/1/2025* [thread: f0000000-0000-4000-8000-000000000001]
 
   Comment 1
 
-- **@alex** - *7/2/2025* [thread: f0000000-0000-4000-8000-000000000002]
+- **@alex** - *6/1/2025* [thread: f0000000-0000-4000-8000-000000000002]
 
   Comment 2
 
-- **@alex** - *7/2/2025* [thread: f0000000-0000-4000-8000-000000000003]
+- **@alex** - *6/1/2025* [thread: f0000000-0000-4000-8000-000000000003]
 
   Comment 3
 
-- **@alex** - *7/2/2025* [thread: f0000000-0000-4000-8000-000000000004]
+- **@alex** - *6/1/2025* [thread: f0000000-0000-4000-8000-000000000004]
 
   Comment 4
 
-- **@alex** - *7/2/2025* [thread: f0000000-0000-4000-8000-000000000005]
+- **@alex** - *6/1/2025* [thread: f0000000-0000-4000-8000-000000000005]
 
   Comment 5
 
-- **@alex** - *7/2/2025* [thread: f0000000-0000-4000-8000-000000000006]
+- **@alex** - *6/1/2025* [thread: f0000000-0000-4000-8000-000000000006]
 
   Comment 6
 
-- **@alex** - *7/2/2025* [thread: f0000000-0000-4000-8000-000000000007]
+- **@alex** - *6/1/2025* [thread: f0000000-0000-4000-8000-000000000007]
 
   Comment 7
 
-- **@alex** - *7/2/2025* [thread: f0000000-0000-4000-8000-000000000008]
+- **@alex** - *6/1/2025* [thread: f0000000-0000-4000-8000-000000000008]
 
   Comment 8
 
-- **@alex** - *7/2/2025* [thread: f0000000-0000-4000-8000-000000000009]
+- **@alex** - *6/1/2025* [thread: f0000000-0000-4000-8000-000000000009]
 
   Comment 9
 
-- **@alex** - *7/2/2025* [thread: f0000000-0000-4000-8000-000000000010]
+- **@alex** - *6/1/2025* [thread: f0000000-0000-4000-8000-000000000010]
 
   Comment 10
 
-- **@alex** - *7/2/2025* [thread: f0000000-0000-4000-8000-000000000011]
+- **@alex** - *6/1/2025* [thread: f0000000-0000-4000-8000-000000000011]
 
   Comment 11
 
-- **@alex** - *7/2/2025* [thread: f0000000-0000-4000-8000-000000000012]
+- **@alex** - *6/1/2025* [thread: f0000000-0000-4000-8000-000000000012]
 
   Comment 12
 
-- **@alex** - *7/2/2025* [thread: f0000000-0000-4000-8000-000000000013]
+- **@alex** - *6/1/2025* [thread: f0000000-0000-4000-8000-000000000013]
 
   Comment 13
 
-- **@alex** - *7/2/2025* [thread: f0000000-0000-4000-8000-000000000014]
+- **@alex** - *6/1/2025* [thread: f0000000-0000-4000-8000-000000000014]
 
   Comment 14
 
-- **@alex** - *7/2/2025* [thread: f0000000-0000-4000-8000-000000000015]
+- **@alex** - *6/1/2025* [thread: f0000000-0000-4000-8000-000000000015]
 
   Comment 15
 
-- **@alex** - *7/2/2025* [thread: f0000000-0000-4000-8000-000000000016]
+- **@alex** - *6/1/2025* [thread: f0000000-0000-4000-8000-000000000016]
 
   Comment 16
 
-- **@alex** - *7/2/2025* [thread: f0000000-0000-4000-8000-000000000017]
+- **@alex** - *6/1/2025* [thread: f0000000-0000-4000-8000-000000000017]
 
   Comment 17
 
-- **@alex** - *7/2/2025* [thread: f0000000-0000-4000-8000-000000000018]
+- **@alex** - *6/1/2025* [thread: f0000000-0000-4000-8000-000000000018]
 
   Comment 18
 
-- **@alex** - *7/2/2025* [thread: f0000000-0000-4000-8000-000000000019]
+- **@alex** - *6/1/2025* [thread: f0000000-0000-4000-8000-000000000019]
 
   Comment 19
 
-- **@alex** - *7/2/2025* [thread: f0000000-0000-4000-8000-000000000020]
+- **@alex** - *6/1/2025* [thread: f0000000-0000-4000-8000-000000000020]
 
   Comment 20
 
-- **@alex** - *7/2/2025* [thread: f0000000-0000-4000-8000-000000000021]
+- **@alex** - *6/1/2025* [thread: f0000000-0000-4000-8000-000000000021]
 
   Comment 21
 
-- **@alex** - *7/2/2025* [thread: f0000000-0000-4000-8000-000000000022]
+- **@alex** - *6/1/2025* [thread: f0000000-0000-4000-8000-000000000022]
 
   Comment 22
 
-- **@alex** - *7/2/2025* [thread: f0000000-0000-4000-8000-000000000023]
+- **@alex** - *6/1/2025* [thread: f0000000-0000-4000-8000-000000000023]
 
   Comment 23
 
-- **@alex** - *7/2/2025* [thread: f0000000-0000-4000-8000-000000000024]
+- **@alex** - *6/1/2025* [thread: f0000000-0000-4000-8000-000000000024]
 
   Comment 24
 
-- **@alex** - *7/2/2025* [thread: f0000000-0000-4000-8000-000000000025]
+- **@alex** - *6/1/2025* [thread: f0000000-0000-4000-8000-000000000025]
 
   Comment 25
 
-- **@alex** - *7/2/2025* [thread: f0000000-0000-4000-8000-000000000026]
+- **@alex** - *6/1/2025* [thread: f0000000-0000-4000-8000-000000000026]
 
   Comment 26
 
-- **@alex** - *7/2/2025* [thread: f0000000-0000-4000-8000-000000000027]
+- **@alex** - *6/1/2025* [thread: f0000000-0000-4000-8000-000000000027]
 
   Comment 27
 
-- **@alex** - *7/2/2025* [thread: f0000000-0000-4000-8000-000000000028]
+- **@alex** - *6/1/2025* [thread: f0000000-0000-4000-8000-000000000028]
 
   Comment 28
 
-- **@alex** - *7/2/2025* [thread: f0000000-0000-4000-8000-000000000029]
+- **@alex** - *6/1/2025* [thread: f0000000-0000-4000-8000-000000000029]
 
   Comment 29
 
-- **@alex** - *7/2/2025* [thread: f0000000-0000-4000-8000-000000000030]
+- **@alex** - *6/1/2025* [thread: f0000000-0000-4000-8000-000000000030]
 
   Comment 30
 
-- **@alex** - *7/2/2025* [thread: f0000000-0000-4000-8000-000000000031]
+- **@alex** - *6/1/2025* [thread: f0000000-0000-4000-8000-000000000031]
 
   Comment 31
 
-- **@alex** - *7/2/2025* [thread: f0000000-0000-4000-8000-000000000032]
+- **@alex** - *6/1/2025* [thread: f0000000-0000-4000-8000-000000000032]
 
   Comment 32
 
-- **@alex** - *7/2/2025* [thread: f0000000-0000-4000-8000-000000000033]
+- **@alex** - *6/1/2025* [thread: f0000000-0000-4000-8000-000000000033]
 
   Comment 33
 
-- **@alex** - *7/2/2025* [thread: f0000000-0000-4000-8000-000000000034]
+- **@alex** - *6/1/2025* [thread: f0000000-0000-4000-8000-000000000034]
 
   Comment 34
 
-- **@alex** - *7/2/2025* [thread: f0000000-0000-4000-8000-000000000035]
+- **@alex** - *6/1/2025* [thread: f0000000-0000-4000-8000-000000000035]
 
   Comment 35
 
-- **@alex** - *7/2/2025* [thread: f0000000-0000-4000-8000-000000000036]
+- **@alex** - *6/1/2025* [thread: f0000000-0000-4000-8000-000000000036]
 
   Comment 36
 
-- **@alex** - *7/2/2025* [thread: f0000000-0000-4000-8000-000000000037]
+- **@alex** - *6/1/2025* [thread: f0000000-0000-4000-8000-000000000037]
 
   Comment 37
 
-- **@alex** - *7/2/2025* [thread: f0000000-0000-4000-8000-000000000038]
+- **@alex** - *6/1/2025* [thread: f0000000-0000-4000-8000-000000000038]
 
   Comment 38
 
-- **@alex** - *7/2/2025* [thread: f0000000-0000-4000-8000-000000000039]
+- **@alex** - *6/1/2025* [thread: f0000000-0000-4000-8000-000000000039]
 
   Comment 39
 
-- **@alex** - *7/2/2025* [thread: f0000000-0000-4000-8000-000000000040]
+- **@alex** - *6/1/2025* [thread: f0000000-0000-4000-8000-000000000040]
 
   Comment 40
 
-- **@alex** - *7/2/2025* [thread: f0000000-0000-4000-8000-000000000041]
+- **@alex** - *6/1/2025* [thread: f0000000-0000-4000-8000-000000000041]
 
   Comment 41
 
-- **@alex** - *7/2/2025* [thread: f0000000-0000-4000-8000-000000000042]
+- **@alex** - *6/1/2025* [thread: f0000000-0000-4000-8000-000000000042]
 
   Comment 42
 
-- **@alex** - *7/2/2025* [thread: f0000000-0000-4000-8000-000000000043]
+- **@alex** - *6/1/2025* [thread: f0000000-0000-4000-8000-000000000043]
 
   Comment 43
 
-- **@alex** - *7/2/2025* [thread: f0000000-0000-4000-8000-000000000044]
+- **@alex** - *6/1/2025* [thread: f0000000-0000-4000-8000-000000000044]
 
   Comment 44
 
-- **@alex** - *7/2/2025* [thread: f0000000-0000-4000-8000-000000000045]
+- **@alex** - *6/1/2025* [thread: f0000000-0000-4000-8000-000000000045]
 
   Comment 45
 
-- **@alex** - *7/2/2025* [thread: f0000000-0000-4000-8000-000000000046]
+- **@alex** - *6/1/2025* [thread: f0000000-0000-4000-8000-000000000046]
 
   Comment 46
 
-- **@alex** - *7/2/2025* [thread: f0000000-0000-4000-8000-000000000047]
+- **@alex** - *6/1/2025* [thread: f0000000-0000-4000-8000-000000000047]
 
   Comment 47
 
-- **@alex** - *7/2/2025* [thread: f0000000-0000-4000-8000-000000000048]
+- **@alex** - *6/1/2025* [thread: f0000000-0000-4000-8000-000000000048]
 
   Comment 48
 
-- **@alex** - *7/2/2025* [thread: f0000000-0000-4000-8000-000000000049]
+- **@alex** - *6/1/2025* [thread: f0000000-0000-4000-8000-000000000049]
 
   Comment 49
 
-- **@alex** - *7/2/2025* [thread: f0000000-0000-4000-8000-000000000050]
+- **@alex** - *6/1/2025* [thread: f0000000-0000-4000-8000-000000000050]
 
   Comment 50
 
@@ -383,8 +383,8 @@ linear issue view ENG-123 --no-pager --json
           "body": "Comment 50",
           "quotedText": null,
           "documentContentId": null,
-          "createdAt": "2025-07-02T00:50:00.000Z",
-          "updatedAt": "2025-07-02T00:50:00.000Z",
+          "createdAt": "2025-06-01T00:00:51.000Z",
+          "updatedAt": "2025-06-01T00:00:51.000Z",
           "url": "https://linear.app/kadoraba/issue/ENG-123/read-all-evidence#comment-f0000000",
           "resolvedAt": null,
           "resolvingCommentId": null,
@@ -402,8 +402,8 @@ linear issue view ENG-123 --no-pager --json
           "body": "Comment 49",
           "quotedText": null,
           "documentContentId": null,
-          "createdAt": "2025-07-02T00:49:00.000Z",
-          "updatedAt": "2025-07-02T00:49:00.000Z",
+          "createdAt": "2025-06-01T00:00:50.000Z",
+          "updatedAt": "2025-06-01T00:00:50.000Z",
           "url": "https://linear.app/kadoraba/issue/ENG-123/read-all-evidence#comment-f0000000",
           "resolvedAt": null,
           "resolvingCommentId": null,
@@ -421,8 +421,8 @@ linear issue view ENG-123 --no-pager --json
           "body": "Comment 48",
           "quotedText": null,
           "documentContentId": null,
-          "createdAt": "2025-07-02T00:48:00.000Z",
-          "updatedAt": "2025-07-02T00:48:00.000Z",
+          "createdAt": "2025-06-01T00:00:49.000Z",
+          "updatedAt": "2025-06-01T00:00:49.000Z",
           "url": "https://linear.app/kadoraba/issue/ENG-123/read-all-evidence#comment-f0000000",
           "resolvedAt": null,
           "resolvingCommentId": null,
@@ -440,8 +440,8 @@ linear issue view ENG-123 --no-pager --json
           "body": "Comment 47",
           "quotedText": null,
           "documentContentId": null,
-          "createdAt": "2025-07-02T00:47:00.000Z",
-          "updatedAt": "2025-07-02T00:47:00.000Z",
+          "createdAt": "2025-06-01T00:00:48.000Z",
+          "updatedAt": "2025-06-01T00:00:48.000Z",
           "url": "https://linear.app/kadoraba/issue/ENG-123/read-all-evidence#comment-f0000000",
           "resolvedAt": null,
           "resolvingCommentId": null,
@@ -459,8 +459,8 @@ linear issue view ENG-123 --no-pager --json
           "body": "Comment 46",
           "quotedText": null,
           "documentContentId": null,
-          "createdAt": "2025-07-02T00:46:00.000Z",
-          "updatedAt": "2025-07-02T00:46:00.000Z",
+          "createdAt": "2025-06-01T00:00:47.000Z",
+          "updatedAt": "2025-06-01T00:00:47.000Z",
           "url": "https://linear.app/kadoraba/issue/ENG-123/read-all-evidence#comment-f0000000",
           "resolvedAt": null,
           "resolvingCommentId": null,
@@ -478,8 +478,8 @@ linear issue view ENG-123 --no-pager --json
           "body": "Comment 45",
           "quotedText": null,
           "documentContentId": null,
-          "createdAt": "2025-07-02T00:45:00.000Z",
-          "updatedAt": "2025-07-02T00:45:00.000Z",
+          "createdAt": "2025-06-01T00:00:46.000Z",
+          "updatedAt": "2025-06-01T00:00:46.000Z",
           "url": "https://linear.app/kadoraba/issue/ENG-123/read-all-evidence#comment-f0000000",
           "resolvedAt": null,
           "resolvingCommentId": null,
@@ -497,8 +497,8 @@ linear issue view ENG-123 --no-pager --json
           "body": "Comment 44",
           "quotedText": null,
           "documentContentId": null,
-          "createdAt": "2025-07-02T00:44:00.000Z",
-          "updatedAt": "2025-07-02T00:44:00.000Z",
+          "createdAt": "2025-06-01T00:00:45.000Z",
+          "updatedAt": "2025-06-01T00:00:45.000Z",
           "url": "https://linear.app/kadoraba/issue/ENG-123/read-all-evidence#comment-f0000000",
           "resolvedAt": null,
           "resolvingCommentId": null,
@@ -516,8 +516,8 @@ linear issue view ENG-123 --no-pager --json
           "body": "Comment 43",
           "quotedText": null,
           "documentContentId": null,
-          "createdAt": "2025-07-02T00:43:00.000Z",
-          "updatedAt": "2025-07-02T00:43:00.000Z",
+          "createdAt": "2025-06-01T00:00:44.000Z",
+          "updatedAt": "2025-06-01T00:00:44.000Z",
           "url": "https://linear.app/kadoraba/issue/ENG-123/read-all-evidence#comment-f0000000",
           "resolvedAt": null,
           "resolvingCommentId": null,
@@ -535,8 +535,8 @@ linear issue view ENG-123 --no-pager --json
           "body": "Comment 42",
           "quotedText": null,
           "documentContentId": null,
-          "createdAt": "2025-07-02T00:42:00.000Z",
-          "updatedAt": "2025-07-02T00:42:00.000Z",
+          "createdAt": "2025-06-01T00:00:43.000Z",
+          "updatedAt": "2025-06-01T00:00:43.000Z",
           "url": "https://linear.app/kadoraba/issue/ENG-123/read-all-evidence#comment-f0000000",
           "resolvedAt": null,
           "resolvingCommentId": null,
@@ -554,8 +554,8 @@ linear issue view ENG-123 --no-pager --json
           "body": "Comment 41",
           "quotedText": null,
           "documentContentId": null,
-          "createdAt": "2025-07-02T00:41:00.000Z",
-          "updatedAt": "2025-07-02T00:41:00.000Z",
+          "createdAt": "2025-06-01T00:00:42.000Z",
+          "updatedAt": "2025-06-01T00:00:42.000Z",
           "url": "https://linear.app/kadoraba/issue/ENG-123/read-all-evidence#comment-f0000000",
           "resolvedAt": null,
           "resolvingCommentId": null,
@@ -573,8 +573,8 @@ linear issue view ENG-123 --no-pager --json
           "body": "Comment 40",
           "quotedText": null,
           "documentContentId": null,
-          "createdAt": "2025-07-02T00:40:00.000Z",
-          "updatedAt": "2025-07-02T00:40:00.000Z",
+          "createdAt": "2025-06-01T00:00:41.000Z",
+          "updatedAt": "2025-06-01T00:00:41.000Z",
           "url": "https://linear.app/kadoraba/issue/ENG-123/read-all-evidence#comment-f0000000",
           "resolvedAt": null,
           "resolvingCommentId": null,
@@ -592,8 +592,8 @@ linear issue view ENG-123 --no-pager --json
           "body": "Comment 39",
           "quotedText": null,
           "documentContentId": null,
-          "createdAt": "2025-07-02T00:39:00.000Z",
-          "updatedAt": "2025-07-02T00:39:00.000Z",
+          "createdAt": "2025-06-01T00:00:40.000Z",
+          "updatedAt": "2025-06-01T00:00:40.000Z",
           "url": "https://linear.app/kadoraba/issue/ENG-123/read-all-evidence#comment-f0000000",
           "resolvedAt": null,
           "resolvingCommentId": null,
@@ -611,8 +611,8 @@ linear issue view ENG-123 --no-pager --json
           "body": "Comment 38",
           "quotedText": null,
           "documentContentId": null,
-          "createdAt": "2025-07-02T00:38:00.000Z",
-          "updatedAt": "2025-07-02T00:38:00.000Z",
+          "createdAt": "2025-06-01T00:00:39.000Z",
+          "updatedAt": "2025-06-01T00:00:39.000Z",
           "url": "https://linear.app/kadoraba/issue/ENG-123/read-all-evidence#comment-f0000000",
           "resolvedAt": null,
           "resolvingCommentId": null,
@@ -630,8 +630,8 @@ linear issue view ENG-123 --no-pager --json
           "body": "Comment 37",
           "quotedText": null,
           "documentContentId": null,
-          "createdAt": "2025-07-02T00:37:00.000Z",
-          "updatedAt": "2025-07-02T00:37:00.000Z",
+          "createdAt": "2025-06-01T00:00:38.000Z",
+          "updatedAt": "2025-06-01T00:00:38.000Z",
           "url": "https://linear.app/kadoraba/issue/ENG-123/read-all-evidence#comment-f0000000",
           "resolvedAt": null,
           "resolvingCommentId": null,
@@ -649,8 +649,8 @@ linear issue view ENG-123 --no-pager --json
           "body": "Comment 36",
           "quotedText": null,
           "documentContentId": null,
-          "createdAt": "2025-07-02T00:36:00.000Z",
-          "updatedAt": "2025-07-02T00:36:00.000Z",
+          "createdAt": "2025-06-01T00:00:37.000Z",
+          "updatedAt": "2025-06-01T00:00:37.000Z",
           "url": "https://linear.app/kadoraba/issue/ENG-123/read-all-evidence#comment-f0000000",
           "resolvedAt": null,
           "resolvingCommentId": null,
@@ -668,8 +668,8 @@ linear issue view ENG-123 --no-pager --json
           "body": "Comment 35",
           "quotedText": null,
           "documentContentId": null,
-          "createdAt": "2025-07-02T00:35:00.000Z",
-          "updatedAt": "2025-07-02T00:35:00.000Z",
+          "createdAt": "2025-06-01T00:00:36.000Z",
+          "updatedAt": "2025-06-01T00:00:36.000Z",
           "url": "https://linear.app/kadoraba/issue/ENG-123/read-all-evidence#comment-f0000000",
           "resolvedAt": null,
           "resolvingCommentId": null,
@@ -687,8 +687,8 @@ linear issue view ENG-123 --no-pager --json
           "body": "Comment 34",
           "quotedText": null,
           "documentContentId": null,
-          "createdAt": "2025-07-02T00:34:00.000Z",
-          "updatedAt": "2025-07-02T00:34:00.000Z",
+          "createdAt": "2025-06-01T00:00:35.000Z",
+          "updatedAt": "2025-06-01T00:00:35.000Z",
           "url": "https://linear.app/kadoraba/issue/ENG-123/read-all-evidence#comment-f0000000",
           "resolvedAt": null,
           "resolvingCommentId": null,
@@ -706,8 +706,8 @@ linear issue view ENG-123 --no-pager --json
           "body": "Comment 33",
           "quotedText": null,
           "documentContentId": null,
-          "createdAt": "2025-07-02T00:33:00.000Z",
-          "updatedAt": "2025-07-02T00:33:00.000Z",
+          "createdAt": "2025-06-01T00:00:34.000Z",
+          "updatedAt": "2025-06-01T00:00:34.000Z",
           "url": "https://linear.app/kadoraba/issue/ENG-123/read-all-evidence#comment-f0000000",
           "resolvedAt": null,
           "resolvingCommentId": null,
@@ -725,8 +725,8 @@ linear issue view ENG-123 --no-pager --json
           "body": "Comment 32",
           "quotedText": null,
           "documentContentId": null,
-          "createdAt": "2025-07-02T00:32:00.000Z",
-          "updatedAt": "2025-07-02T00:32:00.000Z",
+          "createdAt": "2025-06-01T00:00:33.000Z",
+          "updatedAt": "2025-06-01T00:00:33.000Z",
           "url": "https://linear.app/kadoraba/issue/ENG-123/read-all-evidence#comment-f0000000",
           "resolvedAt": null,
           "resolvingCommentId": null,
@@ -744,8 +744,8 @@ linear issue view ENG-123 --no-pager --json
           "body": "Comment 31",
           "quotedText": null,
           "documentContentId": null,
-          "createdAt": "2025-07-02T00:31:00.000Z",
-          "updatedAt": "2025-07-02T00:31:00.000Z",
+          "createdAt": "2025-06-01T00:00:32.000Z",
+          "updatedAt": "2025-06-01T00:00:32.000Z",
           "url": "https://linear.app/kadoraba/issue/ENG-123/read-all-evidence#comment-f0000000",
           "resolvedAt": null,
           "resolvingCommentId": null,
@@ -763,8 +763,8 @@ linear issue view ENG-123 --no-pager --json
           "body": "Comment 30",
           "quotedText": null,
           "documentContentId": null,
-          "createdAt": "2025-07-02T00:30:00.000Z",
-          "updatedAt": "2025-07-02T00:30:00.000Z",
+          "createdAt": "2025-06-01T00:00:31.000Z",
+          "updatedAt": "2025-06-01T00:00:31.000Z",
           "url": "https://linear.app/kadoraba/issue/ENG-123/read-all-evidence#comment-f0000000",
           "resolvedAt": null,
           "resolvingCommentId": null,
@@ -782,8 +782,8 @@ linear issue view ENG-123 --no-pager --json
           "body": "Comment 29",
           "quotedText": null,
           "documentContentId": null,
-          "createdAt": "2025-07-02T00:29:00.000Z",
-          "updatedAt": "2025-07-02T00:29:00.000Z",
+          "createdAt": "2025-06-01T00:00:30.000Z",
+          "updatedAt": "2025-06-01T00:00:30.000Z",
           "url": "https://linear.app/kadoraba/issue/ENG-123/read-all-evidence#comment-f0000000",
           "resolvedAt": null,
           "resolvingCommentId": null,
@@ -801,8 +801,8 @@ linear issue view ENG-123 --no-pager --json
           "body": "Comment 28",
           "quotedText": null,
           "documentContentId": null,
-          "createdAt": "2025-07-02T00:28:00.000Z",
-          "updatedAt": "2025-07-02T00:28:00.000Z",
+          "createdAt": "2025-06-01T00:00:29.000Z",
+          "updatedAt": "2025-06-01T00:00:29.000Z",
           "url": "https://linear.app/kadoraba/issue/ENG-123/read-all-evidence#comment-f0000000",
           "resolvedAt": null,
           "resolvingCommentId": null,
@@ -820,8 +820,8 @@ linear issue view ENG-123 --no-pager --json
           "body": "Comment 27",
           "quotedText": null,
           "documentContentId": null,
-          "createdAt": "2025-07-02T00:27:00.000Z",
-          "updatedAt": "2025-07-02T00:27:00.000Z",
+          "createdAt": "2025-06-01T00:00:28.000Z",
+          "updatedAt": "2025-06-01T00:00:28.000Z",
           "url": "https://linear.app/kadoraba/issue/ENG-123/read-all-evidence#comment-f0000000",
           "resolvedAt": null,
           "resolvingCommentId": null,
@@ -839,8 +839,8 @@ linear issue view ENG-123 --no-pager --json
           "body": "Comment 26",
           "quotedText": null,
           "documentContentId": null,
-          "createdAt": "2025-07-02T00:26:00.000Z",
-          "updatedAt": "2025-07-02T00:26:00.000Z",
+          "createdAt": "2025-06-01T00:00:27.000Z",
+          "updatedAt": "2025-06-01T00:00:27.000Z",
           "url": "https://linear.app/kadoraba/issue/ENG-123/read-all-evidence#comment-f0000000",
           "resolvedAt": null,
           "resolvingCommentId": null,
@@ -858,8 +858,8 @@ linear issue view ENG-123 --no-pager --json
           "body": "Comment 25",
           "quotedText": null,
           "documentContentId": null,
-          "createdAt": "2025-07-02T00:25:00.000Z",
-          "updatedAt": "2025-07-02T00:25:00.000Z",
+          "createdAt": "2025-06-01T00:00:26.000Z",
+          "updatedAt": "2025-06-01T00:00:26.000Z",
           "url": "https://linear.app/kadoraba/issue/ENG-123/read-all-evidence#comment-f0000000",
           "resolvedAt": null,
           "resolvingCommentId": null,
@@ -877,8 +877,8 @@ linear issue view ENG-123 --no-pager --json
           "body": "Comment 24",
           "quotedText": null,
           "documentContentId": null,
-          "createdAt": "2025-07-02T00:24:00.000Z",
-          "updatedAt": "2025-07-02T00:24:00.000Z",
+          "createdAt": "2025-06-01T00:00:25.000Z",
+          "updatedAt": "2025-06-01T00:00:25.000Z",
           "url": "https://linear.app/kadoraba/issue/ENG-123/read-all-evidence#comment-f0000000",
           "resolvedAt": null,
           "resolvingCommentId": null,
@@ -896,8 +896,8 @@ linear issue view ENG-123 --no-pager --json
           "body": "Comment 23",
           "quotedText": null,
           "documentContentId": null,
-          "createdAt": "2025-07-02T00:23:00.000Z",
-          "updatedAt": "2025-07-02T00:23:00.000Z",
+          "createdAt": "2025-06-01T00:00:24.000Z",
+          "updatedAt": "2025-06-01T00:00:24.000Z",
           "url": "https://linear.app/kadoraba/issue/ENG-123/read-all-evidence#comment-f0000000",
           "resolvedAt": null,
           "resolvingCommentId": null,
@@ -915,8 +915,8 @@ linear issue view ENG-123 --no-pager --json
           "body": "Comment 22",
           "quotedText": null,
           "documentContentId": null,
-          "createdAt": "2025-07-02T00:22:00.000Z",
-          "updatedAt": "2025-07-02T00:22:00.000Z",
+          "createdAt": "2025-06-01T00:00:23.000Z",
+          "updatedAt": "2025-06-01T00:00:23.000Z",
           "url": "https://linear.app/kadoraba/issue/ENG-123/read-all-evidence#comment-f0000000",
           "resolvedAt": null,
           "resolvingCommentId": null,
@@ -934,8 +934,8 @@ linear issue view ENG-123 --no-pager --json
           "body": "Comment 21",
           "quotedText": null,
           "documentContentId": null,
-          "createdAt": "2025-07-02T00:21:00.000Z",
-          "updatedAt": "2025-07-02T00:21:00.000Z",
+          "createdAt": "2025-06-01T00:00:22.000Z",
+          "updatedAt": "2025-06-01T00:00:22.000Z",
           "url": "https://linear.app/kadoraba/issue/ENG-123/read-all-evidence#comment-f0000000",
           "resolvedAt": null,
           "resolvingCommentId": null,
@@ -953,8 +953,8 @@ linear issue view ENG-123 --no-pager --json
           "body": "Comment 20",
           "quotedText": null,
           "documentContentId": null,
-          "createdAt": "2025-07-02T00:20:00.000Z",
-          "updatedAt": "2025-07-02T00:20:00.000Z",
+          "createdAt": "2025-06-01T00:00:21.000Z",
+          "updatedAt": "2025-06-01T00:00:21.000Z",
           "url": "https://linear.app/kadoraba/issue/ENG-123/read-all-evidence#comment-f0000000",
           "resolvedAt": null,
           "resolvingCommentId": null,
@@ -972,8 +972,8 @@ linear issue view ENG-123 --no-pager --json
           "body": "Comment 19",
           "quotedText": null,
           "documentContentId": null,
-          "createdAt": "2025-07-02T00:19:00.000Z",
-          "updatedAt": "2025-07-02T00:19:00.000Z",
+          "createdAt": "2025-06-01T00:00:20.000Z",
+          "updatedAt": "2025-06-01T00:00:20.000Z",
           "url": "https://linear.app/kadoraba/issue/ENG-123/read-all-evidence#comment-f0000000",
           "resolvedAt": null,
           "resolvingCommentId": null,
@@ -991,8 +991,8 @@ linear issue view ENG-123 --no-pager --json
           "body": "Comment 18",
           "quotedText": null,
           "documentContentId": null,
-          "createdAt": "2025-07-02T00:18:00.000Z",
-          "updatedAt": "2025-07-02T00:18:00.000Z",
+          "createdAt": "2025-06-01T00:00:19.000Z",
+          "updatedAt": "2025-06-01T00:00:19.000Z",
           "url": "https://linear.app/kadoraba/issue/ENG-123/read-all-evidence#comment-f0000000",
           "resolvedAt": null,
           "resolvingCommentId": null,
@@ -1010,8 +1010,8 @@ linear issue view ENG-123 --no-pager --json
           "body": "Comment 17",
           "quotedText": null,
           "documentContentId": null,
-          "createdAt": "2025-07-02T00:17:00.000Z",
-          "updatedAt": "2025-07-02T00:17:00.000Z",
+          "createdAt": "2025-06-01T00:00:18.000Z",
+          "updatedAt": "2025-06-01T00:00:18.000Z",
           "url": "https://linear.app/kadoraba/issue/ENG-123/read-all-evidence#comment-f0000000",
           "resolvedAt": null,
           "resolvingCommentId": null,
@@ -1029,8 +1029,8 @@ linear issue view ENG-123 --no-pager --json
           "body": "Comment 16",
           "quotedText": null,
           "documentContentId": null,
-          "createdAt": "2025-07-02T00:16:00.000Z",
-          "updatedAt": "2025-07-02T00:16:00.000Z",
+          "createdAt": "2025-06-01T00:00:17.000Z",
+          "updatedAt": "2025-06-01T00:00:17.000Z",
           "url": "https://linear.app/kadoraba/issue/ENG-123/read-all-evidence#comment-f0000000",
           "resolvedAt": null,
           "resolvingCommentId": null,
@@ -1048,8 +1048,8 @@ linear issue view ENG-123 --no-pager --json
           "body": "Comment 15",
           "quotedText": null,
           "documentContentId": null,
-          "createdAt": "2025-07-02T00:15:00.000Z",
-          "updatedAt": "2025-07-02T00:15:00.000Z",
+          "createdAt": "2025-06-01T00:00:16.000Z",
+          "updatedAt": "2025-06-01T00:00:16.000Z",
           "url": "https://linear.app/kadoraba/issue/ENG-123/read-all-evidence#comment-f0000000",
           "resolvedAt": null,
           "resolvingCommentId": null,
@@ -1067,8 +1067,8 @@ linear issue view ENG-123 --no-pager --json
           "body": "Comment 14",
           "quotedText": null,
           "documentContentId": null,
-          "createdAt": "2025-07-02T00:14:00.000Z",
-          "updatedAt": "2025-07-02T00:14:00.000Z",
+          "createdAt": "2025-06-01T00:00:15.000Z",
+          "updatedAt": "2025-06-01T00:00:15.000Z",
           "url": "https://linear.app/kadoraba/issue/ENG-123/read-all-evidence#comment-f0000000",
           "resolvedAt": null,
           "resolvingCommentId": null,
@@ -1086,8 +1086,8 @@ linear issue view ENG-123 --no-pager --json
           "body": "Comment 13",
           "quotedText": null,
           "documentContentId": null,
-          "createdAt": "2025-07-02T00:13:00.000Z",
-          "updatedAt": "2025-07-02T00:13:00.000Z",
+          "createdAt": "2025-06-01T00:00:14.000Z",
+          "updatedAt": "2025-06-01T00:00:14.000Z",
           "url": "https://linear.app/kadoraba/issue/ENG-123/read-all-evidence#comment-f0000000",
           "resolvedAt": null,
           "resolvingCommentId": null,
@@ -1105,8 +1105,8 @@ linear issue view ENG-123 --no-pager --json
           "body": "Comment 12",
           "quotedText": null,
           "documentContentId": null,
-          "createdAt": "2025-07-02T00:12:00.000Z",
-          "updatedAt": "2025-07-02T00:12:00.000Z",
+          "createdAt": "2025-06-01T00:00:13.000Z",
+          "updatedAt": "2025-06-01T00:00:13.000Z",
           "url": "https://linear.app/kadoraba/issue/ENG-123/read-all-evidence#comment-f0000000",
           "resolvedAt": null,
           "resolvingCommentId": null,
@@ -1124,8 +1124,8 @@ linear issue view ENG-123 --no-pager --json
           "body": "Comment 11",
           "quotedText": null,
           "documentContentId": null,
-          "createdAt": "2025-07-02T00:11:00.000Z",
-          "updatedAt": "2025-07-02T00:11:00.000Z",
+          "createdAt": "2025-06-01T00:00:12.000Z",
+          "updatedAt": "2025-06-01T00:00:12.000Z",
           "url": "https://linear.app/kadoraba/issue/ENG-123/read-all-evidence#comment-f0000000",
           "resolvedAt": null,
           "resolvingCommentId": null,
@@ -1143,8 +1143,8 @@ linear issue view ENG-123 --no-pager --json
           "body": "Comment 10",
           "quotedText": null,
           "documentContentId": null,
-          "createdAt": "2025-07-02T00:10:00.000Z",
-          "updatedAt": "2025-07-02T00:10:00.000Z",
+          "createdAt": "2025-06-01T00:00:11.000Z",
+          "updatedAt": "2025-06-01T00:00:11.000Z",
           "url": "https://linear.app/kadoraba/issue/ENG-123/read-all-evidence#comment-f0000000",
           "resolvedAt": null,
           "resolvingCommentId": null,
@@ -1162,8 +1162,8 @@ linear issue view ENG-123 --no-pager --json
           "body": "Comment 9",
           "quotedText": null,
           "documentContentId": null,
-          "createdAt": "2025-07-02T00:09:00.000Z",
-          "updatedAt": "2025-07-02T00:09:00.000Z",
+          "createdAt": "2025-06-01T00:00:10.000Z",
+          "updatedAt": "2025-06-01T00:00:10.000Z",
           "url": "https://linear.app/kadoraba/issue/ENG-123/read-all-evidence#comment-f0000000",
           "resolvedAt": null,
           "resolvingCommentId": null,
@@ -1181,8 +1181,8 @@ linear issue view ENG-123 --no-pager --json
           "body": "Comment 8",
           "quotedText": null,
           "documentContentId": null,
-          "createdAt": "2025-07-02T00:08:00.000Z",
-          "updatedAt": "2025-07-02T00:08:00.000Z",
+          "createdAt": "2025-06-01T00:00:09.000Z",
+          "updatedAt": "2025-06-01T00:00:09.000Z",
           "url": "https://linear.app/kadoraba/issue/ENG-123/read-all-evidence#comment-f0000000",
           "resolvedAt": null,
           "resolvingCommentId": null,
@@ -1200,8 +1200,8 @@ linear issue view ENG-123 --no-pager --json
           "body": "Comment 7",
           "quotedText": null,
           "documentContentId": null,
-          "createdAt": "2025-07-02T00:07:00.000Z",
-          "updatedAt": "2025-07-02T00:07:00.000Z",
+          "createdAt": "2025-06-01T00:00:08.000Z",
+          "updatedAt": "2025-06-01T00:00:08.000Z",
           "url": "https://linear.app/kadoraba/issue/ENG-123/read-all-evidence#comment-f0000000",
           "resolvedAt": null,
           "resolvingCommentId": null,
@@ -1219,8 +1219,8 @@ linear issue view ENG-123 --no-pager --json
           "body": "Comment 6",
           "quotedText": null,
           "documentContentId": null,
-          "createdAt": "2025-07-02T00:06:00.000Z",
-          "updatedAt": "2025-07-02T00:06:00.000Z",
+          "createdAt": "2025-06-01T00:00:07.000Z",
+          "updatedAt": "2025-06-01T00:00:07.000Z",
           "url": "https://linear.app/kadoraba/issue/ENG-123/read-all-evidence#comment-f0000000",
           "resolvedAt": null,
           "resolvingCommentId": null,
@@ -1238,8 +1238,8 @@ linear issue view ENG-123 --no-pager --json
           "body": "Comment 5",
           "quotedText": null,
           "documentContentId": null,
-          "createdAt": "2025-07-02T00:05:00.000Z",
-          "updatedAt": "2025-07-02T00:05:00.000Z",
+          "createdAt": "2025-06-01T00:00:06.000Z",
+          "updatedAt": "2025-06-01T00:00:06.000Z",
           "url": "https://linear.app/kadoraba/issue/ENG-123/read-all-evidence#comment-f0000000",
           "resolvedAt": null,
           "resolvingCommentId": null,
@@ -1257,8 +1257,8 @@ linear issue view ENG-123 --no-pager --json
           "body": "Comment 4",
           "quotedText": null,
           "documentContentId": null,
-          "createdAt": "2025-07-02T00:04:00.000Z",
-          "updatedAt": "2025-07-02T00:04:00.000Z",
+          "createdAt": "2025-06-01T00:00:05.000Z",
+          "updatedAt": "2025-06-01T00:00:05.000Z",
           "url": "https://linear.app/kadoraba/issue/ENG-123/read-all-evidence#comment-f0000000",
           "resolvedAt": null,
           "resolvingCommentId": null,
@@ -1276,8 +1276,8 @@ linear issue view ENG-123 --no-pager --json
           "body": "Comment 3",
           "quotedText": null,
           "documentContentId": null,
-          "createdAt": "2025-07-02T00:03:00.000Z",
-          "updatedAt": "2025-07-02T00:03:00.000Z",
+          "createdAt": "2025-06-01T00:00:04.000Z",
+          "updatedAt": "2025-06-01T00:00:04.000Z",
           "url": "https://linear.app/kadoraba/issue/ENG-123/read-all-evidence#comment-f0000000",
           "resolvedAt": null,
           "resolvingCommentId": null,
@@ -1295,8 +1295,8 @@ linear issue view ENG-123 --no-pager --json
           "body": "Comment 2",
           "quotedText": null,
           "documentContentId": null,
-          "createdAt": "2025-07-02T00:02:00.000Z",
-          "updatedAt": "2025-07-02T00:02:00.000Z",
+          "createdAt": "2025-06-01T00:00:03.000Z",
+          "updatedAt": "2025-06-01T00:00:03.000Z",
           "url": "https://linear.app/kadoraba/issue/ENG-123/read-all-evidence#comment-f0000000",
           "resolvedAt": null,
           "resolvingCommentId": null,
@@ -1314,8 +1314,8 @@ linear issue view ENG-123 --no-pager --json
           "body": "Comment 1",
           "quotedText": null,
           "documentContentId": null,
-          "createdAt": "2025-07-02T00:01:00.000Z",
-          "updatedAt": "2025-07-02T00:01:00.000Z",
+          "createdAt": "2025-06-01T00:00:02.000Z",
+          "updatedAt": "2025-06-01T00:00:02.000Z",
           "url": "https://linear.app/kadoraba/issue/ENG-123/read-all-evidence#comment-f0000000",
           "resolvedAt": null,
           "resolvingCommentId": null,
@@ -1333,8 +1333,8 @@ linear issue view ENG-123 --no-pager --json
           "body": "Comment root",
           "quotedText": null,
           "documentContentId": null,
-          "createdAt": "2025-07-01T00:00:00.000Z",
-          "updatedAt": "2025-07-01T00:00:00.000Z",
+          "createdAt": "2025-05-31T00:00:00.000Z",
+          "updatedAt": "2025-05-31T00:00:00.000Z",
           "url": "https://linear.app/kadoraba/issue/ENG-123/read-all-evidence#comment-1c000000",
           "resolvedAt": null,
           "resolvingCommentId": null,
@@ -1364,7 +1364,7 @@ linear issue view ENG-123 --no-pager --json
           "metadata": {
             "state": "merged"
           },
-          "createdAt": "2025-07-03T00:60:00.000Z"
+          "createdAt": "2025-06-01T00:01:51.000Z"
         },
         {
           "id": "f0000000-0000-4000-8000-000000000110",
@@ -1375,7 +1375,7 @@ linear issue view ENG-123 --no-pager --json
           "metadata": {
             "state": "merged"
           },
-          "createdAt": "2025-07-03T00:59:00.000Z"
+          "createdAt": "2025-06-01T00:01:50.000Z"
         },
         {
           "id": "f0000000-0000-4000-8000-000000000109",
@@ -1386,7 +1386,7 @@ linear issue view ENG-123 --no-pager --json
           "metadata": {
             "state": "merged"
           },
-          "createdAt": "2025-07-03T00:58:00.000Z"
+          "createdAt": "2025-06-01T00:01:49.000Z"
         },
         {
           "id": "f0000000-0000-4000-8000-000000000108",
@@ -1397,7 +1397,7 @@ linear issue view ENG-123 --no-pager --json
           "metadata": {
             "state": "merged"
           },
-          "createdAt": "2025-07-03T00:57:00.000Z"
+          "createdAt": "2025-06-01T00:01:48.000Z"
         },
         {
           "id": "f0000000-0000-4000-8000-000000000107",
@@ -1408,7 +1408,7 @@ linear issue view ENG-123 --no-pager --json
           "metadata": {
             "state": "merged"
           },
-          "createdAt": "2025-07-03T00:56:00.000Z"
+          "createdAt": "2025-06-01T00:01:47.000Z"
         },
         {
           "id": "f0000000-0000-4000-8000-000000000106",
@@ -1419,7 +1419,7 @@ linear issue view ENG-123 --no-pager --json
           "metadata": {
             "state": "merged"
           },
-          "createdAt": "2025-07-03T00:55:00.000Z"
+          "createdAt": "2025-06-01T00:01:46.000Z"
         },
         {
           "id": "f0000000-0000-4000-8000-000000000105",
@@ -1430,7 +1430,7 @@ linear issue view ENG-123 --no-pager --json
           "metadata": {
             "state": "merged"
           },
-          "createdAt": "2025-07-03T00:54:00.000Z"
+          "createdAt": "2025-06-01T00:01:45.000Z"
         },
         {
           "id": "f0000000-0000-4000-8000-000000000104",
@@ -1441,7 +1441,7 @@ linear issue view ENG-123 --no-pager --json
           "metadata": {
             "state": "merged"
           },
-          "createdAt": "2025-07-03T00:53:00.000Z"
+          "createdAt": "2025-06-01T00:01:44.000Z"
         },
         {
           "id": "f0000000-0000-4000-8000-000000000103",
@@ -1452,7 +1452,7 @@ linear issue view ENG-123 --no-pager --json
           "metadata": {
             "state": "merged"
           },
-          "createdAt": "2025-07-03T00:52:00.000Z"
+          "createdAt": "2025-06-01T00:01:43.000Z"
         },
         {
           "id": "f0000000-0000-4000-8000-000000000102",
@@ -1463,7 +1463,7 @@ linear issue view ENG-123 --no-pager --json
           "metadata": {
             "state": "merged"
           },
-          "createdAt": "2025-07-03T00:51:00.000Z"
+          "createdAt": "2025-06-01T00:01:42.000Z"
         },
         {
           "id": "f0000000-0000-4000-8000-000000000101",
@@ -1474,7 +1474,7 @@ linear issue view ENG-123 --no-pager --json
           "metadata": {
             "state": "merged"
           },
-          "createdAt": "2025-07-03T00:50:00.000Z"
+          "createdAt": "2025-06-01T00:01:41.000Z"
         },
         {
           "id": "f0000000-0000-4000-8000-000000000100",
@@ -1485,7 +1485,7 @@ linear issue view ENG-123 --no-pager --json
           "metadata": {
             "state": "merged"
           },
-          "createdAt": "2025-07-03T00:49:00.000Z"
+          "createdAt": "2025-06-01T00:01:40.000Z"
         },
         {
           "id": "f0000000-0000-4000-8000-000000000099",
@@ -1496,7 +1496,7 @@ linear issue view ENG-123 --no-pager --json
           "metadata": {
             "state": "merged"
           },
-          "createdAt": "2025-07-03T00:48:00.000Z"
+          "createdAt": "2025-06-01T00:01:39.000Z"
         },
         {
           "id": "f0000000-0000-4000-8000-000000000098",
@@ -1507,7 +1507,7 @@ linear issue view ENG-123 --no-pager --json
           "metadata": {
             "state": "merged"
           },
-          "createdAt": "2025-07-03T00:47:00.000Z"
+          "createdAt": "2025-06-01T00:01:38.000Z"
         },
         {
           "id": "f0000000-0000-4000-8000-000000000097",
@@ -1518,7 +1518,7 @@ linear issue view ENG-123 --no-pager --json
           "metadata": {
             "state": "merged"
           },
-          "createdAt": "2025-07-03T00:46:00.000Z"
+          "createdAt": "2025-06-01T00:01:37.000Z"
         },
         {
           "id": "f0000000-0000-4000-8000-000000000096",
@@ -1529,7 +1529,7 @@ linear issue view ENG-123 --no-pager --json
           "metadata": {
             "state": "merged"
           },
-          "createdAt": "2025-07-03T00:45:00.000Z"
+          "createdAt": "2025-06-01T00:01:36.000Z"
         },
         {
           "id": "f0000000-0000-4000-8000-000000000095",
@@ -1540,7 +1540,7 @@ linear issue view ENG-123 --no-pager --json
           "metadata": {
             "state": "merged"
           },
-          "createdAt": "2025-07-03T00:44:00.000Z"
+          "createdAt": "2025-06-01T00:01:35.000Z"
         },
         {
           "id": "f0000000-0000-4000-8000-000000000094",
@@ -1551,7 +1551,7 @@ linear issue view ENG-123 --no-pager --json
           "metadata": {
             "state": "merged"
           },
-          "createdAt": "2025-07-03T00:43:00.000Z"
+          "createdAt": "2025-06-01T00:01:34.000Z"
         },
         {
           "id": "f0000000-0000-4000-8000-000000000093",
@@ -1562,7 +1562,7 @@ linear issue view ENG-123 --no-pager --json
           "metadata": {
             "state": "merged"
           },
-          "createdAt": "2025-07-03T00:42:00.000Z"
+          "createdAt": "2025-06-01T00:01:33.000Z"
         },
         {
           "id": "f0000000-0000-4000-8000-000000000092",
@@ -1573,7 +1573,7 @@ linear issue view ENG-123 --no-pager --json
           "metadata": {
             "state": "merged"
           },
-          "createdAt": "2025-07-03T00:41:00.000Z"
+          "createdAt": "2025-06-01T00:01:32.000Z"
         },
         {
           "id": "f0000000-0000-4000-8000-000000000091",
@@ -1584,7 +1584,7 @@ linear issue view ENG-123 --no-pager --json
           "metadata": {
             "state": "merged"
           },
-          "createdAt": "2025-07-03T00:40:00.000Z"
+          "createdAt": "2025-06-01T00:01:31.000Z"
         },
         {
           "id": "f0000000-0000-4000-8000-000000000090",
@@ -1595,7 +1595,7 @@ linear issue view ENG-123 --no-pager --json
           "metadata": {
             "state": "merged"
           },
-          "createdAt": "2025-07-03T00:39:00.000Z"
+          "createdAt": "2025-06-01T00:01:30.000Z"
         },
         {
           "id": "f0000000-0000-4000-8000-000000000089",
@@ -1606,7 +1606,7 @@ linear issue view ENG-123 --no-pager --json
           "metadata": {
             "state": "merged"
           },
-          "createdAt": "2025-07-03T00:38:00.000Z"
+          "createdAt": "2025-06-01T00:01:29.000Z"
         },
         {
           "id": "f0000000-0000-4000-8000-000000000088",
@@ -1617,7 +1617,7 @@ linear issue view ENG-123 --no-pager --json
           "metadata": {
             "state": "merged"
           },
-          "createdAt": "2025-07-03T00:37:00.000Z"
+          "createdAt": "2025-06-01T00:01:28.000Z"
         },
         {
           "id": "f0000000-0000-4000-8000-000000000087",
@@ -1628,7 +1628,7 @@ linear issue view ENG-123 --no-pager --json
           "metadata": {
             "state": "merged"
           },
-          "createdAt": "2025-07-03T00:36:00.000Z"
+          "createdAt": "2025-06-01T00:01:27.000Z"
         },
         {
           "id": "f0000000-0000-4000-8000-000000000086",
@@ -1639,7 +1639,7 @@ linear issue view ENG-123 --no-pager --json
           "metadata": {
             "state": "merged"
           },
-          "createdAt": "2025-07-03T00:35:00.000Z"
+          "createdAt": "2025-06-01T00:01:26.000Z"
         },
         {
           "id": "f0000000-0000-4000-8000-000000000085",
@@ -1650,7 +1650,7 @@ linear issue view ENG-123 --no-pager --json
           "metadata": {
             "state": "merged"
           },
-          "createdAt": "2025-07-03T00:34:00.000Z"
+          "createdAt": "2025-06-01T00:01:25.000Z"
         },
         {
           "id": "f0000000-0000-4000-8000-000000000084",
@@ -1661,7 +1661,7 @@ linear issue view ENG-123 --no-pager --json
           "metadata": {
             "state": "merged"
           },
-          "createdAt": "2025-07-03T00:33:00.000Z"
+          "createdAt": "2025-06-01T00:01:24.000Z"
         },
         {
           "id": "f0000000-0000-4000-8000-000000000083",
@@ -1672,7 +1672,7 @@ linear issue view ENG-123 --no-pager --json
           "metadata": {
             "state": "merged"
           },
-          "createdAt": "2025-07-03T00:32:00.000Z"
+          "createdAt": "2025-06-01T00:01:23.000Z"
         },
         {
           "id": "f0000000-0000-4000-8000-000000000082",
@@ -1683,7 +1683,7 @@ linear issue view ENG-123 --no-pager --json
           "metadata": {
             "state": "merged"
           },
-          "createdAt": "2025-07-03T00:31:00.000Z"
+          "createdAt": "2025-06-01T00:01:22.000Z"
         },
         {
           "id": "f0000000-0000-4000-8000-000000000081",
@@ -1694,7 +1694,7 @@ linear issue view ENG-123 --no-pager --json
           "metadata": {
             "state": "merged"
           },
-          "createdAt": "2025-07-03T00:30:00.000Z"
+          "createdAt": "2025-06-01T00:01:21.000Z"
         },
         {
           "id": "f0000000-0000-4000-8000-000000000080",
@@ -1705,7 +1705,7 @@ linear issue view ENG-123 --no-pager --json
           "metadata": {
             "state": "merged"
           },
-          "createdAt": "2025-07-03T00:29:00.000Z"
+          "createdAt": "2025-06-01T00:01:20.000Z"
         },
         {
           "id": "f0000000-0000-4000-8000-000000000079",
@@ -1716,7 +1716,7 @@ linear issue view ENG-123 --no-pager --json
           "metadata": {
             "state": "merged"
           },
-          "createdAt": "2025-07-03T00:28:00.000Z"
+          "createdAt": "2025-06-01T00:01:19.000Z"
         },
         {
           "id": "f0000000-0000-4000-8000-000000000078",
@@ -1727,7 +1727,7 @@ linear issue view ENG-123 --no-pager --json
           "metadata": {
             "state": "merged"
           },
-          "createdAt": "2025-07-03T00:27:00.000Z"
+          "createdAt": "2025-06-01T00:01:18.000Z"
         },
         {
           "id": "f0000000-0000-4000-8000-000000000077",
@@ -1738,7 +1738,7 @@ linear issue view ENG-123 --no-pager --json
           "metadata": {
             "state": "merged"
           },
-          "createdAt": "2025-07-03T00:26:00.000Z"
+          "createdAt": "2025-06-01T00:01:17.000Z"
         },
         {
           "id": "f0000000-0000-4000-8000-000000000076",
@@ -1749,7 +1749,7 @@ linear issue view ENG-123 --no-pager --json
           "metadata": {
             "state": "merged"
           },
-          "createdAt": "2025-07-03T00:25:00.000Z"
+          "createdAt": "2025-06-01T00:01:16.000Z"
         },
         {
           "id": "f0000000-0000-4000-8000-000000000075",
@@ -1760,7 +1760,7 @@ linear issue view ENG-123 --no-pager --json
           "metadata": {
             "state": "merged"
           },
-          "createdAt": "2025-07-03T00:24:00.000Z"
+          "createdAt": "2025-06-01T00:01:15.000Z"
         },
         {
           "id": "f0000000-0000-4000-8000-000000000074",
@@ -1771,7 +1771,7 @@ linear issue view ENG-123 --no-pager --json
           "metadata": {
             "state": "merged"
           },
-          "createdAt": "2025-07-03T00:23:00.000Z"
+          "createdAt": "2025-06-01T00:01:14.000Z"
         },
         {
           "id": "f0000000-0000-4000-8000-000000000073",
@@ -1782,7 +1782,7 @@ linear issue view ENG-123 --no-pager --json
           "metadata": {
             "state": "merged"
           },
-          "createdAt": "2025-07-03T00:22:00.000Z"
+          "createdAt": "2025-06-01T00:01:13.000Z"
         },
         {
           "id": "f0000000-0000-4000-8000-000000000072",
@@ -1793,7 +1793,7 @@ linear issue view ENG-123 --no-pager --json
           "metadata": {
             "state": "merged"
           },
-          "createdAt": "2025-07-03T00:21:00.000Z"
+          "createdAt": "2025-06-01T00:01:12.000Z"
         },
         {
           "id": "f0000000-0000-4000-8000-000000000071",
@@ -1804,7 +1804,7 @@ linear issue view ENG-123 --no-pager --json
           "metadata": {
             "state": "merged"
           },
-          "createdAt": "2025-07-03T00:20:00.000Z"
+          "createdAt": "2025-06-01T00:01:11.000Z"
         },
         {
           "id": "f0000000-0000-4000-8000-000000000070",
@@ -1815,7 +1815,7 @@ linear issue view ENG-123 --no-pager --json
           "metadata": {
             "state": "merged"
           },
-          "createdAt": "2025-07-03T00:19:00.000Z"
+          "createdAt": "2025-06-01T00:01:10.000Z"
         },
         {
           "id": "f0000000-0000-4000-8000-000000000069",
@@ -1826,7 +1826,7 @@ linear issue view ENG-123 --no-pager --json
           "metadata": {
             "state": "merged"
           },
-          "createdAt": "2025-07-03T00:18:00.000Z"
+          "createdAt": "2025-06-01T00:01:09.000Z"
         },
         {
           "id": "f0000000-0000-4000-8000-000000000068",
@@ -1837,7 +1837,7 @@ linear issue view ENG-123 --no-pager --json
           "metadata": {
             "state": "merged"
           },
-          "createdAt": "2025-07-03T00:17:00.000Z"
+          "createdAt": "2025-06-01T00:01:08.000Z"
         },
         {
           "id": "f0000000-0000-4000-8000-000000000067",
@@ -1848,7 +1848,7 @@ linear issue view ENG-123 --no-pager --json
           "metadata": {
             "state": "merged"
           },
-          "createdAt": "2025-07-03T00:16:00.000Z"
+          "createdAt": "2025-06-01T00:01:07.000Z"
         },
         {
           "id": "f0000000-0000-4000-8000-000000000066",
@@ -1859,7 +1859,7 @@ linear issue view ENG-123 --no-pager --json
           "metadata": {
             "state": "merged"
           },
-          "createdAt": "2025-07-03T00:15:00.000Z"
+          "createdAt": "2025-06-01T00:01:06.000Z"
         },
         {
           "id": "f0000000-0000-4000-8000-000000000065",
@@ -1870,7 +1870,7 @@ linear issue view ENG-123 --no-pager --json
           "metadata": {
             "state": "merged"
           },
-          "createdAt": "2025-07-03T00:14:00.000Z"
+          "createdAt": "2025-06-01T00:01:05.000Z"
         },
         {
           "id": "f0000000-0000-4000-8000-000000000064",
@@ -1881,7 +1881,7 @@ linear issue view ENG-123 --no-pager --json
           "metadata": {
             "state": "merged"
           },
-          "createdAt": "2025-07-03T00:13:00.000Z"
+          "createdAt": "2025-06-01T00:01:04.000Z"
         },
         {
           "id": "f0000000-0000-4000-8000-000000000063",
@@ -1892,7 +1892,7 @@ linear issue view ENG-123 --no-pager --json
           "metadata": {
             "state": "merged"
           },
-          "createdAt": "2025-07-03T00:12:00.000Z"
+          "createdAt": "2025-06-01T00:01:03.000Z"
         },
         {
           "id": "f0000000-0000-4000-8000-000000000062",
@@ -1903,7 +1903,7 @@ linear issue view ENG-123 --no-pager --json
           "metadata": {
             "state": "merged"
           },
-          "createdAt": "2025-07-03T00:11:00.000Z"
+          "createdAt": "2025-06-01T00:01:02.000Z"
         },
         {
           "id": "f0000000-0000-4000-8000-000000000061",
@@ -1914,7 +1914,7 @@ linear issue view ENG-123 --no-pager --json
           "metadata": {
             "state": "merged"
           },
-          "createdAt": "2025-07-03T00:10:00.000Z"
+          "createdAt": "2025-06-01T00:01:01.000Z"
         },
         {
           "id": "f0000000-0000-4000-8000-000000000060",
@@ -1925,7 +1925,7 @@ linear issue view ENG-123 --no-pager --json
           "metadata": {
             "state": "merged"
           },
-          "createdAt": "2025-07-03T00:09:00.000Z"
+          "createdAt": "2025-06-01T00:01:00.000Z"
         },
         {
           "id": "f0000000-0000-4000-8000-000000000059",
@@ -1936,7 +1936,7 @@ linear issue view ENG-123 --no-pager --json
           "metadata": {
             "state": "merged"
           },
-          "createdAt": "2025-07-03T00:08:00.000Z"
+          "createdAt": "2025-06-01T00:00:59.000Z"
         },
         {
           "id": "f0000000-0000-4000-8000-000000000058",
@@ -1947,7 +1947,7 @@ linear issue view ENG-123 --no-pager --json
           "metadata": {
             "state": "merged"
           },
-          "createdAt": "2025-07-03T00:07:00.000Z"
+          "createdAt": "2025-06-01T00:00:58.000Z"
         },
         {
           "id": "f0000000-0000-4000-8000-000000000057",
@@ -1958,7 +1958,7 @@ linear issue view ENG-123 --no-pager --json
           "metadata": {
             "state": "merged"
           },
-          "createdAt": "2025-07-03T00:06:00.000Z"
+          "createdAt": "2025-06-01T00:00:57.000Z"
         },
         {
           "id": "f0000000-0000-4000-8000-000000000056",
@@ -1969,7 +1969,7 @@ linear issue view ENG-123 --no-pager --json
           "metadata": {
             "state": "merged"
           },
-          "createdAt": "2025-07-03T00:05:00.000Z"
+          "createdAt": "2025-06-01T00:00:56.000Z"
         },
         {
           "id": "f0000000-0000-4000-8000-000000000055",
@@ -1980,7 +1980,7 @@ linear issue view ENG-123 --no-pager --json
           "metadata": {
             "state": "merged"
           },
-          "createdAt": "2025-07-03T00:04:00.000Z"
+          "createdAt": "2025-06-01T00:00:55.000Z"
         },
         {
           "id": "f0000000-0000-4000-8000-000000000054",
@@ -1991,7 +1991,7 @@ linear issue view ENG-123 --no-pager --json
           "metadata": {
             "state": "merged"
           },
-          "createdAt": "2025-07-03T00:03:00.000Z"
+          "createdAt": "2025-06-01T00:00:54.000Z"
         },
         {
           "id": "f0000000-0000-4000-8000-000000000053",
@@ -2002,7 +2002,7 @@ linear issue view ENG-123 --no-pager --json
           "metadata": {
             "state": "merged"
           },
-          "createdAt": "2025-07-03T00:02:00.000Z"
+          "createdAt": "2025-06-01T00:00:53.000Z"
         },
         {
           "id": "f0000000-0000-4000-8000-000000000052",
@@ -2013,7 +2013,7 @@ linear issue view ENG-123 --no-pager --json
           "metadata": {
             "state": "merged"
           },
-          "createdAt": "2025-07-03T00:01:00.000Z"
+          "createdAt": "2025-06-01T00:00:52.000Z"
         }
       ],
       "pageInfo": {
@@ -2157,7 +2157,7 @@ linear issue view ENG-123 --no-comments --json
           "metadata": {
             "state": "merged"
           },
-          "createdAt": "2025-07-03T00:60:00.000Z"
+          "createdAt": "2025-06-01T00:01:51.000Z"
         },
         {
           "id": "f0000000-0000-4000-8000-000000000110",
@@ -2168,7 +2168,7 @@ linear issue view ENG-123 --no-comments --json
           "metadata": {
             "state": "merged"
           },
-          "createdAt": "2025-07-03T00:59:00.000Z"
+          "createdAt": "2025-06-01T00:01:50.000Z"
         },
         {
           "id": "f0000000-0000-4000-8000-000000000109",
@@ -2179,7 +2179,7 @@ linear issue view ENG-123 --no-comments --json
           "metadata": {
             "state": "merged"
           },
-          "createdAt": "2025-07-03T00:58:00.000Z"
+          "createdAt": "2025-06-01T00:01:49.000Z"
         },
         {
           "id": "f0000000-0000-4000-8000-000000000108",
@@ -2190,7 +2190,7 @@ linear issue view ENG-123 --no-comments --json
           "metadata": {
             "state": "merged"
           },
-          "createdAt": "2025-07-03T00:57:00.000Z"
+          "createdAt": "2025-06-01T00:01:48.000Z"
         },
         {
           "id": "f0000000-0000-4000-8000-000000000107",
@@ -2201,7 +2201,7 @@ linear issue view ENG-123 --no-comments --json
           "metadata": {
             "state": "merged"
           },
-          "createdAt": "2025-07-03T00:56:00.000Z"
+          "createdAt": "2025-06-01T00:01:47.000Z"
         },
         {
           "id": "f0000000-0000-4000-8000-000000000106",
@@ -2212,7 +2212,7 @@ linear issue view ENG-123 --no-comments --json
           "metadata": {
             "state": "merged"
           },
-          "createdAt": "2025-07-03T00:55:00.000Z"
+          "createdAt": "2025-06-01T00:01:46.000Z"
         },
         {
           "id": "f0000000-0000-4000-8000-000000000105",
@@ -2223,7 +2223,7 @@ linear issue view ENG-123 --no-comments --json
           "metadata": {
             "state": "merged"
           },
-          "createdAt": "2025-07-03T00:54:00.000Z"
+          "createdAt": "2025-06-01T00:01:45.000Z"
         },
         {
           "id": "f0000000-0000-4000-8000-000000000104",
@@ -2234,7 +2234,7 @@ linear issue view ENG-123 --no-comments --json
           "metadata": {
             "state": "merged"
           },
-          "createdAt": "2025-07-03T00:53:00.000Z"
+          "createdAt": "2025-06-01T00:01:44.000Z"
         },
         {
           "id": "f0000000-0000-4000-8000-000000000103",
@@ -2245,7 +2245,7 @@ linear issue view ENG-123 --no-comments --json
           "metadata": {
             "state": "merged"
           },
-          "createdAt": "2025-07-03T00:52:00.000Z"
+          "createdAt": "2025-06-01T00:01:43.000Z"
         },
         {
           "id": "f0000000-0000-4000-8000-000000000102",
@@ -2256,7 +2256,7 @@ linear issue view ENG-123 --no-comments --json
           "metadata": {
             "state": "merged"
           },
-          "createdAt": "2025-07-03T00:51:00.000Z"
+          "createdAt": "2025-06-01T00:01:42.000Z"
         },
         {
           "id": "f0000000-0000-4000-8000-000000000101",
@@ -2267,7 +2267,7 @@ linear issue view ENG-123 --no-comments --json
           "metadata": {
             "state": "merged"
           },
-          "createdAt": "2025-07-03T00:50:00.000Z"
+          "createdAt": "2025-06-01T00:01:41.000Z"
         },
         {
           "id": "f0000000-0000-4000-8000-000000000100",
@@ -2278,7 +2278,7 @@ linear issue view ENG-123 --no-comments --json
           "metadata": {
             "state": "merged"
           },
-          "createdAt": "2025-07-03T00:49:00.000Z"
+          "createdAt": "2025-06-01T00:01:40.000Z"
         },
         {
           "id": "f0000000-0000-4000-8000-000000000099",
@@ -2289,7 +2289,7 @@ linear issue view ENG-123 --no-comments --json
           "metadata": {
             "state": "merged"
           },
-          "createdAt": "2025-07-03T00:48:00.000Z"
+          "createdAt": "2025-06-01T00:01:39.000Z"
         },
         {
           "id": "f0000000-0000-4000-8000-000000000098",
@@ -2300,7 +2300,7 @@ linear issue view ENG-123 --no-comments --json
           "metadata": {
             "state": "merged"
           },
-          "createdAt": "2025-07-03T00:47:00.000Z"
+          "createdAt": "2025-06-01T00:01:38.000Z"
         },
         {
           "id": "f0000000-0000-4000-8000-000000000097",
@@ -2311,7 +2311,7 @@ linear issue view ENG-123 --no-comments --json
           "metadata": {
             "state": "merged"
           },
-          "createdAt": "2025-07-03T00:46:00.000Z"
+          "createdAt": "2025-06-01T00:01:37.000Z"
         },
         {
           "id": "f0000000-0000-4000-8000-000000000096",
@@ -2322,7 +2322,7 @@ linear issue view ENG-123 --no-comments --json
           "metadata": {
             "state": "merged"
           },
-          "createdAt": "2025-07-03T00:45:00.000Z"
+          "createdAt": "2025-06-01T00:01:36.000Z"
         },
         {
           "id": "f0000000-0000-4000-8000-000000000095",
@@ -2333,7 +2333,7 @@ linear issue view ENG-123 --no-comments --json
           "metadata": {
             "state": "merged"
           },
-          "createdAt": "2025-07-03T00:44:00.000Z"
+          "createdAt": "2025-06-01T00:01:35.000Z"
         },
         {
           "id": "f0000000-0000-4000-8000-000000000094",
@@ -2344,7 +2344,7 @@ linear issue view ENG-123 --no-comments --json
           "metadata": {
             "state": "merged"
           },
-          "createdAt": "2025-07-03T00:43:00.000Z"
+          "createdAt": "2025-06-01T00:01:34.000Z"
         },
         {
           "id": "f0000000-0000-4000-8000-000000000093",
@@ -2355,7 +2355,7 @@ linear issue view ENG-123 --no-comments --json
           "metadata": {
             "state": "merged"
           },
-          "createdAt": "2025-07-03T00:42:00.000Z"
+          "createdAt": "2025-06-01T00:01:33.000Z"
         },
         {
           "id": "f0000000-0000-4000-8000-000000000092",
@@ -2366,7 +2366,7 @@ linear issue view ENG-123 --no-comments --json
           "metadata": {
             "state": "merged"
           },
-          "createdAt": "2025-07-03T00:41:00.000Z"
+          "createdAt": "2025-06-01T00:01:32.000Z"
         },
         {
           "id": "f0000000-0000-4000-8000-000000000091",
@@ -2377,7 +2377,7 @@ linear issue view ENG-123 --no-comments --json
           "metadata": {
             "state": "merged"
           },
-          "createdAt": "2025-07-03T00:40:00.000Z"
+          "createdAt": "2025-06-01T00:01:31.000Z"
         },
         {
           "id": "f0000000-0000-4000-8000-000000000090",
@@ -2388,7 +2388,7 @@ linear issue view ENG-123 --no-comments --json
           "metadata": {
             "state": "merged"
           },
-          "createdAt": "2025-07-03T00:39:00.000Z"
+          "createdAt": "2025-06-01T00:01:30.000Z"
         },
         {
           "id": "f0000000-0000-4000-8000-000000000089",
@@ -2399,7 +2399,7 @@ linear issue view ENG-123 --no-comments --json
           "metadata": {
             "state": "merged"
           },
-          "createdAt": "2025-07-03T00:38:00.000Z"
+          "createdAt": "2025-06-01T00:01:29.000Z"
         },
         {
           "id": "f0000000-0000-4000-8000-000000000088",
@@ -2410,7 +2410,7 @@ linear issue view ENG-123 --no-comments --json
           "metadata": {
             "state": "merged"
           },
-          "createdAt": "2025-07-03T00:37:00.000Z"
+          "createdAt": "2025-06-01T00:01:28.000Z"
         },
         {
           "id": "f0000000-0000-4000-8000-000000000087",
@@ -2421,7 +2421,7 @@ linear issue view ENG-123 --no-comments --json
           "metadata": {
             "state": "merged"
           },
-          "createdAt": "2025-07-03T00:36:00.000Z"
+          "createdAt": "2025-06-01T00:01:27.000Z"
         },
         {
           "id": "f0000000-0000-4000-8000-000000000086",
@@ -2432,7 +2432,7 @@ linear issue view ENG-123 --no-comments --json
           "metadata": {
             "state": "merged"
           },
-          "createdAt": "2025-07-03T00:35:00.000Z"
+          "createdAt": "2025-06-01T00:01:26.000Z"
         },
         {
           "id": "f0000000-0000-4000-8000-000000000085",
@@ -2443,7 +2443,7 @@ linear issue view ENG-123 --no-comments --json
           "metadata": {
             "state": "merged"
           },
-          "createdAt": "2025-07-03T00:34:00.000Z"
+          "createdAt": "2025-06-01T00:01:25.000Z"
         },
         {
           "id": "f0000000-0000-4000-8000-000000000084",
@@ -2454,7 +2454,7 @@ linear issue view ENG-123 --no-comments --json
           "metadata": {
             "state": "merged"
           },
-          "createdAt": "2025-07-03T00:33:00.000Z"
+          "createdAt": "2025-06-01T00:01:24.000Z"
         },
         {
           "id": "f0000000-0000-4000-8000-000000000083",
@@ -2465,7 +2465,7 @@ linear issue view ENG-123 --no-comments --json
           "metadata": {
             "state": "merged"
           },
-          "createdAt": "2025-07-03T00:32:00.000Z"
+          "createdAt": "2025-06-01T00:01:23.000Z"
         },
         {
           "id": "f0000000-0000-4000-8000-000000000082",
@@ -2476,7 +2476,7 @@ linear issue view ENG-123 --no-comments --json
           "metadata": {
             "state": "merged"
           },
-          "createdAt": "2025-07-03T00:31:00.000Z"
+          "createdAt": "2025-06-01T00:01:22.000Z"
         },
         {
           "id": "f0000000-0000-4000-8000-000000000081",
@@ -2487,7 +2487,7 @@ linear issue view ENG-123 --no-comments --json
           "metadata": {
             "state": "merged"
           },
-          "createdAt": "2025-07-03T00:30:00.000Z"
+          "createdAt": "2025-06-01T00:01:21.000Z"
         },
         {
           "id": "f0000000-0000-4000-8000-000000000080",
@@ -2498,7 +2498,7 @@ linear issue view ENG-123 --no-comments --json
           "metadata": {
             "state": "merged"
           },
-          "createdAt": "2025-07-03T00:29:00.000Z"
+          "createdAt": "2025-06-01T00:01:20.000Z"
         },
         {
           "id": "f0000000-0000-4000-8000-000000000079",
@@ -2509,7 +2509,7 @@ linear issue view ENG-123 --no-comments --json
           "metadata": {
             "state": "merged"
           },
-          "createdAt": "2025-07-03T00:28:00.000Z"
+          "createdAt": "2025-06-01T00:01:19.000Z"
         },
         {
           "id": "f0000000-0000-4000-8000-000000000078",
@@ -2520,7 +2520,7 @@ linear issue view ENG-123 --no-comments --json
           "metadata": {
             "state": "merged"
           },
-          "createdAt": "2025-07-03T00:27:00.000Z"
+          "createdAt": "2025-06-01T00:01:18.000Z"
         },
         {
           "id": "f0000000-0000-4000-8000-000000000077",
@@ -2531,7 +2531,7 @@ linear issue view ENG-123 --no-comments --json
           "metadata": {
             "state": "merged"
           },
-          "createdAt": "2025-07-03T00:26:00.000Z"
+          "createdAt": "2025-06-01T00:01:17.000Z"
         },
         {
           "id": "f0000000-0000-4000-8000-000000000076",
@@ -2542,7 +2542,7 @@ linear issue view ENG-123 --no-comments --json
           "metadata": {
             "state": "merged"
           },
-          "createdAt": "2025-07-03T00:25:00.000Z"
+          "createdAt": "2025-06-01T00:01:16.000Z"
         },
         {
           "id": "f0000000-0000-4000-8000-000000000075",
@@ -2553,7 +2553,7 @@ linear issue view ENG-123 --no-comments --json
           "metadata": {
             "state": "merged"
           },
-          "createdAt": "2025-07-03T00:24:00.000Z"
+          "createdAt": "2025-06-01T00:01:15.000Z"
         },
         {
           "id": "f0000000-0000-4000-8000-000000000074",
@@ -2564,7 +2564,7 @@ linear issue view ENG-123 --no-comments --json
           "metadata": {
             "state": "merged"
           },
-          "createdAt": "2025-07-03T00:23:00.000Z"
+          "createdAt": "2025-06-01T00:01:14.000Z"
         },
         {
           "id": "f0000000-0000-4000-8000-000000000073",
@@ -2575,7 +2575,7 @@ linear issue view ENG-123 --no-comments --json
           "metadata": {
             "state": "merged"
           },
-          "createdAt": "2025-07-03T00:22:00.000Z"
+          "createdAt": "2025-06-01T00:01:13.000Z"
         },
         {
           "id": "f0000000-0000-4000-8000-000000000072",
@@ -2586,7 +2586,7 @@ linear issue view ENG-123 --no-comments --json
           "metadata": {
             "state": "merged"
           },
-          "createdAt": "2025-07-03T00:21:00.000Z"
+          "createdAt": "2025-06-01T00:01:12.000Z"
         },
         {
           "id": "f0000000-0000-4000-8000-000000000071",
@@ -2597,7 +2597,7 @@ linear issue view ENG-123 --no-comments --json
           "metadata": {
             "state": "merged"
           },
-          "createdAt": "2025-07-03T00:20:00.000Z"
+          "createdAt": "2025-06-01T00:01:11.000Z"
         },
         {
           "id": "f0000000-0000-4000-8000-000000000070",
@@ -2608,7 +2608,7 @@ linear issue view ENG-123 --no-comments --json
           "metadata": {
             "state": "merged"
           },
-          "createdAt": "2025-07-03T00:19:00.000Z"
+          "createdAt": "2025-06-01T00:01:10.000Z"
         },
         {
           "id": "f0000000-0000-4000-8000-000000000069",
@@ -2619,7 +2619,7 @@ linear issue view ENG-123 --no-comments --json
           "metadata": {
             "state": "merged"
           },
-          "createdAt": "2025-07-03T00:18:00.000Z"
+          "createdAt": "2025-06-01T00:01:09.000Z"
         },
         {
           "id": "f0000000-0000-4000-8000-000000000068",
@@ -2630,7 +2630,7 @@ linear issue view ENG-123 --no-comments --json
           "metadata": {
             "state": "merged"
           },
-          "createdAt": "2025-07-03T00:17:00.000Z"
+          "createdAt": "2025-06-01T00:01:08.000Z"
         },
         {
           "id": "f0000000-0000-4000-8000-000000000067",
@@ -2641,7 +2641,7 @@ linear issue view ENG-123 --no-comments --json
           "metadata": {
             "state": "merged"
           },
-          "createdAt": "2025-07-03T00:16:00.000Z"
+          "createdAt": "2025-06-01T00:01:07.000Z"
         },
         {
           "id": "f0000000-0000-4000-8000-000000000066",
@@ -2652,7 +2652,7 @@ linear issue view ENG-123 --no-comments --json
           "metadata": {
             "state": "merged"
           },
-          "createdAt": "2025-07-03T00:15:00.000Z"
+          "createdAt": "2025-06-01T00:01:06.000Z"
         },
         {
           "id": "f0000000-0000-4000-8000-000000000065",
@@ -2663,7 +2663,7 @@ linear issue view ENG-123 --no-comments --json
           "metadata": {
             "state": "merged"
           },
-          "createdAt": "2025-07-03T00:14:00.000Z"
+          "createdAt": "2025-06-01T00:01:05.000Z"
         },
         {
           "id": "f0000000-0000-4000-8000-000000000064",
@@ -2674,7 +2674,7 @@ linear issue view ENG-123 --no-comments --json
           "metadata": {
             "state": "merged"
           },
-          "createdAt": "2025-07-03T00:13:00.000Z"
+          "createdAt": "2025-06-01T00:01:04.000Z"
         },
         {
           "id": "f0000000-0000-4000-8000-000000000063",
@@ -2685,7 +2685,7 @@ linear issue view ENG-123 --no-comments --json
           "metadata": {
             "state": "merged"
           },
-          "createdAt": "2025-07-03T00:12:00.000Z"
+          "createdAt": "2025-06-01T00:01:03.000Z"
         },
         {
           "id": "f0000000-0000-4000-8000-000000000062",
@@ -2696,7 +2696,7 @@ linear issue view ENG-123 --no-comments --json
           "metadata": {
             "state": "merged"
           },
-          "createdAt": "2025-07-03T00:11:00.000Z"
+          "createdAt": "2025-06-01T00:01:02.000Z"
         },
         {
           "id": "f0000000-0000-4000-8000-000000000061",
@@ -2707,7 +2707,7 @@ linear issue view ENG-123 --no-comments --json
           "metadata": {
             "state": "merged"
           },
-          "createdAt": "2025-07-03T00:10:00.000Z"
+          "createdAt": "2025-06-01T00:01:01.000Z"
         },
         {
           "id": "f0000000-0000-4000-8000-000000000060",
@@ -2718,7 +2718,7 @@ linear issue view ENG-123 --no-comments --json
           "metadata": {
             "state": "merged"
           },
-          "createdAt": "2025-07-03T00:09:00.000Z"
+          "createdAt": "2025-06-01T00:01:00.000Z"
         },
         {
           "id": "f0000000-0000-4000-8000-000000000059",
@@ -2729,7 +2729,7 @@ linear issue view ENG-123 --no-comments --json
           "metadata": {
             "state": "merged"
           },
-          "createdAt": "2025-07-03T00:08:00.000Z"
+          "createdAt": "2025-06-01T00:00:59.000Z"
         },
         {
           "id": "f0000000-0000-4000-8000-000000000058",
@@ -2740,7 +2740,7 @@ linear issue view ENG-123 --no-comments --json
           "metadata": {
             "state": "merged"
           },
-          "createdAt": "2025-07-03T00:07:00.000Z"
+          "createdAt": "2025-06-01T00:00:58.000Z"
         },
         {
           "id": "f0000000-0000-4000-8000-000000000057",
@@ -2751,7 +2751,7 @@ linear issue view ENG-123 --no-comments --json
           "metadata": {
             "state": "merged"
           },
-          "createdAt": "2025-07-03T00:06:00.000Z"
+          "createdAt": "2025-06-01T00:00:57.000Z"
         },
         {
           "id": "f0000000-0000-4000-8000-000000000056",
@@ -2762,7 +2762,7 @@ linear issue view ENG-123 --no-comments --json
           "metadata": {
             "state": "merged"
           },
-          "createdAt": "2025-07-03T00:05:00.000Z"
+          "createdAt": "2025-06-01T00:00:56.000Z"
         },
         {
           "id": "f0000000-0000-4000-8000-000000000055",
@@ -2773,7 +2773,7 @@ linear issue view ENG-123 --no-comments --json
           "metadata": {
             "state": "merged"
           },
-          "createdAt": "2025-07-03T00:04:00.000Z"
+          "createdAt": "2025-06-01T00:00:55.000Z"
         },
         {
           "id": "f0000000-0000-4000-8000-000000000054",
@@ -2784,7 +2784,7 @@ linear issue view ENG-123 --no-comments --json
           "metadata": {
             "state": "merged"
           },
-          "createdAt": "2025-07-03T00:03:00.000Z"
+          "createdAt": "2025-06-01T00:00:54.000Z"
         },
         {
           "id": "f0000000-0000-4000-8000-000000000053",
@@ -2795,7 +2795,7 @@ linear issue view ENG-123 --no-comments --json
           "metadata": {
             "state": "merged"
           },
-          "createdAt": "2025-07-03T00:02:00.000Z"
+          "createdAt": "2025-06-01T00:00:53.000Z"
         },
         {
           "id": "f0000000-0000-4000-8000-000000000052",
@@ -2806,7 +2806,7 @@ linear issue view ENG-123 --no-comments --json
           "metadata": {
             "state": "merged"
           },
-          "createdAt": "2025-07-03T00:01:00.000Z"
+          "createdAt": "2025-06-01T00:00:52.000Z"
         }
       ],
       "pageInfo": {

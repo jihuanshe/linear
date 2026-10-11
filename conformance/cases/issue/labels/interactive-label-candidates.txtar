@@ -4,7 +4,7 @@ In interactive create, a label that matches no name exactly offers the candidate
   {"id": "0e000000-0000-4000-8000-000000000021", "name": "Partial frontend"},
   {"id": "0e000000-0000-4000-8000-000000000022", "name": "Partial backend", "team": "0c000000-0000-4000-8000-000000000001"},
   {"id": "0e000000-0000-4000-8000-000000000023", "name": "Other one"},
-  {"$repeat": 60, "name": "Partial zz filler {{n:2}}", "createdAt": "2025-08-01T00:{{n:2}}:00.000Z"}]}
+  {"$repeat": 60, "name": "Partial zz filler {{n:2}}"}]}
 -- env --
 LINEAR_ISSUE_CREATE_ASSIGN_SELF=never
 -- tty --

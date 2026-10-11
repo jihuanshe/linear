@@ -1,0 +1,68 @@
+History reads every page by default and with --limit 0; a limit keeps the cursor of what it left unread and warns on stderr; invalid limits fail before any request.
+-- seed.json --
+{"Issue": [{"id": "1a000000-0000-4000-8000-000000000123", "identifier": "ENG-123", "title": "Long history"}],
+ "IssueHistory": [{"$repeat": 202, "issue": "1a000000-0000-4000-8000-000000000123", "actor": "0b000000-0000-4000-8000-000000000001", "fromEstimate": null, "toEstimate": "{{n}}"}]}
+-- run --
+linear issue history ENG-123 --json > all.json
+-- file-after.json all.json --
+{"nodes": "{{*}}", "pageInfo": {"hasNextPage": false, "endCursor": "{{*}}"}}
+-- run --
+linear issue history ENG-123 --json --limit 0 > zero.json
+-- file-after.json zero.json --
+{"nodes": "{{*}}", "pageInfo": {"hasNextPage": false, "endCursor": "{{*}}"}}
+-- run --
+linear issue history ENG-123 --json --limit 101 > l101.json
+-- file-after.json l101.json --
+{"nodes": "{{*}}", "pageInfo": {"hasNextPage": true, "endCursor": "{{*}}"}}
+-- run --
+linear issue history ENG-123 --limit 2
+-- stdout --
+2025-06-01T00:03:23.000Z alex: estimate: - -> 202
+2025-06-01T00:03:22.000Z alex: estimate: - -> 201
+-- stderr --
+Showing the first 2 history entries; more exist. Use --limit 0 to fetch all pages.
+-- run --
+linear issue history ENG-123 --json --limit=-1
+-- stdout.json --
+{
+  "ok": false,
+  "effect": "none",
+  "error": {
+    "code": "ValidationError",
+    "message": "--limit must be a non-negative integer (got \"-1\")",
+    "suggestion": "Use a whole number from 0 (all pages) to 9007199254740991."
+  }
+}
+-- exit --
+1
+-- no-requests --
+-- run --
+linear issue history ENG-123 --json --limit=1.5
+-- stdout.json --
+{
+  "ok": false,
+  "effect": "none",
+  "error": {
+    "code": "ValidationError",
+    "message": "--limit must be a non-negative integer (got \"1.5\")",
+    "suggestion": "Use a whole number from 0 (all pages) to 9007199254740991."
+  }
+}
+-- exit --
+1
+-- no-requests --
+-- run --
+linear issue history ENG-123 --json --limit=9007199254740992
+-- stdout.json --
+{
+  "ok": false,
+  "effect": "none",
+  "error": {
+    "code": "ValidationError",
+    "message": "--limit must be a non-negative integer (got \"9007199254740992\")",
+    "suggestion": "Use a whole number from 0 (all pages) to 9007199254740991."
+  }
+}
+-- exit --
+1
+-- no-requests --

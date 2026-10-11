@@ -1,7 +1,7 @@
 URL mode reads all of a candidate's comments, so a match in a later comment counts and the returned comments are complete.
 -- seed.json --
 {"Issue": [{"id": "1a000000-0000-4000-8000-000000000001", "identifier": "ENG-1", "title": "Long discussion", "description": "No link here"}],
- "Comment": [{"$repeat": 60, "issue": "1a000000-0000-4000-8000-000000000001", "body": "comment {{n}}", "createdAt": "2025-07-01T00:{{n:2}}:00.000Z"},
+ "Comment": [{"$repeat": 60, "issue": "1a000000-0000-4000-8000-000000000001", "body": "comment {{n}}"},
   {"issue": "1a000000-0000-4000-8000-000000000001", "body": "later comment https://example.com/objects/paginated", "createdAt": "2025-08-01T00:00:00.000Z"}]}
 -- run --
 linear issue query --all-teams --url https://example.com/objects/paginated --json

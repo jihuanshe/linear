@@ -127,7 +127,19 @@ export function withDefaults(
     archivedAt: null,
     ...TYPE_DEFAULTS[typename]?.(store, record),
   }
-  for (const [key, value] of Object.entries(record)) filled[key] = value
+  for (const [key, value] of Object.entries(record)) {
+    // Catch seed typos such as "00:75:00" before they skew ordering.
+    if (
+      key.endsWith("At") && typeof value === "string" &&
+      (!/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(\.\d+)?Z$/.test(value) ||
+        Number.isNaN(Date.parse(value)))
+    ) {
+      throw new Error(
+        `fake: ${typename}.${key} is not an ISO timestamp: ${value}`,
+      )
+    }
+    filled[key] = value
+  }
   if (typename === "Issue" && filled.identifier == null) {
     const team = store.find("Team", filled.team as string)!
     filled.number ??= nextIssueNumber(store, team.id)

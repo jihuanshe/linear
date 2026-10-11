@@ -1,6 +1,6 @@
 comment list honors --limit (one page, beyond a page, or 0 for all) and keeps pageInfo; invalid limits are rejected before any request.
 -- seed.json --
-{"Issue": [{"id": "1a000000-0000-4000-8000-000000000123", "identifier": "ENG-123", "title": "Read all evidence", "description": "Issue body"}], "Comment": [{"$repeat": 120, "issue": "1a000000-0000-4000-8000-000000000123", "body": "Comment {{n}}", "createdAt": "2025-07-02T00:{{n:3}}:00.000Z"}]}
+{"Issue": [{"id": "1a000000-0000-4000-8000-000000000123", "identifier": "ENG-123", "title": "Read all evidence", "description": "Issue body"}], "Comment": [{"$repeat": 120, "issue": "1a000000-0000-4000-8000-000000000123", "body": "Comment {{n}}"}]}
 -- run --
 linear issue comment list ENG-123 --limit 50 --json > l50.json
 -- file-after.json l50.json --
