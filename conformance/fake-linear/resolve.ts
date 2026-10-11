@@ -93,6 +93,20 @@ const COMPUTED: Record<string, Computed> = {
     teamCycles(store, team.id)
       .find((c) => cyclePhase(c, store.worldNow()) === "active")?.id ?? null,
   "Team.organization": (_, { store }) => store.singleton("Organization").id,
+  // The viewer's own favorite of this issue, if any.
+  "Issue.favorite": (issue, { store }) =>
+    store.all("Favorite").find((favorite) =>
+      favorite.issue === issue.id && favorite.owner === store.viewer().id
+    )?.id ?? null,
+  // Issue favorites show the issue's current title and URL.
+  "Favorite.title": (favorite, ctx) => {
+    const issue = ctx.store.find("Issue", favorite.issue as string)
+    return issue == null ? (favorite.folderName ?? null) : issue.title
+  },
+  "Favorite.url": (favorite, ctx) => {
+    const issue = ctx.store.find("Issue", favorite.issue as string)
+    return issue == null ? null : COMPUTED["Issue.url"](issue, ctx)
+  },
 }
 
 function cyclePhase(
@@ -139,6 +153,15 @@ const ROOT_LOOKUPS: Record<string, string[]> = {
   project: ["slugId"],
   document: ["slugId"],
   initiative: ["slugId"],
+}
+
+/** A connection over the given records with the standard arguments. */
+export function connectionOf(
+  ctx: Context,
+  records: EntityRecord[],
+  args: Record<string, unknown>,
+) {
+  return buildConnection(ctx, records, args as ConnectionArgs)
 }
 
 /** Full-text search: every word of the term appears in the title or description. */

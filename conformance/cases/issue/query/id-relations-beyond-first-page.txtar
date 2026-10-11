@@ -1,0 +1,9 @@
+--id completes an issue's incoming relations beyond the first page.
+-- seed.json --
+{"Issue": [{"id": "1a000000-0000-4000-8000-000000000101", "identifier": "ENG-101", "title": "Hub"},
+  {"$repeat": 60, "id": "2a000000-0000-4000-8000-000000000{{n:3}}", "identifier": "ENG-{{n:3}}", "number": 1000, "title": "Blocker {{n}}"}],
+ "IssueRelation": [{"$repeat": 60, "type": "blocks", "issue": "2a000000-0000-4000-8000-000000000{{n:3}}", "relatedIssue": "1a000000-0000-4000-8000-000000000101"}]}
+-- run --
+linear issue query --id ENG-101 --json > out.json
+-- file-after.json out.json --
+{"nodes": [{"identifier": "ENG-101", "inverseRelations": {"nodes": "{{*}}", "pageInfo": {"hasNextPage": false, "endCursor": "{{*}}"}}, "...": true}], "...": true}

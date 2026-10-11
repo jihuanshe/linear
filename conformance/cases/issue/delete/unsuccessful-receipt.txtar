@@ -1,0 +1,25 @@
+A delete receipt with success false leaves the effect unknown.
+-- seed.json --
+{"Issue": [{"id": "11111111-1111-4111-8111-111111111111", "identifier": "ENG-42", "title": "Moved issue", "previousIdentifiers": ["OLD-123"]}, {"id": "22222222-2222-4222-8222-222222222222", "identifier": "ENG-43", "title": "Second"}, {"id": "33333333-3333-4333-8333-333333333333", "identifier": "ENG-44", "title": "Third"}]}
+-- faults.json --
+[{"on": "mutation:issueDelete", "action": "status", "status": 200, "body": {"data": {"issueDelete": {"success": false, "entity": null}}}}]
+-- run --
+linear issue delete ENG-42 --yes --json
+-- stdout.json --
+{
+  "ok": false,
+  "effect": "unknown",
+  "data": {
+    "issueDelete": {
+      "success": false,
+      "entity": null
+    }
+  },
+  "error": {
+    "code": "WriteError",
+    "message": "Failed to delete issue: Mutation was not confirmed",
+    "suggestion": "Reconcile the remote outcome before retrying this write."
+  }
+}
+-- exit --
+1

@@ -1,0 +1,30 @@
+On update, Linear keeps an empty description as an empty string (unlike create, which stores null) and strips trailing newlines; clearing with --description "" succeeds and reads back.
+
+live: true
+-- file body.md --
+Updated body
+
+-- run --
+linear issue create --team {{TEAM}} --title "{{RUN}} clear description" --description "Some body" --json
+-- stdout.json --
+{"ok": true, "effect": "applied", "data": {"success": true, "issue": {"identifier": "{{=ISSUE}}", "...": true}}, "fields": "{{*}}"}
+-- stderr --
+{{*}}
+-- run --
+linear issue update {{ISSUE}} --unprotected --description-file body.md --json
+-- stdout.json --
+{"ok": true, "effect": "applied", "...": true}
+-- run --
+linear issue view {{ISSUE}} --json --no-comments
+-- stdout.json --
+{"issue": {"description": "Updated body", "...": true}, "...": true}
+-- run --
+linear issue update {{ISSUE}} --unprotected --description "" --json
+-- stdout.json --
+{"ok": true, "effect": "applied", "...": true}
+-- run --
+linear issue view {{ISSUE}} --json --no-comments
+-- stdout.json --
+{"issue": {"description": "", "...": true}, "...": true}
+-- cleanup --
+linear issue delete {{ISSUE}} -y

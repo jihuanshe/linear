@@ -7,9 +7,85 @@ An original null description and a remote empty description (or the reverse) dif
 -- run --
 linear issue view ENG-1 --json > one.json
 -- run --
-linear issue update ENG-1 --description "" --base-file one.json --json > one-result.json
--- exit --
-1
+linear issue update ENG-1 --description "" --base-file one.json --json
+-- stdout.json --
+{
+  "ok": true,
+  "effect": "applied",
+  "data": {
+    "success": true,
+    "issue": {
+      "id": "1a000000-0000-4000-8000-000000000001",
+      "identifier": "ENG-1",
+      "url": "https://linear.app/kadoraba/issue/ENG-1/null-and-null",
+      "title": "Null and null",
+      "priority": 0,
+      "labels": {
+        "nodes": [],
+        "pageInfo": {
+          "hasNextPage": false,
+          "endCursor": null
+        }
+      }
+    }
+  },
+  "fields": [
+    {
+      "field": "description",
+      "inputField": "description",
+      "base": null,
+      "desired": "",
+      "remote": null,
+      "verdict": "write"
+    }
+  ],
+  "verification": {
+    "scope": "issue-fields",
+    "status": "verified"
+  },
+  "readBack": {
+    "organization": {
+      "id": "0a000000-0000-4000-8000-000000000001",
+      "urlKey": "kadoraba"
+    },
+    "issue": {
+      "id": "1a000000-0000-4000-8000-000000000001",
+      "identifier": "ENG-1",
+      "archivedAt": null,
+      "trashed": null,
+      "title": "Null and null",
+      "description": "",
+      "url": "https://linear.app/kadoraba/issue/ENG-1/null-and-null",
+      "branchName": "alex/eng-1-null-and-null",
+      "priority": 0,
+      "estimate": null,
+      "dueDate": null,
+      "state": {
+        "id": "0d000000-0000-4000-8000-000000000001",
+        "name": "Backlog",
+        "type": "backlog",
+        "color": "#bec2c8"
+      },
+      "assignee": null,
+      "project": null,
+      "projectMilestone": null,
+      "cycle": null,
+      "team": {
+        "id": "0c000000-0000-4000-8000-000000000001",
+        "key": "ENG",
+        "activeCycle": null
+      },
+      "parent": null,
+      "labels": {
+        "nodes": [],
+        "pageInfo": {
+          "hasNextPage": false,
+          "endCursor": null
+        }
+      }
+    }
+  }
+}
 -- mutations.json --
 {"issueUpdate": 1}
 -- run --

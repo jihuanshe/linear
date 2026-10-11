@@ -1,4 +1,4 @@
-When Linear rejects the create with an error, the message is surfaced and the write is reported as not applied.
+When Linear rejects the create with an error, the message is surfaced; the CLI reports the effect as unknown and does not retry.
 -- seed.json --
 {"Project": [
   {"id": "1e000000-0000-4000-8000-000000000001", "name": "Dashboard", "slugId": "a1b2c3d4e5f6", "teams": ["0c000000-0000-4000-8000-000000000001"]},

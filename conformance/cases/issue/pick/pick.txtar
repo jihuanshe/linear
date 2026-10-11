@@ -1,0 +1,33 @@
+issue pick offers the viewer's unstarted issues in the configured team without any sort configuration, prints only the chosen identifier and writes nothing; --all-assignees widens the choice; with nothing to pick it says so.
+-- seed.json --
+{"User": [{"id": "1b000000-0000-4000-8000-000000000002", "name": "Jane"}],
+ "Issue": [
+  {"identifier": "ENG-123", "title": "Pick me", "state": "0d000000-0000-4000-8000-000000000002", "assignee": "0b000000-0000-4000-8000-000000000001"},
+  {"identifier": "ENG-124", "title": "Started", "state": "0d000000-0000-4000-8000-000000000003", "assignee": "0b000000-0000-4000-8000-000000000001"},
+  {"identifier": "ENG-125", "title": "Janes work", "state": "0d000000-0000-4000-8000-000000000002", "assignee": "1b000000-0000-4000-8000-000000000002"}]}
+-- env --
+LINEAR_TEAM_KEY=ENG
+-- tty --
+expect Pick me
+send \r
+-- run --
+linear issue pick
+-- stdout --
+{{*}}ENG-123
+-- mutations.json --
+{}
+-- tty --
+expect Janes work
+send Janes\r
+-- run --
+linear issue pick --all-assignees
+-- stdout --
+{{*}}ENG-125
+-- env --
+LINEAR_TEAM_KEY=P38IT
+-- run --
+linear issue pick
+-- stderr --
+✗ Failed to pick issue: Unstarted issues not found: P38IT
+-- exit --
+1

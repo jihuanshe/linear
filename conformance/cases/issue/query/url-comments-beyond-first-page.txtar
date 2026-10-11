@@ -1,7 +1,7 @@
 URL mode reads all of a candidate's comments, so a match in a later comment counts and the returned comments are complete.
 -- seed.json --
 {"Issue": [{"id": "1a000000-0000-4000-8000-000000000001", "identifier": "ENG-1", "title": "Long discussion", "description": "No link here"}],
- "Comment": [{"$repeat": 60, "issue": "1a000000-0000-4000-8000-000000000001", "body": "comment {{n}}"},
+ "Comment": [{"$repeat": 120, "issue": "1a000000-0000-4000-8000-000000000001", "body": "comment {{n}}"},
   {"issue": "1a000000-0000-4000-8000-000000000001", "body": "later comment https://example.com/objects/paginated", "createdAt": "2025-08-01T00:00:00.000Z"}]}
 -- run --
 linear issue query --all-teams --url https://example.com/objects/paginated --json
@@ -18,6 +18,186 @@ linear issue query --all-teams --url https://example.com/objects/paginated --jso
         "nodes": [
           {
             "body": "later comment https://example.com/objects/paginated"
+          },
+          {
+            "body": "comment 120"
+          },
+          {
+            "body": "comment 119"
+          },
+          {
+            "body": "comment 118"
+          },
+          {
+            "body": "comment 117"
+          },
+          {
+            "body": "comment 116"
+          },
+          {
+            "body": "comment 115"
+          },
+          {
+            "body": "comment 114"
+          },
+          {
+            "body": "comment 113"
+          },
+          {
+            "body": "comment 112"
+          },
+          {
+            "body": "comment 111"
+          },
+          {
+            "body": "comment 110"
+          },
+          {
+            "body": "comment 109"
+          },
+          {
+            "body": "comment 108"
+          },
+          {
+            "body": "comment 107"
+          },
+          {
+            "body": "comment 106"
+          },
+          {
+            "body": "comment 105"
+          },
+          {
+            "body": "comment 104"
+          },
+          {
+            "body": "comment 103"
+          },
+          {
+            "body": "comment 102"
+          },
+          {
+            "body": "comment 101"
+          },
+          {
+            "body": "comment 100"
+          },
+          {
+            "body": "comment 99"
+          },
+          {
+            "body": "comment 98"
+          },
+          {
+            "body": "comment 97"
+          },
+          {
+            "body": "comment 96"
+          },
+          {
+            "body": "comment 95"
+          },
+          {
+            "body": "comment 94"
+          },
+          {
+            "body": "comment 93"
+          },
+          {
+            "body": "comment 92"
+          },
+          {
+            "body": "comment 91"
+          },
+          {
+            "body": "comment 90"
+          },
+          {
+            "body": "comment 89"
+          },
+          {
+            "body": "comment 88"
+          },
+          {
+            "body": "comment 87"
+          },
+          {
+            "body": "comment 86"
+          },
+          {
+            "body": "comment 85"
+          },
+          {
+            "body": "comment 84"
+          },
+          {
+            "body": "comment 83"
+          },
+          {
+            "body": "comment 82"
+          },
+          {
+            "body": "comment 81"
+          },
+          {
+            "body": "comment 80"
+          },
+          {
+            "body": "comment 79"
+          },
+          {
+            "body": "comment 78"
+          },
+          {
+            "body": "comment 77"
+          },
+          {
+            "body": "comment 76"
+          },
+          {
+            "body": "comment 75"
+          },
+          {
+            "body": "comment 74"
+          },
+          {
+            "body": "comment 73"
+          },
+          {
+            "body": "comment 72"
+          },
+          {
+            "body": "comment 71"
+          },
+          {
+            "body": "comment 70"
+          },
+          {
+            "body": "comment 69"
+          },
+          {
+            "body": "comment 68"
+          },
+          {
+            "body": "comment 67"
+          },
+          {
+            "body": "comment 66"
+          },
+          {
+            "body": "comment 65"
+          },
+          {
+            "body": "comment 64"
+          },
+          {
+            "body": "comment 63"
+          },
+          {
+            "body": "comment 62"
+          },
+          {
+            "body": "comment 61"
           },
           {
             "body": "comment 60"

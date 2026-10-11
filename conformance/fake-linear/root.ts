@@ -6,12 +6,28 @@
 import type { GraphQLResolveInfo } from "graphql"
 import { defaultState, nextIssueNumber } from "./defaults.ts"
 import { LinearError } from "./errors.ts"
-import { type Context, lookup, searchIssues } from "./resolve.ts"
+import { connectionOf, type Context, lookup, searchIssues } from "./resolve.ts"
 import type { EntityRecord } from "./store.ts"
 
 type Args = Record<string, unknown>
 type Input = Record<string, unknown>
 type RootField = (args: Args, ctx: Context, info: GraphQLResolveInfo) => unknown
+
+/** A root connection of the viewer's own records. */
+function viewerConnection(
+  ctx: Context,
+  info: GraphQLResolveInfo,
+  typename: string,
+  ownerField: string,
+  args: Args,
+) {
+  const viewer = ctx.store.viewer().id
+  return connectionOf(
+    ctx,
+    ctx.store.all(typename).filter((record) => record[ownerField] === viewer),
+    args,
+  )
+}
 
 function ref(ctx: Context, typename: string, id: unknown): string | null {
   if (id == null) return null
@@ -27,7 +43,10 @@ export function normalizeMarkdown(value: unknown): unknown {
   return typeof value === "string" ? value.replace(/\n+$/, "") : value
 }
 
-/** Observed on Kadoraba: an empty issue description is stored as null. */
+/**
+ * Observed on Kadoraba: creating with an empty description stores null, while
+ * updating to an empty description stores "".
+ */
 function normalizeDescription(value: unknown): unknown {
   const text = normalizeMarkdown(value)
   return text === "" ? null : text
@@ -71,12 +90,19 @@ const ISSUE_REFS = {
   delegateId: ["delegate", "User"],
 } as const
 
-function applyIssueInput(ctx: Context, issue: EntityRecord, input: Input) {
+function applyIssueInput(
+  ctx: Context,
+  issue: EntityRecord,
+  input: Input,
+  creating: boolean,
+) {
   for (const key of ISSUE_SCALARS) {
     if (key in input) {
-      issue[key] = key === "description"
+      issue[key] = key !== "description"
+        ? input[key]
+        : creating
         ? normalizeDescription(input[key])
-        : input[key]
+        : normalizeMarkdown(input[key])
     }
   }
   for (const [key, [field, typename]] of Object.entries(ISSUE_REFS)) {
@@ -159,7 +185,7 @@ const issueCreate: RootField = ({ input }, ctx) => {
     trashed: null,
   }
   // Observed on Kadoraba: creating an issue records no history entry.
-  applyIssueInput(ctx, issue, data)
+  applyIssueInput(ctx, issue, data, true)
   ctx.store.insert(issue)
   return payload(ctx, "issue", issue)
 }
@@ -206,7 +232,7 @@ const issueUpdate: RootField = ({ id, input }, ctx) => {
       next.state = match?.id ?? defaultState(ctx.store, next.team as string)
     }
   }
-  applyIssueInput(ctx, next, data)
+  applyIssueInput(ctx, next, data, false)
   Object.assign(issue, next)
   touch(ctx, issue)
   return payload(ctx, "issue", issue)
@@ -343,6 +369,165 @@ const commentUnresolve: RootField = ({ id }, ctx) => {
 }
 
 // ---------------------------------------------------------------------------
+// Attachment: one per issue and URL; linking a known URL updates it.
+
+function upsertAttachment(
+  ctx: Context,
+  issueRef: unknown,
+  fields: Record<string, unknown>,
+): EntityRecord {
+  const issue = lookup(ctx, "Issue", String(issueRef), [
+    "identifier",
+    "previousIdentifiers",
+  ])
+  const now = ctx.store.now()
+  const existing = ctx.store.all("Attachment").find((attachment) =>
+    attachment.issue === issue.id && attachment.url === fields.url
+  )
+  if (existing != null) {
+    for (const [key, value] of Object.entries(fields)) {
+      if (value !== undefined) existing[key] = value
+    }
+    existing.updatedAt = now
+    return existing
+  }
+  return ctx.store.insert({
+    id: ctx.store.newId(),
+    __typename: "Attachment",
+    issue: issue.id,
+    subtitle: null,
+    sourceType: "api",
+    metadata: {},
+    creator: ctx.store.viewer().id,
+    createdAt: now,
+    updatedAt: now,
+    archivedAt: null,
+    ...Object.fromEntries(
+      Object.entries(fields).filter(([, v]) => v !== undefined),
+    ),
+    // Linear derives a title from the linked page; the fake cannot fetch it.
+    title: fields.title ?? fields.url,
+  })
+}
+
+const attachmentLinkURL: RootField = ({ issueId, url, title }, ctx) =>
+  payload(
+    ctx,
+    "attachment",
+    upsertAttachment(ctx, issueId, { url, title: title ?? undefined }),
+  )
+
+const attachmentCreate: RootField = ({ input }, ctx) => {
+  const data = input as Input
+  rejectUnknown(
+    data,
+    ["id", "issueId", "url", "title", "subtitle", "metadata", "iconUrl"],
+    "attachmentCreate",
+  )
+  return payload(
+    ctx,
+    "attachment",
+    upsertAttachment(ctx, data.issueId, {
+      url: data.url,
+      title: data.title,
+      subtitle: data.subtitle,
+      metadata: data.metadata,
+    }),
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Favorite: the viewer's own; issue favorites take the issue's title and URL.
+
+const favoriteCreate: RootField = ({ input }, ctx) => {
+  const data = input as Input
+  rejectUnknown(
+    data,
+    ["id", "issueId", "folderName", "parentId", "sortOrder"],
+    "favoriteCreate",
+  )
+  const now = ctx.store.now()
+  const issue = data.issueId == null
+    ? null
+    : lookup(ctx, "Issue", String(data.issueId), [
+      "identifier",
+      "previousIdentifiers",
+    ])
+  const favorite = ctx.store.insert({
+    id: typeof data.id === "string" ? data.id : ctx.store.newId(),
+    __typename: "Favorite",
+    type: issue == null ? "folder" : "issue",
+    folderName: issue == null ? data.folderName ?? null : null,
+    issue: issue?.id ?? null,
+    parent: ref(ctx, "Favorite", data.parentId),
+    owner: ctx.store.viewer().id,
+    sortOrder: data.sortOrder ?? 0,
+    createdAt: now,
+    updatedAt: now,
+    archivedAt: null,
+  })
+  return payload(ctx, "favorite", favorite)
+}
+
+const favoriteDelete: RootField = ({ id }, ctx) => {
+  const favorite = lookup(ctx, "Favorite", String(id))
+  ctx.store.remove("Favorite", favorite.id)
+  return {
+    success: true,
+    lastSyncId: ctx.store.nextSyncId(),
+    entityId: favorite.id,
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Issue relation
+
+const issueRelationCreate: RootField = ({ input }, ctx) => {
+  const data = input as Input
+  rejectUnknown(
+    data,
+    ["id", "issueId", "relatedIssueId", "type"],
+    "issueRelationCreate",
+  )
+  const issue = lookup(ctx, "Issue", String(data.issueId), [
+    "identifier",
+    "previousIdentifiers",
+  ])
+  const related = lookup(ctx, "Issue", String(data.relatedIssueId), [
+    "identifier",
+    "previousIdentifiers",
+  ])
+  if (issue.id === related.id) {
+    throw LinearError.input(
+      "Argument Validation Error",
+      "An issue cannot be related to itself.",
+    )
+  }
+  const now = ctx.store.now()
+  const relation = ctx.store.insert({
+    id: typeof data.id === "string" ? data.id : ctx.store.newId(),
+    __typename: "IssueRelation",
+    issue: issue.id,
+    relatedIssue: related.id,
+    type: data.type,
+    createdAt: now,
+    updatedAt: now,
+    archivedAt: null,
+  })
+  return payload(ctx, "issueRelation", relation)
+}
+
+const issueRelationDelete: RootField = ({ id }, ctx) => {
+  const relation = lookup(ctx, "IssueRelation", String(id))
+  ctx.store.remove("IssueRelation", relation.id)
+  return {
+    success: true,
+    lastSyncId: ctx.store.nextSyncId(),
+    entityId: relation.id,
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Issue label
 
 const issueLabelCreate: RootField = ({ input }, ctx) => {
@@ -405,9 +590,17 @@ export function rootValue(): Record<string, RootField> {
     organization: (_, ctx) => ctx.store.singleton("Organization"),
     userSettings: (_, ctx) => ctx.store.singleton("UserSettings"),
     searchIssues: (args, ctx) => searchIssues(ctx, args),
+    favorites: (args, ctx, info) =>
+      viewerConnection(ctx, info, "Favorite", "owner", args),
     issueCreate,
     issueUpdate,
     issueDelete,
+    attachmentLinkURL,
+    attachmentCreate,
+    favoriteCreate,
+    favoriteDelete,
+    issueRelationCreate,
+    issueRelationDelete,
     issueLabelCreate,
     issueLabelDelete,
     commentCreate,

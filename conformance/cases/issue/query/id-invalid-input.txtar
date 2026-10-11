@@ -1,0 +1,93 @@
+Malformed identifiers and combinations of --id with filters, --url or --id-file are rejected before any request.
+-- file ids.txt --
+ENG-1
+-- run --
+linear issue query --id ENG-0 --json
+-- stdout.json --
+{
+  "ok": false,
+  "effect": "none",
+  "error": {
+    "code": "ValidationError",
+    "message": "Failed to query issues: Invalid issue identifier in --id: \"ENG-0\"",
+    "suggestion": "Pass identifiers such as ENG-123, one per --id or per line: a team key of at most 7 characters and a number from 1 to 999,999,999."
+  }
+}
+-- exit --
+1
+-- no-requests --
+-- run --
+linear issue query --id ENG-1 --id ABCDEFGH-1 --json
+-- stdout.json --
+{
+  "ok": false,
+  "effect": "none",
+  "error": {
+    "code": "ValidationError",
+    "message": "Failed to query issues: Invalid issue identifier in --id: \"ABCDEFGH-1\"",
+    "suggestion": "Pass identifiers such as ENG-123, one per --id or per line: a team key of at most 7 characters and a number from 1 to 999,999,999."
+  }
+}
+-- exit --
+1
+-- no-requests --
+-- run --
+linear issue query --id ENG-1 --id ENG-1000000000 --json
+-- stdout.json --
+{
+  "ok": false,
+  "effect": "none",
+  "error": {
+    "code": "ValidationError",
+    "message": "Failed to query issues: Invalid issue identifier in --id: \"ENG-1000000000\"",
+    "suggestion": "Pass identifiers such as ENG-123, one per --id or per line: a team key of at most 7 characters and a number from 1 to 999,999,999."
+  }
+}
+-- exit --
+1
+-- no-requests --
+-- run --
+linear issue query --id ENG-1 --team ENG --json
+-- stdout.json --
+{
+  "ok": false,
+  "effect": "none",
+  "error": {
+    "code": "ValidationError",
+    "message": "Failed to query issues: Cannot combine --id with --team",
+    "suggestion": "Identifier mode reads every requested issue across teams; filter the JSON result instead."
+  }
+}
+-- exit --
+1
+-- no-requests --
+-- run --
+linear issue query --id ENG-1 --url https://example.com --json
+-- stdout.json --
+{
+  "ok": false,
+  "effect": "none",
+  "error": {
+    "code": "ValidationError",
+    "message": "Failed to query issues: Cannot combine --id with --url",
+    "suggestion": "Identifier mode reads every requested issue across teams; filter the JSON result instead."
+  }
+}
+-- exit --
+1
+-- no-requests --
+-- run --
+linear issue query --id ENG-1 --id-file ids.txt --json
+-- stdout.json --
+{
+  "ok": false,
+  "effect": "none",
+  "error": {
+    "code": "ValidationError",
+    "message": "Failed to query issues: Cannot use both --id and --id-file",
+    "suggestion": "Repeat --id for a few identifiers, or put one identifier per line in --id-file."
+  }
+}
+-- exit --
+1
+-- no-requests --

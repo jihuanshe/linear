@@ -1,0 +1,35 @@
+Adding a relation of another type between the same issues is refused instead of replacing the existing one.
+-- seed.json --
+{"Issue": [{"id": "1a000000-0000-4000-8000-000000000001", "identifier": "ENG-1", "title": "Source"}, {"id": "1a000000-0000-4000-8000-000000000002", "identifier": "ENG-2", "title": "Target"}], "IssueRelation": [{"type": "blocks", "issue": "1a000000-0000-4000-8000-000000000001", "relatedIssue": "1a000000-0000-4000-8000-000000000002"}]}
+-- run --
+linear issue relation add ENG-1 related ENG-2 --json
+-- stdout.json --
+{
+  "ok": false,
+  "effect": "none",
+  "error": {
+    "code": "ValidationError",
+    "message": "Failed to create relation: Cannot add ENG-1 related ENG-2: existing: blocks ENG-2",
+    "suggestion": "Delete the existing relation explicitly before adding a different type or direction."
+  }
+}
+-- exit --
+1
+-- mutations.json --
+{}
+-- run --
+linear issue relation add ENG-1 blocked-by ENG-2 --json
+-- stdout.json --
+{
+  "ok": false,
+  "effect": "none",
+  "error": {
+    "code": "ValidationError",
+    "message": "Failed to create relation: Cannot add ENG-1 blocked-by ENG-2: existing: blocks ENG-2",
+    "suggestion": "Delete the existing relation explicitly before adding a different type or direction."
+  }
+}
+-- exit --
+1
+-- mutations.json --
+{}

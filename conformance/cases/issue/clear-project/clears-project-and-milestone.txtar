@@ -1,0 +1,174 @@
+--clear-project removes the project and its milestone and nothing else, verified by reading back; on an issue without a project it is a no-op.
+-- seed.json --
+{"User": [{"id": "1b000000-0000-4000-8000-000000000002", "name": "Jane"}],
+ "Project": [{"id": "1e000000-0000-4000-8000-000000000001", "name": "Release", "slugId": "r1b2c3d4e5f6", "teams": ["0c000000-0000-4000-8000-000000000001"]}],
+ "ProjectMilestone": [{"id": "1f000000-0000-4000-8000-000000000001", "name": "Old milestone", "project": "1e000000-0000-4000-8000-000000000001"}],
+ "Issue": [
+  {"id": "1a000000-0000-4000-8000-000000001001", "identifier": "ENG-1001", "title": "In project", "project": "1e000000-0000-4000-8000-000000000001", "projectMilestone": "1f000000-0000-4000-8000-000000000001", "assignee": "1b000000-0000-4000-8000-000000000002", "state": "0d000000-0000-4000-8000-000000000002"},
+  {"id": "1a000000-0000-4000-8000-000000001002", "identifier": "ENG-1002", "title": "No project"}]}
+-- run --
+linear issue view ENG-1001 --json > original.json
+-- run --
+linear issue update ENG-1001 --clear-project --base-file original.json --json
+-- stdout.json --
+{
+  "ok": true,
+  "effect": "applied",
+  "data": {
+    "success": true,
+    "issue": {
+      "id": "1a000000-0000-4000-8000-000000001001",
+      "identifier": "ENG-1001",
+      "url": "https://linear.app/kadoraba/issue/ENG-1001/in-project",
+      "title": "In project",
+      "priority": 0,
+      "labels": {
+        "nodes": [],
+        "pageInfo": {
+          "hasNextPage": false,
+          "endCursor": null
+        }
+      }
+    }
+  },
+  "fields": [
+    {
+      "field": "project",
+      "inputField": "projectId",
+      "base": "1e000000-0000-4000-8000-000000000001",
+      "desired": null,
+      "remote": "1e000000-0000-4000-8000-000000000001",
+      "verdict": "write"
+    },
+    {
+      "field": "projectMilestone",
+      "inputField": "projectMilestoneId",
+      "base": "1f000000-0000-4000-8000-000000000001",
+      "desired": null,
+      "remote": "1f000000-0000-4000-8000-000000000001",
+      "verdict": "write"
+    }
+  ],
+  "verification": {
+    "scope": "issue-fields",
+    "status": "verified"
+  },
+  "readBack": {
+    "organization": {
+      "id": "0a000000-0000-4000-8000-000000000001",
+      "urlKey": "kadoraba"
+    },
+    "issue": {
+      "id": "1a000000-0000-4000-8000-000000001001",
+      "identifier": "ENG-1001",
+      "archivedAt": null,
+      "trashed": null,
+      "title": "In project",
+      "description": null,
+      "url": "https://linear.app/kadoraba/issue/ENG-1001/in-project",
+      "branchName": "alex/eng-1001-in-project",
+      "priority": 0,
+      "estimate": null,
+      "dueDate": null,
+      "state": {
+        "id": "0d000000-0000-4000-8000-000000000002",
+        "name": "Todo",
+        "type": "unstarted",
+        "color": "#e2e2e2"
+      },
+      "assignee": {
+        "id": "1b000000-0000-4000-8000-000000000002",
+        "name": "Jane",
+        "displayName": "jane"
+      },
+      "project": null,
+      "projectMilestone": null,
+      "cycle": null,
+      "team": {
+        "id": "0c000000-0000-4000-8000-000000000001",
+        "key": "ENG",
+        "activeCycle": null
+      },
+      "parent": null,
+      "labels": {
+        "nodes": [],
+        "pageInfo": {
+          "hasNextPage": false,
+          "endCursor": null
+        }
+      }
+    }
+  }
+}
+-- mutations.json --
+{"issueUpdate": 1}
+-- state.json --
+{"Issue": [{"identifier": "ENG-1001", "project": null, "projectMilestone": null, "assignee": "1b000000-0000-4000-8000-000000000002", "state": "0d000000-0000-4000-8000-000000000002"}, {"identifier": "ENG-1002"}]}
+-- run --
+linear issue view ENG-1002 --json > none.json
+-- run --
+linear issue update ENG-1002 --clear-project --base-file none.json --json
+-- stdout.json --
+{
+  "ok": true,
+  "effect": "none",
+  "data": {
+    "success": true,
+    "issue": {
+      "id": "1a000000-0000-4000-8000-000000001002",
+      "identifier": "ENG-1002",
+      "archivedAt": null,
+      "trashed": null,
+      "title": "No project",
+      "description": null,
+      "url": "https://linear.app/kadoraba/issue/ENG-1002/no-project",
+      "branchName": "alex/eng-1002-no-project",
+      "priority": 0,
+      "estimate": null,
+      "dueDate": null,
+      "state": {
+        "id": "0d000000-0000-4000-8000-000000000001",
+        "name": "Backlog",
+        "type": "backlog",
+        "color": "#bec2c8"
+      },
+      "assignee": null,
+      "project": null,
+      "projectMilestone": null,
+      "cycle": null,
+      "team": {
+        "id": "0c000000-0000-4000-8000-000000000001",
+        "key": "ENG",
+        "activeCycle": null
+      },
+      "parent": null,
+      "labels": {
+        "nodes": [],
+        "pageInfo": {
+          "hasNextPage": false,
+          "endCursor": null
+        }
+      }
+    }
+  },
+  "fields": [
+    {
+      "field": "project",
+      "inputField": "projectId",
+      "base": null,
+      "desired": null,
+      "remote": null,
+      "verdict": "idempotent"
+    },
+    {
+      "field": "projectMilestone",
+      "inputField": "projectMilestoneId",
+      "base": null,
+      "desired": null,
+      "remote": null,
+      "verdict": "idempotent"
+    }
+  ]
+}
+-- mutations.json --
+{}

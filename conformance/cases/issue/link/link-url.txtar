@@ -1,0 +1,44 @@
+issue link attaches a URL to an issue, with an explicit title when given; linking the same URL again updates that attachment; an invalid URL or a missing issue fails without writing.
+-- seed.json --
+{"Issue": [{"id": "1a000000-0000-4000-8000-000000000123", "identifier": "ENG-123", "title": "Linked"}]}
+-- run --
+linear issue link ENG-123 https://github.com/org/repo/pull/42 --title "PR 42"
+-- stdout --
+✓ Linked to ENG-123: PR 42
+-- run --
+linear issue link ENG-123 https://example.com/proof --title Proof --json
+-- stdout.json --
+{
+  "ok": true,
+  "effect": "applied",
+  "data": {
+    "attachment": {
+      "id": "f0000000-0000-4000-8000-000000000002",
+      "title": "Proof",
+      "url": "https://example.com/proof",
+      "issue": {
+        "id": "1a000000-0000-4000-8000-000000000123"
+      }
+    }
+  }
+}
+-- run --
+linear issue link ENG-123 https://github.com/org/repo/pull/42 --title "PR 42 updated" --json > again.json
+-- state.json --
+{"Attachment": [{"url": "https://github.com/org/repo/pull/42", "title": "PR 42 updated"}, {"url": "https://example.com/proof", "title": "Proof"}]}
+-- run --
+linear issue link ENG-123 not-a-url
+-- stderr --
+✗ Failed to link URL: Invalid URL: 'not-a-url'
+  Provide a URL starting with http:// or https://.
+-- exit --
+1
+-- no-requests --
+-- run --
+linear issue link ENG-999 https://example.com/x
+-- stderr --
+✗ Failed to link URL: Issue not found: ENG-999
+-- exit --
+1
+-- mutations.json --
+{}
