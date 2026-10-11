@@ -1,0 +1,100 @@
+Labels that cannot be used are rejected before any write: unknown names and UUIDs, group labels, labels of another team, and names that match more than one label.
+-- seed.json --
+{"IssueLabel": [
+  {"id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", "name": "Frontend"},
+  {"id": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", "name": "Backend", "team": "0c000000-0000-4000-8000-000000000001"},
+  {"id": "cccccccc-cccc-4ccc-8ccc-cccccccccccc", "name": "Operations"},
+  {"id": "dddddddd-dddd-4ddd-8ddd-dddddddddddd", "name": "Group", "isGroup": true},
+  {"id": "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee", "name": "Other team", "team": "0c000000-0000-4000-8000-000000000038"},
+  {"id": "ffffffff-ffff-4fff-8fff-ffffffffffff", "name": "bug", "team": "0c000000-0000-4000-8000-000000000001"}], "Issue": [{"id": "1a000000-0000-4000-8000-000000000123", "identifier": "ENG-123", "title": "Labels", "labels": ["aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"]}]}
+-- run --
+linear issue update ENG-123 --unprotected --add-label Nope --json
+-- stdout.json --
+{
+  "ok": false,
+  "effect": "none",
+  "error": {
+    "code": "NotFoundError",
+    "message": "Failed to update issue: Issue label not found: Nope"
+  }
+}
+-- exit --
+1
+-- mutations.json --
+{}
+-- run --
+linear issue update ENG-123 --unprotected --add-label 99999999-9999-4999-8999-999999999999 --json
+-- stdout.json --
+{
+  "ok": false,
+  "effect": "none",
+  "error": {
+    "code": "NotFoundError",
+    "message": "Failed to update issue: Issue label not found: 99999999-9999-4999-8999-999999999999"
+  }
+}
+-- exit --
+1
+-- mutations.json --
+{}
+-- run --
+linear issue update ENG-123 --unprotected --add-label dddddddd-dddd-4ddd-8ddd-dddddddddddd --json
+-- stdout.json --
+{
+  "ok": false,
+  "effect": "none",
+  "error": {
+    "code": "ValidationError",
+    "message": "Failed to update issue: Issue label is not assignable in the target team"
+  }
+}
+-- exit --
+1
+-- mutations.json --
+{}
+-- run --
+linear issue update ENG-123 --unprotected --add-label eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee --json
+-- stdout.json --
+{
+  "ok": false,
+  "effect": "none",
+  "error": {
+    "code": "ValidationError",
+    "message": "Failed to update issue: Issue label is not assignable in the target team"
+  }
+}
+-- exit --
+1
+-- mutations.json --
+{}
+-- run --
+linear issue update ENG-123 --unprotected --add-label Bug --json
+-- stdout.json --
+{
+  "ok": false,
+  "effect": "none",
+  "error": {
+    "code": "ValidationError",
+    "message": "Failed to update issue: Issue label name or slug is ambiguous: Bug",
+    "suggestion": "Use the exact object UUID."
+  }
+}
+-- exit --
+1
+-- mutations.json --
+{}
+-- run --
+linear issue create --title Missing --team ENG --label Frontend --label 99999999-9999-4999-8999-999999999999 --no-interactive --json
+-- stdout.json --
+{
+  "ok": false,
+  "effect": "none",
+  "error": {
+    "code": "NotFoundError",
+    "message": "Failed to create issue: Issue label not found: 99999999-9999-4999-8999-999999999999"
+  }
+}
+-- exit --
+1
+-- mutations.json --
+{}

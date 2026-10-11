@@ -1,0 +1,80 @@
+An original null description and a remote empty description (or the reverse) differ; when both are null, writing an empty description applies.
+-- seed.json --
+{"Issue": [
+  {"id": "1a000000-0000-4000-8000-000000000001", "identifier": "ENG-1", "title": "Null and null", "description": null},
+  {"id": "1a000000-0000-4000-8000-000000000002", "identifier": "ENG-2", "title": "Empty then null", "description": null},
+  {"id": "1a000000-0000-4000-8000-000000000003", "identifier": "ENG-3", "title": "Null then empty", "description": ""}]}
+-- run --
+linear issue view ENG-1 --json > one.json
+-- run --
+linear issue update ENG-1 --description "" --base-file one.json --json > one-result.json
+-- exit --
+1
+-- mutations.json --
+{"issueUpdate": 1}
+-- run --
+linear issue view ENG-2 --json > two.json
+-- patch.json two.json --
+{"issue": {"description": ""}}
+-- run --
+linear issue update ENG-2 --description Desired --base-file two.json --json
+-- stdout.json --
+{
+  "ok": false,
+  "effect": "none",
+  "error": {
+    "code": "ConflictError",
+    "message": "Failed to update issue: Original values changed: description",
+    "suggestion": "Read the current object and reconsider the change; do not refresh the original file merely to bypass this conflict.",
+    "details": {
+      "fields": [
+        {
+          "field": "description",
+          "inputField": "description",
+          "base": "",
+          "desired": "Desired",
+          "remote": null,
+          "verdict": "conflict"
+        }
+      ],
+      "dependencies": []
+    }
+  }
+}
+-- exit --
+1
+-- mutations.json --
+{}
+-- run --
+linear issue view ENG-3 --json > three.json
+-- patch.json three.json --
+[{"op": "replace", "path": "/issue/description", "value": null}]
+-- run --
+linear issue update ENG-3 --description Desired --base-file three.json --json
+-- stdout.json --
+{
+  "ok": false,
+  "effect": "none",
+  "error": {
+    "code": "ConflictError",
+    "message": "Failed to update issue: Original values changed: description",
+    "suggestion": "Read the current object and reconsider the change; do not refresh the original file merely to bypass this conflict.",
+    "details": {
+      "fields": [
+        {
+          "field": "description",
+          "inputField": "description",
+          "base": null,
+          "desired": "Desired",
+          "remote": "",
+          "verdict": "conflict"
+        }
+      ],
+      "dependencies": []
+    }
+  }
+}
+-- exit --
+1
+-- mutations.json --
+{}

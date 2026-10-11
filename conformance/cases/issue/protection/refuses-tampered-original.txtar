@@ -1,0 +1,61 @@
+An original read from another workspace, for another object, or missing the field being replaced is refused without writing.
+-- seed.json --
+{"Issue": [{"id": "1a000000-0000-4000-8000-000000000123", "identifier": "ENG-123", "title": "Before title", "description": "Before body", "priority": 0}]}
+-- run --
+linear issue view ENG-123 --json > original.json
+-- patch.json original.json --
+{"organization": {"id": "99999999-9999-4999-8999-999999999999"}}
+-- run --
+linear issue update ENG-123 --title Desired --base-file original.json --json
+-- stdout.json --
+{
+  "ok": false,
+  "effect": "none",
+  "error": {
+    "code": "ValidationError",
+    "message": "Failed to update issue: Original read belongs to a different object or workspace"
+  }
+}
+-- exit --
+1
+-- mutations.json --
+{}
+-- run --
+linear issue view ENG-123 --json > original.json
+-- patch.json original.json --
+{"issue": {"id": "1a000000-0000-4000-8000-000000000999"}}
+-- run --
+linear issue update ENG-123 --title Desired --base-file original.json --json
+-- stdout.json --
+{
+  "ok": false,
+  "effect": "none",
+  "error": {
+    "code": "ValidationError",
+    "message": "Failed to update issue: Original read belongs to a different object or workspace"
+  }
+}
+-- exit --
+1
+-- mutations.json --
+{}
+-- run --
+linear issue view ENG-123 --json > original.json
+-- patch.json original.json --
+{"issue": {"title": null}}
+-- run --
+linear issue update ENG-123 --title Desired --base-file original.json --json
+-- stdout.json --
+{
+  "ok": false,
+  "effect": "none",
+  "error": {
+    "code": "ValidationError",
+    "message": "Failed to update issue: Read is missing field title",
+    "suggestion": "Save a complete read for the fields being replaced or checked; missing fields are not null values."
+  }
+}
+-- exit --
+1
+-- mutations.json --
+{}

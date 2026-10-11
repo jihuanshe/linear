@@ -77,6 +77,55 @@ async function execute(
   }
 }
 
+/**
+ * Apply a patch to a JSON document: an array is an RFC 6902 JSON Patch
+ * (add, replace, remove), anything else an RFC 7386 merge patch.
+ */
+function applyPatch(target: unknown, patch: unknown): unknown {
+  if (!Array.isArray(patch)) return mergePatch(target, patch)
+  let document = structuredClone(target)
+  for (
+    const { op, path, value } of patch as {
+      op: string
+      path: string
+      value?: unknown
+    }[]
+  ) {
+    const keys = path.split("/").slice(1).map((key) =>
+      key.replaceAll("~1", "/").replaceAll("~0", "~")
+    )
+    if (keys.length === 0) {
+      document = value
+      continue
+    }
+    let parent = document as Record<string, unknown>
+    for (const key of keys.slice(0, -1)) {
+      parent = parent[key] as Record<string, unknown>
+    }
+    const last = keys.at(-1)!
+    if (op === "remove") delete parent[last]
+    else if (op === "add" || op === "replace") parent[last] = value
+    else throw new Error(`unsupported JSON Patch op ${op}`)
+  }
+  return document
+}
+
+/** RFC 7386 JSON merge patch: null deletes a key, objects merge, others replace. */
+function mergePatch(target: unknown, patch: unknown): unknown {
+  if (patch === null || typeof patch !== "object" || Array.isArray(patch)) {
+    return patch
+  }
+  const result: Record<string, unknown> =
+    target !== null && typeof target === "object" && !Array.isArray(target)
+      ? { ...target as Record<string, unknown> }
+      : {}
+  for (const [key, value] of Object.entries(patch)) {
+    if (value === null) delete result[key]
+    else result[key] = mergePatch(result[key], value)
+  }
+  return result
+}
+
 function trimFinalNewline(text: string): string {
   return text.endsWith("\n") ? text.slice(0, -1) : text
 }
@@ -232,6 +281,17 @@ export async function runCase(
         const target = join(work, substitute(path, vars))
         await Deno.mkdir(join(target, ".."), { recursive: true })
         await Deno.writeTextFile(target, substitute(content, vars))
+      }
+      for (const [path, patch] of Object.entries(step.patches)) {
+        const target = join(work, substitute(path, vars))
+        const patched = applyPatch(
+          JSON.parse(await Deno.readTextFile(target)),
+          JSON.parse(substitute(patch, vars)),
+        )
+        await Deno.writeTextFile(
+          target,
+          JSON.stringify(patched, null, 2) + "\n",
+        )
       }
       if (fake != null) fake.faults = (step.faults ?? []) as FaultRule[]
       const before = fake?.requests.length ?? 0

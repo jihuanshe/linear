@@ -1,0 +1,27 @@
+Adding and removing what resolves to the same label is rejected, even when one side is a name and the other a UUID.
+-- seed.json --
+{"IssueLabel": [
+  {"id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", "name": "Frontend"},
+  {"id": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", "name": "Backend", "team": "0c000000-0000-4000-8000-000000000001"},
+  {"id": "cccccccc-cccc-4ccc-8ccc-cccccccccccc", "name": "Operations"},
+  {"id": "dddddddd-dddd-4ddd-8ddd-dddddddddddd", "name": "Group", "isGroup": true},
+  {"id": "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee", "name": "Other team", "team": "0c000000-0000-4000-8000-000000000038"},
+  {"id": "ffffffff-ffff-4fff-8fff-ffffffffffff", "name": "bug", "team": "0c000000-0000-4000-8000-000000000001"}], "Issue": [{"id": "1a000000-0000-4000-8000-000000000123", "identifier": "ENG-123", "title": "Labels", "labels": ["aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"]}]}
+-- run --
+linear issue update ENG-123 --unprotected --add-label Frontend --remove-label aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa
+-- stderr --
+✗ Failed to update issue: Cannot add and remove the same label in one update
+  Remove the duplicate label from either --add-label or --remove-label.
+-- exit --
+1
+-- mutations.json --
+{}
+-- run --
+linear issue update ENG-123 --unprotected --add-label aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa --remove-label frontend
+-- stderr --
+✗ Failed to update issue: Cannot add and remove the same label in one update
+  Remove the duplicate label from either --add-label or --remove-label.
+-- exit --
+1
+-- mutations.json --
+{}

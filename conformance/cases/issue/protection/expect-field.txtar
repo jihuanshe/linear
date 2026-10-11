@@ -1,0 +1,38 @@
+--expect-field makes an otherwise untouched field part of the comparison: a concurrent change to it rejects the update even when the target field is a no-op.
+-- seed.json --
+{"Issue": [{"id": "1a000000-0000-4000-8000-000000000123", "identifier": "ENG-123", "title": "Before title", "description": "Before body", "priority": 0}]}
+-- run --
+linear issue view ENG-123 --json > original.json
+-- run --
+linear issue update ENG-123 --unprotected --title "Already desired" --priority 2 --json > concurrent.json
+-- run --
+linear issue update ENG-123 --title "Already desired" --expect-field priority --base-file original.json --json
+-- stdout.json --
+{
+  "ok": false,
+  "effect": "none",
+  "error": {
+    "code": "ConflictError",
+    "message": "Failed to update issue: Original values changed: priority",
+    "suggestion": "Read the current object and reconsider the change; do not refresh the original file merely to bypass this conflict.",
+    "details": {
+      "fields": [
+        {
+          "field": "title",
+          "inputField": "title",
+          "base": "Before title",
+          "desired": "Already desired",
+          "remote": "Already desired",
+          "verdict": "idempotent"
+        }
+      ],
+      "dependencies": [
+        "priority"
+      ]
+    }
+  }
+}
+-- exit --
+1
+-- mutations.json --
+{}

@@ -1,0 +1,18 @@
+A field replacement without a saved original read fails before any request and says how to save one.
+-- seed.json --
+{"Issue": [{"id": "1a000000-0000-4000-8000-000000000123", "identifier": "ENG-123", "title": "Before title", "description": "Before body", "priority": 0}]}
+-- run --
+linear issue update ENG-123 --assignee someone@example.com --json
+-- stdout.json --
+{
+  "ok": false,
+  "effect": "none",
+  "error": {
+    "code": "ValidationError",
+    "message": "Failed to update issue: Replacement requires the original read",
+    "suggestion": "In a POSIX shell, save a new original read without overwriting an existing basis: (if [ -e original.json ] || [ -L original.json ]; then echo 'original.json exists' >&2; exit 1; fi; t=$(mktemp original.json.XXXXXX) || exit; s=0; linear issue view 'ENG-123' --json >| \"$t\" || { cat \"$t\" >&2; s=1; }; [ \"$s\" != 0 ] || ln \"$t\" original.json || s=1; rm -f \"$t\"; exit \"$s\"). Stop if it fails. Review its current values and reconfirm your intended change. Pass --base-file original.json to the original update command."
+  }
+}
+-- exit --
+1
+-- no-requests --

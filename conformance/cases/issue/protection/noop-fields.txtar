@@ -1,0 +1,156 @@
+Fields that already hold the desired value are not written: a mixed update sends only the rest, and an update with nothing left reports no effect without a mutation; unrelated concurrent edits survive.
+-- seed.json --
+{"Issue": [{"id": "1a000000-0000-4000-8000-000000000123", "identifier": "ENG-123", "title": "Before title", "description": "Before body", "priority": 0}]}
+-- run --
+linear issue view ENG-123 --json > original.json
+-- run --
+linear issue update ENG-123 --unprotected --title "Already desired" --description "Unrelated edit" --json > concurrent.json
+-- run --
+linear issue update ENG-123 --title "Already desired" --priority 2 --base-file original.json --json
+-- stdout.json --
+{
+  "ok": true,
+  "effect": "applied",
+  "data": {
+    "success": true,
+    "issue": {
+      "id": "1a000000-0000-4000-8000-000000000123",
+      "identifier": "ENG-123",
+      "url": "https://linear.app/kadoraba/issue/ENG-123/already-desired",
+      "title": "Already desired",
+      "priority": 2,
+      "labels": {
+        "nodes": [],
+        "pageInfo": {
+          "hasNextPage": false,
+          "endCursor": null
+        }
+      }
+    }
+  },
+  "fields": [
+    {
+      "field": "title",
+      "inputField": "title",
+      "base": "Before title",
+      "desired": "Already desired",
+      "remote": "Already desired",
+      "verdict": "idempotent"
+    },
+    {
+      "field": "priority",
+      "inputField": "priority",
+      "base": 0,
+      "desired": 2,
+      "remote": 0,
+      "verdict": "write"
+    }
+  ],
+  "verification": {
+    "scope": "issue-fields",
+    "status": "verified"
+  },
+  "readBack": {
+    "organization": {
+      "id": "0a000000-0000-4000-8000-000000000001",
+      "urlKey": "kadoraba"
+    },
+    "issue": {
+      "id": "1a000000-0000-4000-8000-000000000123",
+      "identifier": "ENG-123",
+      "archivedAt": null,
+      "trashed": null,
+      "title": "Already desired",
+      "description": "Unrelated edit",
+      "url": "https://linear.app/kadoraba/issue/ENG-123/already-desired",
+      "branchName": "alex/eng-123-already-desired",
+      "priority": 2,
+      "estimate": null,
+      "dueDate": null,
+      "state": {
+        "id": "0d000000-0000-4000-8000-000000000001",
+        "name": "Backlog",
+        "type": "backlog",
+        "color": "#bec2c8"
+      },
+      "assignee": null,
+      "project": null,
+      "projectMilestone": null,
+      "cycle": null,
+      "team": {
+        "id": "0c000000-0000-4000-8000-000000000001",
+        "key": "ENG",
+        "activeCycle": null
+      },
+      "parent": null,
+      "labels": {
+        "nodes": [],
+        "pageInfo": {
+          "hasNextPage": false,
+          "endCursor": null
+        }
+      }
+    }
+  }
+}
+-- mutations.json --
+{"issueUpdate": 1}
+-- state.json --
+{"Issue": [{"identifier": "ENG-123", "title": "Already desired", "description": "Unrelated edit", "priority": 2}]}
+-- run --
+linear issue update ENG-123 --title "Already desired" --unprotected --json
+-- stdout.json --
+{
+  "ok": true,
+  "effect": "none",
+  "data": {
+    "success": true,
+    "issue": {
+      "id": "1a000000-0000-4000-8000-000000000123",
+      "identifier": "ENG-123",
+      "archivedAt": null,
+      "trashed": null,
+      "title": "Already desired",
+      "description": "Unrelated edit",
+      "url": "https://linear.app/kadoraba/issue/ENG-123/already-desired",
+      "branchName": "alex/eng-123-already-desired",
+      "priority": 2,
+      "estimate": null,
+      "dueDate": null,
+      "state": {
+        "id": "0d000000-0000-4000-8000-000000000001",
+        "name": "Backlog",
+        "type": "backlog",
+        "color": "#bec2c8"
+      },
+      "assignee": null,
+      "project": null,
+      "projectMilestone": null,
+      "cycle": null,
+      "team": {
+        "id": "0c000000-0000-4000-8000-000000000001",
+        "key": "ENG",
+        "activeCycle": null
+      },
+      "parent": null,
+      "labels": {
+        "nodes": [],
+        "pageInfo": {
+          "hasNextPage": false,
+          "endCursor": null
+        }
+      }
+    }
+  },
+  "fields": [
+    {
+      "field": "title",
+      "inputField": "title",
+      "desired": "Already desired",
+      "remote": "Already desired",
+      "verdict": "idempotent"
+    }
+  ]
+}
+-- mutations.json --
+{}
