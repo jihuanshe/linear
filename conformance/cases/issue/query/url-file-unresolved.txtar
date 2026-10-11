@@ -1,0 +1,20 @@
+--url-file in human output explains moved and missing Linear issue URLs.
+-- seed.json --
+{"Issue": [{"id": "1a000000-0000-4000-8000-000000000101", "identifier": "ENG-101", "title": "Fix login bug", "previousIdentifiers": ["OLD-7"]}]}
+-- file urls.txt --
+# comment lines and blank lines are ignored
+
+https://linear.app/kadoraba/issue/OLD-7
+https://linear.app/kadoraba/issue/ENG-999
+-- run --
+linear issue query --all-teams --url-file urls.txt --no-pager
+-- stdout --
+
+https://linear.app/kadoraba/issue/OLD-7
+OLD-7 moved to ENG-101
+◌   ID      TEAM TITLE         LABELS B E A  STATE   UPDATED     
+--- ENG-101 ENG  Fix login bug          - -  Backlog 213 days ago
+
+https://linear.app/kadoraba/issue/ENG-999
+ENG-999 does not exist in this workspace
+No issues found.

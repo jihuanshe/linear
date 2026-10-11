@@ -6,7 +6,7 @@
 import type { GraphQLResolveInfo } from "graphql"
 import { defaultState, nextIssueNumber } from "./defaults.ts"
 import { LinearError } from "./errors.ts"
-import { type Context, lookup } from "./resolve.ts"
+import { type Context, lookup, searchIssues } from "./resolve.ts"
 import type { EntityRecord } from "./store.ts"
 
 type Args = Record<string, unknown>
@@ -343,15 +343,73 @@ const commentUnresolve: RootField = ({ id }, ctx) => {
 }
 
 // ---------------------------------------------------------------------------
+// Issue label
+
+const issueLabelCreate: RootField = ({ input }, ctx) => {
+  const data = input as Input
+  rejectUnknown(
+    data,
+    ["id", "name", "color", "description", "teamId", "parentId", "isGroup"],
+    "issueLabelCreate",
+  )
+  const team = ref(ctx, "Team", data.teamId)
+  const name = String(data.name ?? "")
+  const duplicate = ctx.store.all("IssueLabel").some((label) =>
+    label.archivedAt == null && label.team === team &&
+    String(label.name).toLowerCase() === name.toLowerCase()
+  )
+  if (duplicate) {
+    throw LinearError.input(
+      "duplicate label name",
+      "A label with this name already exists.",
+    )
+  }
+  const now = ctx.store.now()
+  const label = ctx.store.insert({
+    id: typeof data.id === "string" ? data.id : ctx.store.newId(),
+    __typename: "IssueLabel",
+    name,
+    color: data.color ?? "#bec2c8",
+    description: data.description ?? null,
+    team,
+    parent: ref(ctx, "IssueLabel", data.parentId),
+    isGroup: data.isGroup ?? false,
+    creator: ctx.store.viewer().id,
+    createdAt: now,
+    updatedAt: now,
+    archivedAt: null,
+  })
+  return payload(ctx, "issueLabel", label)
+}
+
+const issueLabelDelete: RootField = ({ id }, ctx) => {
+  const label = lookup(ctx, "IssueLabel", String(id))
+  ctx.store.remove("IssueLabel", label.id)
+  for (const issue of ctx.store.all("Issue")) {
+    if (Array.isArray(issue.labels)) {
+      issue.labels = issue.labels.filter((labelId) => labelId !== label.id)
+    }
+  }
+  return {
+    success: true,
+    lastSyncId: ctx.store.nextSyncId(),
+    entityId: label.id,
+  }
+}
+
+// ---------------------------------------------------------------------------
 
 export function rootValue(): Record<string, RootField> {
   return {
     viewer: (_, ctx) => ctx.store.viewer(),
     organization: (_, ctx) => ctx.store.singleton("Organization"),
     userSettings: (_, ctx) => ctx.store.singleton("UserSettings"),
+    searchIssues: (args, ctx) => searchIssues(ctx, args),
     issueCreate,
     issueUpdate,
     issueDelete,
+    issueLabelCreate,
+    issueLabelDelete,
     commentCreate,
     commentUpdate,
     commentDelete,

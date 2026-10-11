@@ -1,0 +1,53 @@
+State, assignee and project filters select the same issues on Linear as on the fake.
+
+live: true
+-- run --
+linear label create --name "{{RUN}}-filter" --team {{TEAM}} --color "#888888" --json
+-- stdout.json --
+{"ok": true, "effect": "applied", "data": {"issueLabel": {"id": "{{=LABEL}}", "name": "{{RUN}}-filter", "...": true}}}
+-- run --
+linear issue create --team {{TEAM}} --title "{{RUN}} mine started" --state "In Progress" --assignee self --label "{{RUN}}-filter" --json
+-- stdout.json --
+{"ok": true, "effect": "applied", "data": {"success": true, "issue": {"identifier": "{{=A}}", "...": true}}, "fields": "{{*}}"}
+-- stderr --
+{{*}}
+-- run --
+linear issue create --team {{TEAM}} --title "{{RUN}} unassigned todo" --state Todo --label "{{RUN}}-filter" --json
+-- stdout.json --
+{"ok": true, "effect": "applied", "data": {"success": true, "issue": {"identifier": "{{=B}}", "...": true}}, "fields": "{{*}}"}
+-- stderr --
+{{*}}
+-- run --
+linear issue create --team {{TEAM}} --title "{{RUN}} unassigned done" --state Done --label "{{RUN}}-filter" --json
+-- stdout.json --
+{"ok": true, "effect": "applied", "data": {"success": true, "issue": {"identifier": "{{=C}}", "...": true}}, "fields": "{{*}}"}
+-- stderr --
+{{*}}
+-- run --
+linear issue query --team {{TEAM}} --label "{{RUN}}-filter" --state-type unstarted --state-type started --json
+-- stdout.json --
+{"nodes": [{"identifier": "{{A}}", "...": true}, {"identifier": "{{B}}", "...": true}], "pageInfo": "{{*}}"}
+-- run --
+linear issue query --team {{TEAM}} --label "{{RUN}}-filter" --unassigned --json
+-- stdout.json --
+{"nodes": [{"identifier": "{{B}}", "...": true}, {"identifier": "{{C}}", "...": true}], "pageInfo": "{{*}}"}
+-- run --
+linear issue query --team {{TEAM}} --label "{{RUN}}-filter" --assignee @me --json
+-- stdout.json --
+{"nodes": [{"identifier": "{{A}}", "...": true}], "pageInfo": "{{*}}"}
+-- run --
+linear issue query --team {{TEAM}} --label "{{RUN}}-filter" --state-name "IN PROGRESS" --json
+-- stdout.json --
+{"nodes": [{"identifier": "{{A}}", "...": true}], "pageInfo": "{{*}}"}
+-- run --
+linear issue query --all-teams --label "{{RUN}}-filter" --unprojected --json
+-- stdout.json --
+{"nodes": [{"identifier": "{{A}}", "...": true}, {"identifier": "{{B}}", "...": true}, {"identifier": "{{C}}", "...": true}], "pageInfo": "{{*}}"}
+-- cleanup --
+linear issue delete {{A}} -y
+-- cleanup --
+linear issue delete {{B}} -y
+-- cleanup --
+linear issue delete {{C}} -y
+-- cleanup --
+linear label delete {{LABEL}} -y

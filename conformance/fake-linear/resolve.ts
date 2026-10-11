@@ -66,6 +66,14 @@ const COMPUTED: Record<string, Computed> = {
       slugify(String(document.title))
     }-${document.slugId}`,
   "User.isMe": (user, { store }) => user.id === store.viewer().id,
+  // Observed on Kadoraba: one-word names give their first two letters.
+  "User.initials": (user) => {
+    const words = String(user.name ?? "").trim().split(/\s+/).filter(Boolean)
+    const initials = words.length >= 2
+      ? words[0][0] + words[1][0]
+      : (words[0] ?? "").slice(0, 2)
+    return initials.toUpperCase()
+  },
   // Cycle state follows from its dates relative to the world's current time.
   "Cycle.isActive": (cycle, { store }) =>
     cyclePhase(cycle, store.worldNow()) === "active",
@@ -131,6 +139,40 @@ const ROOT_LOOKUPS: Record<string, string[]> = {
   project: ["slugId"],
   document: ["slugId"],
   initiative: ["slugId"],
+}
+
+/** Full-text search: every word of the term appears in the title or description. */
+export function searchIssues(
+  ctx: Context,
+  args: Record<string, unknown>,
+) {
+  const words = String(args.term ?? "").toLowerCase().split(/\s+/).filter(
+    Boolean,
+  )
+  const elements = ctx.store.all("Issue").filter((issue) => {
+    const texts = [issue.title, issue.description, issue.identifier]
+    if (args.includeComments === true) {
+      for (const comment of ctx.store.all("Comment")) {
+        if (comment.issue === issue.id) texts.push(comment.body)
+      }
+    }
+    const haystack = texts.filter((t) => typeof t === "string").join("\n")
+      .toLowerCase()
+    return words.every((word) => haystack.includes(word))
+  })
+  // Observed on Kadoraba: each result carries {context, score}; the score is
+  // relevance, which the fake does not model.
+  const results = elements.map((issue) => ({
+    ...issue,
+    metadata: { context: {}, score: 1 },
+  }))
+  const connection = buildConnection(ctx, results, args as ConnectionArgs)
+  const total =
+    elements.filter((record) =>
+      (args.includeArchived === true || record.archivedAt == null) &&
+      matchesFilter(ctx, record, args.filter as Record<string, unknown>)
+    ).length
+  return { ...connection, totalCount: total }
 }
 
 export function concreteTypes(ctx: Context, typename: string): string[] {
@@ -395,6 +437,12 @@ function matchesCondition(
     }
   }
   if (Object.keys(nested).length === 0) return true
+  // A collection filter's own fields match when any element matches.
+  if (Array.isArray(value)) {
+    return value.some((item) =>
+      isEntity(item) && matchesFilter(ctx, item, nested)
+    )
+  }
   if (!isEntity(value)) return false
   return matchesFilter(ctx, value, nested)
 }
@@ -410,6 +458,72 @@ interface ConnectionArgs {
   before?: string | null
   includeArchived?: boolean | null
   orderBy?: string | null
+  sort?: Record<string, { order?: string; nulls?: string }>[] | null
+}
+
+/**
+ * Linear's workflowState sort: active states before closed ones, then the
+ * state's position. Claimed by the CLI's --sort help; calibrated by live cases.
+ */
+const STATE_TYPE_RANK: Record<string, number> = {
+  started: 0,
+  unstarted: 1,
+  backlog: 2,
+  triage: 3,
+  completed: 4,
+  canceled: 5,
+  duplicate: 5,
+}
+
+function sortValue(
+  ctx: Context,
+  record: EntityRecord,
+  key: string,
+): number | string | null {
+  switch (key) {
+    case "workflowState": {
+      const state = ctx.store.find("WorkflowState", record.state as string)
+      return state == null
+        ? null
+        : (STATE_TYPE_RANK[String(state.type)] ?? 9) * 1e6 +
+          Number(state.position ?? 0)
+    }
+    // Observed on Kadoraba: urgency ranks, so 1 (urgent) is the highest value;
+    // 0 means no priority and sorts as null.
+    case "priority":
+      return record.priority == null || record.priority === 0
+        ? null
+        : 5 - Number(record.priority)
+    case "manual":
+      return record.sortOrder == null ? null : Number(record.sortOrder)
+    case "createdAt":
+    case "updatedAt":
+    case "title":
+      return (record[key] as string | undefined) ?? null
+  }
+  throw new Error(`fake: sort by ${key} is not implemented`)
+}
+
+function compareBySort(
+  ctx: Context,
+  sort: NonNullable<ConnectionArgs["sort"]>,
+  a: EntityRecord,
+  b: EntityRecord,
+): number {
+  for (const entry of sort) {
+    for (const [key, { order, nulls }] of Object.entries(entry)) {
+      const x = sortValue(ctx, a, key)
+      const y = sortValue(ctx, b, key)
+      if (x === y) continue
+      if (x == null || y == null) {
+        const nullFirst = nulls === "first"
+        return (x == null) === nullFirst ? -1 : 1
+      }
+      const result = x < y ? -1 : 1
+      return order === "Descending" ? -result : result
+    }
+  }
+  return 0
 }
 
 function buildConnection(
@@ -423,6 +537,7 @@ function buildConnection(
   items = items.filter((record) => matchesFilter(ctx, record, args.filter))
   const key = args.orderBy === "updatedAt" ? "updatedAt" : "createdAt"
   items.sort((a, b) =>
+    (args.sort == null ? 0 : compareBySort(ctx, args.sort, a, b)) ||
     String(b[key] ?? "").localeCompare(String(a[key] ?? "")) ||
     a.id.localeCompare(b.id)
   )

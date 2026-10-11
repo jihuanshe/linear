@@ -1,0 +1,65 @@
+Contradictory or incomplete filter combinations are rejected before any request.
+-- env --
+LINEAR_TEAM_KEY=ENG
+-- run --
+linear issue query --project Auth --unprojected
+-- stderr --
+✗ Failed to query issues: Cannot combine --project, --project-label, and --unprojected
+  Use exactly one project filter: --project, --project-label, or --unprojected.
+-- exit --
+1
+-- no-requests --
+-- run --
+linear issue query --all-teams --unprojected --milestone v1
+-- stderr --
+✗ Failed to query issues: --milestone cannot be used with --unprojected
+  Use --project to specify a project when filtering by milestone.
+-- exit --
+1
+-- no-requests --
+-- run --
+linear issue query --team ENG --all-teams
+-- stderr --
+✗ Failed to query issues: Cannot use both --team and --all-teams flags
+-- exit --
+1
+-- no-requests --
+-- run --
+linear issue query --team ENG --state-type started --state-name Merged
+-- stderr --
+✗ Failed to query issues: Cannot use both --state-type and --state-name flags
+  Use --state-type for a workflow state type, or --state-name for an exact workflow state name.
+-- exit --
+1
+-- no-requests --
+-- run --
+linear issue query --team ENG --state-name '   '
+-- stderr --
+✗ Failed to query issues: --state-name cannot be empty
+-- exit --
+1
+-- no-requests --
+-- run --
+linear issue query --search login --sort manual --team ENG
+-- stderr --
+✗ Failed to query issues: --sort cannot be used with --search
+  Search results use relevance ordering. Remove --sort when using --search.
+-- exit --
+1
+-- no-requests --
+-- run --
+linear issue query --search-comments --team ENG
+-- stderr --
+✗ Failed to query issues: --search-comments requires --search to be set
+  Use --search to provide a search term, e.g. --search "oauth timeout" --search-comments.
+-- exit --
+1
+-- no-requests --
+-- run --
+linear issue query --milestone v1 --team ENG
+-- stderr --
+✗ Failed to query issues: --milestone requires --project to be set
+  Use --project to specify which project the milestone belongs to, or pass a milestone UUID directly.
+-- exit --
+1
+-- no-requests --

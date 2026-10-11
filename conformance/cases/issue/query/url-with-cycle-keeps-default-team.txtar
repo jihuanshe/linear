@@ -1,0 +1,84 @@
+--url with --cycle resolves the cycle in the configured default team and keeps that team as a filter.
+-- seed.json --
+{"Team": [{"id": "0c000000-0000-4000-8000-000000000001", "cyclesEnabled": true}],
+ "Cycle": [{"id": "1d000000-0000-4000-8000-000000000006", "team": "0c000000-0000-4000-8000-000000000001", "number": 6, "name": "Sprint 6", "startsAt": "2025-12-25T00:00:00.000Z", "endsAt": "2026-01-08T00:00:00.000Z"}],
+ "Issue": [
+  {"identifier": "ENG-1", "title": "In cycle", "description": "https://example.com/objects/42", "cycle": "1d000000-0000-4000-8000-000000000006"},
+  {"identifier": "ENG-2", "title": "Not in cycle", "description": "https://example.com/objects/42"},
+  {"identifier": "P38IT-1", "title": "Other team", "team": "0c000000-0000-4000-8000-000000000038", "state": "0d000000-0000-4000-8000-000000000381", "description": "https://example.com/objects/42"}]}
+-- env --
+LINEAR_TEAM_KEY=ENG
+-- run --
+linear issue query --url https://example.com/objects/42 --cycle 6 --json
+-- stdout.json --
+{
+  "nodes": [
+    {
+      "id": "f0000000-0000-4000-8000-000000000001",
+      "identifier": "ENG-1",
+      "title": "In cycle",
+      "url": "https://linear.app/kadoraba/issue/ENG-1/in-cycle",
+      "description": "https://example.com/objects/42",
+      "comments": {
+        "nodes": [],
+        "pageInfo": {
+          "hasNextPage": false,
+          "endCursor": null
+        }
+      },
+      "priority": 0,
+      "priorityLabel": "No priority",
+      "estimate": null,
+      "createdAt": "2025-06-01T00:00:02.000Z",
+      "updatedAt": "2025-06-01T00:00:02.000Z",
+      "state": {
+        "id": "0d000000-0000-4000-8000-000000000001",
+        "name": "Backlog",
+        "color": "#bec2c8",
+        "type": "backlog"
+      },
+      "assignee": null,
+      "team": {
+        "id": "0c000000-0000-4000-8000-000000000001",
+        "key": "ENG",
+        "name": "Engineering",
+        "cyclesEnabled": true,
+        "activeCycle": {
+          "number": 6
+        }
+      },
+      "project": null,
+      "projectMilestone": null,
+      "cycle": {
+        "id": "1d000000-0000-4000-8000-000000000006",
+        "number": 6,
+        "name": "Sprint 6",
+        "isActive": true,
+        "isNext": false,
+        "isPrevious": false,
+        "isFuture": false,
+        "isPast": false
+      },
+      "labels": {
+        "nodes": [],
+        "pageInfo": {
+          "hasNextPage": false,
+          "endCursor": null
+        }
+      },
+      "inverseRelations": {
+        "nodes": [],
+        "pageInfo": {
+          "hasNextPage": false,
+          "endCursor": null
+        }
+      }
+    }
+  ],
+  "pageInfo": {
+    "hasNextPage": false,
+    "endCursor": null
+  }
+}
+-- stderr --
+Note: using default team ENG. Pass --team <key> or --all-teams to be explicit.
