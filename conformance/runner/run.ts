@@ -373,6 +373,13 @@ export async function runCase(
         unfixable.push(message)
       }
     }
+    for (const check of testCase.readbacks) {
+      const problem = await readback(options, check, vars, home, work, fake)
+      if (problem != null) {
+        failures.push(problem)
+        unfixable.push(problem)
+      }
+    }
     await fake?.stop()
     await Deno.remove(root, { recursive: true }).catch(() => {})
   }
@@ -400,6 +407,62 @@ export async function runCase(
       : result("pass", ["updated expectations"], true)
   }
   return result(failures.length > 0 ? "fail" : "pass", failures)
+}
+
+/** Live, Linear may take a moment to reflect a cleanup. */
+const READBACK_ATTEMPTS = 5
+const READBACK_DELAY_MS = 2_000
+
+/** Run one readback after cleanup; return an error message if it never matches. */
+async function readback(
+  options: RunOptions,
+  check: Step,
+  vars: Vars,
+  home: string,
+  work: string,
+  fake: FakeLinear | undefined,
+): Promise<string | undefined> {
+  let words: string[]
+  try {
+    words = check.argv.map((arg) => substitute(arg, vars))
+  } catch {
+    return undefined // its cleanup was skipped too, and reported when live
+  }
+  const attempts = options.live == null ? 1 : READBACK_ATTEMPTS
+  let problems: string[] = []
+  for (let attempt = 1; attempt <= attempts; attempt++) {
+    if (attempt > 1) {
+      await new Promise((resolve) => setTimeout(resolve, READBACK_DELAY_MS))
+    }
+    const output = await execute(
+      options,
+      words,
+      childEnv(options, home, fake?.endpoint, check.env, vars),
+      work,
+      undefined,
+    )
+    problems = []
+    if (output.code !== check.exit) {
+      problems.push(`exit code ${output.code}, expected ${check.exit}`)
+    }
+    for (
+      const [stream, section, actual] of [
+        ["stdout", check.stdout, output.stdout],
+        ["stderr", check.stderr, output.stderr],
+      ] as const
+    ) {
+      try {
+        const checked = checkStream(stream, section, actual, vars)
+        if (typeof checked === "string") problems.push(checked)
+      } catch (error) {
+        problems.push(`${stream}: ${(error as Error).message}`)
+      }
+    }
+    if (problems.length === 0) return undefined
+  }
+  return `readback failed after cleanup: linear ${words.join(" ")}\n${
+    problems.join("\n")
+  }`
 }
 
 const EXPECTATIONS = new Set(["stdout", "stdout.json", "stderr", "exit"])

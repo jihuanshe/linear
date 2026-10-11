@@ -28,28 +28,29 @@ A fake is only useful while it behaves like Linear. Cases marked `live: true` al
 deno task conformance --binary "$PWD/outputs/conformance/linear" --live kadoraba
 ```
 
-Live mode needs `LINEAR_KADORABA_API_KEY` and explicit authorization for the experiment (see the repository's AGENTS.md). Before running any case, it runs `auth whoami --json` with the target executable and refuses to continue unless the organization `name` is `Kadoraba` or its `urlKey` is `kadoraba`. Live cases may only use objects they create themselves, and their `cleanup` sections delete them. Live titles start with `{{RUN}}`; when a cleanup cannot run because the step that binds its object failed, the case fails and reports that prefix so leftovers can be found. A live case that passes offline but fails live means the fake has drifted: fix the fake first. [world.json](world.json) mirrors Kadoraba's ENG team so the same expectations hold on both sides.
+Live mode needs `LINEAR_KADORABA_API_KEY` and explicit authorization for the experiment (see the repository's AGENTS.md). Before running any case, it runs `auth whoami --json` with the target executable and refuses to continue unless the organization `name` is `Kadoraba` or its `urlKey` is `kadoraba`. Live cases may only use objects they create themselves, and their `cleanup` sections delete them. A `readback` after the cleanup confirms the result, for example that a deleted issue reads back with `trashed: true`. Live titles start with `{{RUN}}`; when a cleanup cannot run because the step that binds its object failed, the case fails and reports that prefix so leftovers can be found. A live case that passes offline but fails live means the fake has drifted: fix the fake first. [world.json](world.json) mirrors Kadoraba's ENG team so the same expectations hold on both sides.
 
 ## Case format
 
 A case is a [txtar](https://pkg.go.dev/golang.org/x/tools/txtar) archive. The text before the first section describes what the case protects; a line `live: true` there opts into live runs. Sections are read in order: inputs apply to the next `run`, expectations check the preceding one.
 
-| Section                  | Meaning                                                                                                      |
-| ------------------------ | ------------------------------------------------------------------------------------------------------------ |
-| `seed.json`              | Extra fake records keyed by GraphQL type name; references hold IDs. Offline only.                            |
-| `file <path>`            | Write a file in the working directory before the next run.                                                   |
-| `stdin`                  | Standard input for the next run.                                                                             |
-| `env`                    | `KEY=VALUE` lines added to the environment of later runs.                                                    |
-| `faults.json`            | Transport faults for the next run, e.g. `[{"on": "mutation:issueUpdate", "action": "drop-after"}]`. Offline. |
-| `run`                    | One command line starting with `linear`. A trailing `> path` saves stdout to a file instead of checking it.  |
-| `stdout` / `stdout.json` | Expected stdout as text, or as one JSON document. Missing means stdout must be empty.                        |
-| `stderr`                 | Expected stderr. Missing means stderr must be empty.                                                         |
-| `exit`                   | Expected exit code. Missing means 0.                                                                         |
-| `mutations.json`         | Exact mutation counts by root field during the run, e.g. `{"issueUpdate": 1}`; `{}` means none. Offline.     |
-| `no-requests`            | The run must not send any request. Offline.                                                                  |
-| `state.json`             | Expected fake records by type, in creation order; listed fields must match, others are ignored. Offline.     |
-| `file-after <path>`      | Expected content of a file after the run (`file-after.json` compares JSON).                                  |
-| `cleanup`                | A command that always runs after the case, even when it failed.                                              |
+| Section                  | Meaning                                                                                                                                                                                                                |
+| ------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `seed.json`              | Extra fake records keyed by GraphQL type name; references hold IDs. Offline only.                                                                                                                                      |
+| `file <path>`            | Write a file in the working directory before the next run.                                                                                                                                                             |
+| `stdin`                  | Standard input for the next run.                                                                                                                                                                                       |
+| `env`                    | `KEY=VALUE` lines added to the environment of later runs.                                                                                                                                                              |
+| `faults.json`            | Transport faults for the next run, e.g. `[{"on": "mutation:issueUpdate", "action": "drop-after"}]`. Offline.                                                                                                           |
+| `run`                    | One command line starting with `linear`. A trailing `> path` saves stdout to a file instead of checking it.                                                                                                            |
+| `stdout` / `stdout.json` | Expected stdout as text, or as one JSON document. Missing means stdout must be empty.                                                                                                                                  |
+| `stderr`                 | Expected stderr. Missing means stderr must be empty.                                                                                                                                                                   |
+| `exit`                   | Expected exit code. Missing means 0.                                                                                                                                                                                   |
+| `mutations.json`         | Exact mutation counts by root field during the run, e.g. `{"issueUpdate": 1}`; `{}` means none. Offline.                                                                                                               |
+| `no-requests`            | The run must not send any request. Offline.                                                                                                                                                                            |
+| `state.json`             | Expected fake records by type, in creation order; listed fields must match, others are ignored. Offline.                                                                                                               |
+| `file-after <path>`      | Expected content of a file after the run (`file-after.json` compares JSON).                                                                                                                                            |
+| `cleanup`                | A command that always runs after the case, even when it failed.                                                                                                                                                        |
+| `readback`               | A command that runs after every cleanup; the `stdout`, `stdout.json`, `stderr` and `exit` sections after it check what cleanup left. Live, it is retried up to five times, two seconds apart, while Linear catches up. |
 
 Command lines split on whitespace; single quotes are literal, double quotes allow `\"` and `\\`. Nothing is expanded except the tokens below.
 

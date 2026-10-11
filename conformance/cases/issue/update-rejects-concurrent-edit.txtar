@@ -123,3 +123,7 @@ linear issue title {{ISSUE}}
 {{RUN}} conflict concurrent
 -- cleanup --
 linear issue delete {{ISSUE}} -y
+-- readback --
+linear issue view {{ISSUE}} --json
+-- stdout.json --
+{"issue": {"identifier": "{{ISSUE}}", "trashed": true, "...": true}, "...": true}

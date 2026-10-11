@@ -43,6 +43,8 @@ export interface Case {
   seed?: string
   steps: Step[]
   cleanup: string[][]
+  /** Commands that check what cleanup left; only stdout, stderr and exit. */
+  readbacks: Step[]
   sections: Section[]
 }
 
@@ -161,6 +163,7 @@ export function parseCase(path: string, name: string, text: string): Case {
     live,
     steps: [],
     cleanup: [],
+    readbacks: [],
     sections,
   }
   let env: Record<string, string> = {}
@@ -172,17 +175,30 @@ export function parseCase(path: string, name: string, text: string): Case {
     files: {},
   }
   let step: Step | undefined
+  let readback: Step | undefined
   const expect = (section: Section) => {
+    if (readback != null) {
+      throw new Error(
+        `${path}: "${section.name}" cannot check a readback; use stdout, stderr or exit`,
+      )
+    }
     if (step == null) {
       throw new Error(`${path}: "${section.name}" must follow a run section`)
     }
     return step
   }
+  const output = (section: Section) => readback ?? expect(section)
   for (const section of sections) {
     const where = `${path}: ${section.name}`
-    section.step = section.name === "run"
+    // Sections after a readback belong to it, not to a run step.
+    section.step = readback != null
+      ? -1
+      : section.name === "run"
       ? result.steps.length
       : result.steps.length - 1
+    if (readback != null && section.name === "run") {
+      throw new Error(`${where}: run sections must come before readbacks`)
+    }
     switch (section.name) {
       case "seed.json":
         if (result.steps.length > 0) throw new Error(`${where} must come first`)
@@ -221,13 +237,13 @@ export function parseCase(path: string, name: string, text: string): Case {
         break
       case "stdout":
       case "stdout.json":
-        expect(section).stdout = section
+        output(section).stdout = section
         break
       case "stderr":
-        expect(section).stderr = section
+        output(section).stderr = section
         break
       case "exit":
-        expect(section).exit = Number(section.content.trim())
+        output(section).exit = Number(section.content.trim())
         break
       case "state.json":
         expect(section).state = section.content
@@ -244,6 +260,18 @@ export function parseCase(path: string, name: string, text: string): Case {
         break
       case "cleanup":
         result.cleanup.push(parseCommand(section.content, where).argv)
+        break
+      case "readback":
+        readback = {
+          env,
+          files: {},
+          command: section.content.trim(),
+          ...parseCommand(section.content, where),
+          exit: 0,
+          noRequests: false,
+          filesAfter: [],
+        }
+        result.readbacks.push(readback)
         break
       default:
         throw new Error(`${where}: unknown section`)
