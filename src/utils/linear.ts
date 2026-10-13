@@ -1286,6 +1286,8 @@ function containsProseUrl(text: string, target: string): boolean {
       offset = index + 1
       continue
     }
+    // Paired prose parentheses delimit the URL even when CJK text follows.
+    if (before === "(" && text[index + target.length] === ")") return true
     let end = index + target.length
     while (end < text.length && isUrlContinuation(text[end])) end++
     const suffix = text.slice(index + target.length, end)

@@ -17,7 +17,7 @@ const issueHistoryQuery = gql(`
   query GetIssueHistory($id: String!, $first: Int!, $after: String) {
     issue(id: $id) {
       id
-      history(first: $first, after: $after, orderBy: createdAt) {
+      history(first: $first, after: $after, orderBy: createdAt, includeArchived: true) {
         nodes {
           id
           createdAt

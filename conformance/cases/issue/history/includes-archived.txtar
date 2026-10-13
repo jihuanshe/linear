@@ -1,0 +1,10 @@
+A complete issue history includes archived history records.
+-- seed.json --
+{"Issue":[{"id":"1a000000-0000-4000-8000-000000000001","identifier":"ENG-1","title":"Current"}],"IssueHistory":[{"id":"1b000000-0000-4000-8000-000000000001","issue":"1a000000-0000-4000-8000-000000000001","createdAt":"2026-09-01T00:00:00Z","archivedAt":"2026-09-02T00:00:00Z","fromTitle":"Before","toTitle":"Current"}]}
+-- run --
+linear issue history ENG-1 --json
+-- stdout.json --
+{"nodes":[{"id":"1b000000-0000-4000-8000-000000000001","fromTitle":"Before","toTitle":"Current","...":true}],"pageInfo":{"hasNextPage":false,"...":true}}
+-- stderr --
+-- mutations.json --
+{}

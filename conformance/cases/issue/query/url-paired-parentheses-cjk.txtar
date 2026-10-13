@@ -1,0 +1,14 @@
+Paired ASCII parentheses end a prose URL before adjacent CJK text; URL continuations remain distinct.
+-- seed.json --
+{"Issue":[
+  {"id":"1a000000-0000-4000-8000-000000000001","identifier":"ENG-1","title":"Matched","description":"(https://example.com/objects/42)后续说明"},
+  {"id":"1a000000-0000-4000-8000-000000000002","identifier":"ENG-2","title":"Longer URL","description":"(https://example.com/objects/42/detail)后续说明"},
+  {"id":"1a000000-0000-4000-8000-000000000003","identifier":"ENG-3","title":"Unpaired delimiter","description":"https://example.com/objects/42)后续说明"}
+]}
+-- run --
+linear issue query --all-teams --url https://example.com/objects/42 --json
+-- stdout.json --
+{"nodes":[{"identifier":"ENG-1","...":true}],"pageInfo":{"hasNextPage":false,"endCursor":null}}
+-- stderr --
+-- mutations.json --
+{}
