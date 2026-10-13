@@ -1282,10 +1282,30 @@ function containsProseUrl(text: string, target: string): boolean {
     const singleQuoted = before === "'" &&
       !isUrlPrefixContinuation(text[index - 2]) &&
       text[index + target.length] === "'"
-    if (isUrlPrefixContinuation(before) && !singleQuoted) {
+    let insideUrl = false
+    if (before === "(") {
+      let start = index - 1
+      while (start > 0 && isUrlContinuation(text[start - 1])) start--
+      // Plain words and already-closed prose groups can touch the parenthesis.
+      const prefix = text.slice(start, index - 1)
+      insideUrl = Array.from(
+        prefix.matchAll(/(?:^|[('])(?:[a-z][a-z0-9+.-]*:\/\/|www\.)/gi),
+      ).some((match) => {
+        let depth = 0
+        for (const character of prefix.slice(match.index + match[0].length)) {
+          if (character === "'" && match[0].startsWith("'")) return false
+          if (character === "(") depth++
+          if (character === ")" && --depth < 0) return false
+        }
+        return true
+      })
+    }
+    if ((isUrlPrefixContinuation(before) && !singleQuoted) || insideUrl) {
       offset = index + 1
       continue
     }
+    // Paired prose parentheses delimit the URL even when CJK text follows.
+    if (before === "(" && text[index + target.length] === ")") return true
     let end = index + target.length
     while (end < text.length && isUrlContinuation(text[end])) end++
     const suffix = text.slice(index + target.length, end)

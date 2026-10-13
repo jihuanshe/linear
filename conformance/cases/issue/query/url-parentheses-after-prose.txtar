@@ -1,0 +1,19 @@
+Prose directly before an opening parenthesis is not a URL prefix.
+-- seed.json --
+{"Issue":[
+  {"id":"1a000000-0000-4000-8000-000000000001","identifier":"ENG-1","title":"Chinese prefix","description":"来源(https://example.com/objects/42)"},
+  {"id":"1a000000-0000-4000-8000-000000000002","identifier":"ENG-2","title":"English prefix","description":"See(https://example.com/objects/42)."},
+  {"id":"1a000000-0000-4000-8000-000000000003","identifier":"ENG-3","title":"Prose label","description":"Source:(https://example.com/objects/42)"},
+  {"id":"1a000000-0000-4000-8000-000000000004","identifier":"ENG-4","title":"Comment","description":null},
+  {"id":"1a000000-0000-4000-8000-000000000005","identifier":"ENG-5","title":"After a closed URL group","description":"See(https://other.example/)(https://example.com/objects/42)"},
+  {"id":"1a000000-0000-4000-8000-000000000006","identifier":"ENG-6","title":"After a quoted URL","description":"'https://other.example/'(https://example.com/objects/42)"}
+],"Comment":[
+  {"issue":"1a000000-0000-4000-8000-000000000004","body":"来源(https://example.com/objects/42)"}
+]}
+-- run --
+linear issue query --all-teams --url https://example.com/objects/42 --json
+-- stdout.json --
+{"nodes":[{"identifier":"ENG-6","...":true},{"identifier":"ENG-5","...":true},{"identifier":"ENG-4","...":true},{"identifier":"ENG-3","...":true},{"identifier":"ENG-2","...":true},{"identifier":"ENG-1","...":true}],"pageInfo":{"hasNextPage":false,"endCursor":null}}
+-- stderr --
+-- mutations.json --
+{}
