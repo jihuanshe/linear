@@ -1,0 +1,27 @@
+The team changes only with an explicit --team; moving keeps the state's type in the new team.
+
+live: true
+-- run --
+linear issue create --team {{TEAM}} --title "{{RUN}} team move" --state Todo --json
+-- stdout.json --
+{"ok": true, "effect": "applied", "data": {"success": true, "issue": {"identifier": "{{=ISSUE}}", "...": true}}, "fields": "{{*}}"}
+-- stderr --
+{{*}}
+-- run --
+linear issue update {{ISSUE}} --unprotected --title "{{RUN}} team move renamed" --json
+-- stdout.json --
+{"ok": true, "effect": "applied", "data": {"success": true, "issue": {"identifier": "{{ISSUE}}", "...": true}}, "...": true}
+-- run --
+linear issue update {{ISSUE}} --unprotected --team {{OTHER_TEAM}} --json
+-- stdout.json --
+{"ok": true, "effect": "applied", "data": {"success": true, "issue": {"identifier": "{{=MOVED}}", "...": true}}, "...": true}
+-- run --
+linear issue view {{MOVED}} --json --no-comments
+-- stdout.json --
+{"issue": {"title": "{{RUN}} team move renamed", "state": {"id": "{{*}}", "name": "Todo", "type": "unstarted", "color": "{{*}}"}, "team": {"id": "{{*}}", "key": "{{OTHER_TEAM}}", "activeCycle": null}, "...": true}, "...": true}
+-- cleanup --
+linear issue delete {{MOVED}} -y
+-- readback --
+linear issue view {{MOVED}} --json
+-- stdout.json --
+{"issue": {"identifier": "{{MOVED}}", "trashed": true, "...": true}, "...": true}

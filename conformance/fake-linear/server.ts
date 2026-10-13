@@ -23,7 +23,9 @@ import {
   type SelectionSetNode,
   validate,
   type VariableValues,
+  visit,
 } from "graphql"
+import { encodeHex } from "@std/encoding/hex"
 import { type Context, fieldResolver, typeResolver } from "./resolve.ts"
 import { rootValue } from "./root.ts"
 import { LinearError } from "./errors.ts"
@@ -54,6 +56,10 @@ export interface LoggedRequest {
  */
 export interface FaultRule {
   on: string
+  /** Also require the document to select a field with this name anywhere. */
+  selects?: string
+  /** Count only requests after the step's first mutation. */
+  after?: "mutation"
   nth?: number
   times?: number
   /**
@@ -61,8 +67,22 @@ export interface FaultRule {
    * `drop-before` closes the connection without executing.
    * `drop-after` executes, then closes the connection without a response.
    * `stall` executes, sends headers and part of the body, then stalls.
+   * `stale` answers from the data as it was before the latest mutation, like
+   * a read replica that has not caught up.
+   * `patch` applies `seed` to the data, as a concurrent edit, then proceeds.
+   * `patch-after` answers the request first, then applies `seed`: an edit
+   * made right after the executable read something.
    */
-  action: "status" | "drop-before" | "drop-after" | "stall"
+  action:
+    | "status"
+    | "drop-before"
+    | "drop-after"
+    | "stall"
+    | "stale"
+    | "patch"
+    | "patch-after"
+  /** Records merged into the data by the `patch` action. */
+  seed?: Seed
   status?: number
   body?: unknown
   headers?: Record<string, string>
@@ -71,11 +91,33 @@ export interface FaultRule {
 export class FakeLinear {
   readonly requests: LoggedRequest[] = []
   readonly gaps: string[] = []
-  faults: FaultRule[] = []
+  #faults: FaultRule[] = []
+  #mutatedSinceFaults = false
+
+  /** The current step's fault rules; counting starts over with each set. */
+  get faults(): FaultRule[] {
+    return this.#faults
+  }
+
+  set faults(rules: FaultRule[]) {
+    for (const rule of rules) {
+      if (rule.action === "stale" && !rule.on.startsWith("query")) {
+        throw new Error(`fault: stale applies to queries, not ${rule.on}`)
+      }
+    }
+    this.#faults = rules
+    this.#beforeMutation = undefined
+    this.#seen.clear()
+    this.#mutatedSinceFaults = false
+  }
   #attempts = 0
   #seen = new Map<FaultRule, number>()
+  /** The data just before the latest mutation, for `stale` reads. */
+  #beforeMutation?: Store
   #server?: Deno.HttpServer
   #stalls = new Set<ReadableStreamDefaultController<Uint8Array>>()
+  /** Responses withheld by upload stalls, released when the fake stops. */
+  #pending = new Set<() => void>()
 
   constructor(readonly store: Store) {}
 
@@ -98,6 +140,7 @@ export class FakeLinear {
   }
 
   async stop(): Promise<void> {
+    for (const release of this.#pending) release()
     for (const controller of this.#stalls) {
       try {
         controller.error(new Error("stopped"))
@@ -126,12 +169,18 @@ export class FakeLinear {
     return this.store.snapshot()
   }
 
-  #fault(operation: string, fields: string[]): FaultRule | undefined {
-    for (const rule of this.faults) {
+  #fault(
+    operation: string,
+    fields: string[],
+    selected: Set<string>,
+  ): FaultRule | undefined {
+    for (const rule of this.#faults) {
       const [kind, field] = rule.on.split(":")
       if (kind !== operation || (field != null && !fields.includes(field))) {
         continue
       }
+      if (rule.selects != null && !selected.has(rule.selects)) continue
+      if (rule.after === "mutation" && !this.#mutatedSinceFaults) continue
       const seen = (this.#seen.get(rule) ?? 0) + 1
       this.#seen.set(rule, seen)
       const nth = rule.nth ?? 1
@@ -143,6 +192,9 @@ export class FakeLinear {
   async #handle(request: Request): Promise<Response> {
     this.#attempts++
     const url = new URL(request.url)
+    if (request.method === "PUT" && url.pathname.startsWith("/upload/")) {
+      return await this.#upload(url.pathname.slice("/upload/".length), request)
+    }
     if (request.method !== "POST" || url.pathname !== "/graphql") {
       return new Response("Not Found", { status: 404 })
     }
@@ -227,7 +279,15 @@ export class FakeLinear {
       ? []
       : [...rootFields(operation.selectionSet, fragments, coerced).values()]
 
-    const fault = this.#fault(kind, fields)
+    const selected = new Set<string>()
+    if (this.#faults.some((rule) => rule.selects != null)) {
+      visit(document, {
+        Field: (node) => {
+          selected.add(node.name.value)
+        },
+      })
+    }
+    const fault = this.#fault(kind, fields, selected)
     if (fault?.action === "status") {
       return this.#log(
         kind,
@@ -239,8 +299,25 @@ export class FakeLinear {
     if (fault?.action === "drop-before") {
       return this.#log(kind, fields, variables, dropped())
     }
+    if (fault?.action === "patch" && fault.seed != null) {
+      this.store.patch(fault.seed)
+    }
 
-    const ctx: Context = { store: this.store, schema }
+    if (kind === "mutation") {
+      // Only stale reads need the data as it was before this write.
+      if (this.#faults.some((rule) => rule.action === "stale")) {
+        this.#beforeMutation = this.store.clone()
+      }
+      this.#mutatedSinceFaults = true
+    }
+    const store = fault?.action === "stale" && this.#beforeMutation != null
+      ? this.#beforeMutation
+      : this.store
+    const ctx: Context = {
+      store,
+      schema,
+      origin: new URL(this.endpoint).origin,
+    }
     const result = await execute({
       schema,
       document,
@@ -273,6 +350,9 @@ export class FakeLinear {
     if (fault?.action === "drop-after") {
       return this.#log(kind, fields, variables, dropped())
     }
+    if (fault?.action === "patch-after" && fault.seed != null) {
+      this.store.patch(fault.seed)
+    }
     const payload = {
       ...(result as object),
       errors: errors.length > 0
@@ -303,6 +383,48 @@ export class FakeLinear {
       )
     }
     return this.#log(kind, fields, variables, json(200, payload))
+  }
+
+  /**
+   * Accept a signed upload once. The executable must send the headers the
+   * grant returned; whether it also sent its Linear credential is recorded.
+   */
+  async #upload(id: string, request: Request): Promise<Response> {
+    const upload = this.store.find("Upload", id)
+    const body = new Uint8Array(await request.arrayBuffer())
+    const fault = this.#fault("upload", [], new Set())
+    if (fault?.action === "status") {
+      return json(fault.status ?? 500, fault.body ?? {}, fault.headers)
+    }
+    if (fault?.action === "patch" && fault.seed != null) {
+      this.store.patch(fault.seed)
+    }
+    // Deno.serve cannot cut a connection before its status line, so a dropped
+    // upload response cannot be modeled; refuse rather than pretend.
+    if (fault?.action === "drop-before" || fault?.action === "drop-after") {
+      throw new Error(`fake: ${fault.action} is not supported for uploads`)
+    }
+    if (upload == null || upload.received === true) {
+      return new Response("Forbidden", { status: 403 })
+    }
+    if (request.headers.get("x-fake-upload") !== id) {
+      return new Response("Missing signed headers", { status: 403 })
+    }
+    upload.received = true
+    upload.receivedContentType = request.headers.get("content-type")
+    upload.receivedSize = body.byteLength
+    upload.sentAuthorization = request.headers.has("authorization")
+    upload.sha256 = encodeHex(await crypto.subtle.digest("SHA-256", body))
+    upload.text = new TextDecoder("utf-8", { fatal: false }).decode(body)
+    if (fault?.action === "patch-after" && fault.seed != null) {
+      this.store.patch(fault.seed)
+    }
+    if (fault?.action === "stall") {
+      // The upload is stored, but no response ever arrives.
+      await new Promise<void>((resolve) => this.#pending.add(resolve))
+      return new Response(null, { status: 504 })
+    }
+    return new Response(null, { status: 200 })
   }
 
   #log(

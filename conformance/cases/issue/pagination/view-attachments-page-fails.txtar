@@ -1,0 +1,25 @@
+If a later page of attachments fails to load, issue view fails without printing a partial result.
+-- seed.json --
+{"Issue": [{"id": "1a000000-0000-4000-8000-000000000123", "identifier": "ENG-123", "title": "Read all evidence", "description": "Issue body"}], "Attachment": [{"$repeat": 60, "issue": "1a000000-0000-4000-8000-000000000123", "title": "a{{n}}", "url": "https://example.com/{{n}}"}]}
+-- faults.json --
+[{"on": "query", "selects": "attachments", "nth": 2, "action": "status", "status": 200, "body": {"data": null, "errors": [{"message": "page unavailable"}]}}]
+-- run --
+linear issue view ENG-123 --json
+-- stdout.json --
+{
+  "ok": false,
+  "effect": "none",
+  "error": {
+    "code": "Error",
+    "message": "Failed to view issue: page unavailable",
+    "details": {
+      "errors": [
+        {
+          "message": "page unavailable"
+        }
+      ]
+    }
+  }
+}
+-- exit --
+1

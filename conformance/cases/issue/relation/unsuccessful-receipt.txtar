@@ -1,0 +1,65 @@
+A relation receipt with success false leaves the effect unknown; a confirmed receipt whose endpoints are reversed is reported as applied but not accepted.
+-- seed.json --
+{"Issue": [{"id": "1a000000-0000-4000-8000-000000000001", "identifier": "ENG-1", "title": "Source"}, {"id": "1a000000-0000-4000-8000-000000000002", "identifier": "ENG-2", "title": "Target"}]}
+-- faults.json --
+[{"on": "mutation:issueRelationCreate", "action": "status", "status": 200, "body": {"data": {"issueRelationCreate": {"success": false, "issueRelation": null}}}}]
+-- run --
+linear issue relation add ENG-1 related ENG-2 --json
+-- stdout.json --
+{
+  "ok": false,
+  "effect": "unknown",
+  "data": {
+    "issueRelationCreate": {
+      "success": false,
+      "issueRelation": null
+    }
+  },
+  "error": {
+    "code": "WriteError",
+    "message": "Failed to create relation: Mutation was not confirmed",
+    "suggestion": "Reconcile the remote outcome before retrying this write."
+  }
+}
+-- exit --
+1
+-- faults.json --
+[{"on": "mutation:issueRelationCreate", "action": "status", "status": 200, "body": {"data": {"issueRelationCreate": {"success": true, "issueRelation": {"id": "99999999-9999-4999-8999-999999999999", "type": "related", "issue": {"id": "1a000000-0000-4000-8000-000000000002", "identifier": "ENG-2", "title": "Target"}, "relatedIssue": {"id": "1a000000-0000-4000-8000-000000000001", "identifier": "ENG-1", "title": "Source"}}}}}}]
+-- run --
+linear issue relation add ENG-1 related ENG-2 --json
+-- stdout.json --
+{
+  "ok": false,
+  "effect": "applied",
+  "data": {
+    "issueRelationCreate": {
+      "success": true,
+      "issueRelation": {
+        "id": "99999999-9999-4999-8999-999999999999",
+        "type": "related",
+        "issue": {
+          "id": "1a000000-0000-4000-8000-000000000002",
+          "identifier": "ENG-2",
+          "title": "Target"
+        },
+        "relatedIssue": {
+          "id": "1a000000-0000-4000-8000-000000000001",
+          "identifier": "ENG-1",
+          "title": "Source"
+        }
+      }
+    }
+  },
+  "error": {
+    "code": "WriteError",
+    "message": "Failed to create relation: Mutation returned no association identity",
+    "suggestion": "Reconcile the returned object before continuing.",
+    "details": {
+      "reference": "issue",
+      "expectedId": "1a000000-0000-4000-8000-000000000001",
+      "actualId": "1a000000-0000-4000-8000-000000000002"
+    }
+  }
+}
+-- exit --
+1

@@ -1,0 +1,265 @@
+An assignee reference matches by email first, then display name, then exact name, before partial names.
+-- seed.json --
+{"User": [
+  {"id": "1b000000-0000-4000-8000-000000000011", "name": "Email Owner", "displayName": "emailowner", "email": "jane@example.com"},
+  {"id": "1b000000-0000-4000-8000-000000000012", "name": "Display Decoy", "displayName": "jane@example.com", "email": "decoy@example.com"},
+  {"id": "1b000000-0000-4000-8000-000000000013", "name": "Display Owner", "displayName": "jane", "email": "display@example.com"},
+  {"id": "1b000000-0000-4000-8000-000000000014", "name": "Jane", "displayName": "namedecoy", "email": "named@example.com"},
+  {"id": "1b000000-0000-4000-8000-000000000015", "name": "Developer", "displayName": "dev", "email": "dev@example.com"},
+  {"id": "1b000000-0000-4000-8000-000000000016", "name": "Jane Developer", "displayName": "janedev", "email": "janedev@example.com"}],
+ "Issue": [{"id": "1a000000-0000-4000-8000-000000000123", "identifier": "ENG-123", "title": "Existing issue", "state": "0d000000-0000-4000-8000-000000000002"}]}
+-- run --
+linear issue update --unprotected ENG-123 --assignee JANE@EXAMPLE.COM --json
+-- stdout.json --
+{
+  "ok": true,
+  "effect": "applied",
+  "data": {
+    "success": true,
+    "issue": {
+      "id": "1a000000-0000-4000-8000-000000000123",
+      "identifier": "ENG-123",
+      "url": "https://linear.app/kadoraba/issue/ENG-123/existing-issue",
+      "title": "Existing issue",
+      "priority": 0,
+      "labels": {
+        "nodes": [],
+        "pageInfo": {
+          "hasNextPage": false,
+          "endCursor": null
+        }
+      }
+    }
+  },
+  "fields": [
+    {
+      "field": "assignee",
+      "inputField": "assigneeId",
+      "desired": "1b000000-0000-4000-8000-000000000011",
+      "remote": null,
+      "verdict": "write"
+    }
+  ],
+  "verification": {
+    "scope": "issue-fields",
+    "status": "verified"
+  },
+  "readBack": {
+    "organization": {
+      "id": "0a000000-0000-4000-8000-000000000001",
+      "urlKey": "kadoraba"
+    },
+    "issue": {
+      "id": "1a000000-0000-4000-8000-000000000123",
+      "identifier": "ENG-123",
+      "archivedAt": null,
+      "trashed": null,
+      "title": "Existing issue",
+      "description": null,
+      "url": "https://linear.app/kadoraba/issue/ENG-123/existing-issue",
+      "branchName": "alex/eng-123-existing-issue",
+      "priority": 0,
+      "estimate": null,
+      "dueDate": null,
+      "state": {
+        "id": "0d000000-0000-4000-8000-000000000002",
+        "name": "Todo",
+        "type": "unstarted",
+        "color": "#e2e2e2"
+      },
+      "assignee": {
+        "id": "1b000000-0000-4000-8000-000000000011",
+        "name": "Email Owner",
+        "displayName": "emailowner"
+      },
+      "project": null,
+      "projectMilestone": null,
+      "cycle": null,
+      "team": {
+        "id": "0c000000-0000-4000-8000-000000000001",
+        "key": "ENG",
+        "activeCycle": null
+      },
+      "parent": null,
+      "labels": {
+        "nodes": [],
+        "pageInfo": {
+          "hasNextPage": false,
+          "endCursor": null
+        }
+      }
+    }
+  }
+}
+-- state.json --
+{"Issue": [{"identifier": "ENG-123", "assignee": "1b000000-0000-4000-8000-000000000011"}]}
+-- run --
+linear issue update --unprotected ENG-123 --assignee JANE --json
+-- stdout.json --
+{
+  "ok": true,
+  "effect": "applied",
+  "data": {
+    "success": true,
+    "issue": {
+      "id": "1a000000-0000-4000-8000-000000000123",
+      "identifier": "ENG-123",
+      "url": "https://linear.app/kadoraba/issue/ENG-123/existing-issue",
+      "title": "Existing issue",
+      "priority": 0,
+      "labels": {
+        "nodes": [],
+        "pageInfo": {
+          "hasNextPage": false,
+          "endCursor": null
+        }
+      }
+    }
+  },
+  "fields": [
+    {
+      "field": "assignee",
+      "inputField": "assigneeId",
+      "desired": "1b000000-0000-4000-8000-000000000013",
+      "remote": "1b000000-0000-4000-8000-000000000011",
+      "verdict": "write"
+    }
+  ],
+  "verification": {
+    "scope": "issue-fields",
+    "status": "verified"
+  },
+  "readBack": {
+    "organization": {
+      "id": "0a000000-0000-4000-8000-000000000001",
+      "urlKey": "kadoraba"
+    },
+    "issue": {
+      "id": "1a000000-0000-4000-8000-000000000123",
+      "identifier": "ENG-123",
+      "archivedAt": null,
+      "trashed": null,
+      "title": "Existing issue",
+      "description": null,
+      "url": "https://linear.app/kadoraba/issue/ENG-123/existing-issue",
+      "branchName": "alex/eng-123-existing-issue",
+      "priority": 0,
+      "estimate": null,
+      "dueDate": null,
+      "state": {
+        "id": "0d000000-0000-4000-8000-000000000002",
+        "name": "Todo",
+        "type": "unstarted",
+        "color": "#e2e2e2"
+      },
+      "assignee": {
+        "id": "1b000000-0000-4000-8000-000000000013",
+        "name": "Display Owner",
+        "displayName": "jane"
+      },
+      "project": null,
+      "projectMilestone": null,
+      "cycle": null,
+      "team": {
+        "id": "0c000000-0000-4000-8000-000000000001",
+        "key": "ENG",
+        "activeCycle": null
+      },
+      "parent": null,
+      "labels": {
+        "nodes": [],
+        "pageInfo": {
+          "hasNextPage": false,
+          "endCursor": null
+        }
+      }
+    }
+  }
+}
+-- state.json --
+{"Issue": [{"identifier": "ENG-123", "assignee": "1b000000-0000-4000-8000-000000000013"}]}
+-- run --
+linear issue update --unprotected ENG-123 --assignee Developer --json
+-- stdout.json --
+{
+  "ok": true,
+  "effect": "applied",
+  "data": {
+    "success": true,
+    "issue": {
+      "id": "1a000000-0000-4000-8000-000000000123",
+      "identifier": "ENG-123",
+      "url": "https://linear.app/kadoraba/issue/ENG-123/existing-issue",
+      "title": "Existing issue",
+      "priority": 0,
+      "labels": {
+        "nodes": [],
+        "pageInfo": {
+          "hasNextPage": false,
+          "endCursor": null
+        }
+      }
+    }
+  },
+  "fields": [
+    {
+      "field": "assignee",
+      "inputField": "assigneeId",
+      "desired": "1b000000-0000-4000-8000-000000000015",
+      "remote": "1b000000-0000-4000-8000-000000000013",
+      "verdict": "write"
+    }
+  ],
+  "verification": {
+    "scope": "issue-fields",
+    "status": "verified"
+  },
+  "readBack": {
+    "organization": {
+      "id": "0a000000-0000-4000-8000-000000000001",
+      "urlKey": "kadoraba"
+    },
+    "issue": {
+      "id": "1a000000-0000-4000-8000-000000000123",
+      "identifier": "ENG-123",
+      "archivedAt": null,
+      "trashed": null,
+      "title": "Existing issue",
+      "description": null,
+      "url": "https://linear.app/kadoraba/issue/ENG-123/existing-issue",
+      "branchName": "alex/eng-123-existing-issue",
+      "priority": 0,
+      "estimate": null,
+      "dueDate": null,
+      "state": {
+        "id": "0d000000-0000-4000-8000-000000000002",
+        "name": "Todo",
+        "type": "unstarted",
+        "color": "#e2e2e2"
+      },
+      "assignee": {
+        "id": "1b000000-0000-4000-8000-000000000015",
+        "name": "Developer",
+        "displayName": "dev"
+      },
+      "project": null,
+      "projectMilestone": null,
+      "cycle": null,
+      "team": {
+        "id": "0c000000-0000-4000-8000-000000000001",
+        "key": "ENG",
+        "activeCycle": null
+      },
+      "parent": null,
+      "labels": {
+        "nodes": [],
+        "pageInfo": {
+          "hasNextPage": false,
+          "endCursor": null
+        }
+      }
+    }
+  }
+}
+-- state.json --
+{"Issue": [{"identifier": "ENG-123", "assignee": "1b000000-0000-4000-8000-000000000015"}]}

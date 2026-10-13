@@ -1,0 +1,10 @@
+-p means --priority, not --parent.
+-- seed.json --
+{"Issue": [{"id": "1a000000-0000-4000-8000-000000000123", "identifier": "ENG-123", "title": "Existing issue", "state": "0d000000-0000-4000-8000-000000000002"}, {"id": "1a000000-0000-4000-8000-000000000220", "identifier": "ENG-220", "title": "Parent"}]}
+-- run --
+linear issue update --unprotected ENG-123 -p 3 --parent ENG-220
+-- stdout --
+✓ Updated issue ENG-123: Existing issue
+https://linear.app/kadoraba/issue/ENG-123/existing-issue
+-- state.json --
+{"Issue": [{"identifier": "ENG-123", "priority": 3, "parent": "1a000000-0000-4000-8000-000000000220"}, {"identifier": "ENG-220"}]}

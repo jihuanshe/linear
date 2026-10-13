@@ -1,0 +1,94 @@
+favorite add --folder places the issue in an existing folder; a conflicting folder for an existing favorite and an ambiguous folder name are rejected; list keeps only issue favorites.
+-- seed.json --
+{"Issue": [{"id": "1a000000-0000-4000-8000-000000000123", "identifier": "ENG-123", "title": "Feedback"}, {"id": "1a000000-0000-4000-8000-000000000124", "identifier": "ENG-124", "title": "Other"}],
+ "Favorite": [
+  {"id": "1f100000-0000-4000-8000-000000000001", "type": "folder", "folderName": "Inbox", "owner": "0b000000-0000-4000-8000-000000000001", "issue": null, "parent": null},
+  {"id": "1f100000-0000-4000-8000-000000000002", "type": "folder", "folderName": "Later", "owner": "0b000000-0000-4000-8000-000000000001", "issue": null, "parent": null},
+  {"id": "1f100000-0000-4000-8000-000000000003", "type": "folder", "folderName": "Later", "owner": "0b000000-0000-4000-8000-000000000001", "issue": null, "parent": null}]}
+-- run --
+linear issue favorite add ENG-123 --folder Inbox --json
+-- stdout.json --
+{
+  "ok": true,
+  "effect": "applied",
+  "data": {
+    "issue": {
+      "id": "1a000000-0000-4000-8000-000000000123",
+      "identifier": "ENG-123",
+      "favorite": null
+    },
+    "favorite": {
+      "id": "f0000000-0000-4000-8000-000000000001",
+      "type": "issue",
+      "title": "Feedback",
+      "url": "https://linear.app/kadoraba/issue/ENG-123/feedback",
+      "folderName": null,
+      "parent": {
+        "id": "1f100000-0000-4000-8000-000000000001",
+        "folderName": "Inbox"
+      },
+      "issue": {
+        "id": "1a000000-0000-4000-8000-000000000123",
+        "identifier": "ENG-123"
+      }
+    }
+  }
+}
+-- state.json --
+{"Favorite": [{"type": "folder"}, {"type": "folder"}, {"type": "folder"}, {"type": "issue", "issue": "1a000000-0000-4000-8000-000000000123", "parent": "1f100000-0000-4000-8000-000000000001"}]}
+-- run --
+linear issue favorite add ENG-123 --folder Later --json
+-- stdout.json --
+{
+  "ok": false,
+  "effect": "none",
+  "error": {
+    "code": "ValidationError",
+    "message": "Failed to add favorite: Issue ENG-123 is already favorited in folder \"Inbox\"; cannot place it in folder \"Later\" without removing it first"
+  }
+}
+-- exit --
+1
+-- mutations.json --
+{}
+-- run --
+linear issue favorite add ENG-124 --folder Later --json
+-- stdout.json --
+{
+  "ok": false,
+  "effect": "none",
+  "error": {
+    "code": "ValidationError",
+    "message": "Failed to add favorite: Favorite folder name is ambiguous: \"Later\" matches 2 folders"
+  }
+}
+-- exit --
+1
+-- mutations.json --
+{}
+-- run --
+linear issue favorite list --json
+-- stdout.json --
+{
+  "nodes": [
+    {
+      "id": "f0000000-0000-4000-8000-000000000001",
+      "type": "issue",
+      "title": "Feedback",
+      "url": "https://linear.app/kadoraba/issue/ENG-123/feedback",
+      "folderName": null,
+      "parent": {
+        "id": "1f100000-0000-4000-8000-000000000001",
+        "folderName": "Inbox"
+      },
+      "issue": {
+        "id": "1a000000-0000-4000-8000-000000000123",
+        "identifier": "ENG-123"
+      }
+    }
+  ],
+  "pageInfo": {
+    "hasNextPage": false,
+    "endCursor": "1f100000-0000-4000-8000-000000000001"
+  }
+}

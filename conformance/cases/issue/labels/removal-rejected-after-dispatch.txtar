@@ -1,0 +1,35 @@
+If Linear rejects a removal after the mutation was sent, the write effect stays unknown rather than none.
+-- seed.json --
+{"IssueLabel": [
+  {"id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", "name": "Frontend"},
+  {"id": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", "name": "Backend", "team": "0c000000-0000-4000-8000-000000000001"},
+  {"id": "cccccccc-cccc-4ccc-8ccc-cccccccccccc", "name": "Operations"},
+  {"id": "dddddddd-dddd-4ddd-8ddd-dddddddddddd", "name": "Group", "isGroup": true},
+  {"id": "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee", "name": "Other team", "team": "0c000000-0000-4000-8000-000000000038"},
+  {"id": "ffffffff-ffff-4fff-8fff-ffffffffffff", "name": "bug", "team": "0c000000-0000-4000-8000-000000000001"}], "Issue": [{"id": "1a000000-0000-4000-8000-000000000123", "identifier": "ENG-123", "title": "Labels", "labels": ["aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"]}]}
+-- faults.json --
+[{"on": "mutation:issueUpdate", "action": "status", "status": 200, "body": {"data": null, "errors": [{"message": "Label not on issue"}]}}]
+-- run --
+linear issue update ENG-123 --unprotected --remove-label Frontend --json
+-- stdout.json --
+{
+  "ok": false,
+  "effect": "unknown",
+  "data": null,
+  "error": {
+    "code": "Error",
+    "message": "Failed to update issue: Label not on issue",
+    "suggestion": "Reconcile the remote outcome before retrying this write.",
+    "details": {
+      "errors": [
+        {
+          "message": "Label not on issue"
+        }
+      ]
+    }
+  }
+}
+-- exit --
+1
+-- mutations.json --
+{"issueUpdate": 1}

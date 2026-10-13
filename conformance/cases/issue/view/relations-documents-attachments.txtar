@@ -1,0 +1,235 @@
+Relations in both directions, documents and attachments are listed with their links.
+-- seed.json --
+{"User": [{"id": "1b000000-0000-4000-8000-000000000001", "name": "john.doe", "displayName": "John Doe"},
+  {"id": "1b000000-0000-4000-8000-000000000002", "name": "jane.smith", "displayName": "Jane Smith"},
+  {"id": "1b000000-0000-4000-8000-000000000003", "name": "alice.dev", "displayName": "Alice Developer"},
+  {"id": "1b000000-0000-4000-8000-000000000004", "name": "bob.senior", "displayName": "Bob Senior"}],
+ "Issue": [
+  {"id": "1a000000-0000-4000-8000-000000000246", "identifier": "ENG-246", "title": "Audit issue resource output", "state": "0d000000-0000-4000-8000-000000000003", "priority": 2,
+   "assignee": "1b000000-0000-4000-8000-000000000002", "description": "Ensure issue view shows both attachments and documents."},
+  {"id": "1a000000-0000-4000-8000-000000000247", "identifier": "ENG-247", "title": "Blocked follow-up"},
+  {"id": "1a000000-0000-4000-8000-000000000245", "identifier": "ENG-245", "title": "Related investigation"}],
+ "IssueRelation": [
+  {"type": "blocks", "issue": "1a000000-0000-4000-8000-000000000246", "relatedIssue": "1a000000-0000-4000-8000-000000000247"},
+  {"type": "related", "issue": "1a000000-0000-4000-8000-000000000245", "relatedIssue": "1a000000-0000-4000-8000-000000000246"}],
+ "Document": [
+  {"title": "QA checklist", "slugId": "0a1b2c3d4e5f", "issue": "1a000000-0000-4000-8000-000000000246", "createdAt": "2024-01-15T09:00:00.000Z", "updatedAt": "2024-01-15T09:15:00.000Z"},
+  {"title": "Implementation plan", "slugId": "f5e4d3c2b1a0", "issue": "1a000000-0000-4000-8000-000000000246", "createdAt": "2024-01-15T09:30:00.000Z", "updatedAt": "2024-01-15T09:45:00.000Z"}],
+ "Attachment": [
+  {"title": "Design mock", "subtitle": "Figma file", "url": "https://example.com/design-mock", "sourceType": "figma", "issue": "1a000000-0000-4000-8000-000000000246", "createdAt": "2024-01-15T10:30:00.000Z"}]}
+-- run --
+linear issue view ENG-246 --no-comments
+-- stdout --
+# ENG-246: Audit issue resource output
+
+**State:** In Progress | **Priority:** ▄▆█ | **Assignee:** @Jane Smith
+
+## Context
+
+- Assignee: @Jane Smith (not the current account)
+- Parent: none
+- Sub-issues: none
+- Relations: blocks ENG-247; related ENG-245
+- Attachments: 1 | Comments: not fetched
+- Changes by other accounts: none (all 0 history entries)
+
+Ensure issue view shows both attachments and documents.
+
+## Attachments
+
+- **Design mock**: https://example.com/design-mock _[figma]_
+  _Figma file_
+
+
+## Documents
+
+- **Implementation plan**: https://linear.app/kadoraba/document/implementation-plan-f5e4d3c2b1a0
+- **QA checklist**: https://linear.app/kadoraba/document/qa-checklist-0a1b2c3d4e5f
+
+-- run --
+linear issue view ENG-246 --no-comments --json
+-- stdout.json --
+{
+  "organization": {
+    "id": "0a000000-0000-4000-8000-000000000001",
+    "urlKey": "kadoraba"
+  },
+  "viewer": {
+    "id": "0b000000-0000-4000-8000-000000000001"
+  },
+  "issue": {
+    "id": "1a000000-0000-4000-8000-000000000246",
+    "identifier": "ENG-246",
+    "archivedAt": null,
+    "trashed": null,
+    "title": "Audit issue resource output",
+    "description": "Ensure issue view shows both attachments and documents.",
+    "url": "https://linear.app/kadoraba/issue/ENG-246/audit-issue-resource-output",
+    "branchName": "alex/eng-246-audit-issue-resource-output",
+    "priority": 2,
+    "estimate": null,
+    "dueDate": null,
+    "state": {
+      "id": "0d000000-0000-4000-8000-000000000003",
+      "name": "In Progress",
+      "type": "started",
+      "color": "#f2c94c"
+    },
+    "assignee": {
+      "id": "1b000000-0000-4000-8000-000000000002",
+      "name": "jane.smith",
+      "displayName": "Jane Smith"
+    },
+    "project": null,
+    "projectMilestone": null,
+    "cycle": null,
+    "team": {
+      "id": "0c000000-0000-4000-8000-000000000001",
+      "key": "ENG",
+      "activeCycle": null
+    },
+    "parent": null,
+    "labels": {
+      "nodes": [],
+      "pageInfo": {
+        "hasNextPage": false,
+        "endCursor": null
+      }
+    },
+    "history": {
+      "nodes": [],
+      "pageInfo": {
+        "hasNextPage": false,
+        "endCursor": null
+      }
+    },
+    "children": {
+      "nodes": [],
+      "pageInfo": {
+        "hasNextPage": false
+      }
+    },
+    "attachments": {
+      "nodes": [
+        {
+          "id": "f0000000-0000-4000-8000-000000000005",
+          "title": "Design mock",
+          "url": "https://example.com/design-mock",
+          "subtitle": "Figma file",
+          "sourceType": "figma",
+          "metadata": {},
+          "createdAt": "2024-01-15T10:30:00.000Z"
+        }
+      ],
+      "pageInfo": {
+        "hasNextPage": false,
+        "endCursor": "f0000000-0000-4000-8000-000000000005"
+      }
+    },
+    "relations": {
+      "nodes": [
+        {
+          "id": "f0000000-0000-4000-8000-000000000001",
+          "type": "blocks",
+          "relatedIssue": {
+            "identifier": "ENG-247",
+            "title": "Blocked follow-up"
+          }
+        }
+      ],
+      "pageInfo": {
+        "hasNextPage": false
+      }
+    },
+    "inverseRelations": {
+      "nodes": [
+        {
+          "id": "f0000000-0000-4000-8000-000000000002",
+          "type": "related",
+          "issue": {
+            "identifier": "ENG-245",
+            "title": "Related investigation"
+          }
+        }
+      ],
+      "pageInfo": {
+        "hasNextPage": false
+      }
+    },
+    "documents": {
+      "nodes": [
+        {
+          "id": "f0000000-0000-4000-8000-000000000004",
+          "title": "Implementation plan",
+          "slugId": "f5e4d3c2b1a0",
+          "url": "https://linear.app/kadoraba/document/implementation-plan-f5e4d3c2b1a0",
+          "createdAt": "2024-01-15T09:30:00.000Z",
+          "updatedAt": "2024-01-15T09:45:00.000Z"
+        },
+        {
+          "id": "f0000000-0000-4000-8000-000000000003",
+          "title": "QA checklist",
+          "slugId": "0a1b2c3d4e5f",
+          "url": "https://linear.app/kadoraba/document/qa-checklist-0a1b2c3d4e5f",
+          "createdAt": "2024-01-15T09:00:00.000Z",
+          "updatedAt": "2024-01-15T09:15:00.000Z"
+        }
+      ],
+      "pageInfo": {
+        "hasNextPage": false,
+        "endCursor": "f0000000-0000-4000-8000-000000000003"
+      }
+    }
+  },
+  "contextSummary": {
+    "viewerId": "0b000000-0000-4000-8000-000000000001",
+    "assignee": {
+      "id": "1b000000-0000-4000-8000-000000000002",
+      "name": "Jane Smith"
+    },
+    "viewerIsAssignee": false,
+    "parent": null,
+    "subIssues": {
+      "fetched": true,
+      "count": 0,
+      "complete": true,
+      "byState": {},
+      "items": []
+    },
+    "relations": {
+      "fetched": true,
+      "complete": true,
+      "items": [
+        {
+          "kind": "blocks",
+          "identifier": "ENG-247",
+          "title": "Blocked follow-up"
+        },
+        {
+          "kind": "related",
+          "identifier": "ENG-245",
+          "title": "Related investigation"
+        }
+      ]
+    },
+    "attachments": {
+      "fetched": true,
+      "count": 1,
+      "complete": true
+    },
+    "comments": {
+      "fetched": false,
+      "count": 0,
+      "complete": false,
+      "unresolvedThreads": 0,
+      "byOtherAccounts": 0,
+      "latestByOtherAccount": null
+    },
+    "history": {
+      "fetched": true,
+      "entries": 0,
+      "complete": true,
+      "changesByOtherAccounts": []
+    }
+  }
+}

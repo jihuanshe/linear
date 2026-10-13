@@ -1,0 +1,26 @@
+Whitespace typed at the description prompt is kept as typed (Linear stores it trimmed to an empty description).
+-- file.b64 content --
+
+-- exec editor --
+#!/bin/sh
+cat content > "$1"
+-- env --
+LINEAR_TEAM_KEY=ENG
+LINEAR_ISSUE_CREATE_ASSIGN_SELF=never
+LINEAR_ISSUE_CREATE_ASK_PROJECT=false
+GIT_CONFIG_GLOBAL=/dev/null
+EDITOR={{WORK}}/editor
+-- tty --
+expect What's the title of your issue?
+send Draft\r
+expect Description
+send  \t\r
+expect What's next?
+send \r
+-- run --
+linear issue create
+-- stdout --
+{{*}}✓ Created issue ENG-1: Draft
+{{*}}
+-- state.json --
+{"Issue": [{"title": "Draft", "description": null}]}

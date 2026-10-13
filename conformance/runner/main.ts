@@ -2,7 +2,7 @@
  * Run the conformance cases against a `linear` executable.
  *
  *   deno run -A conformance/runner/main.ts --binary /abs/path/linear
- *   ... --filter issue/ --jobs 4 --update
+ *   ... --filter issue/ --jobs 4 --update --slow
  *   ... --live kadoraba   (real API; needs LINEAR_KADORABA_API_KEY)
  */
 import { parseArgs } from "@std/cli/parse-args"
@@ -15,7 +15,7 @@ const root = resolve(import.meta.dirname!, "..")
 
 const args = parseArgs(Deno.args, {
   string: ["binary", "filter", "jobs", "live", "timeout"],
-  boolean: ["update", "verbose"],
+  boolean: ["update", "verbose", "slow"],
 })
 if (args.binary == null) {
   console.error(
@@ -44,8 +44,9 @@ if (cases.length === 0) {
 const options: RunOptions = {
   binary,
   world: JSON.parse(await Deno.readTextFile(join(root, "world.json"))),
-  vars: { TEAM: "ENG", RUN: "zrun" },
+  vars: { TEAM: "ENG", OTHER_TEAM: "P38IT", RUN: "zrun" },
   update: args.update,
+  slow: args.slow,
   timeoutMs: Number(args.timeout ?? 30_000),
 }
 

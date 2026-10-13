@@ -1,0 +1,665 @@
+--url returns only issues whose description or comments contain the URL as a whole token, not longer URLs or URLs glued to other text.
+-- seed.json --
+{
+ "Issue": [
+  {
+   "id": "1a000000-0000-4000-8000-000000000101",
+   "identifier": "ENG-101",
+   "title": "Candidate 101",
+   "description": "来源链接：https://example.com/objects/42"
+  },
+  {
+   "id": "1a000000-0000-4000-8000-000000000102",
+   "identifier": "ENG-102",
+   "title": "Candidate 102",
+   "description": "来源链接：https://example.com/objects/420"
+  },
+  {
+   "id": "1a000000-0000-4000-8000-000000000103",
+   "identifier": "ENG-103",
+   "title": "Candidate 103",
+   "description": "来源链接：https://example.com/objects/42.json"
+  },
+  {
+   "id": "1a000000-0000-4000-8000-000000000104",
+   "identifier": "ENG-104",
+   "title": "Candidate 104",
+   "description": "来源链接：https://example.com/objects/42:detail"
+  },
+  {
+   "id": "1a000000-0000-4000-8000-000000000105",
+   "identifier": "ENG-105",
+   "title": "Candidate 105",
+   "description": "来源链接：https://example.com/objects/42。"
+  },
+  {
+   "id": "1a000000-0000-4000-8000-000000000106",
+   "identifier": "ENG-106",
+   "title": "Candidate 106",
+   "description": "来源链接：（https://example.com/objects/42）"
+  },
+  {
+   "id": "1a000000-0000-4000-8000-000000000107",
+   "identifier": "ENG-107",
+   "title": "Candidate 107",
+   "description": "**来源链接：https://example.com/objects/42**"
+  },
+  {
+   "id": "1a000000-0000-4000-8000-000000000108",
+   "identifier": "ENG-108",
+   "title": "Candidate 108",
+   "description": "没有链接的正文"
+  },
+  {
+   "id": "1a000000-0000-4000-8000-000000000109",
+   "identifier": "ENG-109",
+   "title": "Candidate 109",
+   "description": "[详情](https://example.com/objects/42详情)"
+  },
+  {
+   "id": "1a000000-0000-4000-8000-000000000110",
+   "identifier": "ENG-110",
+   "title": "Candidate 110",
+   "description": "已有_token_https://example.com/objects/42"
+  },
+  {
+   "id": "1a000000-0000-4000-8000-000000000111",
+   "identifier": "ENG-111",
+   "title": "Candidate 111",
+   "description": "已有~token~https://example.com/objects/42"
+  },
+  {
+   "id": "1a000000-0000-4000-8000-000000000112",
+   "identifier": "ENG-112",
+   "title": "Candidate 112",
+   "description": "_来源：https://example.com/objects/42_"
+  },
+  {
+   "id": "1a000000-0000-4000-8000-000000000113",
+   "identifier": "ENG-113",
+   "title": "Candidate 113",
+   "description": "https://example.com/objects/42。后续说明"
+  },
+  {
+   "id": "1a000000-0000-4000-8000-000000000114",
+   "identifier": "ENG-114",
+   "title": "Candidate 114",
+   "description": "https://example.com/objects/42_"
+  },
+  {
+   "id": "1a000000-0000-4000-8000-000000000115",
+   "identifier": "ENG-115",
+   "title": "Candidate 115",
+   "description": "'https://example.com/objects/42'"
+  },
+  {
+   "id": "1a000000-0000-4000-8000-000000000116",
+   "identifier": "ENG-116",
+   "title": "Candidate 116",
+   "description": null
+  },
+  {
+   "id": "1a000000-0000-4000-8000-000000000117",
+   "identifier": "ENG-117",
+   "title": "Candidate 117",
+   "description": "'https://example.com/objects/42/detail'"
+  },
+  {
+   "id": "1a000000-0000-4000-8000-000000000118",
+   "identifier": "ENG-118",
+   "title": "Candidate 118",
+   "description": "https://other.example/'https://example.com/objects/42'"
+  },
+  {
+   "id": "1a000000-0000-4000-8000-000000000119",
+   "identifier": "ENG-119",
+   "title": "Candidate 119",
+   "description": "'https://example.com/objects/42'detail'"
+  },
+  {
+   "id": "1a000000-0000-4000-8000-000000000120",
+   "identifier": "ENG-120",
+   "title": "Candidate 120",
+   "description": null
+  },
+  {
+   "id": "1a000000-0000-4000-8000-000000000121",
+   "identifier": "ENG-121",
+   "title": "Candidate 121",
+   "description": "See 'https://example.com/objects/42'."
+  }
+ ],
+ "Comment": [
+  {
+   "issue": "1a000000-0000-4000-8000-000000000108",
+   "body": "评论中引用 https://example.com/objects/42"
+  },
+  {
+   "issue": "1a000000-0000-4000-8000-000000000116",
+   "body": "'https://example.com/objects/42'"
+  },
+  {
+   "issue": "1a000000-0000-4000-8000-000000000120",
+   "body": "'https://example.com/objects/42'detail'"
+  }
+ ]
+}
+-- run --
+linear issue query --all-teams --url https://example.com/objects/42 --limit 0 --json
+-- stdout.json --
+{
+  "nodes": [
+    {
+      "id": "1a000000-0000-4000-8000-000000000121",
+      "identifier": "ENG-121",
+      "title": "Candidate 121",
+      "url": "https://linear.app/kadoraba/issue/ENG-121/candidate-121",
+      "description": "See 'https://example.com/objects/42'.",
+      "comments": {
+        "nodes": [],
+        "pageInfo": {
+          "hasNextPage": false,
+          "endCursor": null
+        }
+      },
+      "priority": 0,
+      "priorityLabel": "No priority",
+      "estimate": null,
+      "createdAt": "2025-06-01T00:00:21.000Z",
+      "updatedAt": "2025-06-01T00:00:21.000Z",
+      "state": {
+        "id": "0d000000-0000-4000-8000-000000000001",
+        "name": "Backlog",
+        "color": "#bec2c8",
+        "type": "backlog"
+      },
+      "assignee": null,
+      "team": {
+        "id": "0c000000-0000-4000-8000-000000000001",
+        "key": "ENG",
+        "name": "Engineering",
+        "cyclesEnabled": false,
+        "activeCycle": null
+      },
+      "project": null,
+      "projectMilestone": null,
+      "cycle": null,
+      "labels": {
+        "nodes": [],
+        "pageInfo": {
+          "hasNextPage": false,
+          "endCursor": null
+        }
+      },
+      "inverseRelations": {
+        "nodes": [],
+        "pageInfo": {
+          "hasNextPage": false,
+          "endCursor": null
+        }
+      }
+    },
+    {
+      "id": "1a000000-0000-4000-8000-000000000116",
+      "identifier": "ENG-116",
+      "title": "Candidate 116",
+      "url": "https://linear.app/kadoraba/issue/ENG-116/candidate-116",
+      "description": null,
+      "comments": {
+        "nodes": [
+          {
+            "body": "'https://example.com/objects/42'"
+          }
+        ],
+        "pageInfo": {
+          "hasNextPage": false,
+          "endCursor": "f0000000-0000-4000-8000-000000000002"
+        }
+      },
+      "priority": 0,
+      "priorityLabel": "No priority",
+      "estimate": null,
+      "createdAt": "2025-06-01T00:00:16.000Z",
+      "updatedAt": "2025-06-01T00:00:16.000Z",
+      "state": {
+        "id": "0d000000-0000-4000-8000-000000000001",
+        "name": "Backlog",
+        "color": "#bec2c8",
+        "type": "backlog"
+      },
+      "assignee": null,
+      "team": {
+        "id": "0c000000-0000-4000-8000-000000000001",
+        "key": "ENG",
+        "name": "Engineering",
+        "cyclesEnabled": false,
+        "activeCycle": null
+      },
+      "project": null,
+      "projectMilestone": null,
+      "cycle": null,
+      "labels": {
+        "nodes": [],
+        "pageInfo": {
+          "hasNextPage": false,
+          "endCursor": null
+        }
+      },
+      "inverseRelations": {
+        "nodes": [],
+        "pageInfo": {
+          "hasNextPage": false,
+          "endCursor": null
+        }
+      }
+    },
+    {
+      "id": "1a000000-0000-4000-8000-000000000115",
+      "identifier": "ENG-115",
+      "title": "Candidate 115",
+      "url": "https://linear.app/kadoraba/issue/ENG-115/candidate-115",
+      "description": "'https://example.com/objects/42'",
+      "comments": {
+        "nodes": [],
+        "pageInfo": {
+          "hasNextPage": false,
+          "endCursor": null
+        }
+      },
+      "priority": 0,
+      "priorityLabel": "No priority",
+      "estimate": null,
+      "createdAt": "2025-06-01T00:00:15.000Z",
+      "updatedAt": "2025-06-01T00:00:15.000Z",
+      "state": {
+        "id": "0d000000-0000-4000-8000-000000000001",
+        "name": "Backlog",
+        "color": "#bec2c8",
+        "type": "backlog"
+      },
+      "assignee": null,
+      "team": {
+        "id": "0c000000-0000-4000-8000-000000000001",
+        "key": "ENG",
+        "name": "Engineering",
+        "cyclesEnabled": false,
+        "activeCycle": null
+      },
+      "project": null,
+      "projectMilestone": null,
+      "cycle": null,
+      "labels": {
+        "nodes": [],
+        "pageInfo": {
+          "hasNextPage": false,
+          "endCursor": null
+        }
+      },
+      "inverseRelations": {
+        "nodes": [],
+        "pageInfo": {
+          "hasNextPage": false,
+          "endCursor": null
+        }
+      }
+    },
+    {
+      "id": "1a000000-0000-4000-8000-000000000113",
+      "identifier": "ENG-113",
+      "title": "Candidate 113",
+      "url": "https://linear.app/kadoraba/issue/ENG-113/candidate-113",
+      "description": "https://example.com/objects/42。后续说明",
+      "comments": {
+        "nodes": [],
+        "pageInfo": {
+          "hasNextPage": false,
+          "endCursor": null
+        }
+      },
+      "priority": 0,
+      "priorityLabel": "No priority",
+      "estimate": null,
+      "createdAt": "2025-06-01T00:00:13.000Z",
+      "updatedAt": "2025-06-01T00:00:13.000Z",
+      "state": {
+        "id": "0d000000-0000-4000-8000-000000000001",
+        "name": "Backlog",
+        "color": "#bec2c8",
+        "type": "backlog"
+      },
+      "assignee": null,
+      "team": {
+        "id": "0c000000-0000-4000-8000-000000000001",
+        "key": "ENG",
+        "name": "Engineering",
+        "cyclesEnabled": false,
+        "activeCycle": null
+      },
+      "project": null,
+      "projectMilestone": null,
+      "cycle": null,
+      "labels": {
+        "nodes": [],
+        "pageInfo": {
+          "hasNextPage": false,
+          "endCursor": null
+        }
+      },
+      "inverseRelations": {
+        "nodes": [],
+        "pageInfo": {
+          "hasNextPage": false,
+          "endCursor": null
+        }
+      }
+    },
+    {
+      "id": "1a000000-0000-4000-8000-000000000112",
+      "identifier": "ENG-112",
+      "title": "Candidate 112",
+      "url": "https://linear.app/kadoraba/issue/ENG-112/candidate-112",
+      "description": "_来源：https://example.com/objects/42_",
+      "comments": {
+        "nodes": [],
+        "pageInfo": {
+          "hasNextPage": false,
+          "endCursor": null
+        }
+      },
+      "priority": 0,
+      "priorityLabel": "No priority",
+      "estimate": null,
+      "createdAt": "2025-06-01T00:00:12.000Z",
+      "updatedAt": "2025-06-01T00:00:12.000Z",
+      "state": {
+        "id": "0d000000-0000-4000-8000-000000000001",
+        "name": "Backlog",
+        "color": "#bec2c8",
+        "type": "backlog"
+      },
+      "assignee": null,
+      "team": {
+        "id": "0c000000-0000-4000-8000-000000000001",
+        "key": "ENG",
+        "name": "Engineering",
+        "cyclesEnabled": false,
+        "activeCycle": null
+      },
+      "project": null,
+      "projectMilestone": null,
+      "cycle": null,
+      "labels": {
+        "nodes": [],
+        "pageInfo": {
+          "hasNextPage": false,
+          "endCursor": null
+        }
+      },
+      "inverseRelations": {
+        "nodes": [],
+        "pageInfo": {
+          "hasNextPage": false,
+          "endCursor": null
+        }
+      }
+    },
+    {
+      "id": "1a000000-0000-4000-8000-000000000108",
+      "identifier": "ENG-108",
+      "title": "Candidate 108",
+      "url": "https://linear.app/kadoraba/issue/ENG-108/candidate-108",
+      "description": "没有链接的正文",
+      "comments": {
+        "nodes": [
+          {
+            "body": "评论中引用 https://example.com/objects/42"
+          }
+        ],
+        "pageInfo": {
+          "hasNextPage": false,
+          "endCursor": "f0000000-0000-4000-8000-000000000001"
+        }
+      },
+      "priority": 0,
+      "priorityLabel": "No priority",
+      "estimate": null,
+      "createdAt": "2025-06-01T00:00:08.000Z",
+      "updatedAt": "2025-06-01T00:00:08.000Z",
+      "state": {
+        "id": "0d000000-0000-4000-8000-000000000001",
+        "name": "Backlog",
+        "color": "#bec2c8",
+        "type": "backlog"
+      },
+      "assignee": null,
+      "team": {
+        "id": "0c000000-0000-4000-8000-000000000001",
+        "key": "ENG",
+        "name": "Engineering",
+        "cyclesEnabled": false,
+        "activeCycle": null
+      },
+      "project": null,
+      "projectMilestone": null,
+      "cycle": null,
+      "labels": {
+        "nodes": [],
+        "pageInfo": {
+          "hasNextPage": false,
+          "endCursor": null
+        }
+      },
+      "inverseRelations": {
+        "nodes": [],
+        "pageInfo": {
+          "hasNextPage": false,
+          "endCursor": null
+        }
+      }
+    },
+    {
+      "id": "1a000000-0000-4000-8000-000000000107",
+      "identifier": "ENG-107",
+      "title": "Candidate 107",
+      "url": "https://linear.app/kadoraba/issue/ENG-107/candidate-107",
+      "description": "**来源链接：https://example.com/objects/42**",
+      "comments": {
+        "nodes": [],
+        "pageInfo": {
+          "hasNextPage": false,
+          "endCursor": null
+        }
+      },
+      "priority": 0,
+      "priorityLabel": "No priority",
+      "estimate": null,
+      "createdAt": "2025-06-01T00:00:07.000Z",
+      "updatedAt": "2025-06-01T00:00:07.000Z",
+      "state": {
+        "id": "0d000000-0000-4000-8000-000000000001",
+        "name": "Backlog",
+        "color": "#bec2c8",
+        "type": "backlog"
+      },
+      "assignee": null,
+      "team": {
+        "id": "0c000000-0000-4000-8000-000000000001",
+        "key": "ENG",
+        "name": "Engineering",
+        "cyclesEnabled": false,
+        "activeCycle": null
+      },
+      "project": null,
+      "projectMilestone": null,
+      "cycle": null,
+      "labels": {
+        "nodes": [],
+        "pageInfo": {
+          "hasNextPage": false,
+          "endCursor": null
+        }
+      },
+      "inverseRelations": {
+        "nodes": [],
+        "pageInfo": {
+          "hasNextPage": false,
+          "endCursor": null
+        }
+      }
+    },
+    {
+      "id": "1a000000-0000-4000-8000-000000000106",
+      "identifier": "ENG-106",
+      "title": "Candidate 106",
+      "url": "https://linear.app/kadoraba/issue/ENG-106/candidate-106",
+      "description": "来源链接：（https://example.com/objects/42）",
+      "comments": {
+        "nodes": [],
+        "pageInfo": {
+          "hasNextPage": false,
+          "endCursor": null
+        }
+      },
+      "priority": 0,
+      "priorityLabel": "No priority",
+      "estimate": null,
+      "createdAt": "2025-06-01T00:00:06.000Z",
+      "updatedAt": "2025-06-01T00:00:06.000Z",
+      "state": {
+        "id": "0d000000-0000-4000-8000-000000000001",
+        "name": "Backlog",
+        "color": "#bec2c8",
+        "type": "backlog"
+      },
+      "assignee": null,
+      "team": {
+        "id": "0c000000-0000-4000-8000-000000000001",
+        "key": "ENG",
+        "name": "Engineering",
+        "cyclesEnabled": false,
+        "activeCycle": null
+      },
+      "project": null,
+      "projectMilestone": null,
+      "cycle": null,
+      "labels": {
+        "nodes": [],
+        "pageInfo": {
+          "hasNextPage": false,
+          "endCursor": null
+        }
+      },
+      "inverseRelations": {
+        "nodes": [],
+        "pageInfo": {
+          "hasNextPage": false,
+          "endCursor": null
+        }
+      }
+    },
+    {
+      "id": "1a000000-0000-4000-8000-000000000105",
+      "identifier": "ENG-105",
+      "title": "Candidate 105",
+      "url": "https://linear.app/kadoraba/issue/ENG-105/candidate-105",
+      "description": "来源链接：https://example.com/objects/42。",
+      "comments": {
+        "nodes": [],
+        "pageInfo": {
+          "hasNextPage": false,
+          "endCursor": null
+        }
+      },
+      "priority": 0,
+      "priorityLabel": "No priority",
+      "estimate": null,
+      "createdAt": "2025-06-01T00:00:05.000Z",
+      "updatedAt": "2025-06-01T00:00:05.000Z",
+      "state": {
+        "id": "0d000000-0000-4000-8000-000000000001",
+        "name": "Backlog",
+        "color": "#bec2c8",
+        "type": "backlog"
+      },
+      "assignee": null,
+      "team": {
+        "id": "0c000000-0000-4000-8000-000000000001",
+        "key": "ENG",
+        "name": "Engineering",
+        "cyclesEnabled": false,
+        "activeCycle": null
+      },
+      "project": null,
+      "projectMilestone": null,
+      "cycle": null,
+      "labels": {
+        "nodes": [],
+        "pageInfo": {
+          "hasNextPage": false,
+          "endCursor": null
+        }
+      },
+      "inverseRelations": {
+        "nodes": [],
+        "pageInfo": {
+          "hasNextPage": false,
+          "endCursor": null
+        }
+      }
+    },
+    {
+      "id": "1a000000-0000-4000-8000-000000000101",
+      "identifier": "ENG-101",
+      "title": "Candidate 101",
+      "url": "https://linear.app/kadoraba/issue/ENG-101/candidate-101",
+      "description": "来源链接：https://example.com/objects/42",
+      "comments": {
+        "nodes": [],
+        "pageInfo": {
+          "hasNextPage": false,
+          "endCursor": null
+        }
+      },
+      "priority": 0,
+      "priorityLabel": "No priority",
+      "estimate": null,
+      "createdAt": "2025-06-01T00:00:01.000Z",
+      "updatedAt": "2025-06-01T00:00:01.000Z",
+      "state": {
+        "id": "0d000000-0000-4000-8000-000000000001",
+        "name": "Backlog",
+        "color": "#bec2c8",
+        "type": "backlog"
+      },
+      "assignee": null,
+      "team": {
+        "id": "0c000000-0000-4000-8000-000000000001",
+        "key": "ENG",
+        "name": "Engineering",
+        "cyclesEnabled": false,
+        "activeCycle": null
+      },
+      "project": null,
+      "projectMilestone": null,
+      "cycle": null,
+      "labels": {
+        "nodes": [],
+        "pageInfo": {
+          "hasNextPage": false,
+          "endCursor": null
+        }
+      },
+      "inverseRelations": {
+        "nodes": [],
+        "pageInfo": {
+          "hasNextPage": false,
+          "endCursor": null
+        }
+      }
+    }
+  ],
+  "pageInfo": {
+    "hasNextPage": false,
+    "endCursor": null
+  }
+}

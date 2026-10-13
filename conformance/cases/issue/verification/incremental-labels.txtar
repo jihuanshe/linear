@@ -1,0 +1,238 @@
+Adding and removing labels is verified by membership: other labels may appear, but if the change never shows up in the read-back the applied update reports a verification failure.
+-- seed.json --
+{"IssueLabel": [{"id": "0e000000-0000-4000-8000-000000000011", "name": "front"}, {"id": "0e000000-0000-4000-8000-000000000012", "name": "before"}],
+ "Issue": [{"id": "1a000000-0000-4000-8000-000000000123", "identifier": "ENG-123", "title": "Labels", "labels": ["0e000000-0000-4000-8000-000000000012", "0e000000-0000-4000-8000-000000000003"]}]}
+-- run --
+linear issue update ENG-123 --add-label front --remove-label before --json
+-- stdout.json --
+{
+  "ok": true,
+  "effect": "applied",
+  "data": {
+    "success": true,
+    "issue": {
+      "id": "1a000000-0000-4000-8000-000000000123",
+      "identifier": "ENG-123",
+      "url": "https://linear.app/kadoraba/issue/ENG-123/labels",
+      "title": "Labels",
+      "priority": 0,
+      "labels": {
+        "nodes": [
+          {
+            "id": "0e000000-0000-4000-8000-000000000011",
+            "name": "front"
+          },
+          {
+            "id": "0e000000-0000-4000-8000-000000000003",
+            "name": "Improvement"
+          }
+        ],
+        "pageInfo": {
+          "hasNextPage": false,
+          "endCursor": "0e000000-0000-4000-8000-000000000003"
+        }
+      }
+    }
+  },
+  "fields": [
+    {
+      "field": "labels",
+      "inputField": "addedLabelIds",
+      "desired": [
+        "0e000000-0000-4000-8000-000000000011"
+      ],
+      "remote": [
+        "0e000000-0000-4000-8000-000000000003",
+        "0e000000-0000-4000-8000-000000000012"
+      ],
+      "verdict": "write"
+    },
+    {
+      "field": "labels",
+      "inputField": "removedLabelIds",
+      "desired": [
+        "0e000000-0000-4000-8000-000000000012"
+      ],
+      "remote": [
+        "0e000000-0000-4000-8000-000000000003",
+        "0e000000-0000-4000-8000-000000000012"
+      ],
+      "verdict": "write"
+    }
+  ],
+  "verification": {
+    "scope": "issue-fields",
+    "status": "verified"
+  },
+  "readBack": {
+    "organization": {
+      "id": "0a000000-0000-4000-8000-000000000001",
+      "urlKey": "kadoraba"
+    },
+    "issue": {
+      "id": "1a000000-0000-4000-8000-000000000123",
+      "identifier": "ENG-123",
+      "archivedAt": null,
+      "trashed": null,
+      "title": "Labels",
+      "description": null,
+      "url": "https://linear.app/kadoraba/issue/ENG-123/labels",
+      "branchName": "alex/eng-123-labels",
+      "priority": 0,
+      "estimate": null,
+      "dueDate": null,
+      "state": {
+        "id": "0d000000-0000-4000-8000-000000000001",
+        "name": "Backlog",
+        "type": "backlog",
+        "color": "#bec2c8"
+      },
+      "assignee": null,
+      "project": null,
+      "projectMilestone": null,
+      "cycle": null,
+      "team": {
+        "id": "0c000000-0000-4000-8000-000000000001",
+        "key": "ENG",
+        "activeCycle": null
+      },
+      "parent": null,
+      "labels": {
+        "nodes": [
+          {
+            "id": "0e000000-0000-4000-8000-000000000011",
+            "name": "front",
+            "color": "#bec2c8"
+          },
+          {
+            "id": "0e000000-0000-4000-8000-000000000003",
+            "name": "Improvement",
+            "color": "#4ea7fc"
+          }
+        ],
+        "pageInfo": {
+          "hasNextPage": false,
+          "endCursor": "0e000000-0000-4000-8000-000000000003"
+        }
+      }
+    }
+  }
+}
+-- mutations.json --
+{"issueUpdate": 1}
+-- run --
+linear issue update ENG-123 --remove-label front --json > undo.json
+-- faults.json --
+[{"on": "query:issue", "after": "mutation", "action": "stale", "times": 99}]
+-- run --
+linear issue update ENG-123 --add-label front --json
+-- stdout.json --
+{
+  "ok": false,
+  "effect": "applied",
+  "data": {
+    "success": true,
+    "issue": {
+      "id": "1a000000-0000-4000-8000-000000000123",
+      "identifier": "ENG-123",
+      "url": "https://linear.app/kadoraba/issue/ENG-123/labels",
+      "title": "Labels",
+      "priority": 0,
+      "labels": {
+        "nodes": [
+          {
+            "id": "0e000000-0000-4000-8000-000000000011",
+            "name": "front"
+          },
+          {
+            "id": "0e000000-0000-4000-8000-000000000003",
+            "name": "Improvement"
+          }
+        ],
+        "pageInfo": {
+          "hasNextPage": false,
+          "endCursor": "0e000000-0000-4000-8000-000000000003"
+        }
+      }
+    }
+  },
+  "error": {
+    "code": "WriteError",
+    "message": "Failed to update issue: Issue mutation succeeded but read-back did not verify",
+    "suggestion": "Read the issue before continuing; do not repeat the mutation.",
+    "details": {
+      "verification": {
+        "scope": "issue-fields",
+        "status": "different",
+        "fields": [
+          "addedLabelIds"
+        ]
+      },
+      "readBack": {
+        "organization": {
+          "id": "0a000000-0000-4000-8000-000000000001",
+          "urlKey": "kadoraba"
+        },
+        "issue": {
+          "id": "1a000000-0000-4000-8000-000000000123",
+          "identifier": "ENG-123",
+          "archivedAt": null,
+          "trashed": null,
+          "title": "Labels",
+          "description": null,
+          "url": "https://linear.app/kadoraba/issue/ENG-123/labels",
+          "branchName": "alex/eng-123-labels",
+          "priority": 0,
+          "estimate": null,
+          "dueDate": null,
+          "state": {
+            "id": "0d000000-0000-4000-8000-000000000001",
+            "name": "Backlog",
+            "type": "backlog",
+            "color": "#bec2c8"
+          },
+          "assignee": null,
+          "project": null,
+          "projectMilestone": null,
+          "cycle": null,
+          "team": {
+            "id": "0c000000-0000-4000-8000-000000000001",
+            "key": "ENG",
+            "activeCycle": null
+          },
+          "parent": null,
+          "labels": {
+            "nodes": [
+              {
+                "id": "0e000000-0000-4000-8000-000000000003",
+                "name": "Improvement",
+                "color": "#4ea7fc"
+              }
+            ],
+            "pageInfo": {
+              "hasNextPage": false,
+              "endCursor": "0e000000-0000-4000-8000-000000000003"
+            }
+          }
+        }
+      },
+      "fields": [
+        {
+          "field": "labels",
+          "inputField": "addedLabelIds",
+          "desired": [
+            "0e000000-0000-4000-8000-000000000011"
+          ],
+          "remote": [
+            "0e000000-0000-4000-8000-000000000003"
+          ],
+          "verdict": "write"
+        }
+      ]
+    }
+  }
+}
+-- exit --
+1
+-- mutations.json --
+{"issueUpdate": 1}

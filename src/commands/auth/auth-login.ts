@@ -14,6 +14,7 @@ import * as keyring from "../../keyring/index.ts"
 import {
   AuthError,
   CliError,
+  errorMessage,
   handleError,
   ValidationError,
 } from "../../utils/errors.ts"
@@ -153,9 +154,7 @@ export const loginCommand = withUsageMetadata(new Command(), {
           })
         }
         throw new CliError(
-          `Failed to authenticate: ${
-            error instanceof Error ? error.message : String(error)
-          }`,
+          `Failed to authenticate: ${errorMessage(error)}`,
           { cause: error },
         )
       }

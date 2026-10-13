@@ -1,0 +1,25 @@
+A conflicting relation is found even among more incoming relations than one page.
+-- seed.json --
+{"Issue": [{"id": "1a000000-0000-4000-8000-000000000001", "identifier": "ENG-1", "title": "Source"}, {"id": "1a000000-0000-4000-8000-000000000002", "identifier": "ENG-2", "title": "Target"}, {"$repeat": 60, "id": "2a000000-0000-4000-8000-000000000{{n:3}}", "identifier": "ENG-{{n:3}}", "number": 1000, "title": "Other {{n}}"}],
+ "IssueRelation": [{"$repeat": 60, "type": "related", "issue": "2a000000-0000-4000-8000-000000000{{n:3}}", "relatedIssue": "1a000000-0000-4000-8000-000000000002"},
+  {"type": "blocks", "issue": "1a000000-0000-4000-8000-000000000001", "relatedIssue": "1a000000-0000-4000-8000-000000000002", "createdAt": "2024-01-01T00:00:00.000Z"}]}
+-- run --
+linear issue relation add ENG-2 related ENG-1 --json
+-- stdout.json --
+{
+  "ok": false,
+  "effect": "none",
+  "error": {
+    "code": "ValidationError",
+    "message": "Failed to create relation: Cannot add ENG-2 related ENG-1: existing: blocked-by ENG-1",
+    "suggestion": "Delete the existing relation explicitly before adding a different type or direction."
+  }
+}
+-- exit --
+1
+-- mutations.json --
+{}
+-- run --
+linear issue relation list ENG-2 --json > list.json
+-- file-after.json list.json --
+{"issue": {"relations": {"nodes": [], "pageInfo": "{{*}}"}, "inverseRelations": {"nodes": "{{*}}", "pageInfo": {"hasNextPage": false, "endCursor": "{{*}}"}}, "...": true}, "...": true}

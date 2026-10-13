@@ -1,0 +1,17 @@
+--state default writes the team's default state.
+
+live: true
+-- env --
+LINEAR_ISSUE_CREATE_ASSIGN_SELF=never
+-- run --
+linear issue create --json --title "{{RUN}} default state" --team {{TEAM}} --state default
+-- stdout.json --
+{"ok": true, "effect": "applied", "data": {"success": true, "issue": {"identifier": "{{=ISSUE}}", "state": {"id": "{{*}}", "name": "Backlog", "type": "backlog"}, "...": true}}, "fields": "{{*}}"}
+-- stderr --
+{{*}}
+-- cleanup --
+linear issue delete {{ISSUE}} -y
+-- readback --
+linear issue view {{ISSUE}} --json
+-- stdout.json --
+{"issue": {"identifier": "{{ISSUE}}", "trashed": true, "...": true}, "...": true}

@@ -378,6 +378,15 @@ async function promptAdditionalFields(
   return changes
 }
 
+/**
+ * Start a read that is awaited after a prompt. A rejection while the prompt is
+ * open must surface where it is awaited, not end the process as unhandled.
+ */
+function preload<T>(promise: Promise<T>): Promise<T> {
+  promise.catch(() => {})
+  return promise
+}
+
 async function promptInteractiveIssueCreation(
   initialProjectId?: string,
   parentId?: string,
@@ -464,10 +473,10 @@ async function promptInteractiveIssueCreation(
   }
 
   // Preload team-scoped data (do not await yet)
-  const workflowStatesPromise = getWorkflowStates(teamId)
-  const labelsPromise = getLabelsForTeam(teamKey)
+  const workflowStatesPromise = preload(getWorkflowStates(teamId))
+  const labelsPromise = preload(getLabelsForTeam(teamKey))
   const projectsPromise = (askProject && !parentData && !initialProjectId)
-    ? getProjectsForTeam(teamKey)
+    ? preload(getProjectsForTeam(teamKey))
     : Promise.resolve(undefined)
 
   // Description prompt

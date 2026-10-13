@@ -21,8 +21,18 @@ export interface Step {
   /** Workdir-relative file that receives stdout instead of the stdout check. */
   redirect?: string
   stdin?: string
+  /** expect/send script: run on a pseudo-terminal instead of pipes. */
+  tty?: string
   env: Record<string, string>
   files: Record<string, string>
+  /** JSON merge patches (RFC 7386) for existing workdir files. */
+  patches: Record<string, string>
+  /** Workdir files to make executable after writing. */
+  executables: string[]
+  /** Workdir files with base64-encoded binary content. */
+  binaryFiles: Record<string, string>
+  /** Base64-encoded binary standard input. */
+  stdinBytes?: string
   faults?: unknown[]
   stdout?: Section
   stderr?: Section
@@ -40,6 +50,10 @@ export interface Case {
   description: string
   /** Also run against the real API (`live: true` in the description). */
   live: boolean
+  /** Runs only with --slow (`slow: true` in the description). */
+  slow: boolean
+  /** Per-step timeout for this case (`timeout: <ms>` in the description). */
+  timeoutMs?: number
   seed?: string
   steps: Step[]
   cleanup: string[][]
@@ -155,12 +169,16 @@ export function parseCase(path: string, name: string, text: string): Case {
   const description = comment.split("\n").filter((l) => !/^\w+:/.test(l))
     .join("\n").trim()
   const live = /^live:\s*true\s*$/m.test(comment)
+  const slow = /^slow:\s*true\s*$/m.test(comment)
+  const timeout = /^timeout:\s*(\d+)\s*$/m.exec(comment)?.[1]
   const result: Case = {
     path,
     name,
     comment,
     description,
     live,
+    slow,
+    timeoutMs: timeout == null ? undefined : Number(timeout),
     steps: [],
     cleanup: [],
     readbacks: [],
@@ -173,6 +191,9 @@ export function parseCase(path: string, name: string, text: string): Case {
   > = {
     env,
     files: {},
+    patches: {},
+    executables: [],
+    binaryFiles: {},
   }
   let step: Step | undefined
   let readback: Step | undefined
@@ -207,8 +228,27 @@ export function parseCase(path: string, name: string, text: string): Case {
       case "file":
         pending.files[section.arg ?? ""] = section.content
         break
+      case "file.b64":
+        pending.binaryFiles[section.arg ?? ""] = section.content.replace(
+          /\s+/g,
+          "",
+        )
+        break
+      case "stdin.b64":
+        pending.stdinBytes = section.content.replace(/\s+/g, "")
+        break
+      case "exec":
+        pending.files[section.arg ?? ""] = section.content
+        pending.executables.push(section.arg ?? "")
+        break
+      case "patch.json":
+        pending.patches[section.arg ?? ""] = section.content
+        break
       case "stdin":
         pending.stdin = section.content
+        break
+      case "tty":
+        pending.tty = section.content
         break
       case "env":
         env = { ...env }
@@ -233,7 +273,13 @@ export function parseCase(path: string, name: string, text: string): Case {
           filesAfter: [],
         }
         result.steps.push(step)
-        pending = { env, files: {} }
+        pending = {
+          env,
+          files: {},
+          patches: {},
+          executables: [],
+          binaryFiles: {},
+        }
         break
       case "stdout":
       case "stdout.json":
@@ -265,6 +311,9 @@ export function parseCase(path: string, name: string, text: string): Case {
         readback = {
           env,
           files: {},
+          patches: {},
+          executables: [],
+          binaryFiles: {},
           command: section.content.trim(),
           ...parseCommand(section.content, where),
           exit: 0,

@@ -1,0 +1,12 @@
+A reply whose parent is not among the issue's comments fails the view instead of printing a partial thread.
+-- seed.json --
+{"Issue": [{"id": "1a000000-0000-4000-8000-000000000123", "identifier": "ENG-123", "title": "Threads"},
+   {"id": "1a000000-0000-4000-8000-000000000999", "identifier": "ENG-999", "title": "Elsewhere"}],
+ "Comment": [{"id": "1c000000-0000-4000-8000-000000000009", "issue": "1a000000-0000-4000-8000-000000000999", "body": "elsewhere"},
+  {"issue": "1a000000-0000-4000-8000-000000000123", "parent": "1c000000-0000-4000-8000-000000000009", "body": "orphan reply"}]}
+-- run --
+linear issue view ENG-123
+-- stderr --
+✗ Failed to view issue: Comment thread is incomplete: a parent was not returned
+-- exit --
+1

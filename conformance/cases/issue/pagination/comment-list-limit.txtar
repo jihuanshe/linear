@@ -1,0 +1,41 @@
+comment list honors --limit (one page, beyond a page, or 0 for all) and keeps pageInfo; invalid limits are rejected before any request.
+-- seed.json --
+{"Issue": [{"id": "1a000000-0000-4000-8000-000000000123", "identifier": "ENG-123", "title": "Read all evidence", "description": "Issue body"}], "Comment": [{"$repeat": 120, "issue": "1a000000-0000-4000-8000-000000000123", "body": "Comment {{n}}"}]}
+-- run --
+linear issue comment list ENG-123 --limit 50 --json > l50.json
+-- file-after.json l50.json --
+{"nodes": "{{*}}", "pageInfo": {"hasNextPage": true, "endCursor": "{{*}}"}}
+-- run --
+linear issue comment list ENG-123 --limit 0 --json > all.json
+-- file-after.json all.json --
+{"nodes": "{{*}}", "pageInfo": {"hasNextPage": false, "endCursor": "{{*}}"}}
+-- run --
+linear issue comment list ENG-123 --limit -1 --json
+-- stdout.json --
+{
+  "ok": false,
+  "effect": "none",
+  "error": {
+    "code": "ValidationError",
+    "message": "--limit must be a non-negative integer (got \"-1\")",
+    "suggestion": "Use a whole number from 0 (all pages) to 9007199254740991."
+  }
+}
+-- exit --
+1
+-- no-requests --
+-- run --
+linear issue comment list ENG-123 --limit 1.5 --json
+-- stdout.json --
+{
+  "ok": false,
+  "effect": "none",
+  "error": {
+    "code": "ValidationError",
+    "message": "--limit must be a non-negative integer (got \"1.5\")",
+    "suggestion": "Use a whole number from 0 (all pages) to 9007199254740991."
+  }
+}
+-- exit --
+1
+-- no-requests --

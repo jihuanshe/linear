@@ -1,0 +1,25 @@
+Choosing e without any editor configured stops the create.
+-- file.b64 content --
+77u/IA0KQWxwaGEgIA0KCUJldGEKIAk=
+-- exec editor --
+#!/bin/sh
+cat content > "$1"
+-- env --
+LINEAR_TEAM_KEY=ENG
+LINEAR_ISSUE_CREATE_ASSIGN_SELF=never
+LINEAR_ISSUE_CREATE_ASK_PROJECT=false
+GIT_CONFIG_GLOBAL=/dev/null
+EDITOR=
+-- tty --
+expect What's the title of your issue?
+send Draft\r
+expect Description
+send e\r
+-- run --
+linear issue create
+-- stdout --
+{{*}}✗ Failed to create issue: No editor found{{*}}
+-- exit --
+1
+-- mutations.json --
+{}

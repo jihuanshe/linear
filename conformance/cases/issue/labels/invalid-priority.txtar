@@ -1,0 +1,51 @@
+Priorities outside 0-4 or not whole numbers are rejected before any request.
+-- seed.json --
+{"Issue": [{"id": "1a000000-0000-4000-8000-000000000123", "identifier": "ENG-123", "title": "Labels", "labels": ["aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"]}]}
+-- run --
+linear issue update ENG-123 --unprotected --priority=-1
+-- stderr --
+✗ Invalid priority: -1
+  Use 0/none, 1/urgent, 2/high, 3/medium, or 4/low (names are case-insensitive).
+-- exit --
+1
+-- no-requests --
+-- run --
+linear issue update ENG-123 --unprotected --priority 5
+-- stderr --
+✗ Invalid priority: 5
+  Use 0/none, 1/urgent, 2/high, 3/medium, or 4/low (names are case-insensitive).
+-- exit --
+1
+-- no-requests --
+-- run --
+linear issue update ENG-123 --unprotected --priority 1.5
+-- stderr --
+✗ Invalid priority: 1.5
+  Use 0/none, 1/urgent, 2/high, 3/medium, or 4/low (names are case-insensitive).
+-- exit --
+1
+-- no-requests --
+-- run --
+linear issue update ENG-123 --unprotected --priority NaN
+-- stderr --
+✗ Invalid priority: NaN
+  Use 0/none, 1/urgent, 2/high, 3/medium, or 4/low (names are case-insensitive).
+-- exit --
+1
+-- no-requests --
+-- run --
+linear issue update ENG-123 --unprotected --priority Infinity
+-- stderr --
+✗ Invalid priority: Infinity
+  Use 0/none, 1/urgent, 2/high, 3/medium, or 4/low (names are case-insensitive).
+-- exit --
+1
+-- no-requests --
+-- run --
+linear issue create --title Bad --team ENG --priority=-1 --no-interactive
+-- stderr --
+✗ Invalid priority: -1
+  Use 0/none, 1/urgent, 2/high, 3/medium, or 4/low (names are case-insensitive).
+-- exit --
+1
+-- no-requests --

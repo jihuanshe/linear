@@ -1,0 +1,65 @@
+Before writing, create and update check that the issue's team belongs to the project: a project without the team is refused, a shared project is accepted, and moving an issue to a team its project lacks is refused.
+-- seed.json --
+{"Team": [{"id": "0c000000-0000-4000-8000-000000000002", "key": "OPS", "name": "Operations"}],
+ "WorkflowState": [{"id": "0d000000-0000-4000-8000-000000000021", "team": "0c000000-0000-4000-8000-000000000002", "name": "Backlog", "type": "backlog", "position": 0, "color": "#bec2c8"}, {"id": "0d000000-0000-4000-8000-000000000022", "team": "0c000000-0000-4000-8000-000000000002", "name": "Todo", "type": "unstarted", "position": 1, "color": "#e2e2e2"}],
+ "Project": [{"id": "1e000000-0000-4000-8000-000000000001", "name": "Ops only", "slugId": "o1b2c3d4e5f6", "teams": ["0c000000-0000-4000-8000-000000000002"]},
+  {"id": "1e000000-0000-4000-8000-000000000002", "name": "Shared", "slugId": "s1b2c3d4e5f6", "teams": ["0c000000-0000-4000-8000-000000000001", "0c000000-0000-4000-8000-000000000002"]}],
+ "Issue": [{"identifier": "ENG-123", "title": "Eng issue"}, {"identifier": "OPS-123", "title": "Ops issue in project", "team": "0c000000-0000-4000-8000-000000000002", "state": "0d000000-0000-4000-8000-000000000021", "project": "1e000000-0000-4000-8000-000000000001"}]}
+-- env --
+LINEAR_ISSUE_CREATE_ASSIGN_SELF=never
+-- run --
+linear issue create --title "In ops project" --team ENG --project 1e000000-0000-4000-8000-000000000001 --json
+-- stdout.json --
+{
+  "ok": false,
+  "effect": "none",
+  "error": {
+    "code": "ValidationError",
+    "message": "Failed to create issue: Team ENG does not belong to project Ops only",
+    "suggestion": "Choose a project that includes the issue's team, or agree on ownership before explicitly moving the issue or changing project teams. No write was sent."
+  }
+}
+-- exit --
+1
+-- mutations.json --
+{}
+-- run --
+linear issue update --unprotected ENG-123 --project 1e000000-0000-4000-8000-000000000001 --json
+-- stdout.json --
+{
+  "ok": false,
+  "effect": "none",
+  "error": {
+    "code": "ValidationError",
+    "message": "Failed to update issue: Team ENG does not belong to project Ops only",
+    "suggestion": "Choose a project that includes the issue's team, or agree on ownership before explicitly moving the issue or changing project teams. No write was sent."
+  }
+}
+-- exit --
+1
+-- mutations.json --
+{}
+-- run --
+linear issue update --unprotected OPS-123 --team ENG --json
+-- stdout.json --
+{
+  "ok": false,
+  "effect": "none",
+  "error": {
+    "code": "ValidationError",
+    "message": "Failed to update issue: Team ENG does not belong to project Ops only",
+    "suggestion": "Choose a project that includes the issue's team, or agree on ownership before explicitly moving the issue or changing project teams. No write was sent."
+  }
+}
+-- exit --
+1
+-- mutations.json --
+{}
+-- run --
+linear issue create --title "In shared project" --team ENG --project 1e000000-0000-4000-8000-000000000002 --json > shared-create.json
+-- mutations.json --
+{"issueCreate": 1}
+-- run --
+linear issue update --unprotected ENG-123 --project Shared --json > shared-update.json
+-- mutations.json --
+{"issueUpdate": 1}

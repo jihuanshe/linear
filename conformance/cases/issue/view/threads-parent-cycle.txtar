@@ -1,0 +1,12 @@
+Comments whose parents form a cycle fail the view instead of looping or printing a partial thread.
+-- seed.json --
+{"Issue": [{"id": "1a000000-0000-4000-8000-000000000123", "identifier": "ENG-123", "title": "Threads"},
+   {"id": "1a000000-0000-4000-8000-000000000999", "identifier": "ENG-999", "title": "Elsewhere"}],
+ "Comment": [{"id": "1c000000-0000-4000-8000-000000000001", "issue": "1a000000-0000-4000-8000-000000000123", "parent": "1c000000-0000-4000-8000-000000000002", "body": "a"},
+  {"id": "1c000000-0000-4000-8000-000000000002", "issue": "1a000000-0000-4000-8000-000000000123", "parent": "1c000000-0000-4000-8000-000000000001", "body": "b"}]}
+-- run --
+linear issue view ENG-123
+-- stderr --
+✗ Failed to view issue: Comment thread contains a parent cycle
+-- exit --
+1

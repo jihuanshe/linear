@@ -7,9 +7,11 @@
  * counts) are skipped.
  */
 import { join } from "@std/path"
+import { decodeBase64 } from "@std/encoding/base64"
 import { API_KEY, FakeLinear, type FaultRule } from "../fake-linear/server.ts"
-import { type Seed, Store } from "../fake-linear/store.ts"
+import { type Seed, Store, WORLD_NOW } from "../fake-linear/store.ts"
 import { type Case, formatTxtar, type Section, type Step } from "./case.ts"
+import { executeTty, ttySupported } from "./tty.ts"
 import {
   lineDiff,
   matchJson,
@@ -19,6 +21,8 @@ import {
 } from "./match.ts"
 
 export interface RunOptions {
+  /** Also run cases marked `slow: true`. */
+  slow?: boolean
   binary: string
   world: Seed
   live?: { apiKey: string }
@@ -49,7 +53,7 @@ async function execute(
   argv: string[],
   env: Record<string, string>,
   cwd: string,
-  stdin: string | undefined,
+  stdin: string | Uint8Array | undefined,
 ): Promise<Output> {
   const signal = AbortSignal.timeout(options.timeoutMs)
   const child = new Deno.Command(options.binary, {
@@ -64,7 +68,11 @@ async function execute(
   }).spawn()
   const writer = child.stdin.getWriter()
   try {
-    if (stdin != null) await writer.write(new TextEncoder().encode(stdin))
+    if (stdin != null) {
+      await writer.write(
+        typeof stdin === "string" ? new TextEncoder().encode(stdin) : stdin,
+      )
+    }
   } catch { /* the executable may exit without reading stdin */ }
   await writer.close().catch(() => {})
   const output = await child.output()
@@ -74,6 +82,86 @@ async function execute(
     stderr: decoder.decode(output.stderr),
     timedOut: signal.aborted,
   }
+}
+
+/**
+ * Apply a patch to a JSON document: an array is an RFC 6902 JSON Patch
+ * (add, replace, remove), anything else an RFC 7386 merge patch.
+ */
+function applyPatch(target: unknown, patch: unknown): unknown {
+  if (!Array.isArray(patch)) return mergePatch(target, patch)
+  let document = structuredClone(target)
+  for (
+    const { op, path, value } of patch as {
+      op: string
+      path: string
+      value?: unknown
+    }[]
+  ) {
+    if (!["add", "replace", "remove"].includes(op)) {
+      throw new Error(`unsupported JSON Patch op ${op}`)
+    }
+    if (path !== "" && !path.startsWith("/")) {
+      throw new Error(`JSON Patch path must start with "/": ${path}`)
+    }
+    const keys = path === ""
+      ? []
+      : path.split("/").slice(1).map((key) =>
+        key.replaceAll("~1", "/").replaceAll("~0", "~")
+      )
+    if (keys.length === 0) {
+      if (op === "remove") throw new Error("JSON Patch cannot remove the root")
+      document = value
+      continue
+    }
+    let parent: unknown = document
+    for (const key of keys.slice(0, -1)) {
+      if (parent === null || typeof parent !== "object" || !(key in parent)) {
+        throw new Error(`JSON Patch path does not exist: ${path}`)
+      }
+      parent = (parent as Record<string, unknown>)[key]
+    }
+    if (parent === null || typeof parent !== "object") {
+      throw new Error(`JSON Patch path does not exist: ${path}`)
+    }
+    const last = keys.at(-1)!
+    if (Array.isArray(parent)) {
+      // Arrays insert or append ("-") with add; replace and remove need an
+      // existing element.
+      const index = last === "-" ? parent.length : Number(last)
+      const limit = op === "add" ? parent.length : parent.length - 1
+      if (!Number.isInteger(index) || index < 0 || index > limit) {
+        throw new Error(`JSON Patch index out of range: ${path}`)
+      }
+      if (op === "add") parent.splice(index, 0, value)
+      else if (op === "replace") parent[index] = value
+      else parent.splice(index, 1)
+      continue
+    }
+    const object = parent as Record<string, unknown>
+    if (op !== "add" && !(last in object)) {
+      throw new Error(`JSON Patch path does not exist: ${path}`)
+    }
+    if (op === "remove") delete object[last]
+    else object[last] = value
+  }
+  return document
+}
+
+/** RFC 7386 JSON merge patch: null deletes a key, objects merge, others replace. */
+function mergePatch(target: unknown, patch: unknown): unknown {
+  if (patch === null || typeof patch !== "object" || Array.isArray(patch)) {
+    return patch
+  }
+  const result: Record<string, unknown> =
+    target !== null && typeof target === "object" && !Array.isArray(target)
+      ? { ...target as Record<string, unknown> }
+      : {}
+  for (const [key, value] of Object.entries(patch)) {
+    if (value === null) delete result[key]
+    else result[key] = mergePatch(result[key], value)
+  }
+  return result
 }
 
 function trimFinalNewline(text: string): string {
@@ -162,7 +250,11 @@ function childEnv(
     TERM: "dumb",
     LINEAR_API_KEY: options.live?.apiKey ?? API_KEY,
   }
-  if (endpoint != null) env.LINEAR_GRAPHQL_ENDPOINT = endpoint
+  if (endpoint != null) {
+    env.LINEAR_GRAPHQL_ENDPOINT = endpoint
+    // Relative dates count from the fake world's current time.
+    env.LINEAR_NOW = WORLD_NOW
+  }
   for (const [key, value] of Object.entries(extra)) {
     env[key] = substitute(value, vars)
   }
@@ -186,6 +278,10 @@ export async function runCase(
     updated,
   })
 
+  if (testCase.slow && options.slow !== true) return result("skip", [])
+  if (testCase.timeoutMs != null) {
+    options = { ...options, timeoutMs: testCase.timeoutMs }
+  }
   if (testCase.live) {
     const fakeOnly = testCase.seed != null ||
       testCase.steps.some((step) => step.faults != null)
@@ -228,6 +324,25 @@ export async function runCase(
         await Deno.mkdir(join(target, ".."), { recursive: true })
         await Deno.writeTextFile(target, substitute(content, vars))
       }
+      for (const [path, base64] of Object.entries(step.binaryFiles)) {
+        const target = join(work, substitute(path, vars))
+        await Deno.mkdir(join(target, ".."), { recursive: true })
+        await Deno.writeFile(target, decodeBase64(base64))
+      }
+      for (const path of step.executables) {
+        await Deno.chmod(join(work, substitute(path, vars)), 0o755)
+      }
+      for (const [path, patch] of Object.entries(step.patches)) {
+        const target = join(work, substitute(path, vars))
+        const patched = applyPatch(
+          JSON.parse(await Deno.readTextFile(target)),
+          JSON.parse(substitute(patch, vars)),
+        )
+        await Deno.writeTextFile(
+          target,
+          JSON.stringify(patched, null, 2) + "\n",
+        )
+      }
       if (fake != null) fake.faults = (step.faults ?? []) as FaultRule[]
       const before = fake?.requests.length ?? 0
       const attemptsBefore = fake?.attempts ?? 0
@@ -240,13 +355,42 @@ export async function runCase(
         unfixable.push(message)
         break
       }
-      const output = await execute(
-        options,
-        argv,
-        childEnv(options, home, fake?.endpoint, step.env, vars),
-        work,
-        step.stdin == null ? undefined : substitute(step.stdin, vars),
-      )
+      const env = childEnv(options, home, fake?.endpoint, step.env, vars)
+      let output: Output
+      if (step.tty != null) {
+        if (!ttySupported()) {
+          return result("skip", [
+            `${label}: no pseudo-terminal on ${Deno.build.os}`,
+          ])
+        }
+        const tty = await executeTty(
+          options.binary,
+          argv,
+          env,
+          work,
+          substitute(step.tty, vars),
+          options.timeoutMs,
+        )
+        if (tty.problem != null) {
+          const message = `${label}: ${tty.problem}\n${tty.stdout.slice(-2000)}`
+          failures.push(message)
+          unfixable.push(message)
+          break
+        }
+        output = tty
+      } else {
+        output = await execute(
+          options,
+          argv,
+          env,
+          work,
+          step.stdinBytes != null
+            ? decodeBase64(step.stdinBytes)
+            : step.stdin == null
+            ? undefined
+            : substitute(step.stdin, vars),
+        )
+      }
       if (step.redirect != null) {
         await Deno.writeTextFile(
           join(work, substitute(step.redirect, vars)),
@@ -263,7 +407,11 @@ export async function runCase(
         blocking.push(problem)
       }
       if (output.timedOut) {
-        problems.push(`timed out after ${options.timeoutMs}ms`)
+        problems.push(
+          `timed out after ${options.timeoutMs}ms; output so far:\n${
+            (output.stdout + output.stderr).slice(-1500)
+          }`,
+        )
       }
       if (output.code !== step.exit) {
         failed.add("exit")
@@ -277,8 +425,14 @@ export async function runCase(
       ) {
         const checked = checkStream(stream, section, actual, vars)
         if (typeof checked === "string") {
-          failed.add(stream)
-          problems.push(checked)
+          // A terminal transcript changes with keystroke timing, and a pattern
+          // that binds variables would lose them; fix those by hand.
+          if (step.tty != null || section?.content.includes("{{=")) {
+            block(checked)
+          } else {
+            failed.add(stream)
+            problems.push(checked)
+          }
         } else Object.assign(vars, checked)
       }
       if (fake != null) {
@@ -491,6 +645,11 @@ const EXPECTATIONS = new Set(["stdout", "stdout.json", "stderr", "exit"])
  * timestamps open, so the expectation holds for whatever the real API assigns.
  */
 function templatize(text: string, vars: Vars, names: string[] | null): string {
+  // Per-run directories differ every time, in every case.
+  for (const name of ["WORK", "HOME"]) {
+    const value = vars[name]
+    if (value != null) text = text.replaceAll(value, `{{${name}}}`)
+  }
   if (names == null) return text
   for (const name of names) {
     const value = vars[name]

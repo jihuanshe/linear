@@ -1,0 +1,31 @@
+Human output shows the title, state, priority, assignee, context summary and the Markdown description.
+-- seed.json --
+{"Issue": [{"identifier": "ENG-123", "title": "Fix authentication bug in login flow", "state": "0d000000-0000-4000-8000-000000000003",
+  "description": "Users are experiencing issues logging in when their session expires. This affects the main authentication flow and needs to be resolved quickly.\n\n## Steps to reproduce\n1. Log in to the application\n2. Wait for session to expire\n3. Try to perform an authenticated action\n4. Observe the error\n\n## Expected behavior\nUser should be redirected to login page with clear messaging.\n\n## Actual behavior\nUser sees cryptic error message and gets stuck."}]}
+-- run --
+linear issue view ENG-123
+-- stdout --
+# ENG-123: Fix authentication bug in login flow
+
+**State:** In Progress | **Priority:** --- | **Assignee:** Unassigned | **Unresolved threads:** 0
+
+## Context
+
+- Assignee: Unassigned
+- Parent / Sub-issues / Relations: none
+- Attachments: 0 | Comments: 0 (0 unresolved threads; none by other accounts)
+- Changes by other accounts: none (all 0 history entries)
+
+Users are experiencing issues logging in when their session expires. This affects the main authentication flow and needs to be resolved quickly.
+
+## Steps to reproduce
+1. Log in to the application
+2. Wait for session to expire
+3. Try to perform an authenticated action
+4. Observe the error
+
+## Expected behavior
+User should be redirected to login page with clear messaging.
+
+## Actual behavior
+User sees cryptic error message and gets stuck.

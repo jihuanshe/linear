@@ -1,0 +1,430 @@
+URL mode reads all of a candidate's comments, so a match in a later comment counts and the returned comments are complete.
+-- seed.json --
+{"Issue": [{"id": "1a000000-0000-4000-8000-000000000001", "identifier": "ENG-1", "title": "Long discussion", "description": "No link here"}],
+ "Comment": [{"$repeat": 120, "issue": "1a000000-0000-4000-8000-000000000001", "body": "comment {{n}}"},
+  {"issue": "1a000000-0000-4000-8000-000000000001", "body": "later comment https://example.com/objects/paginated", "createdAt": "2025-08-01T00:00:00.000Z"}]}
+-- run --
+linear issue query --all-teams --url https://example.com/objects/paginated --json
+-- stdout.json --
+{
+  "nodes": [
+    {
+      "id": "1a000000-0000-4000-8000-000000000001",
+      "identifier": "ENG-1",
+      "title": "Long discussion",
+      "url": "https://linear.app/kadoraba/issue/ENG-1/long-discussion",
+      "description": "No link here",
+      "comments": {
+        "nodes": [
+          {
+            "body": "later comment https://example.com/objects/paginated"
+          },
+          {
+            "body": "comment 120"
+          },
+          {
+            "body": "comment 119"
+          },
+          {
+            "body": "comment 118"
+          },
+          {
+            "body": "comment 117"
+          },
+          {
+            "body": "comment 116"
+          },
+          {
+            "body": "comment 115"
+          },
+          {
+            "body": "comment 114"
+          },
+          {
+            "body": "comment 113"
+          },
+          {
+            "body": "comment 112"
+          },
+          {
+            "body": "comment 111"
+          },
+          {
+            "body": "comment 110"
+          },
+          {
+            "body": "comment 109"
+          },
+          {
+            "body": "comment 108"
+          },
+          {
+            "body": "comment 107"
+          },
+          {
+            "body": "comment 106"
+          },
+          {
+            "body": "comment 105"
+          },
+          {
+            "body": "comment 104"
+          },
+          {
+            "body": "comment 103"
+          },
+          {
+            "body": "comment 102"
+          },
+          {
+            "body": "comment 101"
+          },
+          {
+            "body": "comment 100"
+          },
+          {
+            "body": "comment 99"
+          },
+          {
+            "body": "comment 98"
+          },
+          {
+            "body": "comment 97"
+          },
+          {
+            "body": "comment 96"
+          },
+          {
+            "body": "comment 95"
+          },
+          {
+            "body": "comment 94"
+          },
+          {
+            "body": "comment 93"
+          },
+          {
+            "body": "comment 92"
+          },
+          {
+            "body": "comment 91"
+          },
+          {
+            "body": "comment 90"
+          },
+          {
+            "body": "comment 89"
+          },
+          {
+            "body": "comment 88"
+          },
+          {
+            "body": "comment 87"
+          },
+          {
+            "body": "comment 86"
+          },
+          {
+            "body": "comment 85"
+          },
+          {
+            "body": "comment 84"
+          },
+          {
+            "body": "comment 83"
+          },
+          {
+            "body": "comment 82"
+          },
+          {
+            "body": "comment 81"
+          },
+          {
+            "body": "comment 80"
+          },
+          {
+            "body": "comment 79"
+          },
+          {
+            "body": "comment 78"
+          },
+          {
+            "body": "comment 77"
+          },
+          {
+            "body": "comment 76"
+          },
+          {
+            "body": "comment 75"
+          },
+          {
+            "body": "comment 74"
+          },
+          {
+            "body": "comment 73"
+          },
+          {
+            "body": "comment 72"
+          },
+          {
+            "body": "comment 71"
+          },
+          {
+            "body": "comment 70"
+          },
+          {
+            "body": "comment 69"
+          },
+          {
+            "body": "comment 68"
+          },
+          {
+            "body": "comment 67"
+          },
+          {
+            "body": "comment 66"
+          },
+          {
+            "body": "comment 65"
+          },
+          {
+            "body": "comment 64"
+          },
+          {
+            "body": "comment 63"
+          },
+          {
+            "body": "comment 62"
+          },
+          {
+            "body": "comment 61"
+          },
+          {
+            "body": "comment 60"
+          },
+          {
+            "body": "comment 59"
+          },
+          {
+            "body": "comment 58"
+          },
+          {
+            "body": "comment 57"
+          },
+          {
+            "body": "comment 56"
+          },
+          {
+            "body": "comment 55"
+          },
+          {
+            "body": "comment 54"
+          },
+          {
+            "body": "comment 53"
+          },
+          {
+            "body": "comment 52"
+          },
+          {
+            "body": "comment 51"
+          },
+          {
+            "body": "comment 50"
+          },
+          {
+            "body": "comment 49"
+          },
+          {
+            "body": "comment 48"
+          },
+          {
+            "body": "comment 47"
+          },
+          {
+            "body": "comment 46"
+          },
+          {
+            "body": "comment 45"
+          },
+          {
+            "body": "comment 44"
+          },
+          {
+            "body": "comment 43"
+          },
+          {
+            "body": "comment 42"
+          },
+          {
+            "body": "comment 41"
+          },
+          {
+            "body": "comment 40"
+          },
+          {
+            "body": "comment 39"
+          },
+          {
+            "body": "comment 38"
+          },
+          {
+            "body": "comment 37"
+          },
+          {
+            "body": "comment 36"
+          },
+          {
+            "body": "comment 35"
+          },
+          {
+            "body": "comment 34"
+          },
+          {
+            "body": "comment 33"
+          },
+          {
+            "body": "comment 32"
+          },
+          {
+            "body": "comment 31"
+          },
+          {
+            "body": "comment 30"
+          },
+          {
+            "body": "comment 29"
+          },
+          {
+            "body": "comment 28"
+          },
+          {
+            "body": "comment 27"
+          },
+          {
+            "body": "comment 26"
+          },
+          {
+            "body": "comment 25"
+          },
+          {
+            "body": "comment 24"
+          },
+          {
+            "body": "comment 23"
+          },
+          {
+            "body": "comment 22"
+          },
+          {
+            "body": "comment 21"
+          },
+          {
+            "body": "comment 20"
+          },
+          {
+            "body": "comment 19"
+          },
+          {
+            "body": "comment 18"
+          },
+          {
+            "body": "comment 17"
+          },
+          {
+            "body": "comment 16"
+          },
+          {
+            "body": "comment 15"
+          },
+          {
+            "body": "comment 14"
+          },
+          {
+            "body": "comment 13"
+          },
+          {
+            "body": "comment 12"
+          },
+          {
+            "body": "comment 11"
+          },
+          {
+            "body": "comment 10"
+          },
+          {
+            "body": "comment 9"
+          },
+          {
+            "body": "comment 8"
+          },
+          {
+            "body": "comment 7"
+          },
+          {
+            "body": "comment 6"
+          },
+          {
+            "body": "comment 5"
+          },
+          {
+            "body": "comment 4"
+          },
+          {
+            "body": "comment 3"
+          },
+          {
+            "body": "comment 2"
+          },
+          {
+            "body": "comment 1"
+          }
+        ],
+        "pageInfo": {
+          "hasNextPage": false,
+          "endCursor": "f0000000-0000-4000-8000-000000000001"
+        }
+      },
+      "priority": 0,
+      "priorityLabel": "No priority",
+      "estimate": null,
+      "createdAt": "2025-06-01T00:00:01.000Z",
+      "updatedAt": "2025-06-01T00:00:01.000Z",
+      "state": {
+        "id": "0d000000-0000-4000-8000-000000000001",
+        "name": "Backlog",
+        "color": "#bec2c8",
+        "type": "backlog"
+      },
+      "assignee": null,
+      "team": {
+        "id": "0c000000-0000-4000-8000-000000000001",
+        "key": "ENG",
+        "name": "Engineering",
+        "cyclesEnabled": false,
+        "activeCycle": null
+      },
+      "project": null,
+      "projectMilestone": null,
+      "cycle": null,
+      "labels": {
+        "nodes": [],
+        "pageInfo": {
+          "hasNextPage": false,
+          "endCursor": null
+        }
+      },
+      "inverseRelations": {
+        "nodes": [],
+        "pageInfo": {
+          "hasNextPage": false,
+          "endCursor": null
+        }
+      }
+    }
+  ],
+  "pageInfo": {
+    "hasNextPage": false,
+    "endCursor": null
+  }
+}

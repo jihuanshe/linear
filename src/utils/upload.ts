@@ -14,6 +14,14 @@ import { Spinner } from "@std/cli/unstable-spinner"
 import { shouldShowSpinner } from "./hyperlink.ts"
 
 /**
+ * How long a signed upload may take before its outcome is reported unknown:
+ * the download deadline, plus time for the file at a slow 256 KiB/s.
+ */
+function uploadDeadlineMs(size: number): number {
+  return 120_000 + Math.ceil(size / 262_144) * 1_000
+}
+
+/**
  * MIME type mapping for common file extensions
  */
 const MIME_TYPES: Record<string, string> = {
@@ -336,6 +344,7 @@ export async function uploadFile(
       method: "PUT",
       headers: uploadHeaders,
       body: fileData,
+      signal: AbortSignal.timeout(uploadDeadlineMs(size)),
     })
 
     if (!response.ok) {

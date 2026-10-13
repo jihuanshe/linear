@@ -1,0 +1,25 @@
+When the configured default team does not exist, interactive create asks for the team instead of failing.
+-- seed.json --
+{"Team": [{"id": "0c000000-0000-4000-8000-000000000002", "key": "OPS", "name": "Operations"}],
+ "WorkflowState": [{"id": "0d000000-0000-4000-8000-000000000021", "team": "0c000000-0000-4000-8000-000000000002", "name": "Backlog", "type": "backlog", "position": 0, "color": "#bec2c8"}]}
+-- env --
+LINEAR_TEAM_KEY=OLD
+LINEAR_ISSUE_CREATE_ASSIGN_SELF=never
+LINEAR_ISSUE_CREATE_ASK_PROJECT=false
+-- tty --
+expect What's the title of your issue?
+send Draft\r
+expect Which team should this issue belong to?
+send \e[B\r
+expect Description
+send \r
+expect What's next?
+send \r
+-- run --
+linear issue create
+-- stdout --
+{{*}}
+-- mutations.json --
+{"issueCreate": 1}
+-- state.json --
+{"Issue": [{"identifier": "OPS-1", "title": "Draft", "team": "0c000000-0000-4000-8000-000000000002", "assignee": null}]}

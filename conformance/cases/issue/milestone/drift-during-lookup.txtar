@@ -1,0 +1,45 @@
+If the issue moves to another project right after its milestone name was resolved, the update writes nothing, protected or not: the final read before the write must notice.
+-- seed.json --
+{"Project": [{"id": "1e000000-0000-4000-8000-000000000001", "name": "Alpha", "slugId": "a1b2c3d4e5f6", "teams": ["0c000000-0000-4000-8000-000000000001"]},
+  {"id": "1e000000-0000-4000-8000-000000000002", "name": "Beta", "slugId": "b1b2c3d4e5f6", "teams": ["0c000000-0000-4000-8000-000000000001"]}],
+ "ProjectMilestone": [{"id": "1f000000-0000-4000-8000-000000000001", "name": "Launch", "project": "1e000000-0000-4000-8000-000000000001"},
+  {"id": "1f000000-0000-4000-8000-000000000002", "name": "Launch", "project": "1e000000-0000-4000-8000-000000000002"}],
+ "Issue": [{"id": "1a000000-0000-4000-8000-000000000123", "identifier": "ENG-123", "title": "Milestoned", "project": "1e000000-0000-4000-8000-000000000001"}]}
+-- run --
+linear issue view ENG-123 --json > original.json
+-- faults.json --
+[{"on": "query", "selects": "projectMilestones", "action": "patch-after", "seed": {"Issue": [{"id": "1a000000-0000-4000-8000-000000000123", "project": "1e000000-0000-4000-8000-000000000002"}]}}]
+-- run --
+linear issue update ENG-123 --milestone Launch --base-file original.json --json
+-- stdout.json --
+{
+  "ok": false,
+  "effect": "none",
+  "error": {
+    "code": "ValidationError",
+    "message": "Failed to update issue: Issue project changed while resolving the milestone"
+  }
+}
+-- exit --
+1
+-- mutations.json --
+{}
+-- run --
+linear issue update ENG-123 --unprotected --project Alpha --json > back.json
+-- faults.json --
+[{"on": "query", "selects": "projectMilestones", "action": "patch-after", "seed": {"Issue": [{"id": "1a000000-0000-4000-8000-000000000123", "project": "1e000000-0000-4000-8000-000000000002"}]}}]
+-- run --
+linear issue update ENG-123 --unprotected --milestone Launch --json
+-- stdout.json --
+{
+  "ok": false,
+  "effect": "none",
+  "error": {
+    "code": "ValidationError",
+    "message": "Failed to update issue: Issue project changed while resolving the milestone"
+  }
+}
+-- exit --
+1
+-- mutations.json --
+{}

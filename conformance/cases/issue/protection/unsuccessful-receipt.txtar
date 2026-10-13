@@ -1,0 +1,27 @@
+A mutation receipt with success false is an unknown effect, never a retryable none.
+-- seed.json --
+{"Issue": [{"id": "1a000000-0000-4000-8000-000000000123", "identifier": "ENG-123", "title": "Before title", "description": "Before body", "priority": 0}]}
+-- faults.json --
+[{"on": "mutation:issueUpdate", "action": "status", "status": 200, "body": {"data": {"issueUpdate": {"success": false, "issue": null}}}}]
+-- run --
+linear issue update ENG-123 --unprotected --title Desired --json
+-- stdout.json --
+{
+  "ok": false,
+  "effect": "unknown",
+  "data": {
+    "issueUpdate": {
+      "success": false,
+      "issue": null
+    }
+  },
+  "error": {
+    "code": "WriteError",
+    "message": "Failed to update issue: Mutation was not confirmed",
+    "suggestion": "Reconcile the remote outcome before retrying this write."
+  }
+}
+-- exit --
+1
+-- mutations.json --
+{"issueUpdate": 1}

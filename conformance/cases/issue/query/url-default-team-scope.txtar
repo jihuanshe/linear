@@ -1,0 +1,69 @@
+Without --team, URL mode searches the whole workspace and ignores the configured default team; --team narrows it and explains why a resolved issue was excluded.
+-- seed.json --
+{"Issue": [{"id": "1a000000-0000-4000-8000-000000000101", "identifier": "ENG-101", "title": "Fix login bug", "previousIdentifiers": ["OLD-7"]}]}
+-- env --
+LINEAR_TEAM_KEY=P38IT
+-- run --
+linear issue query --url https://linear.app/kadoraba/issue/ENG-101 --json
+-- stdout.json --
+{
+  "nodes": [
+    {
+      "id": "1a000000-0000-4000-8000-000000000101",
+      "identifier": "ENG-101",
+      "title": "Fix login bug",
+      "url": "https://linear.app/kadoraba/issue/ENG-101/fix-login-bug",
+      "description": null,
+      "priority": 0,
+      "priorityLabel": "No priority",
+      "estimate": null,
+      "createdAt": "2025-06-01T00:00:01.000Z",
+      "updatedAt": "2025-06-01T00:00:01.000Z",
+      "state": {
+        "id": "0d000000-0000-4000-8000-000000000001",
+        "name": "Backlog",
+        "color": "#bec2c8",
+        "type": "backlog"
+      },
+      "assignee": null,
+      "team": {
+        "id": "0c000000-0000-4000-8000-000000000001",
+        "key": "ENG",
+        "name": "Engineering",
+        "cyclesEnabled": false,
+        "activeCycle": null
+      },
+      "project": null,
+      "projectMilestone": null,
+      "cycle": null,
+      "labels": {
+        "nodes": [],
+        "pageInfo": {
+          "hasNextPage": false,
+          "endCursor": null
+        }
+      },
+      "inverseRelations": {
+        "nodes": [],
+        "pageInfo": {
+          "hasNextPage": false,
+          "endCursor": null
+        }
+      }
+    }
+  ],
+  "pageInfo": {
+    "hasNextPage": false,
+    "endCursor": null
+  },
+  "resolution": {
+    "status": "found",
+    "requested": "ENG-101",
+    "identifier": "ENG-101"
+  }
+}
+-- run --
+linear issue query --team P38IT --url https://linear.app/kadoraba/issue/ENG-101 --no-pager
+-- stdout --
+ENG-101 resolved, but the selected filters excluded it; try --all-teams or adjust the filters
+No issues found.

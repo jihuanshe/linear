@@ -1,0 +1,34 @@
+A trashed issue is marked as trashed in human output; a live one is not.
+-- seed.json --
+{"Issue": [
+  {"identifier": "ENG-124", "title": "Deleted feedback", "state": "0d000000-0000-4000-8000-000000000008", "archivedAt": "2025-09-24T00:00:00.000Z", "trashed": true},
+  {"identifier": "ENG-125", "title": "Kept feedback"}],
+ "WorkflowState": [{"id": "0d000000-0000-4000-8000-000000000008", "team": "0c000000-0000-4000-8000-000000000001", "name": "Triage", "type": "triage", "position": -1, "color": "#fc7840"}]}
+-- run --
+linear issue view ENG-124
+-- stdout --
+# ENG-124: Deleted feedback
+
+**Trashed** | **State:** Triage | **Priority:** --- | **Assignee:** Unassigned | **Unresolved threads:** 0
+
+## Context
+
+- Assignee: Unassigned
+- Parent / Sub-issues / Relations: none
+- Attachments: 0 | Comments: 0 (0 unresolved threads; none by other accounts)
+- Changes by other accounts: none (all 0 history entries)
+
+-- run --
+linear issue view ENG-125
+-- stdout --
+# ENG-125: Kept feedback
+
+**State:** Backlog | **Priority:** --- | **Assignee:** Unassigned | **Unresolved threads:** 0
+
+## Context
+
+- Assignee: Unassigned
+- Parent / Sub-issues / Relations: none
+- Attachments: 0 | Comments: 0 (0 unresolved threads; none by other accounts)
+- Changes by other accounts: none (all 0 history entries)
+

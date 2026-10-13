@@ -1,0 +1,31 @@
+Choosing Project among the additional fields sets the issue's project from the team's projects.
+-- seed.json --
+{"Project": [{"id": "1e000000-0000-4000-8000-000000000007", "name": "From more fields", "slugId": "m1b2c3d4e5f6", "teams": ["0c000000-0000-4000-8000-000000000001"]}]}
+-- env --
+LINEAR_TEAM_KEY=ENG
+-- tty --
+expect What's the title of your issue?
+send Issue from more fields\r
+expect Description
+send \r
+expect What's next?
+send \e[B\r
+expect Select additional fields to configure
+send \e[B
+send \e[B
+send \e[B
+send \e[B
+send \e[B
+send  
+send \r
+expect Press ↵ again to submit
+send \r
+expect Which project should this issue belong to?
+send \e[B\r
+-- run --
+linear issue create
+-- stdout --
+{{*}}✓ Created issue ENG-1: Issue from more fields
+https://linear.app/kadoraba/issue/ENG-1/issue-from-more-fields
+-- state.json --
+{"Issue": [{"title": "Issue from more fields", "project": "1e000000-0000-4000-8000-000000000007"}]}

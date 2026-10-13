@@ -15,12 +15,26 @@ export interface EntityRecord {
 
 export type Seed = Record<string, Record<string, unknown>[]>
 
-const EPOCH = Date.parse("2026-01-01T00:00:00.000Z")
+import { expandRepeats, withDefaults } from "./defaults.ts"
+
+/** The world's current time; writes count up from it. */
+export const WORLD_NOW = "2026-01-01T00:00:00.000Z"
+const EPOCH = Date.parse(WORLD_NOW)
+/**
+ * Seeded records predate every write a case makes. The world and each case
+ * seed count from their own epoch, so adding world records does not shift the
+ * timestamps a case's records get.
+ */
+const WORLD_SEED_EPOCH = Date.parse("2025-01-01T00:00:00.000Z")
+const CASE_SEED_EPOCH = Date.parse("2025-06-01T00:00:00.000Z")
 
 export class Store {
   readonly #types = new Map<string, Map<string, EntityRecord>>()
   #ids = 0
   #ticks = 0
+  #seedTicks = 0
+  #seedEpoch = WORLD_SEED_EPOCH
+  #seeds = 0
   #syncId = 1000
 
   constructor(...seeds: Seed[]) {
@@ -28,19 +42,60 @@ export class Store {
   }
 
   seed(seed: Seed): void {
+    this.#seedEpoch = this.#seeds++ === 0 ? WORLD_SEED_EPOCH : CASE_SEED_EPOCH
+    this.#seedTicks = 0
     for (const [typename, records] of Object.entries(seed)) {
-      for (const record of records) {
+      for (const record of expandRepeats(records)) {
         const id = typeof record.id === "string" ? record.id : this.newId()
         const existing = this.find(typename, id)
         if (existing != null) Object.assign(existing, record)
-        else this.insert({ ...record, id, __typename: typename })
+        else {
+          this.insert({
+            ...withDefaults(this, typename, { ...record, id }),
+            id,
+            __typename: typename,
+          })
+        }
       }
     }
+  }
+
+  /**
+   * Apply a concurrent edit made during a case: new records are created now,
+   * and changed records are updated now, on the same clock as writes.
+   */
+  patch(seed: Seed): void {
+    for (const [typename, records] of Object.entries(seed)) {
+      for (const record of records) {
+        const now = this.now()
+        const id = typeof record.id === "string" ? record.id : this.newId()
+        const existing = this.find(typename, id)
+        if (existing != null) {
+          Object.assign(existing, { updatedAt: now }, record)
+        } else {
+          this.insert({
+            ...withDefaults(this, typename, { createdAt: now, ...record, id }),
+            id,
+            __typename: typename,
+          })
+        }
+      }
+    }
+  }
+
+  seedTimestamp(): string {
+    this.#seedTicks++
+    return new Date(this.#seedEpoch + this.#seedTicks * 1000).toISOString()
   }
 
   newId(): string {
     this.#ids++
     return `f0000000-0000-4000-8000-${this.#ids.toString().padStart(12, "0")}`
+  }
+
+  /** The world's current time, for date-derived fields such as cycle state. */
+  worldNow(): string {
+    return new Date(EPOCH).toISOString()
   }
 
   /** Deterministic, strictly increasing timestamps for writes. */
@@ -94,6 +149,18 @@ export class Store {
     const viewer = this.all("User").find((user) => user.isMe === true)
     if (viewer == null) throw new Error("fake: seed has no User with isMe")
     return viewer
+  }
+
+  /** An independent copy, for answering reads from an earlier moment. */
+  clone(): Store {
+    const copy = new Store()
+    for (const table of this.#types.values()) {
+      for (const record of table.values()) copy.insert(structuredClone(record))
+    }
+    copy.#ids = this.#ids
+    copy.#ticks = this.#ticks
+    copy.#syncId = this.#syncId
+    return copy
   }
 
   snapshot(): Seed {

@@ -1,0 +1,10 @@
+Adding and removing labels needs no original read: increments cannot overwrite concurrent label changes.
+-- seed.json --
+{"IssueLabel": [{"id": "0e000000-0000-4000-8000-000000000011", "name": "frontend"}, {"id": "0e000000-0000-4000-8000-000000000012", "name": "backend"}],
+ "Issue": [{"id": "1a000000-0000-4000-8000-000000000123", "identifier": "ENG-123", "title": "Labels", "labels": ["0e000000-0000-4000-8000-000000000012", "0e000000-0000-4000-8000-000000000003"]}]}
+-- run --
+linear issue update ENG-123 --add-label frontend --remove-label backend --json > out.json
+-- mutations.json --
+{"issueUpdate": 1}
+-- state.json --
+{"Issue": [{"identifier": "ENG-123", "labels": ["0e000000-0000-4000-8000-000000000003", "0e000000-0000-4000-8000-000000000011"]}]}

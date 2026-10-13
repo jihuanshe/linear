@@ -1,0 +1,12 @@
+LINEAR_ISSUE_CREATE_ASSIGN_SELF=always assigns new issues to the current account.
+-- env --
+LINEAR_ISSUE_CREATE_ASSIGN_SELF=always
+-- run --
+linear issue create --title "Assigned by config" --team ENG --no-interactive
+-- stdout --
+✓ Created issue ENG-1: Assigned by config
+https://linear.app/kadoraba/issue/ENG-1/assigned-by-config
+-- stderr --
+ENG-1 has no --project or --parent. Decide ownership from the candidate Project's full content and the related Initiative content (linear guide issue-authoring), then save the original read and set the project: (if [ -e original.json ] || [ -L original.json ]; then echo 'original.json exists' >&2; exit 1; fi; t=$(mktemp original.json.XXXXXX) || exit; s=0; linear issue view 'ENG-1' --json >| "$t" || { cat "$t" >&2; s=1; }; [ "$s" != 0 ] || ln "$t" original.json || s=1; rm -f "$t"; exit "$s") && linear issue update 'ENG-1' --project <project> --base-file original.json
+-- state.json --
+{"Issue": [{"title": "Assigned by config", "assignee": "0b000000-0000-4000-8000-000000000001"}]}

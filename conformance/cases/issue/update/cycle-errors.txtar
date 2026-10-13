@@ -1,0 +1,21 @@
+Cycle references that cannot resolve fail without writing: a relative offset or "now" without an active cycle, and any --cycle when the team has cycles disabled.
+-- seed.json --
+{"Team": [{"id": "0c000000-0000-4000-8000-000000000001", "cyclesEnabled": true}], "Cycle": [{"id": "1d000000-0000-4000-8000-000000000008", "team": "0c000000-0000-4000-8000-000000000001", "number": 8, "name": null, "startsAt": "2026-01-22T00:00:00.000Z", "endsAt": "2026-02-05T00:00:00.000Z"}], "Issue": [{"id": "1a000000-0000-4000-8000-000000000123", "identifier": "ENG-123", "title": "Existing issue", "state": "0d000000-0000-4000-8000-000000000002"}]}
+-- run --
+linear issue update --unprotected ENG-123 --cycle +1
+-- stderr --
+✗ Failed to update issue: Cannot resolve relative cycle +1: the team has no active cycle
+  Use 'next', a cycle number, or a cycle name while no cycle is active.
+-- exit --
+1
+-- mutations.json --
+{}
+-- run --
+linear issue update --unprotected ENG-123 --cycle now
+-- stderr --
+✗ Failed to update issue: Team ENG has no active cycle
+  The next cycle (#8) starts 2026-01-22 — use --cycle next, a cycle number, or a name.
+-- exit --
+1
+-- mutations.json --
+{}

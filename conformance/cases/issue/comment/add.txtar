@@ -1,0 +1,53 @@
+comment add posts a comment with the exact Markdown body, as a reply with --parent, and reports it in human or JSON output.
+-- seed.json --
+{"Issue": [{"id": "1a000000-0000-4000-8000-000000000123", "identifier": "ENG-123", "title": "Discussed"}], "Comment": [{"id": "1c000000-0000-4000-8000-000000000001", "issue": "1a000000-0000-4000-8000-000000000123", "body": "Root"}]}
+-- file body.md --
+第一段  
+软换行
+
+- 项目
+  - 子项目
+
+```text
+@name \n
+```
+
+https://linear.app/kadoraba/profiles/person
+-- run --
+linear issue comment add ENG-123 --body "This is a test comment"
+-- stdout --
+✓ Comment added to ENG-123
+https://linear.app/kadoraba/issue/ENG-123/discussed#comment-f0000000
+-- run --
+linear issue comment add ENG-123 --body "JSON comment" --json
+-- stdout.json --
+{
+  "ok": true,
+  "effect": "applied",
+  "data": {
+    "comment": {
+      "id": "f0000000-0000-4000-8000-000000000002",
+      "body": "JSON comment",
+      "createdAt": "2026-01-01T00:00:02.000Z",
+      "url": "https://linear.app/kadoraba/issue/ENG-123/discussed#comment-f0000000",
+      "user": {
+        "name": "Alex",
+        "displayName": "alex"
+      },
+      "issue": {
+        "id": "1a000000-0000-4000-8000-000000000123"
+      },
+      "parent": null
+    }
+  },
+  "receipts": []
+}
+-- run --
+linear issue comment add ENG-123 --body "A reply" --parent 1c000000-0000-4000-8000-000000000001
+-- stdout --
+✓ Comment added to ENG-123
+https://linear.app/kadoraba/issue/ENG-123/discussed#comment-f0000000
+-- run --
+linear issue comment add ENG-123 --body-file body.md --json > file.json
+-- state.json --
+{"Comment": [{"body": "Root"}, {"body": "This is a test comment", "parent": null}, {"body": "JSON comment"}, {"body": "A reply", "parent": "1c000000-0000-4000-8000-000000000001"}, {"body": "第一段  \n软换行\n\n- 项目\n  - 子项目\n\n```text\n@name \\n\n```\n\nhttps://linear.app/kadoraba/profiles/person\n"}]}

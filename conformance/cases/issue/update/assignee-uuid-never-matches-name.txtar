@@ -1,0 +1,18 @@
+An assignee UUID that matches no user ID fails, even if some user's name is that text.
+-- seed.json --
+{"User": [{"id": "1b000000-0000-4000-8000-000000000005", "name": "abcdef01-2345-4678-9abc-def012345678", "displayName": "abcdef01-2345-4678-9abc-def012345678", "email": "abcdef01-2345-4678-9abc-def012345678@example.com"}], "Issue": [{"id": "1a000000-0000-4000-8000-000000000123", "identifier": "ENG-123", "title": "Existing issue", "state": "0d000000-0000-4000-8000-000000000002"}]}
+-- run --
+linear issue update --unprotected ENG-123 --assignee abcdef01-2345-4678-9abc-def012345678 --json
+-- stdout.json --
+{
+  "ok": false,
+  "effect": "none",
+  "error": {
+    "code": "NotFoundError",
+    "message": "Failed to update issue: User not found: abcdef01-2345-4678-9abc-def012345678"
+  }
+}
+-- exit --
+1
+-- mutations.json --
+{}

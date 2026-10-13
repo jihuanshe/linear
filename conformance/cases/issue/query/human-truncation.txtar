@@ -1,0 +1,39 @@
+Human output says when --limit cut the results short, for filters and for search.
+-- seed.json --
+{"User": [{"id": "1b000000-0000-4000-8000-000000000002", "name": "Jane Smith", "displayName": "jane"}],
+ "Team": [{"id": "0c000000-0000-4000-8000-000000000001", "cyclesEnabled": true}],
+ "Cycle": [{"id": "1d000000-0000-4000-8000-000000000006", "team": "0c000000-0000-4000-8000-000000000001", "number": 6, "name": "Sprint 6", "startsAt": "2025-12-25T00:00:00.000Z", "endsAt": "2026-01-08T00:00:00.000Z"},
+  {"id": "1d000000-0000-4000-8000-000000000008", "team": "0c000000-0000-4000-8000-000000000001", "number": 8, "name": null, "startsAt": "2026-01-22T00:00:00.000Z", "endsAt": "2026-02-05T00:00:00.000Z"}],
+ "Project": [{"id": "1e000000-0000-4000-8000-000000000001", "name": "Auth Improvements", "slugId": "a1b2c3d4e5f6", "teams": ["0c000000-0000-4000-8000-000000000001", "0c000000-0000-4000-8000-000000000038"]}],
+ "ProjectMilestone": [{"id": "1f000000-0000-4000-8000-000000000001", "name": "v1", "project": "1e000000-0000-4000-8000-000000000001"}],
+ "Issue": [
+  {"identifier": "ENG-101", "title": "Fix login bug", "state": "0d000000-0000-4000-8000-000000000003", "priority": 2, "assignee": "1b000000-0000-4000-8000-000000000002", "project": "1e000000-0000-4000-8000-000000000001", "labels": ["0e000000-0000-4000-8000-000000000002"], "cycle": "1d000000-0000-4000-8000-000000000006", "createdAt": "2025-04-01T10:00:00.000Z", "updatedAt": "2025-12-30T08:15:00.000Z"},
+  {"identifier": "ENG-106", "title": "Second item", "createdAt": "2025-06-02T10:00:00.000Z"},
+  {"identifier": "ENG-102", "title": "Unassigned todo", "state": "0d000000-0000-4000-8000-000000000002", "createdAt": "2025-05-01T10:00:00.000Z"},
+  {"identifier": "ENG-103", "title": "My backlog item", "assignee": "0b000000-0000-4000-8000-000000000001", "projectMilestone": "1f000000-0000-4000-8000-000000000001", "project": "1e000000-0000-4000-8000-000000000001", "cycle": "1d000000-0000-4000-8000-000000000008", "createdAt": "2025-06-01T10:00:00.000Z"},
+  {"identifier": "ENG-104", "title": "Merged work", "state": "0d000000-0000-4000-8000-000000000005", "createdAt": "2025-07-01T10:00:00.000Z"},
+  {"identifier": "ENG-105", "title": "Old archived", "state": "0d000000-0000-4000-8000-000000000006", "archivedAt": "2025-08-01T00:00:00.000Z", "createdAt": "2025-01-01T10:00:00.000Z"},
+  {"identifier": "P38IT-1", "title": "Other team in project", "team": "0c000000-0000-4000-8000-000000000038", "state": "0d000000-0000-4000-8000-000000000382", "project": "1e000000-0000-4000-8000-000000000001", "createdAt": "2025-03-01T10:00:00.000Z"}]}
+-- run --
+linear issue query --team ENG --limit 1 --no-pager
+-- stdout --
+◌   ID      TITLE         LABELS B E CYC A  STATE       UPDATED  
+▄▆█ ENG-101 Fix login bug Bug      - now JS In Progress 1 day ago
+-- stderr --
+Showing the first 1 issue; more match. Use --limit 0 to fetch all pages, or narrow the filters.
+-- run --
+linear issue query --team ENG --limit 1 --no-pager --search item
+-- stdout --
+◌   ID      TITLE       LABELS B E CYC A  STATE   UPDATED     
+--- ENG-106 Second item          - -   -  Backlog 212 days ago
+-- stderr --
+Showing the first 1 issue; more match. Use --limit 0 to fetch all pages, or narrow the filters.
+-- run --
+linear issue query --team ENG --limit 10 --no-pager
+-- stdout --
+◌   ID      TITLE           LABELS B E CYC A  STATE       UPDATED     
+▄▆█ ENG-101 Fix login bug   Bug      - now JS In Progress 1 day ago   
+--- ENG-102 Unassigned todo          - -   -  Todo        244 days ago
+--- ENG-106 Second item              - -   -  Backlog     212 days ago
+--- ENG-103 My backlog item          - +1  AL Backlog     213 days ago
+--- ENG-104 Merged work              - -   -  Done        183 days ago

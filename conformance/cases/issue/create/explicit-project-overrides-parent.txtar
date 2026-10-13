@@ -1,0 +1,14 @@
+An explicit --project wins over the parent's project.
+-- seed.json --
+{"Project": [
+  {"id": "1e000000-0000-4000-8000-000000000001", "name": "Dashboard", "slugId": "a1b2c3d4e5f6", "teams": ["0c000000-0000-4000-8000-000000000001"]},
+  {"id": "1e000000-0000-4000-8000-000000000002", "name": "Parent project", "slugId": "b1b2c3d4e5f6", "teams": ["0c000000-0000-4000-8000-000000000001"]},
+  {"id": "1e000000-0000-4000-8000-000000000003", "name": "Other team project", "slugId": "c1b2c3d4e5f6", "teams": ["0c000000-0000-4000-8000-000000000002"]}],
+ "Team": [{"id": "0c000000-0000-4000-8000-000000000002", "key": "OPS", "name": "Operations"}], "Issue": [{"id": "1a000000-0000-4000-8000-000000000123", "identifier": "ENG-123", "title": "Parent issue", "project": "1e000000-0000-4000-8000-000000000002"}]}
+-- run --
+linear issue create --title "Child issue override" --team ENG --parent ENG-123 --project Dashboard --no-interactive
+-- stdout --
+✓ Created issue ENG-124: Child issue override
+https://linear.app/kadoraba/issue/ENG-124/child-issue-override
+-- state.json --
+{"Issue": [{"identifier": "ENG-123"}, {"title": "Child issue override", "parent": "1a000000-0000-4000-8000-000000000123", "project": "1e000000-0000-4000-8000-000000000001"}]}

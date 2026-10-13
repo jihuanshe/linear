@@ -1,0 +1,48 @@
+If the description changed after the export, updating from it is refused; new comments alone do not block it.
+-- seed.json --
+{"Issue": [{"id": "1a000000-0000-4000-8000-000000000123", "identifier": "ENG-123", "title": "Exported", "description": "原文 **Markdown**"}, {"id": "1a000000-0000-4000-8000-000000000124", "identifier": "ENG-124", "title": "Discussed", "description": "Body"}]}
+-- run --
+linear issue export ENG-123 --output a --json > a.json
+-- run --
+linear issue update ENG-123 --unprotected --description "同事的修改" --json > colleague.json
+-- file a/desired.md --
+我的修改
+-- run --
+linear issue update ENG-123 --base-file a/original.json --description-file a/desired.md --json
+-- stdout.json --
+{
+  "ok": false,
+  "effect": "none",
+  "error": {
+    "code": "ConflictError",
+    "message": "Failed to update issue: Original values changed: description",
+    "suggestion": "Read the current object and reconsider the change; do not refresh the original file merely to bypass this conflict.",
+    "details": {
+      "fields": [
+        {
+          "field": "description",
+          "inputField": "description",
+          "base": "原文 **Markdown**",
+          "desired": "我的修改\n",
+          "remote": "同事的修改",
+          "verdict": "conflict"
+        }
+      ],
+      "dependencies": []
+    }
+  }
+}
+-- exit --
+1
+-- mutations.json --
+{}
+-- run --
+linear issue export ENG-124 --output b --json > b.json
+-- run --
+linear issue comment add ENG-124 --body "New discussion" --json > comment.json
+-- file b/desired.md --
+Edited body
+-- run --
+linear issue update ENG-124 --base-file b/original.json --description-file b/desired.md --json > updated.json
+-- mutations.json --
+{"issueUpdate": 1}

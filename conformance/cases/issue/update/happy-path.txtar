@@ -1,0 +1,12 @@
+Updating several fields at once writes them in one mutation and prints the issue URL.
+-- seed.json --
+{"Issue": [{"id": "1a000000-0000-4000-8000-000000000123", "identifier": "ENG-123", "title": "Existing issue", "state": "0d000000-0000-4000-8000-000000000002"}]}
+-- run --
+linear issue update --unprotected ENG-123 --title "Fix critical bug" --description "Updated description" --assignee self --priority 1 --estimate 5
+-- stdout --
+✓ Updated issue ENG-123: Fix critical bug
+https://linear.app/kadoraba/issue/ENG-123/fix-critical-bug
+-- mutations.json --
+{"issueUpdate": 1}
+-- state.json --
+{"Issue": [{"identifier": "ENG-123", "title": "Fix critical bug", "description": "Updated description", "assignee": "0b000000-0000-4000-8000-000000000001", "priority": 1, "estimate": 5}]}

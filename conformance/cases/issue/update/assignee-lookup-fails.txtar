@@ -1,0 +1,27 @@
+If the assignee lookup fails, nothing is written.
+-- seed.json --
+{"User": [{"id": "abcdef01-2345-4678-9abc-def012345678", "name": "Jane Developer", "displayName": "jane"}], "Issue": [{"id": "1a000000-0000-4000-8000-000000000123", "identifier": "ENG-123", "title": "Existing issue", "state": "0d000000-0000-4000-8000-000000000002"}]}
+-- faults.json --
+[{"on": "query:users", "action": "status", "status": 200, "body": {"data": null, "errors": [{"message": "User lookup unavailable"}]}}]
+-- run --
+linear issue update --unprotected ENG-123 --assignee abcdef01-2345-4678-9abc-def012345678 --json
+-- stdout.json --
+{
+  "ok": false,
+  "effect": "none",
+  "error": {
+    "code": "Error",
+    "message": "Failed to update issue: User lookup unavailable",
+    "details": {
+      "errors": [
+        {
+          "message": "User lookup unavailable"
+        }
+      ]
+    }
+  }
+}
+-- exit --
+1
+-- mutations.json --
+{}

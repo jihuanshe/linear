@@ -1,0 +1,21 @@
+Repeated label inputs, including different spellings and the UUID of the same label, resolve to one label.
+-- seed.json --
+{"IssueLabel": [
+  {"id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", "name": "Frontend"},
+  {"id": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", "name": "Backend", "team": "0c000000-0000-4000-8000-000000000001"},
+  {"id": "cccccccc-cccc-4ccc-8ccc-cccccccccccc", "name": "Operations"},
+  {"id": "dddddddd-dddd-4ddd-8ddd-dddddddddddd", "name": "Group", "isGroup": true},
+  {"id": "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee", "name": "Other team", "team": "0c000000-0000-4000-8000-000000000038"},
+  {"id": "ffffffff-ffff-4fff-8fff-ffffffffffff", "name": "bug", "team": "0c000000-0000-4000-8000-000000000001"}], "Issue": [{"id": "1a000000-0000-4000-8000-000000000123", "identifier": "ENG-123", "title": "Labels", "labels": ["aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"]}]}
+-- run --
+linear issue create --title Dedup --team ENG --label Frontend --label frontend --label aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa --label Backend --no-interactive --json > create.json
+-- stderr --
+ENG-124 has no --project or --parent. Decide ownership from the candidate Project's full content and the related Initiative content (linear guide issue-authoring), then save the original read and set the project: (if [ -e original.json ] || [ -L original.json ]; then echo 'original.json exists' >&2; exit 1; fi; t=$(mktemp original.json.XXXXXX) || exit; s=0; linear issue view 'ENG-124' --json >| "$t" || { cat "$t" >&2; s=1; }; [ "$s" != 0 ] || ln "$t" original.json || s=1; rm -f "$t"; exit "$s") && linear issue update 'ENG-124' --project <project> --base-file original.json
+-- state.json --
+{"Issue": [{"identifier": "ENG-123"}, {"title": "Dedup", "labels": ["aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb"]}]}
+-- run --
+linear issue update ENG-123 --unprotected --add-label Operations --add-label OPERATIONS --add-label cccccccc-cccc-4ccc-8ccc-cccccccccccc --json > update.json
+-- mutations.json --
+{"issueUpdate": 1}
+-- state.json --
+{"Issue": [{"identifier": "ENG-123", "labels": ["aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", "cccccccc-cccc-4ccc-8ccc-cccccccccccc"]}, {"title": "Dedup"}]}

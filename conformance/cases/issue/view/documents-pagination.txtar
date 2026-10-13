@@ -1,0 +1,606 @@
+Every page of linked documents is read: the 51st document appears in both human and JSON output.
+-- seed.json --
+{"Issue": [{"id": "1a000000-0000-4000-8000-000000000125", "identifier": "ENG-125", "title": "Many documents"}],
+ "Document": [{"$repeat": 51, "title": "Doc {{n}}", "issue": "1a000000-0000-4000-8000-000000000125"}]}
+-- run --
+linear issue view ENG-125 --no-comments
+-- stdout --
+# ENG-125: Many documents
+
+**State:** Backlog | **Priority:** --- | **Assignee:** Unassigned
+
+## Context
+
+- Assignee: Unassigned
+- Parent / Sub-issues / Relations: none
+- Attachments: 0 | Comments: not fetched
+- Changes by other accounts: none (all 0 history entries)
+
+
+## Documents
+
+- **Doc 51**: https://linear.app/kadoraba/document/doc-51-000000000051
+- **Doc 50**: https://linear.app/kadoraba/document/doc-50-000000000050
+- **Doc 49**: https://linear.app/kadoraba/document/doc-49-000000000049
+- **Doc 48**: https://linear.app/kadoraba/document/doc-48-000000000048
+- **Doc 47**: https://linear.app/kadoraba/document/doc-47-000000000047
+- **Doc 46**: https://linear.app/kadoraba/document/doc-46-000000000046
+- **Doc 45**: https://linear.app/kadoraba/document/doc-45-000000000045
+- **Doc 44**: https://linear.app/kadoraba/document/doc-44-000000000044
+- **Doc 43**: https://linear.app/kadoraba/document/doc-43-000000000043
+- **Doc 42**: https://linear.app/kadoraba/document/doc-42-000000000042
+- **Doc 41**: https://linear.app/kadoraba/document/doc-41-000000000041
+- **Doc 40**: https://linear.app/kadoraba/document/doc-40-000000000040
+- **Doc 39**: https://linear.app/kadoraba/document/doc-39-000000000039
+- **Doc 38**: https://linear.app/kadoraba/document/doc-38-000000000038
+- **Doc 37**: https://linear.app/kadoraba/document/doc-37-000000000037
+- **Doc 36**: https://linear.app/kadoraba/document/doc-36-000000000036
+- **Doc 35**: https://linear.app/kadoraba/document/doc-35-000000000035
+- **Doc 34**: https://linear.app/kadoraba/document/doc-34-000000000034
+- **Doc 33**: https://linear.app/kadoraba/document/doc-33-000000000033
+- **Doc 32**: https://linear.app/kadoraba/document/doc-32-000000000032
+- **Doc 31**: https://linear.app/kadoraba/document/doc-31-000000000031
+- **Doc 30**: https://linear.app/kadoraba/document/doc-30-000000000030
+- **Doc 29**: https://linear.app/kadoraba/document/doc-29-000000000029
+- **Doc 28**: https://linear.app/kadoraba/document/doc-28-000000000028
+- **Doc 27**: https://linear.app/kadoraba/document/doc-27-000000000027
+- **Doc 26**: https://linear.app/kadoraba/document/doc-26-000000000026
+- **Doc 25**: https://linear.app/kadoraba/document/doc-25-000000000025
+- **Doc 24**: https://linear.app/kadoraba/document/doc-24-000000000024
+- **Doc 23**: https://linear.app/kadoraba/document/doc-23-000000000023
+- **Doc 22**: https://linear.app/kadoraba/document/doc-22-000000000022
+- **Doc 21**: https://linear.app/kadoraba/document/doc-21-000000000021
+- **Doc 20**: https://linear.app/kadoraba/document/doc-20-000000000020
+- **Doc 19**: https://linear.app/kadoraba/document/doc-19-000000000019
+- **Doc 18**: https://linear.app/kadoraba/document/doc-18-000000000018
+- **Doc 17**: https://linear.app/kadoraba/document/doc-17-000000000017
+- **Doc 16**: https://linear.app/kadoraba/document/doc-16-000000000016
+- **Doc 15**: https://linear.app/kadoraba/document/doc-15-000000000015
+- **Doc 14**: https://linear.app/kadoraba/document/doc-14-000000000014
+- **Doc 13**: https://linear.app/kadoraba/document/doc-13-000000000013
+- **Doc 12**: https://linear.app/kadoraba/document/doc-12-000000000012
+- **Doc 11**: https://linear.app/kadoraba/document/doc-11-000000000011
+- **Doc 10**: https://linear.app/kadoraba/document/doc-10-000000000010
+- **Doc 9**: https://linear.app/kadoraba/document/doc-9-000000000009
+- **Doc 8**: https://linear.app/kadoraba/document/doc-8-000000000008
+- **Doc 7**: https://linear.app/kadoraba/document/doc-7-000000000007
+- **Doc 6**: https://linear.app/kadoraba/document/doc-6-000000000006
+- **Doc 5**: https://linear.app/kadoraba/document/doc-5-000000000005
+- **Doc 4**: https://linear.app/kadoraba/document/doc-4-000000000004
+- **Doc 3**: https://linear.app/kadoraba/document/doc-3-000000000003
+- **Doc 2**: https://linear.app/kadoraba/document/doc-2-000000000002
+- **Doc 1**: https://linear.app/kadoraba/document/doc-1-000000000001
+
+-- run --
+linear issue view ENG-125 --no-comments --json
+-- stdout.json --
+{
+  "organization": {
+    "id": "0a000000-0000-4000-8000-000000000001",
+    "urlKey": "kadoraba"
+  },
+  "viewer": {
+    "id": "0b000000-0000-4000-8000-000000000001"
+  },
+  "issue": {
+    "id": "1a000000-0000-4000-8000-000000000125",
+    "identifier": "ENG-125",
+    "archivedAt": null,
+    "trashed": null,
+    "title": "Many documents",
+    "description": null,
+    "url": "https://linear.app/kadoraba/issue/ENG-125/many-documents",
+    "branchName": "alex/eng-125-many-documents",
+    "priority": 0,
+    "estimate": null,
+    "dueDate": null,
+    "state": {
+      "id": "0d000000-0000-4000-8000-000000000001",
+      "name": "Backlog",
+      "type": "backlog",
+      "color": "#bec2c8"
+    },
+    "assignee": null,
+    "project": null,
+    "projectMilestone": null,
+    "cycle": null,
+    "team": {
+      "id": "0c000000-0000-4000-8000-000000000001",
+      "key": "ENG",
+      "activeCycle": null
+    },
+    "parent": null,
+    "labels": {
+      "nodes": [],
+      "pageInfo": {
+        "hasNextPage": false,
+        "endCursor": null
+      }
+    },
+    "history": {
+      "nodes": [],
+      "pageInfo": {
+        "hasNextPage": false,
+        "endCursor": null
+      }
+    },
+    "children": {
+      "nodes": [],
+      "pageInfo": {
+        "hasNextPage": false
+      }
+    },
+    "attachments": {
+      "nodes": [],
+      "pageInfo": {
+        "hasNextPage": false,
+        "endCursor": null
+      }
+    },
+    "relations": {
+      "nodes": [],
+      "pageInfo": {
+        "hasNextPage": false
+      }
+    },
+    "inverseRelations": {
+      "nodes": [],
+      "pageInfo": {
+        "hasNextPage": false
+      }
+    },
+    "documents": {
+      "nodes": [
+        {
+          "id": "f0000000-0000-4000-8000-000000000051",
+          "title": "Doc 51",
+          "slugId": "000000000051",
+          "url": "https://linear.app/kadoraba/document/doc-51-000000000051",
+          "createdAt": "2025-06-01T00:00:52.000Z",
+          "updatedAt": "2025-06-01T00:00:52.000Z"
+        },
+        {
+          "id": "f0000000-0000-4000-8000-000000000050",
+          "title": "Doc 50",
+          "slugId": "000000000050",
+          "url": "https://linear.app/kadoraba/document/doc-50-000000000050",
+          "createdAt": "2025-06-01T00:00:51.000Z",
+          "updatedAt": "2025-06-01T00:00:51.000Z"
+        },
+        {
+          "id": "f0000000-0000-4000-8000-000000000049",
+          "title": "Doc 49",
+          "slugId": "000000000049",
+          "url": "https://linear.app/kadoraba/document/doc-49-000000000049",
+          "createdAt": "2025-06-01T00:00:50.000Z",
+          "updatedAt": "2025-06-01T00:00:50.000Z"
+        },
+        {
+          "id": "f0000000-0000-4000-8000-000000000048",
+          "title": "Doc 48",
+          "slugId": "000000000048",
+          "url": "https://linear.app/kadoraba/document/doc-48-000000000048",
+          "createdAt": "2025-06-01T00:00:49.000Z",
+          "updatedAt": "2025-06-01T00:00:49.000Z"
+        },
+        {
+          "id": "f0000000-0000-4000-8000-000000000047",
+          "title": "Doc 47",
+          "slugId": "000000000047",
+          "url": "https://linear.app/kadoraba/document/doc-47-000000000047",
+          "createdAt": "2025-06-01T00:00:48.000Z",
+          "updatedAt": "2025-06-01T00:00:48.000Z"
+        },
+        {
+          "id": "f0000000-0000-4000-8000-000000000046",
+          "title": "Doc 46",
+          "slugId": "000000000046",
+          "url": "https://linear.app/kadoraba/document/doc-46-000000000046",
+          "createdAt": "2025-06-01T00:00:47.000Z",
+          "updatedAt": "2025-06-01T00:00:47.000Z"
+        },
+        {
+          "id": "f0000000-0000-4000-8000-000000000045",
+          "title": "Doc 45",
+          "slugId": "000000000045",
+          "url": "https://linear.app/kadoraba/document/doc-45-000000000045",
+          "createdAt": "2025-06-01T00:00:46.000Z",
+          "updatedAt": "2025-06-01T00:00:46.000Z"
+        },
+        {
+          "id": "f0000000-0000-4000-8000-000000000044",
+          "title": "Doc 44",
+          "slugId": "000000000044",
+          "url": "https://linear.app/kadoraba/document/doc-44-000000000044",
+          "createdAt": "2025-06-01T00:00:45.000Z",
+          "updatedAt": "2025-06-01T00:00:45.000Z"
+        },
+        {
+          "id": "f0000000-0000-4000-8000-000000000043",
+          "title": "Doc 43",
+          "slugId": "000000000043",
+          "url": "https://linear.app/kadoraba/document/doc-43-000000000043",
+          "createdAt": "2025-06-01T00:00:44.000Z",
+          "updatedAt": "2025-06-01T00:00:44.000Z"
+        },
+        {
+          "id": "f0000000-0000-4000-8000-000000000042",
+          "title": "Doc 42",
+          "slugId": "000000000042",
+          "url": "https://linear.app/kadoraba/document/doc-42-000000000042",
+          "createdAt": "2025-06-01T00:00:43.000Z",
+          "updatedAt": "2025-06-01T00:00:43.000Z"
+        },
+        {
+          "id": "f0000000-0000-4000-8000-000000000041",
+          "title": "Doc 41",
+          "slugId": "000000000041",
+          "url": "https://linear.app/kadoraba/document/doc-41-000000000041",
+          "createdAt": "2025-06-01T00:00:42.000Z",
+          "updatedAt": "2025-06-01T00:00:42.000Z"
+        },
+        {
+          "id": "f0000000-0000-4000-8000-000000000040",
+          "title": "Doc 40",
+          "slugId": "000000000040",
+          "url": "https://linear.app/kadoraba/document/doc-40-000000000040",
+          "createdAt": "2025-06-01T00:00:41.000Z",
+          "updatedAt": "2025-06-01T00:00:41.000Z"
+        },
+        {
+          "id": "f0000000-0000-4000-8000-000000000039",
+          "title": "Doc 39",
+          "slugId": "000000000039",
+          "url": "https://linear.app/kadoraba/document/doc-39-000000000039",
+          "createdAt": "2025-06-01T00:00:40.000Z",
+          "updatedAt": "2025-06-01T00:00:40.000Z"
+        },
+        {
+          "id": "f0000000-0000-4000-8000-000000000038",
+          "title": "Doc 38",
+          "slugId": "000000000038",
+          "url": "https://linear.app/kadoraba/document/doc-38-000000000038",
+          "createdAt": "2025-06-01T00:00:39.000Z",
+          "updatedAt": "2025-06-01T00:00:39.000Z"
+        },
+        {
+          "id": "f0000000-0000-4000-8000-000000000037",
+          "title": "Doc 37",
+          "slugId": "000000000037",
+          "url": "https://linear.app/kadoraba/document/doc-37-000000000037",
+          "createdAt": "2025-06-01T00:00:38.000Z",
+          "updatedAt": "2025-06-01T00:00:38.000Z"
+        },
+        {
+          "id": "f0000000-0000-4000-8000-000000000036",
+          "title": "Doc 36",
+          "slugId": "000000000036",
+          "url": "https://linear.app/kadoraba/document/doc-36-000000000036",
+          "createdAt": "2025-06-01T00:00:37.000Z",
+          "updatedAt": "2025-06-01T00:00:37.000Z"
+        },
+        {
+          "id": "f0000000-0000-4000-8000-000000000035",
+          "title": "Doc 35",
+          "slugId": "000000000035",
+          "url": "https://linear.app/kadoraba/document/doc-35-000000000035",
+          "createdAt": "2025-06-01T00:00:36.000Z",
+          "updatedAt": "2025-06-01T00:00:36.000Z"
+        },
+        {
+          "id": "f0000000-0000-4000-8000-000000000034",
+          "title": "Doc 34",
+          "slugId": "000000000034",
+          "url": "https://linear.app/kadoraba/document/doc-34-000000000034",
+          "createdAt": "2025-06-01T00:00:35.000Z",
+          "updatedAt": "2025-06-01T00:00:35.000Z"
+        },
+        {
+          "id": "f0000000-0000-4000-8000-000000000033",
+          "title": "Doc 33",
+          "slugId": "000000000033",
+          "url": "https://linear.app/kadoraba/document/doc-33-000000000033",
+          "createdAt": "2025-06-01T00:00:34.000Z",
+          "updatedAt": "2025-06-01T00:00:34.000Z"
+        },
+        {
+          "id": "f0000000-0000-4000-8000-000000000032",
+          "title": "Doc 32",
+          "slugId": "000000000032",
+          "url": "https://linear.app/kadoraba/document/doc-32-000000000032",
+          "createdAt": "2025-06-01T00:00:33.000Z",
+          "updatedAt": "2025-06-01T00:00:33.000Z"
+        },
+        {
+          "id": "f0000000-0000-4000-8000-000000000031",
+          "title": "Doc 31",
+          "slugId": "000000000031",
+          "url": "https://linear.app/kadoraba/document/doc-31-000000000031",
+          "createdAt": "2025-06-01T00:00:32.000Z",
+          "updatedAt": "2025-06-01T00:00:32.000Z"
+        },
+        {
+          "id": "f0000000-0000-4000-8000-000000000030",
+          "title": "Doc 30",
+          "slugId": "000000000030",
+          "url": "https://linear.app/kadoraba/document/doc-30-000000000030",
+          "createdAt": "2025-06-01T00:00:31.000Z",
+          "updatedAt": "2025-06-01T00:00:31.000Z"
+        },
+        {
+          "id": "f0000000-0000-4000-8000-000000000029",
+          "title": "Doc 29",
+          "slugId": "000000000029",
+          "url": "https://linear.app/kadoraba/document/doc-29-000000000029",
+          "createdAt": "2025-06-01T00:00:30.000Z",
+          "updatedAt": "2025-06-01T00:00:30.000Z"
+        },
+        {
+          "id": "f0000000-0000-4000-8000-000000000028",
+          "title": "Doc 28",
+          "slugId": "000000000028",
+          "url": "https://linear.app/kadoraba/document/doc-28-000000000028",
+          "createdAt": "2025-06-01T00:00:29.000Z",
+          "updatedAt": "2025-06-01T00:00:29.000Z"
+        },
+        {
+          "id": "f0000000-0000-4000-8000-000000000027",
+          "title": "Doc 27",
+          "slugId": "000000000027",
+          "url": "https://linear.app/kadoraba/document/doc-27-000000000027",
+          "createdAt": "2025-06-01T00:00:28.000Z",
+          "updatedAt": "2025-06-01T00:00:28.000Z"
+        },
+        {
+          "id": "f0000000-0000-4000-8000-000000000026",
+          "title": "Doc 26",
+          "slugId": "000000000026",
+          "url": "https://linear.app/kadoraba/document/doc-26-000000000026",
+          "createdAt": "2025-06-01T00:00:27.000Z",
+          "updatedAt": "2025-06-01T00:00:27.000Z"
+        },
+        {
+          "id": "f0000000-0000-4000-8000-000000000025",
+          "title": "Doc 25",
+          "slugId": "000000000025",
+          "url": "https://linear.app/kadoraba/document/doc-25-000000000025",
+          "createdAt": "2025-06-01T00:00:26.000Z",
+          "updatedAt": "2025-06-01T00:00:26.000Z"
+        },
+        {
+          "id": "f0000000-0000-4000-8000-000000000024",
+          "title": "Doc 24",
+          "slugId": "000000000024",
+          "url": "https://linear.app/kadoraba/document/doc-24-000000000024",
+          "createdAt": "2025-06-01T00:00:25.000Z",
+          "updatedAt": "2025-06-01T00:00:25.000Z"
+        },
+        {
+          "id": "f0000000-0000-4000-8000-000000000023",
+          "title": "Doc 23",
+          "slugId": "000000000023",
+          "url": "https://linear.app/kadoraba/document/doc-23-000000000023",
+          "createdAt": "2025-06-01T00:00:24.000Z",
+          "updatedAt": "2025-06-01T00:00:24.000Z"
+        },
+        {
+          "id": "f0000000-0000-4000-8000-000000000022",
+          "title": "Doc 22",
+          "slugId": "000000000022",
+          "url": "https://linear.app/kadoraba/document/doc-22-000000000022",
+          "createdAt": "2025-06-01T00:00:23.000Z",
+          "updatedAt": "2025-06-01T00:00:23.000Z"
+        },
+        {
+          "id": "f0000000-0000-4000-8000-000000000021",
+          "title": "Doc 21",
+          "slugId": "000000000021",
+          "url": "https://linear.app/kadoraba/document/doc-21-000000000021",
+          "createdAt": "2025-06-01T00:00:22.000Z",
+          "updatedAt": "2025-06-01T00:00:22.000Z"
+        },
+        {
+          "id": "f0000000-0000-4000-8000-000000000020",
+          "title": "Doc 20",
+          "slugId": "000000000020",
+          "url": "https://linear.app/kadoraba/document/doc-20-000000000020",
+          "createdAt": "2025-06-01T00:00:21.000Z",
+          "updatedAt": "2025-06-01T00:00:21.000Z"
+        },
+        {
+          "id": "f0000000-0000-4000-8000-000000000019",
+          "title": "Doc 19",
+          "slugId": "000000000019",
+          "url": "https://linear.app/kadoraba/document/doc-19-000000000019",
+          "createdAt": "2025-06-01T00:00:20.000Z",
+          "updatedAt": "2025-06-01T00:00:20.000Z"
+        },
+        {
+          "id": "f0000000-0000-4000-8000-000000000018",
+          "title": "Doc 18",
+          "slugId": "000000000018",
+          "url": "https://linear.app/kadoraba/document/doc-18-000000000018",
+          "createdAt": "2025-06-01T00:00:19.000Z",
+          "updatedAt": "2025-06-01T00:00:19.000Z"
+        },
+        {
+          "id": "f0000000-0000-4000-8000-000000000017",
+          "title": "Doc 17",
+          "slugId": "000000000017",
+          "url": "https://linear.app/kadoraba/document/doc-17-000000000017",
+          "createdAt": "2025-06-01T00:00:18.000Z",
+          "updatedAt": "2025-06-01T00:00:18.000Z"
+        },
+        {
+          "id": "f0000000-0000-4000-8000-000000000016",
+          "title": "Doc 16",
+          "slugId": "000000000016",
+          "url": "https://linear.app/kadoraba/document/doc-16-000000000016",
+          "createdAt": "2025-06-01T00:00:17.000Z",
+          "updatedAt": "2025-06-01T00:00:17.000Z"
+        },
+        {
+          "id": "f0000000-0000-4000-8000-000000000015",
+          "title": "Doc 15",
+          "slugId": "000000000015",
+          "url": "https://linear.app/kadoraba/document/doc-15-000000000015",
+          "createdAt": "2025-06-01T00:00:16.000Z",
+          "updatedAt": "2025-06-01T00:00:16.000Z"
+        },
+        {
+          "id": "f0000000-0000-4000-8000-000000000014",
+          "title": "Doc 14",
+          "slugId": "000000000014",
+          "url": "https://linear.app/kadoraba/document/doc-14-000000000014",
+          "createdAt": "2025-06-01T00:00:15.000Z",
+          "updatedAt": "2025-06-01T00:00:15.000Z"
+        },
+        {
+          "id": "f0000000-0000-4000-8000-000000000013",
+          "title": "Doc 13",
+          "slugId": "000000000013",
+          "url": "https://linear.app/kadoraba/document/doc-13-000000000013",
+          "createdAt": "2025-06-01T00:00:14.000Z",
+          "updatedAt": "2025-06-01T00:00:14.000Z"
+        },
+        {
+          "id": "f0000000-0000-4000-8000-000000000012",
+          "title": "Doc 12",
+          "slugId": "000000000012",
+          "url": "https://linear.app/kadoraba/document/doc-12-000000000012",
+          "createdAt": "2025-06-01T00:00:13.000Z",
+          "updatedAt": "2025-06-01T00:00:13.000Z"
+        },
+        {
+          "id": "f0000000-0000-4000-8000-000000000011",
+          "title": "Doc 11",
+          "slugId": "000000000011",
+          "url": "https://linear.app/kadoraba/document/doc-11-000000000011",
+          "createdAt": "2025-06-01T00:00:12.000Z",
+          "updatedAt": "2025-06-01T00:00:12.000Z"
+        },
+        {
+          "id": "f0000000-0000-4000-8000-000000000010",
+          "title": "Doc 10",
+          "slugId": "000000000010",
+          "url": "https://linear.app/kadoraba/document/doc-10-000000000010",
+          "createdAt": "2025-06-01T00:00:11.000Z",
+          "updatedAt": "2025-06-01T00:00:11.000Z"
+        },
+        {
+          "id": "f0000000-0000-4000-8000-000000000009",
+          "title": "Doc 9",
+          "slugId": "000000000009",
+          "url": "https://linear.app/kadoraba/document/doc-9-000000000009",
+          "createdAt": "2025-06-01T00:00:10.000Z",
+          "updatedAt": "2025-06-01T00:00:10.000Z"
+        },
+        {
+          "id": "f0000000-0000-4000-8000-000000000008",
+          "title": "Doc 8",
+          "slugId": "000000000008",
+          "url": "https://linear.app/kadoraba/document/doc-8-000000000008",
+          "createdAt": "2025-06-01T00:00:09.000Z",
+          "updatedAt": "2025-06-01T00:00:09.000Z"
+        },
+        {
+          "id": "f0000000-0000-4000-8000-000000000007",
+          "title": "Doc 7",
+          "slugId": "000000000007",
+          "url": "https://linear.app/kadoraba/document/doc-7-000000000007",
+          "createdAt": "2025-06-01T00:00:08.000Z",
+          "updatedAt": "2025-06-01T00:00:08.000Z"
+        },
+        {
+          "id": "f0000000-0000-4000-8000-000000000006",
+          "title": "Doc 6",
+          "slugId": "000000000006",
+          "url": "https://linear.app/kadoraba/document/doc-6-000000000006",
+          "createdAt": "2025-06-01T00:00:07.000Z",
+          "updatedAt": "2025-06-01T00:00:07.000Z"
+        },
+        {
+          "id": "f0000000-0000-4000-8000-000000000005",
+          "title": "Doc 5",
+          "slugId": "000000000005",
+          "url": "https://linear.app/kadoraba/document/doc-5-000000000005",
+          "createdAt": "2025-06-01T00:00:06.000Z",
+          "updatedAt": "2025-06-01T00:00:06.000Z"
+        },
+        {
+          "id": "f0000000-0000-4000-8000-000000000004",
+          "title": "Doc 4",
+          "slugId": "000000000004",
+          "url": "https://linear.app/kadoraba/document/doc-4-000000000004",
+          "createdAt": "2025-06-01T00:00:05.000Z",
+          "updatedAt": "2025-06-01T00:00:05.000Z"
+        },
+        {
+          "id": "f0000000-0000-4000-8000-000000000003",
+          "title": "Doc 3",
+          "slugId": "000000000003",
+          "url": "https://linear.app/kadoraba/document/doc-3-000000000003",
+          "createdAt": "2025-06-01T00:00:04.000Z",
+          "updatedAt": "2025-06-01T00:00:04.000Z"
+        },
+        {
+          "id": "f0000000-0000-4000-8000-000000000002",
+          "title": "Doc 2",
+          "slugId": "000000000002",
+          "url": "https://linear.app/kadoraba/document/doc-2-000000000002",
+          "createdAt": "2025-06-01T00:00:03.000Z",
+          "updatedAt": "2025-06-01T00:00:03.000Z"
+        },
+        {
+          "id": "f0000000-0000-4000-8000-000000000001",
+          "title": "Doc 1",
+          "slugId": "000000000001",
+          "url": "https://linear.app/kadoraba/document/doc-1-000000000001",
+          "createdAt": "2025-06-01T00:00:02.000Z",
+          "updatedAt": "2025-06-01T00:00:02.000Z"
+        }
+      ],
+      "pageInfo": {
+        "hasNextPage": false,
+        "endCursor": "f0000000-0000-4000-8000-000000000001"
+      }
+    }
+  },
+  "contextSummary": {
+    "viewerId": "0b000000-0000-4000-8000-000000000001",
+    "assignee": null,
+    "viewerIsAssignee": false,
+    "parent": null,
+    "subIssues": {
+      "fetched": true,
+      "count": 0,
+      "complete": true,
+      "byState": {},
+      "items": []
+    },
+    "relations": {
+      "fetched": true,
+      "complete": true,
+      "items": []
+    },
+    "attachments": {
+      "fetched": true,
+      "count": 0,
+      "complete": true
+    },
+    "comments": {
+      "fetched": false,
+      "count": 0,
+      "complete": false,
+      "unresolvedThreads": 0,
+      "byOtherAccounts": 0,
+      "latestByOtherAccount": null
+    },
+    "history": {
+      "fetched": true,
+      "entries": 0,
+      "complete": true,
+      "changesByOtherAccounts": []
+    }
+  }
+}

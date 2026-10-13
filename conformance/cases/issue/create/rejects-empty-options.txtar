@@ -1,0 +1,185 @@
+Explicitly empty options are rejected before any request; --description and --description-file together are rejected too.
+-- file body.md --
+body
+-- run --
+linear issue create --json --title 'Valid title' --priority 2 --assignee ''
+-- stdout.json --
+{
+  "ok": false,
+  "effect": "none",
+  "error": {
+    "code": "ValidationError",
+    "message": "User reference cannot be empty"
+  }
+}
+-- exit --
+1
+-- no-requests --
+-- run --
+linear issue create --json --title 'Valid title' --priority 2 --due-date ''
+-- stdout.json --
+{
+  "ok": false,
+  "effect": "none",
+  "error": {
+    "code": "ValidationError",
+    "message": "dueDate cannot be empty"
+  }
+}
+-- exit --
+1
+-- no-requests --
+-- run --
+linear issue create --json --title 'Valid title' --priority 2 --parent ''
+-- stdout.json --
+{
+  "ok": false,
+  "effect": "none",
+  "error": {
+    "code": "ValidationError",
+    "message": "parent cannot be empty"
+  }
+}
+-- exit --
+1
+-- no-requests --
+-- run --
+linear issue create --json --title 'Valid title' --priority 2 --team ''
+-- stdout.json --
+{
+  "ok": false,
+  "effect": "none",
+  "error": {
+    "code": "ValidationError",
+    "message": "team cannot be empty"
+  }
+}
+-- exit --
+1
+-- no-requests --
+-- run --
+linear issue create --json --title 'Valid title' --priority 2 --project ''
+-- stdout.json --
+{
+  "ok": false,
+  "effect": "none",
+  "error": {
+    "code": "ValidationError",
+    "message": "project cannot be empty"
+  }
+}
+-- exit --
+1
+-- no-requests --
+-- run --
+linear issue create --json --title 'Valid title' --priority 2 --state ''
+-- stdout.json --
+{
+  "ok": false,
+  "effect": "none",
+  "error": {
+    "code": "ValidationError",
+    "message": "state cannot be empty"
+  }
+}
+-- exit --
+1
+-- no-requests --
+-- run --
+linear issue create --json --title 'Valid title' --priority 2 --milestone ''
+-- stdout.json --
+{
+  "ok": false,
+  "effect": "none",
+  "error": {
+    "code": "ValidationError",
+    "message": "milestone cannot be empty"
+  }
+}
+-- exit --
+1
+-- no-requests --
+-- run --
+linear issue create --json --title 'Valid title' --priority 2 --cycle ''
+-- stdout.json --
+{
+  "ok": false,
+  "effect": "none",
+  "error": {
+    "code": "ValidationError",
+    "message": "cycle cannot be empty"
+  }
+}
+-- exit --
+1
+-- no-requests --
+-- run --
+linear issue create --json --priority 2 --title ''
+-- stdout.json --
+{
+  "ok": false,
+  "effect": "none",
+  "error": {
+    "code": "ValidationError",
+    "message": "title cannot be empty"
+  }
+}
+-- exit --
+1
+-- no-requests --
+-- run --
+linear issue create --json --title 'Valid title' --priority 2 --label ''
+-- stdout.json --
+{
+  "ok": false,
+  "effect": "none",
+  "error": {
+    "code": "ValidationError",
+    "message": "label cannot contain an empty reference"
+  }
+}
+-- exit --
+1
+-- no-requests --
+-- run --
+linear issue create --json --title 'Valid title' --priority 2 --description-file ''
+-- stdout.json --
+{
+  "ok": false,
+  "effect": "none",
+  "error": {
+    "code": "ValidationError",
+    "message": "Description file path cannot be empty"
+  }
+}
+-- exit --
+1
+-- no-requests --
+-- run --
+linear issue create --json --title 'Valid title' --priority 2 --label valid --label ''
+-- stdout.json --
+{
+  "ok": false,
+  "effect": "none",
+  "error": {
+    "code": "ValidationError",
+    "message": "label cannot contain an empty reference"
+  }
+}
+-- exit --
+1
+-- no-requests --
+-- run --
+linear issue create --json --title 'Valid title' --priority 2 --description '' --description-file body.md
+-- stdout.json --
+{
+  "ok": false,
+  "effect": "none",
+  "error": {
+    "code": "ValidationError",
+    "message": "Cannot specify both --description and --description-file"
+  }
+}
+-- exit --
+1
+-- no-requests --

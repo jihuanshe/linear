@@ -1,0 +1,12 @@
+Issue identifiers whose team key contains digits resolve normally.
+-- seed.json --
+{"Team": [{"id": "0c000000-0000-4000-8000-000000000004", "key": "PLA4", "name": "Platform 4"}],
+ "WorkflowState": [{"id": "0d000000-0000-4000-8000-000000000041", "team": "0c000000-0000-4000-8000-000000000004", "name": "Backlog", "type": "backlog", "position": 0, "color": "#bec2c8"}],
+ "Issue": [{"identifier": "PLA4-16916", "title": "Numbered team", "team": "0c000000-0000-4000-8000-000000000004", "state": "0d000000-0000-4000-8000-000000000041"}]}
+-- run --
+linear issue update --unprotected PLA4-16916 --description "new description"
+-- stdout --
+✓ Updated issue PLA4-16916: Numbered team
+https://linear.app/kadoraba/issue/PLA4-16916/numbered-team
+-- state.json --
+{"Issue": [{"identifier": "PLA4-16916", "description": "new description"}]}

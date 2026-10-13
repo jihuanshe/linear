@@ -1,0 +1,20 @@
+An issue in the next, unnamed cycle shows it by number while the team has no active cycle.
+-- seed.json --
+{"Team": [{"id": "0c000000-0000-4000-8000-000000000001", "cyclesEnabled": true}],
+ "Cycle": [{"id": "1d000000-0000-4000-8000-000000000008", "team": "0c000000-0000-4000-8000-000000000001", "number": 8, "name": null, "startsAt": "2026-01-15T00:00:00.000Z", "endsAt": "2026-01-29T00:00:00.000Z"}],
+ "Issue": [{"identifier": "ENG-891", "title": "Tune rate limit thresholds", "state": "0d000000-0000-4000-8000-000000000002", "priority": 4, "cycle": "1d000000-0000-4000-8000-000000000008", "description": "Follow-up tuning work."}]}
+-- run --
+linear issue view ENG-891 --no-comments
+-- stdout --
+# ENG-891: Tune rate limit thresholds
+
+**State:** Todo | **Priority:** ▄   | **Assignee:** Unassigned | **Cycle:** #8 (+1)
+
+## Context
+
+- Assignee: Unassigned
+- Parent / Sub-issues / Relations: none
+- Attachments: 0 | Comments: not fetched
+- Changes by other accounts: none (all 0 history entries)
+
+Follow-up tuning work.

@@ -1,0 +1,347 @@
+The Context section separates the current account from others: who assigned it, who commented, and history changes by other accounts.
+-- seed.json --
+{"User": [{"id": "1b000000-0000-4000-8000-000000000009", "name": "other", "displayName": "Other"}],
+ "WorkflowState": [{"id": "0d000000-0000-4000-8000-000000000008", "team": "0c000000-0000-4000-8000-000000000001", "name": "Triage", "type": "triage", "position": -1, "color": "#fc7840"}],
+ "Issue": [
+  {"id": "1a000000-0000-4000-8000-000000000100", "identifier": "ENG-100", "title": "Epic", "state": "0d000000-0000-4000-8000-000000000003"},
+  {"id": "1a000000-0000-4000-8000-000000000200", "identifier": "ENG-200", "title": "Kept"},
+  {"id": "1a000000-0000-4000-8000-000000000321", "identifier": "ENG-321", "title": "Placeholder issue somebody picked up", "description": "Template body.", "priority": 3,
+   "state": "0d000000-0000-4000-8000-000000000002", "assignee": "0b000000-0000-4000-8000-000000000001", "parent": "1a000000-0000-4000-8000-000000000100"},
+  {"identifier": "ENG-322", "title": "Child", "state": "0d000000-0000-4000-8000-000000000005", "parent": "1a000000-0000-4000-8000-000000000321"}],
+ "IssueRelation": [{"type": "duplicate", "issue": "1a000000-0000-4000-8000-000000000321", "relatedIssue": "1a000000-0000-4000-8000-000000000200"}],
+ "Comment": [
+  {"issue": "1a000000-0000-4000-8000-000000000321", "user": "1b000000-0000-4000-8000-000000000009", "createdAt": "2025-09-02T09:00:00.000Z", "body": "Taking this."},
+  {"issue": "1a000000-0000-4000-8000-000000000321", "user": "0b000000-0000-4000-8000-000000000001", "createdAt": "2025-09-03T09:00:00.000Z", "body": "Triage note."}],
+ "Attachment": [{"issue": "1a000000-0000-4000-8000-000000000321", "title": "PR", "url": "https://github.com/example/repo/pull/1", "sourceType": "github", "createdAt": "2025-09-02T10:00:00.000Z"}],
+ "IssueHistory": [
+  {"issue": "1a000000-0000-4000-8000-000000000321", "actor": "0b000000-0000-4000-8000-000000000001", "createdAt": "2025-09-01T08:00:00.000Z"},
+  {"issue": "1a000000-0000-4000-8000-000000000321", "actor": "1b000000-0000-4000-8000-000000000009", "createdAt": "2025-09-02T08:00:00.000Z",
+   "fromState": "0d000000-0000-4000-8000-000000000008", "toState": "0d000000-0000-4000-8000-000000000002", "toAssignee": "0b000000-0000-4000-8000-000000000001"}]}
+-- run --
+linear issue view ENG-321
+-- stdout --
+# ENG-321: Placeholder issue somebody picked up
+
+**State:** Todo | **Priority:** ▄▆  | **Assignee:** @alex | **Unresolved threads:** 2
+
+## Context
+
+- Assignee: @alex (the current account)
+- Parent: ENG-100 Epic [In Progress]
+- Sub-issues: 1 (Done 1): ENG-322
+- Relations: duplicate of ENG-200
+- Attachments: 1 | Comments: 2 (2 unresolved threads; 1 by other accounts, latest @Other 2025-09-02 09:00)
+- Changes by other accounts (all 2 history entries):
+  - 2025-09-02 08:00 @Other: state Triage -> Todo; assignee - -> alex
+
+Template body.
+
+## Parent
+
+- **ENG-100**: Epic _[In Progress]_
+
+
+## Sub-issues
+
+- **ENG-322**: Child _[Done]_
+
+
+## Attachments
+
+- **PR**: https://github.com/example/repo/pull/1 _[github]_
+
+
+## Comments
+
+- **@Other** - *9/2/2025* [thread: f0000000-0000-4000-8000-000000000003]
+
+  Taking this.
+
+- **@alex** - *9/3/2025* [thread: f0000000-0000-4000-8000-000000000004]
+
+  Triage note.
+
+
+-- run --
+linear issue view ENG-321 --json
+-- stdout.json --
+{
+  "organization": {
+    "id": "0a000000-0000-4000-8000-000000000001",
+    "urlKey": "kadoraba"
+  },
+  "viewer": {
+    "id": "0b000000-0000-4000-8000-000000000001"
+  },
+  "issue": {
+    "id": "1a000000-0000-4000-8000-000000000321",
+    "identifier": "ENG-321",
+    "archivedAt": null,
+    "trashed": null,
+    "title": "Placeholder issue somebody picked up",
+    "description": "Template body.",
+    "url": "https://linear.app/kadoraba/issue/ENG-321/placeholder-issue-somebody-picked-up",
+    "branchName": "alex/eng-321-placeholder-issue-somebody-picked-up",
+    "priority": 3,
+    "estimate": null,
+    "dueDate": null,
+    "state": {
+      "id": "0d000000-0000-4000-8000-000000000002",
+      "name": "Todo",
+      "type": "unstarted",
+      "color": "#e2e2e2"
+    },
+    "assignee": {
+      "id": "0b000000-0000-4000-8000-000000000001",
+      "name": "Alex",
+      "displayName": "alex"
+    },
+    "project": null,
+    "projectMilestone": null,
+    "cycle": null,
+    "team": {
+      "id": "0c000000-0000-4000-8000-000000000001",
+      "key": "ENG",
+      "activeCycle": null
+    },
+    "parent": {
+      "id": "1a000000-0000-4000-8000-000000000100",
+      "identifier": "ENG-100",
+      "title": "Epic",
+      "state": {
+        "name": "In Progress",
+        "color": "#f2c94c"
+      }
+    },
+    "labels": {
+      "nodes": [],
+      "pageInfo": {
+        "hasNextPage": false,
+        "endCursor": null
+      }
+    },
+    "history": {
+      "nodes": [
+        {
+          "id": "f0000000-0000-4000-8000-000000000007",
+          "createdAt": "2025-09-02T08:00:00.000Z",
+          "actor": {
+            "id": "1b000000-0000-4000-8000-000000000009",
+            "name": "other",
+            "displayName": "Other"
+          },
+          "botActor": null,
+          "fromState": {
+            "name": "Triage"
+          },
+          "toState": {
+            "name": "Todo"
+          },
+          "fromAssignee": null,
+          "toAssignee": {
+            "id": "0b000000-0000-4000-8000-000000000001",
+            "name": "Alex",
+            "displayName": "alex"
+          },
+          "fromProject": null,
+          "toProject": null
+        },
+        {
+          "id": "f0000000-0000-4000-8000-000000000006",
+          "createdAt": "2025-09-01T08:00:00.000Z",
+          "actor": {
+            "id": "0b000000-0000-4000-8000-000000000001",
+            "name": "Alex",
+            "displayName": "alex"
+          },
+          "botActor": null,
+          "fromState": null,
+          "toState": null,
+          "fromAssignee": null,
+          "toAssignee": null,
+          "fromProject": null,
+          "toProject": null
+        }
+      ],
+      "pageInfo": {
+        "hasNextPage": false,
+        "endCursor": "f0000000-0000-4000-8000-000000000006"
+      }
+    },
+    "children": {
+      "nodes": [
+        {
+          "identifier": "ENG-322",
+          "title": "Child",
+          "state": {
+            "name": "Done",
+            "color": "#5e6ad2"
+          }
+        }
+      ],
+      "pageInfo": {
+        "hasNextPage": false
+      }
+    },
+    "comments": {
+      "nodes": [
+        {
+          "id": "f0000000-0000-4000-8000-000000000004",
+          "body": "Triage note.",
+          "quotedText": null,
+          "documentContentId": null,
+          "createdAt": "2025-09-03T09:00:00.000Z",
+          "updatedAt": "2025-09-03T09:00:00.000Z",
+          "url": "https://linear.app/kadoraba/issue/ENG-321/placeholder-issue-somebody-picked-up#comment-f0000000",
+          "resolvedAt": null,
+          "resolvingCommentId": null,
+          "resolvingUser": null,
+          "user": {
+            "id": "0b000000-0000-4000-8000-000000000001",
+            "name": "Alex",
+            "displayName": "alex"
+          },
+          "externalUser": null,
+          "parent": null
+        },
+        {
+          "id": "f0000000-0000-4000-8000-000000000003",
+          "body": "Taking this.",
+          "quotedText": null,
+          "documentContentId": null,
+          "createdAt": "2025-09-02T09:00:00.000Z",
+          "updatedAt": "2025-09-02T09:00:00.000Z",
+          "url": "https://linear.app/kadoraba/issue/ENG-321/placeholder-issue-somebody-picked-up#comment-f0000000",
+          "resolvedAt": null,
+          "resolvingCommentId": null,
+          "resolvingUser": null,
+          "user": {
+            "id": "1b000000-0000-4000-8000-000000000009",
+            "name": "other",
+            "displayName": "Other"
+          },
+          "externalUser": null,
+          "parent": null
+        }
+      ],
+      "pageInfo": {
+        "hasNextPage": false,
+        "endCursor": "f0000000-0000-4000-8000-000000000003"
+      }
+    },
+    "attachments": {
+      "nodes": [
+        {
+          "id": "f0000000-0000-4000-8000-000000000005",
+          "title": "PR",
+          "url": "https://github.com/example/repo/pull/1",
+          "subtitle": null,
+          "sourceType": "github",
+          "metadata": {},
+          "createdAt": "2025-09-02T10:00:00.000Z"
+        }
+      ],
+      "pageInfo": {
+        "hasNextPage": false,
+        "endCursor": "f0000000-0000-4000-8000-000000000005"
+      }
+    },
+    "relations": {
+      "nodes": [
+        {
+          "id": "f0000000-0000-4000-8000-000000000002",
+          "type": "duplicate",
+          "relatedIssue": {
+            "identifier": "ENG-200",
+            "title": "Kept"
+          }
+        }
+      ],
+      "pageInfo": {
+        "hasNextPage": false
+      }
+    },
+    "inverseRelations": {
+      "nodes": [],
+      "pageInfo": {
+        "hasNextPage": false
+      }
+    },
+    "documents": {
+      "nodes": [],
+      "pageInfo": {
+        "hasNextPage": false,
+        "endCursor": null
+      }
+    }
+  },
+  "contextSummary": {
+    "viewerId": "0b000000-0000-4000-8000-000000000001",
+    "assignee": {
+      "id": "0b000000-0000-4000-8000-000000000001",
+      "name": "alex"
+    },
+    "viewerIsAssignee": true,
+    "parent": {
+      "identifier": "ENG-100",
+      "title": "Epic",
+      "state": "In Progress"
+    },
+    "subIssues": {
+      "fetched": true,
+      "count": 1,
+      "complete": true,
+      "byState": {
+        "Done": 1
+      },
+      "items": [
+        {
+          "identifier": "ENG-322",
+          "state": "Done"
+        }
+      ]
+    },
+    "relations": {
+      "fetched": true,
+      "complete": true,
+      "items": [
+        {
+          "kind": "duplicate of",
+          "identifier": "ENG-200",
+          "title": "Kept"
+        }
+      ]
+    },
+    "attachments": {
+      "fetched": true,
+      "count": 1,
+      "complete": true
+    },
+    "comments": {
+      "fetched": true,
+      "count": 2,
+      "complete": true,
+      "unresolvedThreads": 2,
+      "byOtherAccounts": 1,
+      "latestByOtherAccount": {
+        "author": "Other",
+        "createdAt": "2025-09-02T09:00:00.000Z"
+      }
+    },
+    "history": {
+      "fetched": true,
+      "entries": 2,
+      "complete": true,
+      "changesByOtherAccounts": [
+        {
+          "createdAt": "2025-09-02T08:00:00.000Z",
+          "actor": "Other",
+          "changes": [
+            "state Triage -> Todo",
+            "assignee - -> alex"
+          ]
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,161 @@
+Resolving a thread by its root or by any reply resolves the root, optionally naming a conclusion reply (UUIDs in any case); unresolving reopens it; repeating either is a no-op.
+-- seed.json --
+{"Issue": [{"id": "1a000000-0000-4000-8000-000000000001", "identifier": "ENG-1", "title": "Thread"}, {"id": "1a000000-0000-4000-8000-000000000002", "identifier": "ENG-2", "title": "Elsewhere"}],
+ "Comment": [
+  {"id": "abcdefab-1234-4567-89ab-abcdefabcdef", "issue": "1a000000-0000-4000-8000-000000000001", "body": "Root"},
+  {"id": "fedcbafe-1234-4567-89ab-fedcbafedcba", "issue": "1a000000-0000-4000-8000-000000000001", "parent": "abcdefab-1234-4567-89ab-abcdefabcdef", "body": "Conclusion"},
+  {"id": "1c000000-0000-4000-8000-000000000003", "issue": "1a000000-0000-4000-8000-000000000001", "parent": "abcdefab-1234-4567-89ab-abcdefabcdef", "body": "Another reply"},
+  {"id": "1c000000-0000-4000-8000-000000000009", "issue": "1a000000-0000-4000-8000-000000000002", "body": "Other issue"}]}
+-- run --
+linear issue comment resolve ABCDEFAB-1234-4567-89AB-ABCDEFABCDEF --resolving-comment FEDCBAFE-1234-4567-89AB-FEDCBAFEDCBA --json
+-- stdout.json --
+{
+  "ok": true,
+  "effect": "applied",
+  "data": {
+    "organization": {
+      "id": "0a000000-0000-4000-8000-000000000001",
+      "urlKey": "kadoraba"
+    },
+    "comment": {
+      "id": "abcdefab-1234-4567-89ab-abcdefabcdef",
+      "url": "https://linear.app/kadoraba/issue/ENG-1/thread#comment-abcdefab",
+      "parent": null,
+      "issue": {
+        "id": "1a000000-0000-4000-8000-000000000001",
+        "identifier": "ENG-1"
+      },
+      "resolvedAt": "2026-01-01T00:00:01.000Z",
+      "resolvingCommentId": "fedcbafe-1234-4567-89ab-fedcbafedcba",
+      "resolvingUser": {
+        "id": "0b000000-0000-4000-8000-000000000001",
+        "name": "Alex",
+        "displayName": "alex"
+      }
+    }
+  }
+}
+-- mutations.json --
+{"commentResolve": 1}
+-- state.json --
+{"Comment": [{"id": "abcdefab-1234-4567-89ab-abcdefabcdef", "resolvedAt": "{{*}}", "resolvingComment": "fedcbafe-1234-4567-89ab-fedcbafedcba"}, {}, {}, {}]}
+-- run --
+linear issue comment resolve abcdefab-1234-4567-89ab-abcdefabcdef --resolving-comment fedcbafe-1234-4567-89ab-fedcbafedcba --json
+-- stdout.json --
+{
+  "ok": true,
+  "effect": "none",
+  "data": {
+    "organization": {
+      "id": "0a000000-0000-4000-8000-000000000001",
+      "urlKey": "kadoraba"
+    },
+    "comment": {
+      "id": "abcdefab-1234-4567-89ab-abcdefabcdef",
+      "url": "https://linear.app/kadoraba/issue/ENG-1/thread#comment-abcdefab",
+      "parent": null,
+      "issue": {
+        "id": "1a000000-0000-4000-8000-000000000001",
+        "identifier": "ENG-1"
+      },
+      "resolvedAt": "2026-01-01T00:00:01.000Z",
+      "resolvingCommentId": "fedcbafe-1234-4567-89ab-fedcbafedcba",
+      "resolvingUser": {
+        "id": "0b000000-0000-4000-8000-000000000001",
+        "name": "Alex",
+        "displayName": "alex"
+      }
+    }
+  }
+}
+-- mutations.json --
+{}
+-- run --
+linear issue comment unresolve fedcbafe-1234-4567-89ab-fedcbafedcba --json
+-- stdout.json --
+{
+  "ok": true,
+  "effect": "applied",
+  "data": {
+    "organization": {
+      "id": "0a000000-0000-4000-8000-000000000001",
+      "urlKey": "kadoraba"
+    },
+    "comment": {
+      "id": "abcdefab-1234-4567-89ab-abcdefabcdef",
+      "url": "https://linear.app/kadoraba/issue/ENG-1/thread#comment-abcdefab",
+      "parent": null,
+      "issue": {
+        "id": "1a000000-0000-4000-8000-000000000001",
+        "identifier": "ENG-1"
+      },
+      "resolvedAt": null,
+      "resolvingCommentId": null,
+      "resolvingUser": null
+    }
+  }
+}
+-- mutations.json --
+{"commentUnresolve": 1}
+-- state.json --
+{"Comment": [{"id": "abcdefab-1234-4567-89ab-abcdefabcdef", "resolvedAt": null}, {}, {}, {}]}
+-- run --
+linear issue comment unresolve abcdefab-1234-4567-89ab-abcdefabcdef --json
+-- stdout.json --
+{
+  "ok": true,
+  "effect": "none",
+  "data": {
+    "organization": {
+      "id": "0a000000-0000-4000-8000-000000000001",
+      "urlKey": "kadoraba"
+    },
+    "comment": {
+      "id": "abcdefab-1234-4567-89ab-abcdefabcdef",
+      "url": "https://linear.app/kadoraba/issue/ENG-1/thread#comment-abcdefab",
+      "parent": null,
+      "issue": {
+        "id": "1a000000-0000-4000-8000-000000000001",
+        "identifier": "ENG-1"
+      },
+      "resolvedAt": null,
+      "resolvingCommentId": null,
+      "resolvingUser": null
+    }
+  }
+}
+-- mutations.json --
+{}
+-- run --
+linear issue comment resolve fedcbafe-1234-4567-89ab-fedcbafedcba --json
+-- stdout.json --
+{
+  "ok": true,
+  "effect": "applied",
+  "data": {
+    "organization": {
+      "id": "0a000000-0000-4000-8000-000000000001",
+      "urlKey": "kadoraba"
+    },
+    "comment": {
+      "id": "abcdefab-1234-4567-89ab-abcdefabcdef",
+      "url": "https://linear.app/kadoraba/issue/ENG-1/thread#comment-abcdefab",
+      "parent": null,
+      "issue": {
+        "id": "1a000000-0000-4000-8000-000000000001",
+        "identifier": "ENG-1"
+      },
+      "resolvedAt": "2026-01-01T00:00:04.000Z",
+      "resolvingCommentId": null,
+      "resolvingUser": {
+        "id": "0b000000-0000-4000-8000-000000000001",
+        "name": "Alex",
+        "displayName": "alex"
+      }
+    }
+  }
+}
+-- mutations.json --
+{"commentResolve": 1}
+-- state.json --
+{"Comment": [{"id": "abcdefab-1234-4567-89ab-abcdefabcdef", "resolvedAt": "{{*}}", "resolvingComment": null}, {}, {}, {}]}

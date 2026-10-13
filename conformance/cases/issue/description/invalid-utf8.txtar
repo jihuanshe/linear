@@ -1,0 +1,75 @@
+A description file or stdin that is not valid UTF-8 is rejected before anything is written.
+-- seed.json --
+{"Issue": [{"id": "1a000000-0000-4000-8000-000000000123", "identifier": "ENG-123", "title": "Described", "description": "Before"}]}
+-- file.b64 bad.md --
+QcMoQg==
+-- env --
+LINEAR_ISSUE_CREATE_ASSIGN_SELF=never
+-- run --
+linear issue create --title Description --team ENG --description-file bad.md --json
+-- stdout.json --
+{
+  "ok": false,
+  "effect": "none",
+  "error": {
+    "code": "ValidationError",
+    "message": "Failed to read description file: bad.md",
+    "suggestion": "The encoded data is not valid. Provide a readable UTF-8 file; use - to read stdin through EOF."
+  }
+}
+-- exit --
+1
+-- mutations.json --
+{}
+-- stdin.b64 --
+QcMoQg==
+-- run --
+linear issue create --title Description --team ENG --description-file - --json
+-- stdout.json --
+{
+  "ok": false,
+  "effect": "none",
+  "error": {
+    "code": "ValidationError",
+    "message": "Failed to read description file: -",
+    "suggestion": "The encoded data is not valid. Provide a readable UTF-8 file; use - to read stdin through EOF."
+  }
+}
+-- exit --
+1
+-- mutations.json --
+{}
+-- run --
+linear issue update ENG-123 --unprotected --description-file bad.md --json
+-- stdout.json --
+{
+  "ok": false,
+  "effect": "none",
+  "error": {
+    "code": "ValidationError",
+    "message": "Failed to update issue: Failed to read description file: bad.md",
+    "suggestion": "The encoded data is not valid. Provide a readable UTF-8 file; use - to read stdin through EOF."
+  }
+}
+-- exit --
+1
+-- mutations.json --
+{}
+-- stdin.b64 --
+QcMoQg==
+-- run --
+linear issue update ENG-123 --unprotected --description-file - --json
+-- stdout.json --
+{
+  "ok": false,
+  "effect": "none",
+  "error": {
+    "code": "ValidationError",
+    "message": "Failed to update issue: Failed to read description file: -",
+    "suggestion": "The encoded data is not valid. Provide a readable UTF-8 file; use - to read stdin through EOF."
+  }
+}
+-- exit --
+1
+-- mutations.json --
+{}

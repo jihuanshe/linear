@@ -1,0 +1,73 @@
+issue export refuses an existing output directory without touching it, creates missing parent directories, accepts an issue URL, exports an empty description, and prints the update command for people.
+-- seed.json --
+{"Issue": [{"id": "1a000000-0000-4000-8000-000000000123", "identifier": "ENG-123", "title": "Exported", "description": "Body"},
+  {"identifier": "ENG-125", "title": "Empty", "description": ""}]}
+-- file existing/original.json --
+keep
+-- run --
+linear issue export ENG-123 --output existing --json
+-- stdout.json --
+{
+  "ok": false,
+  "effect": "none",
+  "error": {
+    "code": "AlreadyExists",
+    "message": "Failed to export issue: {{*}}existing{{*}}"
+  }
+}
+-- exit --
+1
+-- file-after existing/original.json --
+keep
+-- run --
+linear issue export ENG-123 --output tasks/drafts/eng-123 --json
+-- stdout.json --
+{
+  "organization": {
+    "id": "0a000000-0000-4000-8000-000000000001",
+    "urlKey": "kadoraba"
+  },
+  "issue": {
+    "id": "1a000000-0000-4000-8000-000000000123",
+    "identifier": "ENG-123"
+  },
+  "baseFile": "{{WORK}}/tasks/drafts/eng-123/original.json",
+  "descriptionFile": "{{WORK}}/tasks/drafts/eng-123/desired.md"
+}
+-- run --
+linear issue export https://linear.app/kadoraba/issue/ENG-123/exported --output by-url --json
+-- stdout.json --
+{
+  "organization": {
+    "id": "0a000000-0000-4000-8000-000000000001",
+    "urlKey": "kadoraba"
+  },
+  "issue": {
+    "id": "1a000000-0000-4000-8000-000000000123",
+    "identifier": "ENG-123"
+  },
+  "baseFile": "{{WORK}}/by-url/original.json",
+  "descriptionFile": "{{WORK}}/by-url/desired.md"
+}
+-- run --
+linear issue export ENG-125 --output empty --json
+-- stdout.json --
+{
+  "organization": {
+    "id": "0a000000-0000-4000-8000-000000000001",
+    "urlKey": "kadoraba"
+  },
+  "issue": {
+    "id": "f0000000-0000-4000-8000-000000000001",
+    "identifier": "ENG-125"
+  },
+  "baseFile": "{{WORK}}/empty/original.json",
+  "descriptionFile": "{{WORK}}/empty/desired.md"
+}
+-- file-after empty/desired.md --
+-- run --
+linear issue export ENG-123 --output human
+-- stdout --
+Saved ENG-123: {{WORK}}/human
+In that directory, edit desired.md, then run:
+linear issue update 1a000000-0000-4000-8000-000000000123 --base-file original.json --description-file desired.md

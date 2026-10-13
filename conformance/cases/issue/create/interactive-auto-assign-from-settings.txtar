@@ -1,0 +1,18 @@
+In the default auto mode, interactive create follows the Linear user setting autoAssignToSelf (on in this workspace).
+-- env --
+LINEAR_TEAM_KEY=ENG
+-- tty --
+expect What's the title of your issue?
+send Auto assign from Linear settings\r
+expect Description
+send \r
+expect What's next?
+send \r
+-- run --
+linear issue create
+-- stdout --
+{{*}}✓ Created issue ENG-1: Auto assign from Linear settings
+https://linear.app/kadoraba/issue/ENG-1/auto-assign-from-linear-settings
+ENG-1 has no --project or --parent.{{*}}
+-- state.json --
+{"Issue": [{"title": "Auto assign from Linear settings", "assignee": "0b000000-0000-4000-8000-000000000001"}]}

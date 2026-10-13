@@ -1,0 +1,26 @@
+--no-comments omits the comment section and the comment counts it would need.
+-- seed.json --
+{"User": [
+  {"id": "1b000000-0000-4000-8000-000000000001", "name": "john.doe", "displayName": "John Doe"},
+  {"id": "1b000000-0000-4000-8000-000000000002", "name": "jane.smith", "displayName": "Jane Smith"},
+  {"id": "1b000000-0000-4000-8000-000000000003", "name": "alice.dev", "displayName": "Alice Developer"},
+  {"id": "1b000000-0000-4000-8000-000000000004", "name": "bob.senior", "displayName": "Bob Senior"}
+],
+ "Issue": [{"id": "1a000000-0000-4000-8000-000000000123", "identifier": "ENG-123", "title": "Fix authentication bug in login flow", "state": "0d000000-0000-4000-8000-000000000003", "priority": 2,
+   "assignee": "1b000000-0000-4000-8000-000000000002", "description": "Users are experiencing issues logging in when their session expires."}],
+ "Comment": [{"issue": "1a000000-0000-4000-8000-000000000123", "body": "hidden", "user": "1b000000-0000-4000-8000-000000000001"}]}
+-- run --
+linear issue view ENG-123 --no-comments
+-- stdout --
+# ENG-123: Fix authentication bug in login flow
+
+**State:** In Progress | **Priority:** ▄▆█ | **Assignee:** @Jane Smith
+
+## Context
+
+- Assignee: @Jane Smith (not the current account)
+- Parent / Sub-issues / Relations: none
+- Attachments: 0 | Comments: not fetched
+- Changes by other accounts: none (all 0 history entries)
+
+Users are experiencing issues logging in when their session expires.

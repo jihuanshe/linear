@@ -1,0 +1,73 @@
+An issue without history prints nothing and returns an empty connection; a missing issue or a failing later page fails without partial JSON.
+-- seed.json --
+{"Issue": [{"id": "1a000000-0000-4000-8000-000000000123", "identifier": "ENG-123", "title": "Quiet"},
+  {"id": "1a000000-0000-4000-8000-000000000124", "identifier": "ENG-124", "title": "Long history"}],
+ "IssueHistory": [{"$repeat": 150, "issue": "1a000000-0000-4000-8000-000000000124", "actor": "0b000000-0000-4000-8000-000000000001"}]}
+-- run --
+linear issue history ENG-123 --json
+-- stdout.json --
+{
+  "nodes": [],
+  "pageInfo": {
+    "hasNextPage": false,
+    "endCursor": null
+  }
+}
+-- run --
+linear issue history ENG-123
+-- stdout --
+No history found for ENG-123
+-- run --
+linear issue history ENG-999 --json
+-- stdout.json --
+{
+  "ok": false,
+  "effect": "none",
+  "error": {
+    "code": "NotFoundError",
+    "message": "Failed to read issue history: Could not find referenced Issue.",
+    "suggestion": "Check the identifier and that it belongs to the selected workspace (`linear auth whoami`).",
+    "details": {
+      "errors": [
+        {
+          "message": "Entity not found: Issue",
+          "path": [
+            "issue"
+          ],
+          "locations": "{{*}}",
+          "extensions": {
+            "type": "invalid input",
+            "code": "INPUT_ERROR",
+            "statusCode": 400,
+            "userError": true,
+            "userPresentableMessage": "Could not find referenced Issue."
+          }
+        }
+      ]
+    }
+  }
+}
+-- exit --
+1
+-- faults.json --
+[{"on": "query", "selects": "history", "nth": 2, "action": "status", "status": 200, "body": {"data": null, "errors": [{"message": "Later page failed"}]}}]
+-- run --
+linear issue history ENG-124 --json
+-- stdout.json --
+{
+  "ok": false,
+  "effect": "none",
+  "error": {
+    "code": "Error",
+    "message": "Failed to read issue history: Later page failed",
+    "details": {
+      "errors": [
+        {
+          "message": "Later page failed"
+        }
+      ]
+    }
+  }
+}
+-- exit --
+1

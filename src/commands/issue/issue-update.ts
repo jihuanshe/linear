@@ -22,6 +22,7 @@ import {
   workflowStateNotFoundError,
 } from "../../utils/linear.ts"
 import {
+  errorMessage,
   errorResult,
   handleError,
   NotFoundError,
@@ -472,6 +473,12 @@ export async function prepareIssueUpdate(
       )
     }
   }
+  // A milestone name means the one in the project the original read showed,
+  // so a later project move must conflict instead of re-scoping the name.
+  const expectFields =
+    milestoneProjectId != null && project == null && original != null
+      ? [...new Set([...(options.expectField ?? []), "project"])]
+      : options.expectField
   const planned = prepareReplacement({
     objectKey: "issue",
     targetId: target.issue.id,
@@ -480,7 +487,7 @@ export async function prepareIssueUpdate(
     desired: replacement,
     fields: issueReplacementFields,
     unprotected: options.unprotected || (!hasReplacement && original == null),
-    expectFields: options.expectField,
+    expectFields,
   })
   // The hook skipped the context because the Issue was already in the target
   // state; a reopen since then would be closed again unseen.
@@ -553,7 +560,7 @@ export async function printClosingContext(
   } catch (error) {
     lines.push(
       `Context unavailable: ${
-        error instanceof Error ? error.message : String(error)
+        errorMessage(error)
       }. Read issue view ${current.issue.identifier} before closing.`,
     )
   }

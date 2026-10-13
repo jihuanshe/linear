@@ -1,0 +1,1701 @@
+With more comments than one page, threads are assembled from every page: one unresolved thread, its replies shown, the resolved thread hidden unless asked for.
+-- seed.json --
+{"Issue": [{"id": "1a000000-0000-4000-8000-000000000123", "identifier": "ENG-123", "title": "Threads"},
+   {"id": "1a000000-0000-4000-8000-000000000999", "identifier": "ENG-999", "title": "Elsewhere"}],
+ "Comment": [{"id": "1c000000-0000-4000-8000-000000000001", "issue": "1a000000-0000-4000-8000-000000000123", "createdAt": "2025-09-14T01:00:00.000Z", "body": "root body"}, {"$repeat": 50, "issue": "1a000000-0000-4000-8000-000000000123", "parent": "1c000000-0000-4000-8000-000000000001", "createdAt": "2025-09-14T02:{{n:2}}:00.000Z", "body": "reply {{n}} body"}, {"id": "1c000000-0000-4000-8000-000000000002", "issue": "1a000000-0000-4000-8000-000000000123", "createdAt": "2025-09-14T01:30:00.000Z", "resolvedAt": "2025-09-14T03:00:00.000Z", "body": "resolved body"},
+  {"issue": "1a000000-0000-4000-8000-000000000123", "parent": "1c000000-0000-4000-8000-000000000002", "createdAt": "2025-09-14T01:40:00.000Z", "body": "history-reply body"}]}
+-- run --
+linear issue view ENG-123
+-- stdout --
+# ENG-123: Threads
+
+**State:** Backlog | **Priority:** --- | **Assignee:** Unassigned | **Unresolved threads:** 1
+
+## Context
+
+- Assignee: Unassigned
+- Parent / Sub-issues / Relations: none
+- Attachments: 0 | Comments: 53 (1 unresolved threads; none by other accounts)
+- Changes by other accounts: none (all 0 history entries)
+
+
+## Comments
+
+- **@alex** - *9/14/2025* [thread: 1c000000-0000-4000-8000-000000000001]
+
+  root body
+
+  - **@alex** - *9/14/2025*
+
+    reply 1 body
+
+  - **@alex** - *9/14/2025*
+
+    reply 2 body
+
+  - **@alex** - *9/14/2025*
+
+    reply 3 body
+
+  - **@alex** - *9/14/2025*
+
+    reply 4 body
+
+  - **@alex** - *9/14/2025*
+
+    reply 5 body
+
+  - **@alex** - *9/14/2025*
+
+    reply 6 body
+
+  - **@alex** - *9/14/2025*
+
+    reply 7 body
+
+  - **@alex** - *9/14/2025*
+
+    reply 8 body
+
+  - **@alex** - *9/14/2025*
+
+    reply 9 body
+
+  - **@alex** - *9/14/2025*
+
+    reply 10 body
+
+  - **@alex** - *9/14/2025*
+
+    reply 11 body
+
+  - **@alex** - *9/14/2025*
+
+    reply 12 body
+
+  - **@alex** - *9/14/2025*
+
+    reply 13 body
+
+  - **@alex** - *9/14/2025*
+
+    reply 14 body
+
+  - **@alex** - *9/14/2025*
+
+    reply 15 body
+
+  - **@alex** - *9/14/2025*
+
+    reply 16 body
+
+  - **@alex** - *9/14/2025*
+
+    reply 17 body
+
+  - **@alex** - *9/14/2025*
+
+    reply 18 body
+
+  - **@alex** - *9/14/2025*
+
+    reply 19 body
+
+  - **@alex** - *9/14/2025*
+
+    reply 20 body
+
+  - **@alex** - *9/14/2025*
+
+    reply 21 body
+
+  - **@alex** - *9/14/2025*
+
+    reply 22 body
+
+  - **@alex** - *9/14/2025*
+
+    reply 23 body
+
+  - **@alex** - *9/14/2025*
+
+    reply 24 body
+
+  - **@alex** - *9/14/2025*
+
+    reply 25 body
+
+  - **@alex** - *9/14/2025*
+
+    reply 26 body
+
+  - **@alex** - *9/14/2025*
+
+    reply 27 body
+
+  - **@alex** - *9/14/2025*
+
+    reply 28 body
+
+  - **@alex** - *9/14/2025*
+
+    reply 29 body
+
+  - **@alex** - *9/14/2025*
+
+    reply 30 body
+
+  - **@alex** - *9/14/2025*
+
+    reply 31 body
+
+  - **@alex** - *9/14/2025*
+
+    reply 32 body
+
+  - **@alex** - *9/14/2025*
+
+    reply 33 body
+
+  - **@alex** - *9/14/2025*
+
+    reply 34 body
+
+  - **@alex** - *9/14/2025*
+
+    reply 35 body
+
+  - **@alex** - *9/14/2025*
+
+    reply 36 body
+
+  - **@alex** - *9/14/2025*
+
+    reply 37 body
+
+  - **@alex** - *9/14/2025*
+
+    reply 38 body
+
+  - **@alex** - *9/14/2025*
+
+    reply 39 body
+
+  - **@alex** - *9/14/2025*
+
+    reply 40 body
+
+  - **@alex** - *9/14/2025*
+
+    reply 41 body
+
+  - **@alex** - *9/14/2025*
+
+    reply 42 body
+
+  - **@alex** - *9/14/2025*
+
+    reply 43 body
+
+  - **@alex** - *9/14/2025*
+
+    reply 44 body
+
+  - **@alex** - *9/14/2025*
+
+    reply 45 body
+
+  - **@alex** - *9/14/2025*
+
+    reply 46 body
+
+  - **@alex** - *9/14/2025*
+
+    reply 47 body
+
+  - **@alex** - *9/14/2025*
+
+    reply 48 body
+
+  - **@alex** - *9/14/2025*
+
+    reply 49 body
+
+  - **@alex** - *9/14/2025*
+
+    reply 50 body
+
+
+
+Resolved thread hidden: 1. Use --show-resolved-threads to show them.
+-- run --
+linear issue view ENG-123 --show-resolved-threads
+-- stdout --
+# ENG-123: Threads
+
+**State:** Backlog | **Priority:** --- | **Assignee:** Unassigned | **Unresolved threads:** 1
+
+## Context
+
+- Assignee: Unassigned
+- Parent / Sub-issues / Relations: none
+- Attachments: 0 | Comments: 53 (1 unresolved threads; none by other accounts)
+- Changes by other accounts: none (all 0 history entries)
+
+
+## Comments
+
+- **@alex** - *9/14/2025* [thread: 1c000000-0000-4000-8000-000000000001]
+
+  root body
+
+  - **@alex** - *9/14/2025*
+
+    reply 1 body
+
+  - **@alex** - *9/14/2025*
+
+    reply 2 body
+
+  - **@alex** - *9/14/2025*
+
+    reply 3 body
+
+  - **@alex** - *9/14/2025*
+
+    reply 4 body
+
+  - **@alex** - *9/14/2025*
+
+    reply 5 body
+
+  - **@alex** - *9/14/2025*
+
+    reply 6 body
+
+  - **@alex** - *9/14/2025*
+
+    reply 7 body
+
+  - **@alex** - *9/14/2025*
+
+    reply 8 body
+
+  - **@alex** - *9/14/2025*
+
+    reply 9 body
+
+  - **@alex** - *9/14/2025*
+
+    reply 10 body
+
+  - **@alex** - *9/14/2025*
+
+    reply 11 body
+
+  - **@alex** - *9/14/2025*
+
+    reply 12 body
+
+  - **@alex** - *9/14/2025*
+
+    reply 13 body
+
+  - **@alex** - *9/14/2025*
+
+    reply 14 body
+
+  - **@alex** - *9/14/2025*
+
+    reply 15 body
+
+  - **@alex** - *9/14/2025*
+
+    reply 16 body
+
+  - **@alex** - *9/14/2025*
+
+    reply 17 body
+
+  - **@alex** - *9/14/2025*
+
+    reply 18 body
+
+  - **@alex** - *9/14/2025*
+
+    reply 19 body
+
+  - **@alex** - *9/14/2025*
+
+    reply 20 body
+
+  - **@alex** - *9/14/2025*
+
+    reply 21 body
+
+  - **@alex** - *9/14/2025*
+
+    reply 22 body
+
+  - **@alex** - *9/14/2025*
+
+    reply 23 body
+
+  - **@alex** - *9/14/2025*
+
+    reply 24 body
+
+  - **@alex** - *9/14/2025*
+
+    reply 25 body
+
+  - **@alex** - *9/14/2025*
+
+    reply 26 body
+
+  - **@alex** - *9/14/2025*
+
+    reply 27 body
+
+  - **@alex** - *9/14/2025*
+
+    reply 28 body
+
+  - **@alex** - *9/14/2025*
+
+    reply 29 body
+
+  - **@alex** - *9/14/2025*
+
+    reply 30 body
+
+  - **@alex** - *9/14/2025*
+
+    reply 31 body
+
+  - **@alex** - *9/14/2025*
+
+    reply 32 body
+
+  - **@alex** - *9/14/2025*
+
+    reply 33 body
+
+  - **@alex** - *9/14/2025*
+
+    reply 34 body
+
+  - **@alex** - *9/14/2025*
+
+    reply 35 body
+
+  - **@alex** - *9/14/2025*
+
+    reply 36 body
+
+  - **@alex** - *9/14/2025*
+
+    reply 37 body
+
+  - **@alex** - *9/14/2025*
+
+    reply 38 body
+
+  - **@alex** - *9/14/2025*
+
+    reply 39 body
+
+  - **@alex** - *9/14/2025*
+
+    reply 40 body
+
+  - **@alex** - *9/14/2025*
+
+    reply 41 body
+
+  - **@alex** - *9/14/2025*
+
+    reply 42 body
+
+  - **@alex** - *9/14/2025*
+
+    reply 43 body
+
+  - **@alex** - *9/14/2025*
+
+    reply 44 body
+
+  - **@alex** - *9/14/2025*
+
+    reply 45 body
+
+  - **@alex** - *9/14/2025*
+
+    reply 46 body
+
+  - **@alex** - *9/14/2025*
+
+    reply 47 body
+
+  - **@alex** - *9/14/2025*
+
+    reply 48 body
+
+  - **@alex** - *9/14/2025*
+
+    reply 49 body
+
+  - **@alex** - *9/14/2025*
+
+    reply 50 body
+
+- **@alex** - *9/14/2025* [thread: 1c000000-0000-4000-8000-000000000002] [resolved]
+
+  resolved body
+
+  - **@alex** - *9/14/2025*
+
+    history-reply body
+
+
+-- run --
+linear issue view ENG-123 --json
+-- stdout.json --
+{
+  "organization": {
+    "id": "0a000000-0000-4000-8000-000000000001",
+    "urlKey": "kadoraba"
+  },
+  "viewer": {
+    "id": "0b000000-0000-4000-8000-000000000001"
+  },
+  "issue": {
+    "id": "1a000000-0000-4000-8000-000000000123",
+    "identifier": "ENG-123",
+    "archivedAt": null,
+    "trashed": null,
+    "title": "Threads",
+    "description": null,
+    "url": "https://linear.app/kadoraba/issue/ENG-123/threads",
+    "branchName": "alex/eng-123-threads",
+    "priority": 0,
+    "estimate": null,
+    "dueDate": null,
+    "state": {
+      "id": "0d000000-0000-4000-8000-000000000001",
+      "name": "Backlog",
+      "type": "backlog",
+      "color": "#bec2c8"
+    },
+    "assignee": null,
+    "project": null,
+    "projectMilestone": null,
+    "cycle": null,
+    "team": {
+      "id": "0c000000-0000-4000-8000-000000000001",
+      "key": "ENG",
+      "activeCycle": null
+    },
+    "parent": null,
+    "labels": {
+      "nodes": [],
+      "pageInfo": {
+        "hasNextPage": false,
+        "endCursor": null
+      }
+    },
+    "history": {
+      "nodes": [],
+      "pageInfo": {
+        "hasNextPage": false,
+        "endCursor": null
+      }
+    },
+    "children": {
+      "nodes": [],
+      "pageInfo": {
+        "hasNextPage": false
+      }
+    },
+    "comments": {
+      "nodes": [
+        {
+          "id": "f0000000-0000-4000-8000-000000000050",
+          "body": "reply 50 body",
+          "quotedText": null,
+          "documentContentId": null,
+          "createdAt": "2025-09-14T02:50:00.000Z",
+          "updatedAt": "2025-09-14T02:50:00.000Z",
+          "url": "https://linear.app/kadoraba/issue/ENG-123/threads#comment-f0000000",
+          "resolvedAt": null,
+          "resolvingCommentId": null,
+          "resolvingUser": null,
+          "user": {
+            "id": "0b000000-0000-4000-8000-000000000001",
+            "name": "Alex",
+            "displayName": "alex"
+          },
+          "externalUser": null,
+          "parent": {
+            "id": "1c000000-0000-4000-8000-000000000001"
+          }
+        },
+        {
+          "id": "f0000000-0000-4000-8000-000000000049",
+          "body": "reply 49 body",
+          "quotedText": null,
+          "documentContentId": null,
+          "createdAt": "2025-09-14T02:49:00.000Z",
+          "updatedAt": "2025-09-14T02:49:00.000Z",
+          "url": "https://linear.app/kadoraba/issue/ENG-123/threads#comment-f0000000",
+          "resolvedAt": null,
+          "resolvingCommentId": null,
+          "resolvingUser": null,
+          "user": {
+            "id": "0b000000-0000-4000-8000-000000000001",
+            "name": "Alex",
+            "displayName": "alex"
+          },
+          "externalUser": null,
+          "parent": {
+            "id": "1c000000-0000-4000-8000-000000000001"
+          }
+        },
+        {
+          "id": "f0000000-0000-4000-8000-000000000048",
+          "body": "reply 48 body",
+          "quotedText": null,
+          "documentContentId": null,
+          "createdAt": "2025-09-14T02:48:00.000Z",
+          "updatedAt": "2025-09-14T02:48:00.000Z",
+          "url": "https://linear.app/kadoraba/issue/ENG-123/threads#comment-f0000000",
+          "resolvedAt": null,
+          "resolvingCommentId": null,
+          "resolvingUser": null,
+          "user": {
+            "id": "0b000000-0000-4000-8000-000000000001",
+            "name": "Alex",
+            "displayName": "alex"
+          },
+          "externalUser": null,
+          "parent": {
+            "id": "1c000000-0000-4000-8000-000000000001"
+          }
+        },
+        {
+          "id": "f0000000-0000-4000-8000-000000000047",
+          "body": "reply 47 body",
+          "quotedText": null,
+          "documentContentId": null,
+          "createdAt": "2025-09-14T02:47:00.000Z",
+          "updatedAt": "2025-09-14T02:47:00.000Z",
+          "url": "https://linear.app/kadoraba/issue/ENG-123/threads#comment-f0000000",
+          "resolvedAt": null,
+          "resolvingCommentId": null,
+          "resolvingUser": null,
+          "user": {
+            "id": "0b000000-0000-4000-8000-000000000001",
+            "name": "Alex",
+            "displayName": "alex"
+          },
+          "externalUser": null,
+          "parent": {
+            "id": "1c000000-0000-4000-8000-000000000001"
+          }
+        },
+        {
+          "id": "f0000000-0000-4000-8000-000000000046",
+          "body": "reply 46 body",
+          "quotedText": null,
+          "documentContentId": null,
+          "createdAt": "2025-09-14T02:46:00.000Z",
+          "updatedAt": "2025-09-14T02:46:00.000Z",
+          "url": "https://linear.app/kadoraba/issue/ENG-123/threads#comment-f0000000",
+          "resolvedAt": null,
+          "resolvingCommentId": null,
+          "resolvingUser": null,
+          "user": {
+            "id": "0b000000-0000-4000-8000-000000000001",
+            "name": "Alex",
+            "displayName": "alex"
+          },
+          "externalUser": null,
+          "parent": {
+            "id": "1c000000-0000-4000-8000-000000000001"
+          }
+        },
+        {
+          "id": "f0000000-0000-4000-8000-000000000045",
+          "body": "reply 45 body",
+          "quotedText": null,
+          "documentContentId": null,
+          "createdAt": "2025-09-14T02:45:00.000Z",
+          "updatedAt": "2025-09-14T02:45:00.000Z",
+          "url": "https://linear.app/kadoraba/issue/ENG-123/threads#comment-f0000000",
+          "resolvedAt": null,
+          "resolvingCommentId": null,
+          "resolvingUser": null,
+          "user": {
+            "id": "0b000000-0000-4000-8000-000000000001",
+            "name": "Alex",
+            "displayName": "alex"
+          },
+          "externalUser": null,
+          "parent": {
+            "id": "1c000000-0000-4000-8000-000000000001"
+          }
+        },
+        {
+          "id": "f0000000-0000-4000-8000-000000000044",
+          "body": "reply 44 body",
+          "quotedText": null,
+          "documentContentId": null,
+          "createdAt": "2025-09-14T02:44:00.000Z",
+          "updatedAt": "2025-09-14T02:44:00.000Z",
+          "url": "https://linear.app/kadoraba/issue/ENG-123/threads#comment-f0000000",
+          "resolvedAt": null,
+          "resolvingCommentId": null,
+          "resolvingUser": null,
+          "user": {
+            "id": "0b000000-0000-4000-8000-000000000001",
+            "name": "Alex",
+            "displayName": "alex"
+          },
+          "externalUser": null,
+          "parent": {
+            "id": "1c000000-0000-4000-8000-000000000001"
+          }
+        },
+        {
+          "id": "f0000000-0000-4000-8000-000000000043",
+          "body": "reply 43 body",
+          "quotedText": null,
+          "documentContentId": null,
+          "createdAt": "2025-09-14T02:43:00.000Z",
+          "updatedAt": "2025-09-14T02:43:00.000Z",
+          "url": "https://linear.app/kadoraba/issue/ENG-123/threads#comment-f0000000",
+          "resolvedAt": null,
+          "resolvingCommentId": null,
+          "resolvingUser": null,
+          "user": {
+            "id": "0b000000-0000-4000-8000-000000000001",
+            "name": "Alex",
+            "displayName": "alex"
+          },
+          "externalUser": null,
+          "parent": {
+            "id": "1c000000-0000-4000-8000-000000000001"
+          }
+        },
+        {
+          "id": "f0000000-0000-4000-8000-000000000042",
+          "body": "reply 42 body",
+          "quotedText": null,
+          "documentContentId": null,
+          "createdAt": "2025-09-14T02:42:00.000Z",
+          "updatedAt": "2025-09-14T02:42:00.000Z",
+          "url": "https://linear.app/kadoraba/issue/ENG-123/threads#comment-f0000000",
+          "resolvedAt": null,
+          "resolvingCommentId": null,
+          "resolvingUser": null,
+          "user": {
+            "id": "0b000000-0000-4000-8000-000000000001",
+            "name": "Alex",
+            "displayName": "alex"
+          },
+          "externalUser": null,
+          "parent": {
+            "id": "1c000000-0000-4000-8000-000000000001"
+          }
+        },
+        {
+          "id": "f0000000-0000-4000-8000-000000000041",
+          "body": "reply 41 body",
+          "quotedText": null,
+          "documentContentId": null,
+          "createdAt": "2025-09-14T02:41:00.000Z",
+          "updatedAt": "2025-09-14T02:41:00.000Z",
+          "url": "https://linear.app/kadoraba/issue/ENG-123/threads#comment-f0000000",
+          "resolvedAt": null,
+          "resolvingCommentId": null,
+          "resolvingUser": null,
+          "user": {
+            "id": "0b000000-0000-4000-8000-000000000001",
+            "name": "Alex",
+            "displayName": "alex"
+          },
+          "externalUser": null,
+          "parent": {
+            "id": "1c000000-0000-4000-8000-000000000001"
+          }
+        },
+        {
+          "id": "f0000000-0000-4000-8000-000000000040",
+          "body": "reply 40 body",
+          "quotedText": null,
+          "documentContentId": null,
+          "createdAt": "2025-09-14T02:40:00.000Z",
+          "updatedAt": "2025-09-14T02:40:00.000Z",
+          "url": "https://linear.app/kadoraba/issue/ENG-123/threads#comment-f0000000",
+          "resolvedAt": null,
+          "resolvingCommentId": null,
+          "resolvingUser": null,
+          "user": {
+            "id": "0b000000-0000-4000-8000-000000000001",
+            "name": "Alex",
+            "displayName": "alex"
+          },
+          "externalUser": null,
+          "parent": {
+            "id": "1c000000-0000-4000-8000-000000000001"
+          }
+        },
+        {
+          "id": "f0000000-0000-4000-8000-000000000039",
+          "body": "reply 39 body",
+          "quotedText": null,
+          "documentContentId": null,
+          "createdAt": "2025-09-14T02:39:00.000Z",
+          "updatedAt": "2025-09-14T02:39:00.000Z",
+          "url": "https://linear.app/kadoraba/issue/ENG-123/threads#comment-f0000000",
+          "resolvedAt": null,
+          "resolvingCommentId": null,
+          "resolvingUser": null,
+          "user": {
+            "id": "0b000000-0000-4000-8000-000000000001",
+            "name": "Alex",
+            "displayName": "alex"
+          },
+          "externalUser": null,
+          "parent": {
+            "id": "1c000000-0000-4000-8000-000000000001"
+          }
+        },
+        {
+          "id": "f0000000-0000-4000-8000-000000000038",
+          "body": "reply 38 body",
+          "quotedText": null,
+          "documentContentId": null,
+          "createdAt": "2025-09-14T02:38:00.000Z",
+          "updatedAt": "2025-09-14T02:38:00.000Z",
+          "url": "https://linear.app/kadoraba/issue/ENG-123/threads#comment-f0000000",
+          "resolvedAt": null,
+          "resolvingCommentId": null,
+          "resolvingUser": null,
+          "user": {
+            "id": "0b000000-0000-4000-8000-000000000001",
+            "name": "Alex",
+            "displayName": "alex"
+          },
+          "externalUser": null,
+          "parent": {
+            "id": "1c000000-0000-4000-8000-000000000001"
+          }
+        },
+        {
+          "id": "f0000000-0000-4000-8000-000000000037",
+          "body": "reply 37 body",
+          "quotedText": null,
+          "documentContentId": null,
+          "createdAt": "2025-09-14T02:37:00.000Z",
+          "updatedAt": "2025-09-14T02:37:00.000Z",
+          "url": "https://linear.app/kadoraba/issue/ENG-123/threads#comment-f0000000",
+          "resolvedAt": null,
+          "resolvingCommentId": null,
+          "resolvingUser": null,
+          "user": {
+            "id": "0b000000-0000-4000-8000-000000000001",
+            "name": "Alex",
+            "displayName": "alex"
+          },
+          "externalUser": null,
+          "parent": {
+            "id": "1c000000-0000-4000-8000-000000000001"
+          }
+        },
+        {
+          "id": "f0000000-0000-4000-8000-000000000036",
+          "body": "reply 36 body",
+          "quotedText": null,
+          "documentContentId": null,
+          "createdAt": "2025-09-14T02:36:00.000Z",
+          "updatedAt": "2025-09-14T02:36:00.000Z",
+          "url": "https://linear.app/kadoraba/issue/ENG-123/threads#comment-f0000000",
+          "resolvedAt": null,
+          "resolvingCommentId": null,
+          "resolvingUser": null,
+          "user": {
+            "id": "0b000000-0000-4000-8000-000000000001",
+            "name": "Alex",
+            "displayName": "alex"
+          },
+          "externalUser": null,
+          "parent": {
+            "id": "1c000000-0000-4000-8000-000000000001"
+          }
+        },
+        {
+          "id": "f0000000-0000-4000-8000-000000000035",
+          "body": "reply 35 body",
+          "quotedText": null,
+          "documentContentId": null,
+          "createdAt": "2025-09-14T02:35:00.000Z",
+          "updatedAt": "2025-09-14T02:35:00.000Z",
+          "url": "https://linear.app/kadoraba/issue/ENG-123/threads#comment-f0000000",
+          "resolvedAt": null,
+          "resolvingCommentId": null,
+          "resolvingUser": null,
+          "user": {
+            "id": "0b000000-0000-4000-8000-000000000001",
+            "name": "Alex",
+            "displayName": "alex"
+          },
+          "externalUser": null,
+          "parent": {
+            "id": "1c000000-0000-4000-8000-000000000001"
+          }
+        },
+        {
+          "id": "f0000000-0000-4000-8000-000000000034",
+          "body": "reply 34 body",
+          "quotedText": null,
+          "documentContentId": null,
+          "createdAt": "2025-09-14T02:34:00.000Z",
+          "updatedAt": "2025-09-14T02:34:00.000Z",
+          "url": "https://linear.app/kadoraba/issue/ENG-123/threads#comment-f0000000",
+          "resolvedAt": null,
+          "resolvingCommentId": null,
+          "resolvingUser": null,
+          "user": {
+            "id": "0b000000-0000-4000-8000-000000000001",
+            "name": "Alex",
+            "displayName": "alex"
+          },
+          "externalUser": null,
+          "parent": {
+            "id": "1c000000-0000-4000-8000-000000000001"
+          }
+        },
+        {
+          "id": "f0000000-0000-4000-8000-000000000033",
+          "body": "reply 33 body",
+          "quotedText": null,
+          "documentContentId": null,
+          "createdAt": "2025-09-14T02:33:00.000Z",
+          "updatedAt": "2025-09-14T02:33:00.000Z",
+          "url": "https://linear.app/kadoraba/issue/ENG-123/threads#comment-f0000000",
+          "resolvedAt": null,
+          "resolvingCommentId": null,
+          "resolvingUser": null,
+          "user": {
+            "id": "0b000000-0000-4000-8000-000000000001",
+            "name": "Alex",
+            "displayName": "alex"
+          },
+          "externalUser": null,
+          "parent": {
+            "id": "1c000000-0000-4000-8000-000000000001"
+          }
+        },
+        {
+          "id": "f0000000-0000-4000-8000-000000000032",
+          "body": "reply 32 body",
+          "quotedText": null,
+          "documentContentId": null,
+          "createdAt": "2025-09-14T02:32:00.000Z",
+          "updatedAt": "2025-09-14T02:32:00.000Z",
+          "url": "https://linear.app/kadoraba/issue/ENG-123/threads#comment-f0000000",
+          "resolvedAt": null,
+          "resolvingCommentId": null,
+          "resolvingUser": null,
+          "user": {
+            "id": "0b000000-0000-4000-8000-000000000001",
+            "name": "Alex",
+            "displayName": "alex"
+          },
+          "externalUser": null,
+          "parent": {
+            "id": "1c000000-0000-4000-8000-000000000001"
+          }
+        },
+        {
+          "id": "f0000000-0000-4000-8000-000000000031",
+          "body": "reply 31 body",
+          "quotedText": null,
+          "documentContentId": null,
+          "createdAt": "2025-09-14T02:31:00.000Z",
+          "updatedAt": "2025-09-14T02:31:00.000Z",
+          "url": "https://linear.app/kadoraba/issue/ENG-123/threads#comment-f0000000",
+          "resolvedAt": null,
+          "resolvingCommentId": null,
+          "resolvingUser": null,
+          "user": {
+            "id": "0b000000-0000-4000-8000-000000000001",
+            "name": "Alex",
+            "displayName": "alex"
+          },
+          "externalUser": null,
+          "parent": {
+            "id": "1c000000-0000-4000-8000-000000000001"
+          }
+        },
+        {
+          "id": "f0000000-0000-4000-8000-000000000030",
+          "body": "reply 30 body",
+          "quotedText": null,
+          "documentContentId": null,
+          "createdAt": "2025-09-14T02:30:00.000Z",
+          "updatedAt": "2025-09-14T02:30:00.000Z",
+          "url": "https://linear.app/kadoraba/issue/ENG-123/threads#comment-f0000000",
+          "resolvedAt": null,
+          "resolvingCommentId": null,
+          "resolvingUser": null,
+          "user": {
+            "id": "0b000000-0000-4000-8000-000000000001",
+            "name": "Alex",
+            "displayName": "alex"
+          },
+          "externalUser": null,
+          "parent": {
+            "id": "1c000000-0000-4000-8000-000000000001"
+          }
+        },
+        {
+          "id": "f0000000-0000-4000-8000-000000000029",
+          "body": "reply 29 body",
+          "quotedText": null,
+          "documentContentId": null,
+          "createdAt": "2025-09-14T02:29:00.000Z",
+          "updatedAt": "2025-09-14T02:29:00.000Z",
+          "url": "https://linear.app/kadoraba/issue/ENG-123/threads#comment-f0000000",
+          "resolvedAt": null,
+          "resolvingCommentId": null,
+          "resolvingUser": null,
+          "user": {
+            "id": "0b000000-0000-4000-8000-000000000001",
+            "name": "Alex",
+            "displayName": "alex"
+          },
+          "externalUser": null,
+          "parent": {
+            "id": "1c000000-0000-4000-8000-000000000001"
+          }
+        },
+        {
+          "id": "f0000000-0000-4000-8000-000000000028",
+          "body": "reply 28 body",
+          "quotedText": null,
+          "documentContentId": null,
+          "createdAt": "2025-09-14T02:28:00.000Z",
+          "updatedAt": "2025-09-14T02:28:00.000Z",
+          "url": "https://linear.app/kadoraba/issue/ENG-123/threads#comment-f0000000",
+          "resolvedAt": null,
+          "resolvingCommentId": null,
+          "resolvingUser": null,
+          "user": {
+            "id": "0b000000-0000-4000-8000-000000000001",
+            "name": "Alex",
+            "displayName": "alex"
+          },
+          "externalUser": null,
+          "parent": {
+            "id": "1c000000-0000-4000-8000-000000000001"
+          }
+        },
+        {
+          "id": "f0000000-0000-4000-8000-000000000027",
+          "body": "reply 27 body",
+          "quotedText": null,
+          "documentContentId": null,
+          "createdAt": "2025-09-14T02:27:00.000Z",
+          "updatedAt": "2025-09-14T02:27:00.000Z",
+          "url": "https://linear.app/kadoraba/issue/ENG-123/threads#comment-f0000000",
+          "resolvedAt": null,
+          "resolvingCommentId": null,
+          "resolvingUser": null,
+          "user": {
+            "id": "0b000000-0000-4000-8000-000000000001",
+            "name": "Alex",
+            "displayName": "alex"
+          },
+          "externalUser": null,
+          "parent": {
+            "id": "1c000000-0000-4000-8000-000000000001"
+          }
+        },
+        {
+          "id": "f0000000-0000-4000-8000-000000000026",
+          "body": "reply 26 body",
+          "quotedText": null,
+          "documentContentId": null,
+          "createdAt": "2025-09-14T02:26:00.000Z",
+          "updatedAt": "2025-09-14T02:26:00.000Z",
+          "url": "https://linear.app/kadoraba/issue/ENG-123/threads#comment-f0000000",
+          "resolvedAt": null,
+          "resolvingCommentId": null,
+          "resolvingUser": null,
+          "user": {
+            "id": "0b000000-0000-4000-8000-000000000001",
+            "name": "Alex",
+            "displayName": "alex"
+          },
+          "externalUser": null,
+          "parent": {
+            "id": "1c000000-0000-4000-8000-000000000001"
+          }
+        },
+        {
+          "id": "f0000000-0000-4000-8000-000000000025",
+          "body": "reply 25 body",
+          "quotedText": null,
+          "documentContentId": null,
+          "createdAt": "2025-09-14T02:25:00.000Z",
+          "updatedAt": "2025-09-14T02:25:00.000Z",
+          "url": "https://linear.app/kadoraba/issue/ENG-123/threads#comment-f0000000",
+          "resolvedAt": null,
+          "resolvingCommentId": null,
+          "resolvingUser": null,
+          "user": {
+            "id": "0b000000-0000-4000-8000-000000000001",
+            "name": "Alex",
+            "displayName": "alex"
+          },
+          "externalUser": null,
+          "parent": {
+            "id": "1c000000-0000-4000-8000-000000000001"
+          }
+        },
+        {
+          "id": "f0000000-0000-4000-8000-000000000024",
+          "body": "reply 24 body",
+          "quotedText": null,
+          "documentContentId": null,
+          "createdAt": "2025-09-14T02:24:00.000Z",
+          "updatedAt": "2025-09-14T02:24:00.000Z",
+          "url": "https://linear.app/kadoraba/issue/ENG-123/threads#comment-f0000000",
+          "resolvedAt": null,
+          "resolvingCommentId": null,
+          "resolvingUser": null,
+          "user": {
+            "id": "0b000000-0000-4000-8000-000000000001",
+            "name": "Alex",
+            "displayName": "alex"
+          },
+          "externalUser": null,
+          "parent": {
+            "id": "1c000000-0000-4000-8000-000000000001"
+          }
+        },
+        {
+          "id": "f0000000-0000-4000-8000-000000000023",
+          "body": "reply 23 body",
+          "quotedText": null,
+          "documentContentId": null,
+          "createdAt": "2025-09-14T02:23:00.000Z",
+          "updatedAt": "2025-09-14T02:23:00.000Z",
+          "url": "https://linear.app/kadoraba/issue/ENG-123/threads#comment-f0000000",
+          "resolvedAt": null,
+          "resolvingCommentId": null,
+          "resolvingUser": null,
+          "user": {
+            "id": "0b000000-0000-4000-8000-000000000001",
+            "name": "Alex",
+            "displayName": "alex"
+          },
+          "externalUser": null,
+          "parent": {
+            "id": "1c000000-0000-4000-8000-000000000001"
+          }
+        },
+        {
+          "id": "f0000000-0000-4000-8000-000000000022",
+          "body": "reply 22 body",
+          "quotedText": null,
+          "documentContentId": null,
+          "createdAt": "2025-09-14T02:22:00.000Z",
+          "updatedAt": "2025-09-14T02:22:00.000Z",
+          "url": "https://linear.app/kadoraba/issue/ENG-123/threads#comment-f0000000",
+          "resolvedAt": null,
+          "resolvingCommentId": null,
+          "resolvingUser": null,
+          "user": {
+            "id": "0b000000-0000-4000-8000-000000000001",
+            "name": "Alex",
+            "displayName": "alex"
+          },
+          "externalUser": null,
+          "parent": {
+            "id": "1c000000-0000-4000-8000-000000000001"
+          }
+        },
+        {
+          "id": "f0000000-0000-4000-8000-000000000021",
+          "body": "reply 21 body",
+          "quotedText": null,
+          "documentContentId": null,
+          "createdAt": "2025-09-14T02:21:00.000Z",
+          "updatedAt": "2025-09-14T02:21:00.000Z",
+          "url": "https://linear.app/kadoraba/issue/ENG-123/threads#comment-f0000000",
+          "resolvedAt": null,
+          "resolvingCommentId": null,
+          "resolvingUser": null,
+          "user": {
+            "id": "0b000000-0000-4000-8000-000000000001",
+            "name": "Alex",
+            "displayName": "alex"
+          },
+          "externalUser": null,
+          "parent": {
+            "id": "1c000000-0000-4000-8000-000000000001"
+          }
+        },
+        {
+          "id": "f0000000-0000-4000-8000-000000000020",
+          "body": "reply 20 body",
+          "quotedText": null,
+          "documentContentId": null,
+          "createdAt": "2025-09-14T02:20:00.000Z",
+          "updatedAt": "2025-09-14T02:20:00.000Z",
+          "url": "https://linear.app/kadoraba/issue/ENG-123/threads#comment-f0000000",
+          "resolvedAt": null,
+          "resolvingCommentId": null,
+          "resolvingUser": null,
+          "user": {
+            "id": "0b000000-0000-4000-8000-000000000001",
+            "name": "Alex",
+            "displayName": "alex"
+          },
+          "externalUser": null,
+          "parent": {
+            "id": "1c000000-0000-4000-8000-000000000001"
+          }
+        },
+        {
+          "id": "f0000000-0000-4000-8000-000000000019",
+          "body": "reply 19 body",
+          "quotedText": null,
+          "documentContentId": null,
+          "createdAt": "2025-09-14T02:19:00.000Z",
+          "updatedAt": "2025-09-14T02:19:00.000Z",
+          "url": "https://linear.app/kadoraba/issue/ENG-123/threads#comment-f0000000",
+          "resolvedAt": null,
+          "resolvingCommentId": null,
+          "resolvingUser": null,
+          "user": {
+            "id": "0b000000-0000-4000-8000-000000000001",
+            "name": "Alex",
+            "displayName": "alex"
+          },
+          "externalUser": null,
+          "parent": {
+            "id": "1c000000-0000-4000-8000-000000000001"
+          }
+        },
+        {
+          "id": "f0000000-0000-4000-8000-000000000018",
+          "body": "reply 18 body",
+          "quotedText": null,
+          "documentContentId": null,
+          "createdAt": "2025-09-14T02:18:00.000Z",
+          "updatedAt": "2025-09-14T02:18:00.000Z",
+          "url": "https://linear.app/kadoraba/issue/ENG-123/threads#comment-f0000000",
+          "resolvedAt": null,
+          "resolvingCommentId": null,
+          "resolvingUser": null,
+          "user": {
+            "id": "0b000000-0000-4000-8000-000000000001",
+            "name": "Alex",
+            "displayName": "alex"
+          },
+          "externalUser": null,
+          "parent": {
+            "id": "1c000000-0000-4000-8000-000000000001"
+          }
+        },
+        {
+          "id": "f0000000-0000-4000-8000-000000000017",
+          "body": "reply 17 body",
+          "quotedText": null,
+          "documentContentId": null,
+          "createdAt": "2025-09-14T02:17:00.000Z",
+          "updatedAt": "2025-09-14T02:17:00.000Z",
+          "url": "https://linear.app/kadoraba/issue/ENG-123/threads#comment-f0000000",
+          "resolvedAt": null,
+          "resolvingCommentId": null,
+          "resolvingUser": null,
+          "user": {
+            "id": "0b000000-0000-4000-8000-000000000001",
+            "name": "Alex",
+            "displayName": "alex"
+          },
+          "externalUser": null,
+          "parent": {
+            "id": "1c000000-0000-4000-8000-000000000001"
+          }
+        },
+        {
+          "id": "f0000000-0000-4000-8000-000000000016",
+          "body": "reply 16 body",
+          "quotedText": null,
+          "documentContentId": null,
+          "createdAt": "2025-09-14T02:16:00.000Z",
+          "updatedAt": "2025-09-14T02:16:00.000Z",
+          "url": "https://linear.app/kadoraba/issue/ENG-123/threads#comment-f0000000",
+          "resolvedAt": null,
+          "resolvingCommentId": null,
+          "resolvingUser": null,
+          "user": {
+            "id": "0b000000-0000-4000-8000-000000000001",
+            "name": "Alex",
+            "displayName": "alex"
+          },
+          "externalUser": null,
+          "parent": {
+            "id": "1c000000-0000-4000-8000-000000000001"
+          }
+        },
+        {
+          "id": "f0000000-0000-4000-8000-000000000015",
+          "body": "reply 15 body",
+          "quotedText": null,
+          "documentContentId": null,
+          "createdAt": "2025-09-14T02:15:00.000Z",
+          "updatedAt": "2025-09-14T02:15:00.000Z",
+          "url": "https://linear.app/kadoraba/issue/ENG-123/threads#comment-f0000000",
+          "resolvedAt": null,
+          "resolvingCommentId": null,
+          "resolvingUser": null,
+          "user": {
+            "id": "0b000000-0000-4000-8000-000000000001",
+            "name": "Alex",
+            "displayName": "alex"
+          },
+          "externalUser": null,
+          "parent": {
+            "id": "1c000000-0000-4000-8000-000000000001"
+          }
+        },
+        {
+          "id": "f0000000-0000-4000-8000-000000000014",
+          "body": "reply 14 body",
+          "quotedText": null,
+          "documentContentId": null,
+          "createdAt": "2025-09-14T02:14:00.000Z",
+          "updatedAt": "2025-09-14T02:14:00.000Z",
+          "url": "https://linear.app/kadoraba/issue/ENG-123/threads#comment-f0000000",
+          "resolvedAt": null,
+          "resolvingCommentId": null,
+          "resolvingUser": null,
+          "user": {
+            "id": "0b000000-0000-4000-8000-000000000001",
+            "name": "Alex",
+            "displayName": "alex"
+          },
+          "externalUser": null,
+          "parent": {
+            "id": "1c000000-0000-4000-8000-000000000001"
+          }
+        },
+        {
+          "id": "f0000000-0000-4000-8000-000000000013",
+          "body": "reply 13 body",
+          "quotedText": null,
+          "documentContentId": null,
+          "createdAt": "2025-09-14T02:13:00.000Z",
+          "updatedAt": "2025-09-14T02:13:00.000Z",
+          "url": "https://linear.app/kadoraba/issue/ENG-123/threads#comment-f0000000",
+          "resolvedAt": null,
+          "resolvingCommentId": null,
+          "resolvingUser": null,
+          "user": {
+            "id": "0b000000-0000-4000-8000-000000000001",
+            "name": "Alex",
+            "displayName": "alex"
+          },
+          "externalUser": null,
+          "parent": {
+            "id": "1c000000-0000-4000-8000-000000000001"
+          }
+        },
+        {
+          "id": "f0000000-0000-4000-8000-000000000012",
+          "body": "reply 12 body",
+          "quotedText": null,
+          "documentContentId": null,
+          "createdAt": "2025-09-14T02:12:00.000Z",
+          "updatedAt": "2025-09-14T02:12:00.000Z",
+          "url": "https://linear.app/kadoraba/issue/ENG-123/threads#comment-f0000000",
+          "resolvedAt": null,
+          "resolvingCommentId": null,
+          "resolvingUser": null,
+          "user": {
+            "id": "0b000000-0000-4000-8000-000000000001",
+            "name": "Alex",
+            "displayName": "alex"
+          },
+          "externalUser": null,
+          "parent": {
+            "id": "1c000000-0000-4000-8000-000000000001"
+          }
+        },
+        {
+          "id": "f0000000-0000-4000-8000-000000000011",
+          "body": "reply 11 body",
+          "quotedText": null,
+          "documentContentId": null,
+          "createdAt": "2025-09-14T02:11:00.000Z",
+          "updatedAt": "2025-09-14T02:11:00.000Z",
+          "url": "https://linear.app/kadoraba/issue/ENG-123/threads#comment-f0000000",
+          "resolvedAt": null,
+          "resolvingCommentId": null,
+          "resolvingUser": null,
+          "user": {
+            "id": "0b000000-0000-4000-8000-000000000001",
+            "name": "Alex",
+            "displayName": "alex"
+          },
+          "externalUser": null,
+          "parent": {
+            "id": "1c000000-0000-4000-8000-000000000001"
+          }
+        },
+        {
+          "id": "f0000000-0000-4000-8000-000000000010",
+          "body": "reply 10 body",
+          "quotedText": null,
+          "documentContentId": null,
+          "createdAt": "2025-09-14T02:10:00.000Z",
+          "updatedAt": "2025-09-14T02:10:00.000Z",
+          "url": "https://linear.app/kadoraba/issue/ENG-123/threads#comment-f0000000",
+          "resolvedAt": null,
+          "resolvingCommentId": null,
+          "resolvingUser": null,
+          "user": {
+            "id": "0b000000-0000-4000-8000-000000000001",
+            "name": "Alex",
+            "displayName": "alex"
+          },
+          "externalUser": null,
+          "parent": {
+            "id": "1c000000-0000-4000-8000-000000000001"
+          }
+        },
+        {
+          "id": "f0000000-0000-4000-8000-000000000009",
+          "body": "reply 9 body",
+          "quotedText": null,
+          "documentContentId": null,
+          "createdAt": "2025-09-14T02:09:00.000Z",
+          "updatedAt": "2025-09-14T02:09:00.000Z",
+          "url": "https://linear.app/kadoraba/issue/ENG-123/threads#comment-f0000000",
+          "resolvedAt": null,
+          "resolvingCommentId": null,
+          "resolvingUser": null,
+          "user": {
+            "id": "0b000000-0000-4000-8000-000000000001",
+            "name": "Alex",
+            "displayName": "alex"
+          },
+          "externalUser": null,
+          "parent": {
+            "id": "1c000000-0000-4000-8000-000000000001"
+          }
+        },
+        {
+          "id": "f0000000-0000-4000-8000-000000000008",
+          "body": "reply 8 body",
+          "quotedText": null,
+          "documentContentId": null,
+          "createdAt": "2025-09-14T02:08:00.000Z",
+          "updatedAt": "2025-09-14T02:08:00.000Z",
+          "url": "https://linear.app/kadoraba/issue/ENG-123/threads#comment-f0000000",
+          "resolvedAt": null,
+          "resolvingCommentId": null,
+          "resolvingUser": null,
+          "user": {
+            "id": "0b000000-0000-4000-8000-000000000001",
+            "name": "Alex",
+            "displayName": "alex"
+          },
+          "externalUser": null,
+          "parent": {
+            "id": "1c000000-0000-4000-8000-000000000001"
+          }
+        },
+        {
+          "id": "f0000000-0000-4000-8000-000000000007",
+          "body": "reply 7 body",
+          "quotedText": null,
+          "documentContentId": null,
+          "createdAt": "2025-09-14T02:07:00.000Z",
+          "updatedAt": "2025-09-14T02:07:00.000Z",
+          "url": "https://linear.app/kadoraba/issue/ENG-123/threads#comment-f0000000",
+          "resolvedAt": null,
+          "resolvingCommentId": null,
+          "resolvingUser": null,
+          "user": {
+            "id": "0b000000-0000-4000-8000-000000000001",
+            "name": "Alex",
+            "displayName": "alex"
+          },
+          "externalUser": null,
+          "parent": {
+            "id": "1c000000-0000-4000-8000-000000000001"
+          }
+        },
+        {
+          "id": "f0000000-0000-4000-8000-000000000006",
+          "body": "reply 6 body",
+          "quotedText": null,
+          "documentContentId": null,
+          "createdAt": "2025-09-14T02:06:00.000Z",
+          "updatedAt": "2025-09-14T02:06:00.000Z",
+          "url": "https://linear.app/kadoraba/issue/ENG-123/threads#comment-f0000000",
+          "resolvedAt": null,
+          "resolvingCommentId": null,
+          "resolvingUser": null,
+          "user": {
+            "id": "0b000000-0000-4000-8000-000000000001",
+            "name": "Alex",
+            "displayName": "alex"
+          },
+          "externalUser": null,
+          "parent": {
+            "id": "1c000000-0000-4000-8000-000000000001"
+          }
+        },
+        {
+          "id": "f0000000-0000-4000-8000-000000000005",
+          "body": "reply 5 body",
+          "quotedText": null,
+          "documentContentId": null,
+          "createdAt": "2025-09-14T02:05:00.000Z",
+          "updatedAt": "2025-09-14T02:05:00.000Z",
+          "url": "https://linear.app/kadoraba/issue/ENG-123/threads#comment-f0000000",
+          "resolvedAt": null,
+          "resolvingCommentId": null,
+          "resolvingUser": null,
+          "user": {
+            "id": "0b000000-0000-4000-8000-000000000001",
+            "name": "Alex",
+            "displayName": "alex"
+          },
+          "externalUser": null,
+          "parent": {
+            "id": "1c000000-0000-4000-8000-000000000001"
+          }
+        },
+        {
+          "id": "f0000000-0000-4000-8000-000000000004",
+          "body": "reply 4 body",
+          "quotedText": null,
+          "documentContentId": null,
+          "createdAt": "2025-09-14T02:04:00.000Z",
+          "updatedAt": "2025-09-14T02:04:00.000Z",
+          "url": "https://linear.app/kadoraba/issue/ENG-123/threads#comment-f0000000",
+          "resolvedAt": null,
+          "resolvingCommentId": null,
+          "resolvingUser": null,
+          "user": {
+            "id": "0b000000-0000-4000-8000-000000000001",
+            "name": "Alex",
+            "displayName": "alex"
+          },
+          "externalUser": null,
+          "parent": {
+            "id": "1c000000-0000-4000-8000-000000000001"
+          }
+        },
+        {
+          "id": "f0000000-0000-4000-8000-000000000003",
+          "body": "reply 3 body",
+          "quotedText": null,
+          "documentContentId": null,
+          "createdAt": "2025-09-14T02:03:00.000Z",
+          "updatedAt": "2025-09-14T02:03:00.000Z",
+          "url": "https://linear.app/kadoraba/issue/ENG-123/threads#comment-f0000000",
+          "resolvedAt": null,
+          "resolvingCommentId": null,
+          "resolvingUser": null,
+          "user": {
+            "id": "0b000000-0000-4000-8000-000000000001",
+            "name": "Alex",
+            "displayName": "alex"
+          },
+          "externalUser": null,
+          "parent": {
+            "id": "1c000000-0000-4000-8000-000000000001"
+          }
+        },
+        {
+          "id": "f0000000-0000-4000-8000-000000000002",
+          "body": "reply 2 body",
+          "quotedText": null,
+          "documentContentId": null,
+          "createdAt": "2025-09-14T02:02:00.000Z",
+          "updatedAt": "2025-09-14T02:02:00.000Z",
+          "url": "https://linear.app/kadoraba/issue/ENG-123/threads#comment-f0000000",
+          "resolvedAt": null,
+          "resolvingCommentId": null,
+          "resolvingUser": null,
+          "user": {
+            "id": "0b000000-0000-4000-8000-000000000001",
+            "name": "Alex",
+            "displayName": "alex"
+          },
+          "externalUser": null,
+          "parent": {
+            "id": "1c000000-0000-4000-8000-000000000001"
+          }
+        },
+        {
+          "id": "f0000000-0000-4000-8000-000000000001",
+          "body": "reply 1 body",
+          "quotedText": null,
+          "documentContentId": null,
+          "createdAt": "2025-09-14T02:01:00.000Z",
+          "updatedAt": "2025-09-14T02:01:00.000Z",
+          "url": "https://linear.app/kadoraba/issue/ENG-123/threads#comment-f0000000",
+          "resolvedAt": null,
+          "resolvingCommentId": null,
+          "resolvingUser": null,
+          "user": {
+            "id": "0b000000-0000-4000-8000-000000000001",
+            "name": "Alex",
+            "displayName": "alex"
+          },
+          "externalUser": null,
+          "parent": {
+            "id": "1c000000-0000-4000-8000-000000000001"
+          }
+        },
+        {
+          "id": "f0000000-0000-4000-8000-000000000051",
+          "body": "history-reply body",
+          "quotedText": null,
+          "documentContentId": null,
+          "createdAt": "2025-09-14T01:40:00.000Z",
+          "updatedAt": "2025-09-14T01:40:00.000Z",
+          "url": "https://linear.app/kadoraba/issue/ENG-123/threads#comment-f0000000",
+          "resolvedAt": null,
+          "resolvingCommentId": null,
+          "resolvingUser": null,
+          "user": {
+            "id": "0b000000-0000-4000-8000-000000000001",
+            "name": "Alex",
+            "displayName": "alex"
+          },
+          "externalUser": null,
+          "parent": {
+            "id": "1c000000-0000-4000-8000-000000000002"
+          }
+        },
+        {
+          "id": "1c000000-0000-4000-8000-000000000002",
+          "body": "resolved body",
+          "quotedText": null,
+          "documentContentId": null,
+          "createdAt": "2025-09-14T01:30:00.000Z",
+          "updatedAt": "2025-09-14T01:30:00.000Z",
+          "url": "https://linear.app/kadoraba/issue/ENG-123/threads#comment-1c000000",
+          "resolvedAt": "2025-09-14T03:00:00.000Z",
+          "resolvingCommentId": null,
+          "resolvingUser": null,
+          "user": {
+            "id": "0b000000-0000-4000-8000-000000000001",
+            "name": "Alex",
+            "displayName": "alex"
+          },
+          "externalUser": null,
+          "parent": null
+        },
+        {
+          "id": "1c000000-0000-4000-8000-000000000001",
+          "body": "root body",
+          "quotedText": null,
+          "documentContentId": null,
+          "createdAt": "2025-09-14T01:00:00.000Z",
+          "updatedAt": "2025-09-14T01:00:00.000Z",
+          "url": "https://linear.app/kadoraba/issue/ENG-123/threads#comment-1c000000",
+          "resolvedAt": null,
+          "resolvingCommentId": null,
+          "resolvingUser": null,
+          "user": {
+            "id": "0b000000-0000-4000-8000-000000000001",
+            "name": "Alex",
+            "displayName": "alex"
+          },
+          "externalUser": null,
+          "parent": null
+        }
+      ],
+      "pageInfo": {
+        "hasNextPage": false,
+        "endCursor": "1c000000-0000-4000-8000-000000000001"
+      }
+    },
+    "attachments": {
+      "nodes": [],
+      "pageInfo": {
+        "hasNextPage": false,
+        "endCursor": null
+      }
+    },
+    "relations": {
+      "nodes": [],
+      "pageInfo": {
+        "hasNextPage": false
+      }
+    },
+    "inverseRelations": {
+      "nodes": [],
+      "pageInfo": {
+        "hasNextPage": false
+      }
+    },
+    "documents": {
+      "nodes": [],
+      "pageInfo": {
+        "hasNextPage": false,
+        "endCursor": null
+      }
+    }
+  },
+  "contextSummary": {
+    "viewerId": "0b000000-0000-4000-8000-000000000001",
+    "assignee": null,
+    "viewerIsAssignee": false,
+    "parent": null,
+    "subIssues": {
+      "fetched": true,
+      "count": 0,
+      "complete": true,
+      "byState": {},
+      "items": []
+    },
+    "relations": {
+      "fetched": true,
+      "complete": true,
+      "items": []
+    },
+    "attachments": {
+      "fetched": true,
+      "count": 0,
+      "complete": true
+    },
+    "comments": {
+      "fetched": true,
+      "count": 53,
+      "complete": true,
+      "unresolvedThreads": 1,
+      "byOtherAccounts": 0,
+      "latestByOtherAccount": null
+    },
+    "history": {
+      "fetched": true,
+      "entries": 0,
+      "complete": true,
+      "changesByOtherAccounts": []
+    }
+  }
+}

@@ -1,0 +1,31 @@
+Additional fields in interactive create change only what was selected (workflow_state); unselected fields keep their defaults: the team's first unstarted state, no labels, self-assignment from LINEAR_ISSUE_CREATE_ASSIGN_SELF=always, and no priority.
+-- seed.json --
+{"Project": [{"id": "1e000000-0000-4000-8000-000000000009", "name": "Release", "slugId": "r1b2c3d4e5f6", "teams": ["0c000000-0000-4000-8000-000000000001"]}],
+ "IssueLabel": [{"$repeat": 101, "name": "Chore {{n:3}}", "team": "0c000000-0000-4000-8000-000000000001", "color": "#888888"},
+  {"id": "0e000000-0000-4000-8000-000000000099", "name": "Picked", "team": "0c000000-0000-4000-8000-000000000001", "color": "#ff0000", "createdAt": "2025-01-01T00:00:00.000Z"}]}
+-- env --
+LINEAR_TEAM_KEY=ENG
+LINEAR_ISSUE_CREATE_ASSIGN_SELF=always
+-- tty --
+expect What's the title of your issue?
+send Draft title\r
+expect Description
+send Existing description\r
+expect What's next?
+send \e[B\r
+expect Select additional fields to configure
+send  \r
+expect Press ↵ again to submit
+send \r
+expect Which workflow state should this issue be in?
+send \e[B
+send \r
+-- run --
+linear issue create --project 1e000000-0000-4000-8000-000000000009
+-- stdout --
+{{*}}✓ Created issue ENG-1: Draft title
+https://linear.app/kadoraba/issue/ENG-1/draft-title
+-- mutations.json --
+{"issueCreate": 1}
+-- state.json --
+{"Issue": [{"title": "Draft title", "description": "Existing description", "project": "1e000000-0000-4000-8000-000000000009", "state": "0d000000-0000-4000-8000-000000000003", "labels": [], "assignee": "0b000000-0000-4000-8000-000000000001", "priority": 0}]}

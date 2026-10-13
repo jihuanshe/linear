@@ -1,0 +1,48 @@
+A whitespace-only body, --public without --attach, a --body-file that swallowed the next option, and a --public batch containing a file that cannot be public are rejected before anything is uploaded or written.
+-- seed.json --
+{"Issue": [{"id": "1a000000-0000-4000-8000-000000000123", "identifier": "ENG-123", "title": "Discussed"}]}
+-- file shot.png --
+pretend png
+-- file notes.txt --
+plain text
+-- run --
+linear issue comment add ENG-123 --body "   " --json
+-- stdout.json --
+{
+  "ok": false,
+  "effect": "none",
+  "error": {
+    "code": "ValidationError",
+    "message": "Failed to add comment: Comment body cannot be empty"
+  }
+}
+-- exit --
+1
+-- no-requests --
+-- run --
+linear issue comment add ENG-123 --body hi --public
+-- stderr --
+✗ Failed to add comment: --public requires at least one --attach
+  Add --attach <path> to upload, or remove --public.
+-- exit --
+1
+-- no-requests --
+-- run --
+linear issue comment add ENG-123 --body-file --json
+-- stderr --
+✗ Failed to add comment: --body-file got --json, which looks like an option: the file path is probably missing
+  Pass the path right after --body-file. zsh does not split unquoted variables, so one "KEY path" variable stays one argument. For a file whose name starts with -, write ./--json.
+-- exit --
+1
+-- no-requests --
+-- run --
+linear issue comment add ENG-123 --body hi --attach shot.png --attach notes.txt --public
+-- stderr --
+✗ Failed to add comment: Cannot upload text/plain to a public URL
+  Linear only allows public uploads for raster images (png, jpeg, gif, webp, bmp, tiff). Remove --public to upload privately.
+-- exit --
+1
+-- mutations.json --
+{}
+-- state.json --
+{"Upload": []}

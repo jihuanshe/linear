@@ -1,0 +1,16 @@
+A candidate page that claims more pages without a cursor is rejected instead of looping or returning partial results.
+-- faults.json --
+[{"on": "query:issues", "action": "status", "status": 200, "times": 5, "body": {"data": {"issues": {"nodes": [], "pageInfo": {"hasNextPage": true, "endCursor": null}}}}}]
+-- run --
+linear issue query --all-teams --url https://example.com/objects/42 --json
+-- stdout.json --
+{
+  "ok": false,
+  "effect": "none",
+  "error": {
+    "code": "CliError",
+    "message": "Failed to query issues: Incomplete issue pagination: empty or repeated cursor"
+  }
+}
+-- exit --
+1

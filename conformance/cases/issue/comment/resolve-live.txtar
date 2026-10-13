@@ -1,0 +1,35 @@
+Replying and resolving a thread with that reply behaves the same on Linear as on the fake: the root records the conclusion, unresolving clears it, and repeats are no-ops.
+
+live: true
+-- run --
+linear issue create --team {{TEAM}} --title "{{RUN}} resolve thread" --json
+-- stdout.json --
+{"ok": true, "effect": "applied", "data": {"success": true, "issue": {"identifier": "{{=ISSUE}}", "...": true}}, "fields": "{{*}}"}
+-- stderr --
+{{*}}
+-- run --
+linear issue comment add {{ISSUE}} --body "Question?" --json
+-- stdout.json --
+{"ok": true, "effect": "applied", "data": {"comment": {"id": "{{=ROOT}}", "...": true}, "...": true}, "...": true}
+-- run --
+linear issue comment add {{ISSUE}} --parent {{ROOT}} --body "Answer." --json
+-- stdout.json --
+{"ok": true, "effect": "applied", "data": {"comment": {"id": "{{=REPLY}}", "parent": {"id": "{{ROOT}}", "...": true}, "...": true}, "...": true}, "...": true}
+-- run --
+linear issue comment resolve {{ROOT}} --resolving-comment {{REPLY}} --json
+-- stdout.json --
+{"ok": true, "effect": "applied", "data": {"comment": {"id": "{{ROOT}}", "resolvedAt": "{{*}}", "resolvingCommentId": "{{REPLY}}", "...": true}, "...": true}, "...": true}
+-- run --
+linear issue comment resolve {{ROOT}} --resolving-comment {{REPLY}} --json
+-- stdout.json --
+{"ok": true, "effect": "none", "...": true}
+-- run --
+linear issue comment unresolve {{REPLY}} --json
+-- stdout.json --
+{"ok": true, "effect": "applied", "data": {"comment": {"id": "{{ROOT}}", "resolvedAt": null, "resolvingCommentId": null, "...": true}, "...": true}, "...": true}
+-- run --
+linear issue comment delete {{REPLY}} --yes --json
+-- stdout.json --
+{"ok": true, "effect": "applied", "...": true}
+-- cleanup --
+linear issue delete {{ISSUE}} -y

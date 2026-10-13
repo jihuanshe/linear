@@ -1,0 +1,13 @@
+If a later page of comments fails to load, the view fails without printing anything on stdout.
+-- seed.json --
+{"Issue": [{"id": "1a000000-0000-4000-8000-000000000123", "identifier": "ENG-123", "title": "Threads"},
+   {"id": "1a000000-0000-4000-8000-000000000999", "identifier": "ENG-999", "title": "Elsewhere"}],
+ "Comment": [{"id": "1c000000-0000-4000-8000-000000000001", "issue": "1a000000-0000-4000-8000-000000000123", "createdAt": "2025-09-14T01:00:00.000Z", "body": "root body"}, {"$repeat": 50, "issue": "1a000000-0000-4000-8000-000000000123", "parent": "1c000000-0000-4000-8000-000000000001", "createdAt": "2025-09-14T02:{{n:2}}:00.000Z", "body": "reply {{n}} body"}]}
+-- faults.json --
+[{"on": "query", "nth": 2, "action": "status", "status": 200, "body": {"data": null, "errors": [{"message": "missing page"}]}}]
+-- run --
+linear issue view ENG-123
+-- stderr --
+✗ Failed to view issue: missing page
+-- exit --
+1

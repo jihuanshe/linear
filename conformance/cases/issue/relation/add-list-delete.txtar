@@ -1,0 +1,89 @@
+Adding relations writes once per type and direction, blocked-by is stored as the other issue blocking this one, list shows both directions, and deleting removes the edge; repeats and absent deletions are no-ops.
+
+live: true
+-- run --
+linear issue create --team {{TEAM}} --title "{{RUN}} relation source" --json
+-- stdout.json --
+{"ok": true, "effect": "applied", "data": {"success": true, "issue": {"identifier": "{{=SRC}}", "...": true}}, "fields": "{{*}}"}
+-- stderr --
+{{*}}
+-- run --
+linear issue create --team {{TEAM}} --title "{{RUN}} relation target" --json
+-- stdout.json --
+{"ok": true, "effect": "applied", "data": {"success": true, "issue": {"identifier": "{{=DST}}", "...": true}}, "fields": "{{*}}"}
+-- stderr --
+{{*}}
+-- run --
+linear issue relation add {{SRC}} related {{DST}} --json
+-- stdout.json --
+{
+  "ok": true,
+  "effect": "applied",
+  "data": {
+    "issue": {
+      "id": "{{*}}",
+      "identifier": "{{SRC}}",
+      "title": "{{RUN}} relation source",
+      "url": "https://linear.app/kadoraba/issue/{{SRC}}/{{RUN}}-relation-source",
+      "favorite": null
+    },
+    "relatedIssue": {
+      "id": "{{*}}",
+      "identifier": "{{DST}}",
+      "title": "{{RUN}} relation target",
+      "url": "https://linear.app/kadoraba/issue/{{DST}}/{{RUN}}-relation-target",
+      "favorite": null
+    },
+    "type": "related",
+    "relation": {
+      "id": "{{*}}",
+      "issue": {
+        "id": "{{*}}"
+      },
+      "relatedIssue": {
+        "id": "{{*}}"
+      }
+    }
+  }
+}
+-- run --
+linear issue relation add {{SRC}} related {{DST}} --json
+-- stdout.json --
+{"ok": true, "effect": "none", "...": true}
+-- run --
+linear issue relation add {{DST}} related {{SRC}} --json
+-- stdout.json --
+{"ok": true, "effect": "none", "...": true}
+-- run --
+linear issue relation add {{SRC}} blocked-by {{DST}} --json
+-- stdout.json --
+{
+  "ok": false,
+  "effect": "none",
+  "error": {
+    "code": "ValidationError",
+    "message": "Failed to create relation: Cannot add {{SRC}} blocked-by {{DST}}: existing: related {{DST}}",
+    "suggestion": "Delete the existing relation explicitly before adding a different type or direction."
+  }
+}
+-- exit --
+1
+-- run --
+linear issue relation list {{SRC}}
+-- stdout --
+Relations for {{SRC}}: {{RUN}} relation source
+
+Outgoing:
+  {{SRC}} related {{DST}}: {{RUN}} relation target
+-- run --
+linear issue relation delete {{DST}} related {{SRC}} --json
+-- stdout.json --
+{"ok": true, "effect": "applied", "...": true}
+-- run --
+linear issue relation delete {{SRC}} related {{DST}} --json
+-- stdout.json --
+{"ok": true, "effect": "none", "...": true}
+-- cleanup --
+linear issue delete {{SRC}} -y
+-- cleanup --
+linear issue delete {{DST}} -y

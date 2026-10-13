@@ -1,0 +1,18 @@
+When looking up the configured default team fails (unavailable), interactive create fails instead of silently asking for another team.
+-- env --
+LINEAR_TEAM_KEY=OLD
+LINEAR_ISSUE_CREATE_ASSIGN_SELF=never
+LINEAR_ISSUE_CREATE_ASK_PROJECT=false
+-- faults.json --
+[{"on": "query", "nth": 1, "action": "status", "status": 200, "body": {"data": null, "errors": [{"message": "Team lookup unavailable"}]}}]
+-- tty --
+expect What's the title of your issue?
+send Draft\r
+-- run --
+linear issue create
+-- stdout --
+{{*}}✗ Failed to create issue: Team lookup unavailable
+-- exit --
+1
+-- mutations.json --
+{}

@@ -1,0 +1,412 @@
+The default query order puts active states before closed ones, then higher priority first with no priority last; this calibrates the fake's issue sort against Linear.
+
+live: true
+-- run --
+linear label create --name "{{RUN}}-sort" --team {{TEAM}} --color "#888888" --json
+-- stdout.json --
+{"ok": true, "effect": "applied", "data": {"issueLabel": {"id": "{{=LABEL}}", "name": "{{RUN}}-sort", "...": true}}}
+-- run --
+linear issue create --team {{TEAM}} --title "{{RUN}} done-urgent" --state "Done" --priority urgent --label "{{RUN}}-sort" --json
+-- stdout.json --
+{"ok": true, "effect": "applied", "data": {"success": true, "issue": {"identifier": "{{=I1}}", "...": true}}, "fields": "{{*}}"}
+-- stderr --
+{{*}}
+-- run --
+linear issue create --team {{TEAM}} --title "{{RUN}} progress-low" --state "In Progress" --priority low --label "{{RUN}}-sort" --json
+-- stdout.json --
+{"ok": true, "effect": "applied", "data": {"success": true, "issue": {"identifier": "{{=I2}}", "...": true}}, "fields": "{{*}}"}
+-- stderr --
+{{*}}
+-- run --
+linear issue create --team {{TEAM}} --title "{{RUN}} progress-high" --state "In Progress" --priority high --label "{{RUN}}-sort" --json
+-- stdout.json --
+{"ok": true, "effect": "applied", "data": {"success": true, "issue": {"identifier": "{{=I3}}", "...": true}}, "fields": "{{*}}"}
+-- stderr --
+{{*}}
+-- run --
+linear issue create --team {{TEAM}} --title "{{RUN}} todo-none" --state "Todo" --priority none --label "{{RUN}}-sort" --json
+-- stdout.json --
+{"ok": true, "effect": "applied", "data": {"success": true, "issue": {"identifier": "{{=I4}}", "...": true}}, "fields": "{{*}}"}
+-- stderr --
+{{*}}
+-- run --
+linear issue create --team {{TEAM}} --title "{{RUN}} backlog-medium" --state "Backlog" --priority medium --label "{{RUN}}-sort" --json
+-- stdout.json --
+{"ok": true, "effect": "applied", "data": {"success": true, "issue": {"identifier": "{{=I5}}", "...": true}}, "fields": "{{*}}"}
+-- stderr --
+{{*}}
+-- run --
+linear issue create --team {{TEAM}} --title "{{RUN}} canceled-high" --state "Canceled" --priority high --label "{{RUN}}-sort" --json
+-- stdout.json --
+{"ok": true, "effect": "applied", "data": {"success": true, "issue": {"identifier": "{{=I6}}", "...": true}}, "fields": "{{*}}"}
+-- stderr --
+{{*}}
+-- run --
+linear issue create --team {{TEAM}} --title "{{RUN}} todo-urgent" --state "Todo" --priority urgent --label "{{RUN}}-sort" --json
+-- stdout.json --
+{"ok": true, "effect": "applied", "data": {"success": true, "issue": {"identifier": "{{=I7}}", "...": true}}, "fields": "{{*}}"}
+-- stderr --
+{{*}}
+-- run --
+linear issue query --team {{TEAM}} --label "{{RUN}}-sort" --json
+-- stdout.json --
+{
+  "nodes": [
+    {
+      "id": "{{*}}",
+      "identifier": "{{I3}}",
+      "title": "{{RUN}} progress-high",
+      "url": "https://linear.app/kadoraba/issue/{{I3}}/{{RUN}}-progress-high",
+      "priority": 2,
+      "priorityLabel": "High",
+      "estimate": null,
+      "createdAt": "{{*}}",
+      "updatedAt": "{{*}}",
+      "state": {
+        "id": "{{*}}",
+        "name": "In Progress",
+        "color": "#f2c94c",
+        "type": "started"
+      },
+      "assignee": null,
+      "team": {
+        "id": "{{*}}",
+        "key": "ENG",
+        "name": "Engineering",
+        "cyclesEnabled": false,
+        "activeCycle": null
+      },
+      "project": null,
+      "projectMilestone": null,
+      "cycle": null,
+      "labels": {
+        "nodes": [
+          {
+            "id": "{{LABEL}}",
+            "name": "{{RUN}}-sort",
+            "color": "#888888"
+          }
+        ],
+        "pageInfo": {
+          "hasNextPage": false,
+          "endCursor": "{{LABEL}}"
+        }
+      },
+      "inverseRelations": {
+        "nodes": [],
+        "pageInfo": {
+          "hasNextPage": false,
+          "endCursor": null
+        }
+      }
+    },
+    {
+      "id": "{{*}}",
+      "identifier": "{{I2}}",
+      "title": "{{RUN}} progress-low",
+      "url": "https://linear.app/kadoraba/issue/{{I2}}/{{RUN}}-progress-low",
+      "priority": 4,
+      "priorityLabel": "Low",
+      "estimate": null,
+      "createdAt": "{{*}}",
+      "updatedAt": "{{*}}",
+      "state": {
+        "id": "{{*}}",
+        "name": "In Progress",
+        "color": "#f2c94c",
+        "type": "started"
+      },
+      "assignee": null,
+      "team": {
+        "id": "{{*}}",
+        "key": "ENG",
+        "name": "Engineering",
+        "cyclesEnabled": false,
+        "activeCycle": null
+      },
+      "project": null,
+      "projectMilestone": null,
+      "cycle": null,
+      "labels": {
+        "nodes": [
+          {
+            "id": "{{LABEL}}",
+            "name": "{{RUN}}-sort",
+            "color": "#888888"
+          }
+        ],
+        "pageInfo": {
+          "hasNextPage": false,
+          "endCursor": "{{LABEL}}"
+        }
+      },
+      "inverseRelations": {
+        "nodes": [],
+        "pageInfo": {
+          "hasNextPage": false,
+          "endCursor": null
+        }
+      }
+    },
+    {
+      "id": "{{*}}",
+      "identifier": "{{I7}}",
+      "title": "{{RUN}} todo-urgent",
+      "url": "https://linear.app/kadoraba/issue/{{I7}}/{{RUN}}-todo-urgent",
+      "priority": 1,
+      "priorityLabel": "Urgent",
+      "estimate": null,
+      "createdAt": "{{*}}",
+      "updatedAt": "{{*}}",
+      "state": {
+        "id": "{{*}}",
+        "name": "Todo",
+        "color": "#e2e2e2",
+        "type": "unstarted"
+      },
+      "assignee": null,
+      "team": {
+        "id": "{{*}}",
+        "key": "ENG",
+        "name": "Engineering",
+        "cyclesEnabled": false,
+        "activeCycle": null
+      },
+      "project": null,
+      "projectMilestone": null,
+      "cycle": null,
+      "labels": {
+        "nodes": [
+          {
+            "id": "{{LABEL}}",
+            "name": "{{RUN}}-sort",
+            "color": "#888888"
+          }
+        ],
+        "pageInfo": {
+          "hasNextPage": false,
+          "endCursor": "{{LABEL}}"
+        }
+      },
+      "inverseRelations": {
+        "nodes": [],
+        "pageInfo": {
+          "hasNextPage": false,
+          "endCursor": null
+        }
+      }
+    },
+    {
+      "id": "{{*}}",
+      "identifier": "{{I4}}",
+      "title": "{{RUN}} todo-none",
+      "url": "https://linear.app/kadoraba/issue/{{I4}}/{{RUN}}-todo-none",
+      "priority": 0,
+      "priorityLabel": "No priority",
+      "estimate": null,
+      "createdAt": "{{*}}",
+      "updatedAt": "{{*}}",
+      "state": {
+        "id": "{{*}}",
+        "name": "Todo",
+        "color": "#e2e2e2",
+        "type": "unstarted"
+      },
+      "assignee": null,
+      "team": {
+        "id": "{{*}}",
+        "key": "ENG",
+        "name": "Engineering",
+        "cyclesEnabled": false,
+        "activeCycle": null
+      },
+      "project": null,
+      "projectMilestone": null,
+      "cycle": null,
+      "labels": {
+        "nodes": [
+          {
+            "id": "{{LABEL}}",
+            "name": "{{RUN}}-sort",
+            "color": "#888888"
+          }
+        ],
+        "pageInfo": {
+          "hasNextPage": false,
+          "endCursor": "{{LABEL}}"
+        }
+      },
+      "inverseRelations": {
+        "nodes": [],
+        "pageInfo": {
+          "hasNextPage": false,
+          "endCursor": null
+        }
+      }
+    },
+    {
+      "id": "{{*}}",
+      "identifier": "{{I5}}",
+      "title": "{{RUN}} backlog-medium",
+      "url": "https://linear.app/kadoraba/issue/{{I5}}/{{RUN}}-backlog-medium",
+      "priority": 3,
+      "priorityLabel": "Medium",
+      "estimate": null,
+      "createdAt": "{{*}}",
+      "updatedAt": "{{*}}",
+      "state": {
+        "id": "{{*}}",
+        "name": "Backlog",
+        "color": "#bec2c8",
+        "type": "backlog"
+      },
+      "assignee": null,
+      "team": {
+        "id": "{{*}}",
+        "key": "ENG",
+        "name": "Engineering",
+        "cyclesEnabled": false,
+        "activeCycle": null
+      },
+      "project": null,
+      "projectMilestone": null,
+      "cycle": null,
+      "labels": {
+        "nodes": [
+          {
+            "id": "{{LABEL}}",
+            "name": "{{RUN}}-sort",
+            "color": "#888888"
+          }
+        ],
+        "pageInfo": {
+          "hasNextPage": false,
+          "endCursor": "{{LABEL}}"
+        }
+      },
+      "inverseRelations": {
+        "nodes": [],
+        "pageInfo": {
+          "hasNextPage": false,
+          "endCursor": null
+        }
+      }
+    },
+    {
+      "id": "{{*}}",
+      "identifier": "{{I1}}",
+      "title": "{{RUN}} done-urgent",
+      "url": "https://linear.app/kadoraba/issue/{{I1}}/{{RUN}}-done-urgent",
+      "priority": 1,
+      "priorityLabel": "Urgent",
+      "estimate": null,
+      "createdAt": "{{*}}",
+      "updatedAt": "{{*}}",
+      "state": {
+        "id": "{{*}}",
+        "name": "Done",
+        "color": "#5e6ad2",
+        "type": "completed"
+      },
+      "assignee": null,
+      "team": {
+        "id": "{{*}}",
+        "key": "ENG",
+        "name": "Engineering",
+        "cyclesEnabled": false,
+        "activeCycle": null
+      },
+      "project": null,
+      "projectMilestone": null,
+      "cycle": null,
+      "labels": {
+        "nodes": [
+          {
+            "id": "{{LABEL}}",
+            "name": "{{RUN}}-sort",
+            "color": "#888888"
+          }
+        ],
+        "pageInfo": {
+          "hasNextPage": false,
+          "endCursor": "{{LABEL}}"
+        }
+      },
+      "inverseRelations": {
+        "nodes": [],
+        "pageInfo": {
+          "hasNextPage": false,
+          "endCursor": null
+        }
+      }
+    },
+    {
+      "id": "{{*}}",
+      "identifier": "{{I6}}",
+      "title": "{{RUN}} canceled-high",
+      "url": "https://linear.app/kadoraba/issue/{{I6}}/{{RUN}}-canceled-high",
+      "priority": 2,
+      "priorityLabel": "High",
+      "estimate": null,
+      "createdAt": "{{*}}",
+      "updatedAt": "{{*}}",
+      "state": {
+        "id": "{{*}}",
+        "name": "Canceled",
+        "color": "#95a2b3",
+        "type": "canceled"
+      },
+      "assignee": null,
+      "team": {
+        "id": "{{*}}",
+        "key": "ENG",
+        "name": "Engineering",
+        "cyclesEnabled": false,
+        "activeCycle": null
+      },
+      "project": null,
+      "projectMilestone": null,
+      "cycle": null,
+      "labels": {
+        "nodes": [
+          {
+            "id": "{{LABEL}}",
+            "name": "{{RUN}}-sort",
+            "color": "#888888"
+          }
+        ],
+        "pageInfo": {
+          "hasNextPage": false,
+          "endCursor": "{{LABEL}}"
+        }
+      },
+      "inverseRelations": {
+        "nodes": [],
+        "pageInfo": {
+          "hasNextPage": false,
+          "endCursor": null
+        }
+      }
+    }
+  ],
+  "pageInfo": {
+    "hasNextPage": false,
+    "endCursor": "{{*}}"
+  }
+}
+-- cleanup --
+linear issue delete {{I1}} -y
+-- cleanup --
+linear issue delete {{I2}} -y
+-- cleanup --
+linear issue delete {{I3}} -y
+-- cleanup --
+linear issue delete {{I4}} -y
+-- cleanup --
+linear issue delete {{I5}} -y
+-- cleanup --
+linear issue delete {{I6}} -y
+-- cleanup --
+linear issue delete {{I7}} -y
+-- cleanup --
+linear label delete {{LABEL}} -y

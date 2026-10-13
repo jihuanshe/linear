@@ -1,0 +1,110 @@
+Interactive create rejects explicitly blank options before any prompt, default or request.
+-- file body.md --
+body
+-- env --
+LINEAR_TEAM_KEY=ENG
+LINEAR_ISSUE_CREATE_ASSIGN_SELF=always
+-- tty --
+-- run --
+linear issue create --assignee ' '
+-- stdout --
+✗ User reference cannot be empty
+-- exit --
+1
+-- no-requests --
+-- tty --
+-- run --
+linear issue create --assignee ''
+-- stdout --
+✗ User reference cannot be empty
+-- exit --
+1
+-- no-requests --
+-- tty --
+-- run --
+linear issue create --due-date ''
+-- stdout --
+✗ dueDate cannot be empty
+-- exit --
+1
+-- no-requests --
+-- tty --
+-- run --
+linear issue create --parent ''
+-- stdout --
+✗ parent cannot be empty
+-- exit --
+1
+-- no-requests --
+-- tty --
+-- run --
+linear issue create --team ''
+-- stdout --
+✗ team cannot be empty
+-- exit --
+1
+-- no-requests --
+-- tty --
+-- run --
+linear issue create --project ''
+-- stdout --
+✗ project cannot be empty
+-- exit --
+1
+-- no-requests --
+-- tty --
+-- run --
+linear issue create --state ''
+-- stdout --
+✗ state cannot be empty
+-- exit --
+1
+-- no-requests --
+-- tty --
+-- run --
+linear issue create --milestone ''
+-- stdout --
+✗ milestone cannot be empty
+-- exit --
+1
+-- no-requests --
+-- tty --
+-- run --
+linear issue create --cycle ''
+-- stdout --
+✗ cycle cannot be empty
+-- exit --
+1
+-- no-requests --
+-- tty --
+-- run --
+linear issue create --title ''
+-- stdout --
+✗ title cannot be empty
+-- exit --
+1
+-- no-requests --
+-- tty --
+-- run --
+linear issue create --label ''
+-- stdout --
+✗ label cannot contain an empty reference
+-- exit --
+1
+-- no-requests --
+-- tty --
+-- run --
+linear issue create --description-file ''
+-- stdout --
+✗ Description file path cannot be empty
+-- exit --
+1
+-- no-requests --
+-- tty --
+-- run --
+linear issue create --description '' --description-file body.md
+-- stdout --
+✗ Cannot specify both --description and --description-file
+-- exit --
+1
+-- no-requests --

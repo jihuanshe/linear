@@ -1,0 +1,36 @@
+The original Markdown is compared exactly: a URL that renders the same but differs in text is a conflict.
+-- seed.json --
+{"Issue": [{"id": "1a000000-0000-4000-8000-000000000123", "identifier": "ENG-123", "title": "Before title", "description": "https://example.com/_v1_"}]}
+-- run --
+linear issue view ENG-123 --json > original.json
+-- run --
+linear issue update ENG-123 --unprotected --description "https://example.com/*v1*" --json > concurrent.json
+-- run --
+linear issue update ENG-123 --description Desired --base-file original.json --json
+-- stdout.json --
+{
+  "ok": false,
+  "effect": "none",
+  "error": {
+    "code": "ConflictError",
+    "message": "Failed to update issue: Original values changed: description",
+    "suggestion": "Read the current object and reconsider the change; do not refresh the original file merely to bypass this conflict.",
+    "details": {
+      "fields": [
+        {
+          "field": "description",
+          "inputField": "description",
+          "base": "https://example.com/_v1_",
+          "desired": "Desired",
+          "remote": "https://example.com/*v1*",
+          "verdict": "conflict"
+        }
+      ],
+      "dependencies": []
+    }
+  }
+}
+-- exit --
+1
+-- mutations.json --
+{}

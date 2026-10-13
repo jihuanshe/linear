@@ -50,9 +50,24 @@
       "issueEstimationType": "exponential",
       "triageEnabled": false,
       "defaultIssueState": "0d000000-0000-4000-8000-000000000001",
-      "activeCycle": null,
       "createdAt": "2025-01-01T00:00:00.000Z",
       "updatedAt": "2025-01-01T00:00:00.000Z"
+    },
+    {
+      "id": "0c000000-0000-4000-8000-000000000038",
+      "key": "P38IT",
+      "name": "pr38-0910-it-team",
+      "description": null,
+      "color": "#b869ff",
+      "icon": null,
+      "private": false,
+      "timezone": "America/Los_Angeles",
+      "cyclesEnabled": false,
+      "issueEstimationType": "notUsed",
+      "triageEnabled": false,
+      "defaultIssueState": "0d000000-0000-4000-8000-000000000381",
+      "createdAt": "2025-01-01T00:00:01.000Z",
+      "updatedAt": "2025-01-01T00:00:01.000Z"
     }
   ],
   "WorkflowState": [
@@ -132,6 +147,83 @@
       "description": null,
       "createdAt": "2025-01-01T00:00:06.000Z",
       "updatedAt": "2025-01-01T00:00:06.000Z"
+    },
+    {
+      "id": "0d000000-0000-4000-8000-000000000381",
+      "team": "0c000000-0000-4000-8000-000000000038",
+      "name": "Backlog",
+      "type": "backlog",
+      "position": 0,
+      "color": "#bec2c8",
+      "description": null,
+      "createdAt": "2025-01-01T00:01:01.000Z",
+      "updatedAt": "2025-01-01T00:01:01.000Z"
+    },
+    {
+      "id": "0d000000-0000-4000-8000-000000000382",
+      "team": "0c000000-0000-4000-8000-000000000038",
+      "name": "Todo",
+      "type": "unstarted",
+      "position": 1,
+      "color": "#e2e2e2",
+      "description": null,
+      "createdAt": "2025-01-01T00:01:02.000Z",
+      "updatedAt": "2025-01-01T00:01:02.000Z"
+    },
+    {
+      "id": "0d000000-0000-4000-8000-000000000383",
+      "team": "0c000000-0000-4000-8000-000000000038",
+      "name": "In Progress",
+      "type": "started",
+      "position": 2,
+      "color": "#f2c94c",
+      "description": null,
+      "createdAt": "2025-01-01T00:01:03.000Z",
+      "updatedAt": "2025-01-01T00:01:03.000Z"
+    },
+    {
+      "id": "0d000000-0000-4000-8000-000000000384",
+      "team": "0c000000-0000-4000-8000-000000000038",
+      "name": "Done",
+      "type": "completed",
+      "position": 3,
+      "color": "#5e6ad2",
+      "description": null,
+      "createdAt": "2025-01-01T00:01:04.000Z",
+      "updatedAt": "2025-01-01T00:01:04.000Z"
+    },
+    {
+      "id": "0d000000-0000-4000-8000-000000000385",
+      "team": "0c000000-0000-4000-8000-000000000038",
+      "name": "Canceled",
+      "type": "canceled",
+      "position": 4,
+      "color": "#95a2b3",
+      "description": null,
+      "createdAt": "2025-01-01T00:01:05.000Z",
+      "updatedAt": "2025-01-01T00:01:05.000Z"
+    },
+    {
+      "id": "0d000000-0000-4000-8000-000000000386",
+      "team": "0c000000-0000-4000-8000-000000000038",
+      "name": "Duplicate",
+      "type": "duplicate",
+      "position": 5,
+      "color": "#95a2b3",
+      "description": null,
+      "createdAt": "2025-01-01T00:01:06.000Z",
+      "updatedAt": "2025-01-01T00:01:06.000Z"
+    },
+    {
+      "id": "0d000000-0000-4000-8000-000000000387",
+      "team": "0c000000-0000-4000-8000-000000000038",
+      "name": "In Review",
+      "type": "started",
+      "position": 1002,
+      "color": "#0f783c",
+      "description": "Pull request is being reviewed",
+      "createdAt": "2025-01-01T00:01:07.000Z",
+      "updatedAt": "2025-01-01T00:01:07.000Z"
     }
   ],
   "IssueLabel": [
@@ -170,6 +262,13 @@
       "createdAt": "2025-01-01T00:00:02.000Z",
       "updatedAt": "2025-01-01T00:00:02.000Z",
       "archivedAt": null
+    }
+  ],
+  "UserSettings": [
+    {
+      "id": "0b100000-0000-4000-8000-000000000001",
+      "user": "0b000000-0000-4000-8000-000000000001",
+      "autoAssignToSelf": true
     }
   ]
 }

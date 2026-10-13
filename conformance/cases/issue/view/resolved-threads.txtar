@@ -1,0 +1,292 @@
+Resolved threads are hidden by default and counted; --show-resolved-threads shows them, and JSON keeps resolution metadata.
+-- seed.json --
+{"User": [{"id": "1b000000-0000-4000-8000-000000000001", "name": "john.doe", "displayName": "John Doe"},
+  {"id": "1b000000-0000-4000-8000-000000000002", "name": "jane.smith", "displayName": "Jane Smith"},
+  {"id": "1b000000-0000-4000-8000-000000000003", "name": "alice.dev", "displayName": "Alice Developer"},
+  {"id": "1b000000-0000-4000-8000-000000000004", "name": "bob.senior", "displayName": "Bob Senior"}], "Issue": [{"id": "1a000000-0000-4000-8000-000000000321", "identifier": "ENG-321", "title": "Review resolved threads", "state": "0d000000-0000-4000-8000-000000000003", "description": "Thread visibility."}], "Comment": [
+  {"id": "1c000000-0000-4000-8000-000000000011", "issue": "1a000000-0000-4000-8000-000000000321", "user": "1b000000-0000-4000-8000-000000000001", "createdAt": "2024-01-15T10:30:00.000Z", "body": "Open thread root comment."},
+  {"id": "1c000000-0000-4000-8000-000000000012", "issue": "1a000000-0000-4000-8000-000000000321", "user": "1b000000-0000-4000-8000-000000000002", "createdAt": "2024-01-15T11:00:00.000Z", "parent": "1c000000-0000-4000-8000-000000000011", "body": "Reply on the open thread."},
+  {"id": "1c000000-0000-4000-8000-000000000013", "issue": "1a000000-0000-4000-8000-000000000321", "user": "1b000000-0000-4000-8000-000000000003", "createdAt": "2024-01-15T12:00:00.000Z", "resolvedAt": "2024-01-15T12:30:00.000Z", "resolvingUser": "1b000000-0000-4000-8000-000000000003", "body": "Resolved thread root comment."},
+  {"id": "1c000000-0000-4000-8000-000000000014", "issue": "1a000000-0000-4000-8000-000000000321", "user": "1b000000-0000-4000-8000-000000000003", "createdAt": "2024-01-15T12:20:00.000Z", "parent": "1c000000-0000-4000-8000-000000000013", "body": "Reply inside the resolved thread."}]}
+-- run --
+linear issue view ENG-321
+-- stdout --
+# ENG-321: Review resolved threads
+
+**State:** In Progress | **Priority:** --- | **Assignee:** Unassigned | **Unresolved threads:** 1
+
+## Context
+
+- Assignee: Unassigned
+- Parent / Sub-issues / Relations: none
+- Attachments: 0 | Comments: 4 (1 unresolved threads; 4 by other accounts, latest @Alice Developer 2024-01-15 12:20)
+- Changes by other accounts: none (all 0 history entries)
+
+Thread visibility.
+
+## Comments
+
+- **@John Doe** - *1/15/2024* [thread: 1c000000-0000-4000-8000-000000000011]
+
+  Open thread root comment.
+
+  - **@Jane Smith** - *1/15/2024*
+
+    Reply on the open thread.
+
+
+
+Resolved thread hidden: 1. Use --show-resolved-threads to show them.
+-- run --
+linear issue view ENG-321 --show-resolved-threads
+-- stdout --
+# ENG-321: Review resolved threads
+
+**State:** In Progress | **Priority:** --- | **Assignee:** Unassigned | **Unresolved threads:** 1
+
+## Context
+
+- Assignee: Unassigned
+- Parent / Sub-issues / Relations: none
+- Attachments: 0 | Comments: 4 (1 unresolved threads; 4 by other accounts, latest @Alice Developer 2024-01-15 12:20)
+- Changes by other accounts: none (all 0 history entries)
+
+Thread visibility.
+
+## Comments
+
+- **@John Doe** - *1/15/2024* [thread: 1c000000-0000-4000-8000-000000000011]
+
+  Open thread root comment.
+
+  - **@Jane Smith** - *1/15/2024*
+
+    Reply on the open thread.
+
+- **@Alice Developer** - *1/15/2024* [thread: 1c000000-0000-4000-8000-000000000013] [resolved]
+
+  Resolved thread root comment.
+
+  - **@Alice Developer** - *1/15/2024*
+
+    Reply inside the resolved thread.
+
+
+-- run --
+linear issue view ENG-321 --json
+-- stdout.json --
+{
+  "organization": {
+    "id": "0a000000-0000-4000-8000-000000000001",
+    "urlKey": "kadoraba"
+  },
+  "viewer": {
+    "id": "0b000000-0000-4000-8000-000000000001"
+  },
+  "issue": {
+    "id": "1a000000-0000-4000-8000-000000000321",
+    "identifier": "ENG-321",
+    "archivedAt": null,
+    "trashed": null,
+    "title": "Review resolved threads",
+    "description": "Thread visibility.",
+    "url": "https://linear.app/kadoraba/issue/ENG-321/review-resolved-threads",
+    "branchName": "alex/eng-321-review-resolved-threads",
+    "priority": 0,
+    "estimate": null,
+    "dueDate": null,
+    "state": {
+      "id": "0d000000-0000-4000-8000-000000000003",
+      "name": "In Progress",
+      "type": "started",
+      "color": "#f2c94c"
+    },
+    "assignee": null,
+    "project": null,
+    "projectMilestone": null,
+    "cycle": null,
+    "team": {
+      "id": "0c000000-0000-4000-8000-000000000001",
+      "key": "ENG",
+      "activeCycle": null
+    },
+    "parent": null,
+    "labels": {
+      "nodes": [],
+      "pageInfo": {
+        "hasNextPage": false,
+        "endCursor": null
+      }
+    },
+    "history": {
+      "nodes": [],
+      "pageInfo": {
+        "hasNextPage": false,
+        "endCursor": null
+      }
+    },
+    "children": {
+      "nodes": [],
+      "pageInfo": {
+        "hasNextPage": false
+      }
+    },
+    "comments": {
+      "nodes": [
+        {
+          "id": "1c000000-0000-4000-8000-000000000014",
+          "body": "Reply inside the resolved thread.",
+          "quotedText": null,
+          "documentContentId": null,
+          "createdAt": "2024-01-15T12:20:00.000Z",
+          "updatedAt": "2024-01-15T12:20:00.000Z",
+          "url": "https://linear.app/kadoraba/issue/ENG-321/review-resolved-threads#comment-1c000000",
+          "resolvedAt": null,
+          "resolvingCommentId": null,
+          "resolvingUser": null,
+          "user": {
+            "id": "1b000000-0000-4000-8000-000000000003",
+            "name": "alice.dev",
+            "displayName": "Alice Developer"
+          },
+          "externalUser": null,
+          "parent": {
+            "id": "1c000000-0000-4000-8000-000000000013"
+          }
+        },
+        {
+          "id": "1c000000-0000-4000-8000-000000000013",
+          "body": "Resolved thread root comment.",
+          "quotedText": null,
+          "documentContentId": null,
+          "createdAt": "2024-01-15T12:00:00.000Z",
+          "updatedAt": "2024-01-15T12:00:00.000Z",
+          "url": "https://linear.app/kadoraba/issue/ENG-321/review-resolved-threads#comment-1c000000",
+          "resolvedAt": "2024-01-15T12:30:00.000Z",
+          "resolvingCommentId": null,
+          "resolvingUser": {
+            "name": "alice.dev",
+            "displayName": "Alice Developer"
+          },
+          "user": {
+            "id": "1b000000-0000-4000-8000-000000000003",
+            "name": "alice.dev",
+            "displayName": "Alice Developer"
+          },
+          "externalUser": null,
+          "parent": null
+        },
+        {
+          "id": "1c000000-0000-4000-8000-000000000012",
+          "body": "Reply on the open thread.",
+          "quotedText": null,
+          "documentContentId": null,
+          "createdAt": "2024-01-15T11:00:00.000Z",
+          "updatedAt": "2024-01-15T11:00:00.000Z",
+          "url": "https://linear.app/kadoraba/issue/ENG-321/review-resolved-threads#comment-1c000000",
+          "resolvedAt": null,
+          "resolvingCommentId": null,
+          "resolvingUser": null,
+          "user": {
+            "id": "1b000000-0000-4000-8000-000000000002",
+            "name": "jane.smith",
+            "displayName": "Jane Smith"
+          },
+          "externalUser": null,
+          "parent": {
+            "id": "1c000000-0000-4000-8000-000000000011"
+          }
+        },
+        {
+          "id": "1c000000-0000-4000-8000-000000000011",
+          "body": "Open thread root comment.",
+          "quotedText": null,
+          "documentContentId": null,
+          "createdAt": "2024-01-15T10:30:00.000Z",
+          "updatedAt": "2024-01-15T10:30:00.000Z",
+          "url": "https://linear.app/kadoraba/issue/ENG-321/review-resolved-threads#comment-1c000000",
+          "resolvedAt": null,
+          "resolvingCommentId": null,
+          "resolvingUser": null,
+          "user": {
+            "id": "1b000000-0000-4000-8000-000000000001",
+            "name": "john.doe",
+            "displayName": "John Doe"
+          },
+          "externalUser": null,
+          "parent": null
+        }
+      ],
+      "pageInfo": {
+        "hasNextPage": false,
+        "endCursor": "1c000000-0000-4000-8000-000000000011"
+      }
+    },
+    "attachments": {
+      "nodes": [],
+      "pageInfo": {
+        "hasNextPage": false,
+        "endCursor": null
+      }
+    },
+    "relations": {
+      "nodes": [],
+      "pageInfo": {
+        "hasNextPage": false
+      }
+    },
+    "inverseRelations": {
+      "nodes": [],
+      "pageInfo": {
+        "hasNextPage": false
+      }
+    },
+    "documents": {
+      "nodes": [],
+      "pageInfo": {
+        "hasNextPage": false,
+        "endCursor": null
+      }
+    }
+  },
+  "contextSummary": {
+    "viewerId": "0b000000-0000-4000-8000-000000000001",
+    "assignee": null,
+    "viewerIsAssignee": false,
+    "parent": null,
+    "subIssues": {
+      "fetched": true,
+      "count": 0,
+      "complete": true,
+      "byState": {},
+      "items": []
+    },
+    "relations": {
+      "fetched": true,
+      "complete": true,
+      "items": []
+    },
+    "attachments": {
+      "fetched": true,
+      "count": 0,
+      "complete": true
+    },
+    "comments": {
+      "fetched": true,
+      "count": 4,
+      "complete": true,
+      "unresolvedThreads": 1,
+      "byOtherAccounts": 4,
+      "latestByOtherAccount": {
+        "author": "Alice Developer",
+        "createdAt": "2024-01-15T12:20:00.000Z"
+      }
+    },
+    "history": {
+      "fetched": true,
+      "entries": 0,
+      "complete": true,
+      "changesByOtherAccounts": []
+    }
+  }
+}

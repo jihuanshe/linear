@@ -1,0 +1,10 @@
+A cycle number is found even when the team has more cycles than one page.
+-- seed.json --
+{"Team": [{"id": "0c000000-0000-4000-8000-000000000001", "cyclesEnabled": true}], "Cycle": [{"$repeat": 300, "id": "1d000000-0000-4000-8000-000000000{{n:3}}", "team": "0c000000-0000-4000-8000-000000000001", "number": "{{n}}", "name": null, "startsAt": "2020-01-01T00:00:00.000Z", "endsAt": "2020-01-15T00:00:00.000Z"}], "Issue": [{"id": "1a000000-0000-4000-8000-000000000123", "identifier": "ENG-123", "title": "Existing issue", "state": "0d000000-0000-4000-8000-000000000002"}]}
+-- run --
+linear issue update --unprotected ENG-123 --cycle 1
+-- stdout --
+✓ Updated issue ENG-123: Existing issue
+https://linear.app/kadoraba/issue/ENG-123/existing-issue
+-- state.json --
+{"Issue": [{"identifier": "ENG-123", "cycle": "1d000000-0000-4000-8000-000000000001"}]}

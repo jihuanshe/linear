@@ -1,0 +1,17 @@
+--cycle active puts the issue in the team's active cycle.
+-- seed.json --
+{"Team": [{"id": "0c000000-0000-4000-8000-000000000001", "cyclesEnabled": true}],
+ "Cycle": [
+  {"id": "1d000000-0000-4000-8000-000000000007", "team": "0c000000-0000-4000-8000-000000000001", "number": 7, "name": "Sprint 7", "startsAt": "2025-12-25T00:00:00.000Z", "endsAt": "2026-01-08T00:00:00.000Z"},
+  {"id": "1d000000-0000-4000-8000-000000000008", "team": "0c000000-0000-4000-8000-000000000001", "number": 8, "name": "Sprint 8", "startsAt": "2026-01-08T00:00:00.000Z", "endsAt": "2026-01-22T00:00:00.000Z"}]}
+-- run --
+linear issue create --title "Test cycle feature" --team ENG --cycle active --no-interactive
+-- stdout --
+✓ Created issue ENG-1: Test cycle feature
+https://linear.app/kadoraba/issue/ENG-1/test-cycle-feature
+-- stderr --
+ENG-1 has no --project or --parent. Decide ownership from the candidate Project's full content and the related Initiative content (linear guide issue-authoring), then save the original read and set the project: (if [ -e original.json ] || [ -L original.json ]; then echo 'original.json exists' >&2; exit 1; fi; t=$(mktemp original.json.XXXXXX) || exit; s=0; linear issue view 'ENG-1' --json >| "$t" || { cat "$t" >&2; s=1; }; [ "$s" != 0 ] || ln "$t" original.json || s=1; rm -f "$t"; exit "$s") && linear issue update 'ENG-1' --project <project> --base-file original.json
+-- mutations.json --
+{"issueCreate": 1}
+-- state.json --
+{"Issue": [{"title": "Test cycle feature", "cycle": "1d000000-0000-4000-8000-000000000007"}]}

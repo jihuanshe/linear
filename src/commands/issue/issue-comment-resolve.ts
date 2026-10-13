@@ -4,6 +4,7 @@ import { getGraphQLClient } from "../../utils/graphql.ts"
 import {
   assertMutationReceipt,
   assertMutationSuccess,
+  errorMessage,
   handleError,
   NotFoundError,
   ValidationError,
@@ -145,7 +146,7 @@ async function changeResolution(
       suggestion:
         "Read the root comment before continuing; do not repeat the mutation.",
       details: {
-        reason: error instanceof Error ? error.message : String(error),
+        reason: errorMessage(error),
       },
     })
   }

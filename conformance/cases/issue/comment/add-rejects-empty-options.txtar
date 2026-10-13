@@ -1,0 +1,152 @@
+Explicitly empty comment options are rejected before any request, in JSON and human output.
+-- file body.md --
+body
+-- file valid.png --
+pretend png
+-- run --
+linear issue comment add ENG-123 --body '' --json
+-- stdout.json --
+{
+  "ok": false,
+  "effect": "none",
+  "error": {
+    "code": "ValidationError",
+    "message": "Failed to add comment: Comment body cannot be empty"
+  }
+}
+-- exit --
+1
+-- no-requests --
+-- run --
+linear issue comment add ENG-123 --body ' ' --json
+-- stdout.json --
+{
+  "ok": false,
+  "effect": "none",
+  "error": {
+    "code": "ValidationError",
+    "message": "Failed to add comment: Comment body cannot be empty"
+  }
+}
+-- exit --
+1
+-- no-requests --
+-- run --
+linear issue comment add ENG-123 --body-file '' --json
+-- stdout.json --
+{
+  "ok": false,
+  "effect": "none",
+  "error": {
+    "code": "ValidationError",
+    "message": "Failed to add comment: Body file path cannot be empty"
+  }
+}
+-- exit --
+1
+-- no-requests --
+-- run --
+linear issue comment add ENG-123 --body '' --body-file body.md --json
+-- stdout.json --
+{
+  "ok": false,
+  "effect": "none",
+  "error": {
+    "code": "ValidationError",
+    "message": "Failed to add comment: Cannot specify both --body and --body-file"
+  }
+}
+-- exit --
+1
+-- no-requests --
+-- run --
+linear issue comment add ENG-123 --body valid --parent '' --json
+-- stdout.json --
+{
+  "ok": false,
+  "effect": "none",
+  "error": {
+    "code": "ValidationError",
+    "message": "Failed to add comment: Parent comment reference cannot be empty"
+  }
+}
+-- exit --
+1
+-- no-requests --
+-- run --
+linear issue comment add ENG-123 --body valid --attach '' --json
+-- stdout.json --
+{
+  "ok": false,
+  "effect": "none",
+  "error": {
+    "code": "ValidationError",
+    "message": "Failed to add comment: Attachment file path cannot be empty"
+  }
+}
+-- exit --
+1
+-- no-requests --
+-- run --
+linear issue comment add ENG-123 --body valid --attach valid.png --attach '' --json
+-- stdout.json --
+{
+  "ok": false,
+  "effect": "none",
+  "error": {
+    "code": "ValidationError",
+    "message": "Failed to add comment: Attachment file path cannot be empty"
+  }
+}
+-- exit --
+1
+-- no-requests --
+-- run --
+linear issue comment add ENG-123 --body ''
+-- stderr --
+✗ Failed to add comment: Comment body cannot be empty
+-- exit --
+1
+-- no-requests --
+-- run --
+linear issue comment add ENG-123 --body ' '
+-- stderr --
+✗ Failed to add comment: Comment body cannot be empty
+-- exit --
+1
+-- no-requests --
+-- run --
+linear issue comment add ENG-123 --body-file ''
+-- stderr --
+✗ Failed to add comment: Body file path cannot be empty
+-- exit --
+1
+-- no-requests --
+-- run --
+linear issue comment add ENG-123 --body '' --body-file body.md
+-- stderr --
+✗ Failed to add comment: Cannot specify both --body and --body-file
+-- exit --
+1
+-- no-requests --
+-- run --
+linear issue comment add ENG-123 --body valid --parent ''
+-- stderr --
+✗ Failed to add comment: Parent comment reference cannot be empty
+-- exit --
+1
+-- no-requests --
+-- run --
+linear issue comment add ENG-123 --body valid --attach ''
+-- stderr --
+✗ Failed to add comment: Attachment file path cannot be empty
+-- exit --
+1
+-- no-requests --
+-- run --
+linear issue comment add ENG-123 --body valid --attach valid.png --attach ''
+-- stderr --
+✗ Failed to add comment: Attachment file path cannot be empty
+-- exit --
+1
+-- no-requests --

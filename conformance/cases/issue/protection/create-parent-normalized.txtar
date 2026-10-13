@@ -1,0 +1,7 @@
+A parent given in lower case resolves to the issue; a parent without a project leaves the new issue without one.
+-- seed.json --
+{"Issue": [{"id": "1a000000-0000-4000-8000-000000000220", "identifier": "ENG-220", "title": "Parent without project"}]}
+-- run --
+linear issue create --title Child --team ENG --parent eng-220 --no-interactive --json > out.json
+-- state.json --
+{"Issue": [{"identifier": "ENG-220"}, {"title": "Child", "parent": "1a000000-0000-4000-8000-000000000220", "project": null, "team": "0c000000-0000-4000-8000-000000000001"}]}

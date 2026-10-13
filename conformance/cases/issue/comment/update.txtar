@@ -1,0 +1,183 @@
+comment update replaces the body when the original still matches, through --body, --body-file or an editor; explicitly empty input and conflicting options are rejected before any request, and empty or whitespace-only content is refused.
+-- seed.json --
+{"Issue": [{"id": "1a000000-0000-4000-8000-000000000001", "identifier": "ENG-1", "title": "Thread"}],
+ "Comment": [{"id": "1c000000-0000-4000-8000-000000000001", "issue": "1a000000-0000-4000-8000-000000000001", "body": "Original body"}]}
+-- file body.md --
+From a file
+-- file empty.md --
+-- exec editor --
+#!/bin/sh
+cp "$1" seen.md
+printf '%s' 'Edited body' > "$1"
+-- run --
+linear issue comment view 1c000000-0000-4000-8000-000000000001 --json > original.json
+-- run --
+linear issue comment update 1c000000-0000-4000-8000-000000000001 --body "New body" --base-file original.json --json > first.json
+-- state.json --
+{"Comment": [{"body": "New body", "editedAt": "{{*}}"}]}
+-- run --
+linear issue comment update 1c000000-0000-4000-8000-000000000001 --body-file body.md --unprotected --json > second.json
+-- state.json --
+{"Comment": [{"body": "From a file\n"}]}
+-- env --
+EDITOR={{WORK}}/editor
+-- run --
+linear issue comment update 1c000000-0000-4000-8000-000000000001 --edit --unprotected
+-- stdout --
+✓ Comment updated
+https://linear.app/kadoraba/issue/ENG-1/thread#comment-1c000000
+-- state.json --
+{"Comment": [{"body": "Edited body"}]}
+-- file-after seen.md --
+From a file
+-- run --
+linear issue comment update 1c000000-0000-4000-8000-000000000001 --body "Stale" --base-file original.json --json
+-- stdout.json --
+{
+  "ok": false,
+  "effect": "none",
+  "error": {
+    "code": "ConflictError",
+    "message": "Failed to update comment: Original values changed: body",
+    "suggestion": "Read the current object and reconsider the change; do not refresh the original file merely to bypass this conflict.",
+    "details": {
+      "fields": [
+        {
+          "field": "body",
+          "inputField": "body",
+          "base": "Original body",
+          "desired": "Stale",
+          "remote": "Edited body",
+          "verdict": "conflict"
+        }
+      ],
+      "dependencies": []
+    }
+  }
+}
+-- exit --
+1
+-- mutations.json --
+{}
+-- run --
+linear issue comment update 1c000000-0000-4000-8000-000000000001 --body-file '' --unprotected --json
+-- stdout.json --
+{
+  "ok": false,
+  "effect": "none",
+  "error": {
+    "code": "ValidationError",
+    "message": "Failed to update comment: Body file path cannot be empty"
+  }
+}
+-- exit --
+1
+-- no-requests --
+-- run --
+linear issue comment update 1c000000-0000-4000-8000-000000000001 --body new --body-file '' --unprotected --json
+-- stdout.json --
+{
+  "ok": false,
+  "effect": "none",
+  "error": {
+    "code": "ValidationError",
+    "message": "Failed to update comment: Cannot specify both --body and --body-file"
+  }
+}
+-- exit --
+1
+-- no-requests --
+-- run --
+linear issue comment update 1c000000-0000-4000-8000-000000000001 --body '' --body-file body.md --unprotected --json
+-- stdout.json --
+{
+  "ok": false,
+  "effect": "none",
+  "error": {
+    "code": "ValidationError",
+    "message": "Failed to update comment: Cannot specify both --body and --body-file"
+  }
+}
+-- exit --
+1
+-- no-requests --
+-- run --
+linear issue comment update 1c000000-0000-4000-8000-000000000001 --body new --base-file '' --json
+-- stdout.json --
+{
+  "ok": false,
+  "effect": "none",
+  "error": {
+    "code": "ValidationError",
+    "message": "Failed to update comment: Original read file cannot be empty"
+  }
+}
+-- exit --
+1
+-- no-requests --
+-- run --
+linear issue comment update 1c000000-0000-4000-8000-000000000001 --body new --expect-field '' --unprotected --json
+-- stdout.json --
+{
+  "ok": false,
+  "effect": "none",
+  "error": {
+    "code": "ValidationError",
+    "message": "Failed to update comment: --expect-field cannot be empty"
+  }
+}
+-- exit --
+1
+-- no-requests --
+-- run --
+linear issue comment update 1c000000-0000-4000-8000-000000000001 --edit --expect-field ''
+-- stderr --
+✗ Failed to update comment: --expect-field cannot be empty
+-- exit --
+1
+-- no-requests --
+-- run --
+linear issue comment update 1c000000-0000-4000-8000-000000000001 --body '' --unprotected --json
+-- stdout.json --
+{
+  "ok": false,
+  "effect": "none",
+  "error": {
+    "code": "ValidationError",
+    "message": "Failed to update comment: Comment body cannot be empty"
+  }
+}
+-- exit --
+1
+-- mutations.json --
+{}
+-- run --
+linear issue comment update 1c000000-0000-4000-8000-000000000001 --body ' ' --unprotected --json
+-- stdout.json --
+{
+  "ok": false,
+  "effect": "none",
+  "error": {
+    "code": "ValidationError",
+    "message": "Failed to update comment: Comment body cannot be empty"
+  }
+}
+-- exit --
+1
+-- mutations.json --
+{}
+-- run --
+linear issue comment update 1c000000-0000-4000-8000-000000000001 --body-file empty.md --unprotected --json
+-- stdout.json --
+{
+  "ok": false,
+  "effect": "none",
+  "error": {
+    "code": "ValidationError",
+    "message": "Failed to update comment: Comment body cannot be empty"
+  }
+}
+-- exit --
+1
+-- mutations.json --
+{}

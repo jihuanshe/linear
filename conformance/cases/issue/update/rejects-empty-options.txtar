@@ -1,0 +1,241 @@
+Explicitly empty options are rejected before any request; --description with --description-file and an empty --expect-field too.
+-- file body.md --
+body
+-- run --
+linear issue update ENG-123 --json --unprotected --priority 2 --assignee ''
+-- stdout.json --
+{
+  "ok": false,
+  "effect": "none",
+  "error": {
+    "code": "ValidationError",
+    "message": "Failed to update issue: User reference cannot be empty"
+  }
+}
+-- exit --
+1
+-- no-requests --
+-- run --
+linear issue update ENG-123 --json --unprotected --priority 2 --due-date ''
+-- stdout.json --
+{
+  "ok": false,
+  "effect": "none",
+  "error": {
+    "code": "ValidationError",
+    "message": "Failed to update issue: dueDate cannot be empty"
+  }
+}
+-- exit --
+1
+-- no-requests --
+-- run --
+linear issue update ENG-123 --json --unprotected --priority 2 --parent ''
+-- stdout.json --
+{
+  "ok": false,
+  "effect": "none",
+  "error": {
+    "code": "ValidationError",
+    "message": "Failed to update issue: parent cannot be empty"
+  }
+}
+-- exit --
+1
+-- no-requests --
+-- run --
+linear issue update ENG-123 --json --unprotected --priority 2 --team ''
+-- stdout.json --
+{
+  "ok": false,
+  "effect": "none",
+  "error": {
+    "code": "ValidationError",
+    "message": "Failed to update issue: team cannot be empty"
+  }
+}
+-- exit --
+1
+-- no-requests --
+-- run --
+linear issue update ENG-123 --json --unprotected --priority 2 --project ''
+-- stdout.json --
+{
+  "ok": false,
+  "effect": "none",
+  "error": {
+    "code": "ValidationError",
+    "message": "Failed to update issue: project cannot be empty"
+  }
+}
+-- exit --
+1
+-- no-requests --
+-- run --
+linear issue update ENG-123 --json --unprotected --priority 2 --state ''
+-- stdout.json --
+{
+  "ok": false,
+  "effect": "none",
+  "error": {
+    "code": "ValidationError",
+    "message": "Failed to update issue: state cannot be empty"
+  }
+}
+-- exit --
+1
+-- no-requests --
+-- run --
+linear issue update ENG-123 --json --unprotected --priority 2 --milestone ''
+-- stdout.json --
+{
+  "ok": false,
+  "effect": "none",
+  "error": {
+    "code": "ValidationError",
+    "message": "Failed to update issue: milestone cannot be empty"
+  }
+}
+-- exit --
+1
+-- no-requests --
+-- run --
+linear issue update ENG-123 --json --unprotected --priority 2 --cycle ''
+-- stdout.json --
+{
+  "ok": false,
+  "effect": "none",
+  "error": {
+    "code": "ValidationError",
+    "message": "Failed to update issue: cycle cannot be empty"
+  }
+}
+-- exit --
+1
+-- no-requests --
+-- run --
+linear issue update ENG-123 --json --unprotected --priority 2 --title ''
+-- stdout.json --
+{
+  "ok": false,
+  "effect": "none",
+  "error": {
+    "code": "ValidationError",
+    "message": "Failed to update issue: title cannot be empty"
+  }
+}
+-- exit --
+1
+-- no-requests --
+-- run --
+linear issue update ENG-123 --json --unprotected --priority 2 --label ''
+-- stdout.json --
+{
+  "ok": false,
+  "effect": "none",
+  "error": {
+    "code": "ValidationError",
+    "message": "Failed to update issue: label cannot contain an empty reference"
+  }
+}
+-- exit --
+1
+-- no-requests --
+-- run --
+linear issue update ENG-123 --json --unprotected --priority 2 --add-label ''
+-- stdout.json --
+{
+  "ok": false,
+  "effect": "none",
+  "error": {
+    "code": "ValidationError",
+    "message": "Failed to update issue: addLabel cannot contain an empty reference"
+  }
+}
+-- exit --
+1
+-- no-requests --
+-- run --
+linear issue update ENG-123 --json --unprotected --priority 2 --remove-label ''
+-- stdout.json --
+{
+  "ok": false,
+  "effect": "none",
+  "error": {
+    "code": "ValidationError",
+    "message": "Failed to update issue: removeLabel cannot contain an empty reference"
+  }
+}
+-- exit --
+1
+-- no-requests --
+-- run --
+linear issue update ENG-123 --json --unprotected --priority 2 --description-file ''
+-- stdout.json --
+{
+  "ok": false,
+  "effect": "none",
+  "error": {
+    "code": "ValidationError",
+    "message": "Failed to update issue: Description file path cannot be empty"
+  }
+}
+-- exit --
+1
+-- no-requests --
+-- run --
+linear issue update ENG-123 --json --unprotected --priority 2 --base-file ''
+-- stdout.json --
+{
+  "ok": false,
+  "effect": "none",
+  "error": {
+    "code": "ValidationError",
+    "message": "Failed to update issue: Original read file cannot be empty"
+  }
+}
+-- exit --
+1
+-- no-requests --
+-- run --
+linear issue update ENG-123 --json --unprotected --priority 2 --expect-field ''
+-- stdout.json --
+{
+  "ok": false,
+  "effect": "none",
+  "error": {
+    "code": "ValidationError",
+    "message": "Failed to update issue: --expect-field cannot be empty"
+  }
+}
+-- exit --
+1
+-- no-requests --
+-- run --
+linear issue update ENG-123 --json --unprotected --priority 2 --add-label valid --add-label ''
+-- stdout.json --
+{
+  "ok": false,
+  "effect": "none",
+  "error": {
+    "code": "ValidationError",
+    "message": "Failed to update issue: addLabel cannot contain an empty reference"
+  }
+}
+-- exit --
+1
+-- no-requests --
+-- run --
+linear issue update ENG-123 --json --unprotected --priority 2 --description '' --description-file body.md
+-- stdout.json --
+{
+  "ok": false,
+  "effect": "none",
+  "error": {
+    "code": "ValidationError",
+    "message": "Failed to update issue: Cannot specify both --description and --description-file"
+  }
+}
+-- exit --
+1
+-- no-requests --

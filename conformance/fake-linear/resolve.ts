@@ -26,6 +26,8 @@ import { LinearError } from "./errors.ts"
 export interface Context {
   store: Store
   schema: GraphQLSchema
+  /** The fake's own origin, for URLs it hands out (e.g. signed uploads). */
+  origin: string
 }
 
 type Computed = (record: EntityRecord, ctx: Context) => unknown
@@ -53,8 +55,78 @@ const COMPUTED: Record<string, Computed> = {
       slugify(String(issue.title))
     }`
   },
+  // Observed on Kadoraba: the issue URL plus the comment ID's first 8 characters.
+  "Comment.url": (comment, ctx) => {
+    const issue = ctx.store.find("Issue", comment.issue as string)
+    return issue == null
+      ? null
+      : `${COMPUTED["Issue.url"](issue, ctx)}#comment-${comment.id.slice(0, 8)}`
+  },
+  // Observed on Kadoraba: /document/<title slug>-<slugId>.
+  "Document.url": (document, { store }) =>
+    `https://linear.app/${store.singleton("Organization").urlKey}/document/${
+      slugify(String(document.title))
+    }-${document.slugId}`,
   "User.isMe": (user, { store }) => user.id === store.viewer().id,
+  // Observed on Kadoraba: one-word names give their first two letters.
+  "User.initials": (user) => {
+    const words = String(user.name ?? "").trim().split(/\s+/).filter(Boolean)
+    const initials = words.length >= 2
+      ? words[0][0] + words[1][0]
+      : (words[0] ?? "").slice(0, 2)
+    return initials.toUpperCase()
+  },
+  // Cycle state follows from its dates relative to the world's current time.
+  "Cycle.isActive": (cycle, { store }) =>
+    cyclePhase(cycle, store.worldNow()) === "active",
+  "Cycle.isFuture": (cycle, { store }) =>
+    cyclePhase(cycle, store.worldNow()) === "future",
+  "Cycle.isPast": (cycle, { store }) =>
+    cyclePhase(cycle, store.worldNow()) === "past",
+  "Cycle.isNext": (cycle, { store }) =>
+    teamCycles(store, cycle.team as string)
+      .find((c) => cyclePhase(c, store.worldNow()) === "future")?.id ===
+      cycle.id,
+  "Cycle.isPrevious": (cycle, { store }) =>
+    teamCycles(store, cycle.team as string)
+      .findLast((c) => cyclePhase(c, store.worldNow()) === "past")?.id ===
+      cycle.id,
+  "Team.activeCycle": (team, { store }) =>
+    teamCycles(store, team.id)
+      .find((c) => cyclePhase(c, store.worldNow()) === "active")?.id ?? null,
   "Team.organization": (_, { store }) => store.singleton("Organization").id,
+  // The viewer's own favorite of this issue, if any.
+  "Issue.favorite": (issue, { store }) =>
+    store.all("Favorite").find((favorite) =>
+      favorite.issue === issue.id && favorite.owner === store.viewer().id
+    )?.id ?? null,
+  // Issue favorites show the issue's current title and URL.
+  "Favorite.title": (favorite, ctx) => {
+    const issue = ctx.store.find("Issue", favorite.issue as string)
+    return issue == null ? (favorite.folderName ?? null) : issue.title
+  },
+  "Favorite.url": (favorite, ctx) => {
+    const issue = ctx.store.find("Issue", favorite.issue as string)
+    return issue == null ? null : COMPUTED["Issue.url"](issue, ctx)
+  },
+}
+
+function cyclePhase(
+  cycle: EntityRecord,
+  now: string,
+): "past" | "active" | "future" {
+  // Compare instants, not strings: "...00Z" and "...00.000Z" are equal.
+  const at = Date.parse(now)
+  if (Date.parse(String(cycle.startsAt)) > at) return "future"
+  if (Date.parse(String(cycle.endsAt)) <= at) return "past"
+  return "active"
+}
+
+function teamCycles(store: Context["store"], teamId: string): EntityRecord[] {
+  return store.all("Cycle").filter((c) => c.team === teamId)
+    .sort((a, b) =>
+      Date.parse(String(a.startsAt)) - Date.parse(String(b.startsAt))
+    )
 }
 
 /**
@@ -82,11 +154,54 @@ const RELATIONS: Record<string, [string, string]> = {
 
 /** Root fields that look up one entity, with natural keys accepted as IDs. */
 const ROOT_LOOKUPS: Record<string, string[]> = {
-  issue: ["identifier"],
+  issue: ["identifier", "previousIdentifiers"],
   team: ["key"],
   project: ["slugId"],
   document: ["slugId"],
   initiative: ["slugId"],
+}
+
+/** A connection over the given records with the standard arguments. */
+export function connectionOf(
+  ctx: Context,
+  records: EntityRecord[],
+  args: Record<string, unknown>,
+) {
+  return buildConnection(ctx, records, args as ConnectionArgs)
+}
+
+/** Full-text search: every word of the term appears in the title or description. */
+export function searchIssues(
+  ctx: Context,
+  args: Record<string, unknown>,
+) {
+  const words = String(args.term ?? "").toLowerCase().split(/\s+/).filter(
+    Boolean,
+  )
+  const elements = ctx.store.all("Issue").filter((issue) => {
+    const texts = [issue.title, issue.description, issue.identifier]
+    if (args.includeComments === true) {
+      for (const comment of ctx.store.all("Comment")) {
+        if (comment.issue === issue.id) texts.push(comment.body)
+      }
+    }
+    const haystack = texts.filter((t) => typeof t === "string").join("\n")
+      .toLowerCase()
+    return words.every((word) => haystack.includes(word))
+  })
+  // Observed on Kadoraba: each result carries {context, score}; the score is
+  // relevance, which the fake does not model.
+  const results = elements.map((issue) => ({
+    ...issue,
+    metadata: { context: {}, score: 1 },
+  }))
+  const connection = buildConnection(ctx, results, args as ConnectionArgs)
+  const total =
+    elements.filter((record) =>
+      (args.includeArchived === true || record.archivedAt == null) &&
+      matchesFilter(ctx, record, args.filter as Record<string, unknown>)
+    ).length
+  return { ...connection, totalCount: total }
 }
 
 export function concreteTypes(ctx: Context, typename: string): string[] {
@@ -126,8 +241,9 @@ export function lookup(
   for (const key of naturalKeys) {
     for (const type of types) {
       const match = ctx.store.all(type).find((record) =>
-        typeof record[key] === "string" &&
-        (record[key] as string).toLowerCase() === id.toLowerCase()
+        [record[key]].flat().some((value) =>
+          typeof value === "string" && value.toLowerCase() === id.toLowerCase()
+        )
       )
       if (match != null) return match
     }
@@ -257,11 +373,17 @@ function compare(op: string, actual: unknown, expected: unknown): boolean {
   throw new Error(`fake: unsupported comparator ${op}`)
 }
 
+/** Filter keys that name a relation differently from the object field. */
+const FILTER_ALIASES: Record<string, string> = {
+  "Project.accessibleTeams": "teams",
+}
+
 function fieldValue(
   ctx: Context,
   record: EntityRecord,
-  name: string,
+  filterKey: string,
 ): unknown {
+  const name = FILTER_ALIASES[`${record.__typename}.${filterKey}`] ?? filterKey
   const type = ctx.schema.getType(record.__typename)
   if (!isObjectType(type)) return record[name]
   const field = type.getFields()[name]
@@ -344,6 +466,12 @@ function matchesCondition(
     }
   }
   if (Object.keys(nested).length === 0) return true
+  // A collection filter's own fields match when any element matches.
+  if (Array.isArray(value)) {
+    return value.some((item) =>
+      isEntity(item) && matchesFilter(ctx, item, nested)
+    )
+  }
   if (!isEntity(value)) return false
   return matchesFilter(ctx, value, nested)
 }
@@ -359,6 +487,72 @@ interface ConnectionArgs {
   before?: string | null
   includeArchived?: boolean | null
   orderBy?: string | null
+  sort?: Record<string, { order?: string; nulls?: string }>[] | null
+}
+
+/**
+ * Linear's workflowState sort: active states before closed ones, then the
+ * state's position. Claimed by the CLI's --sort help; calibrated by live cases.
+ */
+const STATE_TYPE_RANK: Record<string, number> = {
+  started: 0,
+  unstarted: 1,
+  backlog: 2,
+  triage: 3,
+  completed: 4,
+  canceled: 5,
+  duplicate: 5,
+}
+
+function sortValue(
+  ctx: Context,
+  record: EntityRecord,
+  key: string,
+): number | string | null {
+  switch (key) {
+    case "workflowState": {
+      const state = ctx.store.find("WorkflowState", record.state as string)
+      return state == null
+        ? null
+        : (STATE_TYPE_RANK[String(state.type)] ?? 9) * 1e6 +
+          Number(state.position ?? 0)
+    }
+    // Observed on Kadoraba: urgency ranks, so 1 (urgent) is the highest value;
+    // 0 means no priority and sorts as null.
+    case "priority":
+      return record.priority == null || record.priority === 0
+        ? null
+        : 5 - Number(record.priority)
+    case "manual":
+      return record.sortOrder == null ? null : Number(record.sortOrder)
+    case "createdAt":
+    case "updatedAt":
+    case "title":
+      return (record[key] as string | undefined) ?? null
+  }
+  throw new Error(`fake: sort by ${key} is not implemented`)
+}
+
+function compareBySort(
+  ctx: Context,
+  sort: NonNullable<ConnectionArgs["sort"]>,
+  a: EntityRecord,
+  b: EntityRecord,
+): number {
+  for (const entry of sort) {
+    for (const [key, { order, nulls }] of Object.entries(entry)) {
+      const x = sortValue(ctx, a, key)
+      const y = sortValue(ctx, b, key)
+      if (x === y) continue
+      if (x == null || y == null) {
+        const nullFirst = nulls === "first"
+        return (x == null) === nullFirst ? -1 : 1
+      }
+      const result = x < y ? -1 : 1
+      return order === "Descending" ? -result : result
+    }
+  }
+  return 0
 }
 
 function buildConnection(
@@ -372,6 +566,7 @@ function buildConnection(
   items = items.filter((record) => matchesFilter(ctx, record, args.filter))
   const key = args.orderBy === "updatedAt" ? "updatedAt" : "createdAt"
   items.sort((a, b) =>
+    (args.sort == null ? 0 : compareBySort(ctx, args.sort, a, b)) ||
     String(b[key] ?? "").localeCompare(String(a[key] ?? "")) ||
     a.id.localeCompare(b.id)
   )
@@ -476,6 +671,13 @@ export const fieldResolver: GraphQLFieldResolver<unknown, Context> = (
       return value.map((item) => resolveRef(ctx, named.name, item))
     }
     return resolveRef(ctx, named.name, value)
+  }
+  // `fooId` scalars mirror the stored reference `foo`.
+  if (
+    value === undefined && isEntity(record) && name.endsWith("Id") &&
+    typeof record[name.slice(0, -2)] === "string"
+  ) {
+    return record[name.slice(0, -2)]
   }
   if (value === undefined && isEntity(record)) {
     if (missingRequired(record.__typename, name, field.type)) {

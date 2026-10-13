@@ -1,0 +1,19 @@
+An explicitly empty --description is legal; Linear stores the empty description as null.
+
+live: true
+-- run --
+linear issue create --team {{TEAM}} --title "{{RUN}} empty description" --description "" --json
+-- stdout.json --
+{"ok": true, "effect": "applied", "data": {"success": true, "issue": {"identifier": "{{=ISSUE}}", "...": true}}, "fields": "{{*}}"}
+-- stderr --
+{{*}}
+-- run --
+linear issue view {{ISSUE}} --json --no-comments
+-- stdout.json --
+{"issue": {"description": null, "...": true}, "...": true}
+-- cleanup --
+linear issue delete {{ISSUE}} -y
+-- readback --
+linear issue view {{ISSUE}} --json
+-- stdout.json --
+{"issue": {"identifier": "{{ISSUE}}", "trashed": true, "...": true}, "...": true}

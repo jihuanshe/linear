@@ -1,0 +1,14 @@
+An explicit --assignee wins over LINEAR_ISSUE_CREATE_ASSIGN_SELF=always.
+-- seed.json --
+{"User": [{"id": "1b000000-0000-4000-8000-000000000002", "name": "Jane Developer", "displayName": "jane"}]}
+-- env --
+LINEAR_ISSUE_CREATE_ASSIGN_SELF=always
+-- run --
+linear issue create --title "Assigned to Jane" --team ENG --assignee jane --no-interactive
+-- stdout --
+✓ Created issue ENG-1: Assigned to Jane
+https://linear.app/kadoraba/issue/ENG-1/assigned-to-jane
+-- stderr --
+ENG-1 has no --project or --parent. Decide ownership from the candidate Project's full content and the related Initiative content (linear guide issue-authoring), then save the original read and set the project: (if [ -e original.json ] || [ -L original.json ]; then echo 'original.json exists' >&2; exit 1; fi; t=$(mktemp original.json.XXXXXX) || exit; s=0; linear issue view 'ENG-1' --json >| "$t" || { cat "$t" >&2; s=1; }; [ "$s" != 0 ] || ln "$t" original.json || s=1; rm -f "$t"; exit "$s") && linear issue update 'ENG-1' --project <project> --base-file original.json
+-- state.json --
+{"Issue": [{"title": "Assigned to Jane", "assignee": "1b000000-0000-4000-8000-000000000002"}]}

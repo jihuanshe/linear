@@ -1,0 +1,41 @@
+Removing a label the issue does not have is rejected before any write, alone or mixed with an addition.
+-- seed.json --
+{"IssueLabel": [
+  {"id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa", "name": "Frontend"},
+  {"id": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb", "name": "Backend", "team": "0c000000-0000-4000-8000-000000000001"},
+  {"id": "cccccccc-cccc-4ccc-8ccc-cccccccccccc", "name": "Operations"},
+  {"id": "dddddddd-dddd-4ddd-8ddd-dddddddddddd", "name": "Group", "isGroup": true},
+  {"id": "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee", "name": "Other team", "team": "0c000000-0000-4000-8000-000000000038"},
+  {"id": "ffffffff-ffff-4fff-8fff-ffffffffffff", "name": "bug", "team": "0c000000-0000-4000-8000-000000000001"}], "Issue": [{"id": "1a000000-0000-4000-8000-000000000123", "identifier": "ENG-123", "title": "Labels", "labels": ["aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"]}]}
+-- run --
+linear issue update ENG-123 --unprotected --remove-label Backend --json
+-- stdout.json --
+{
+  "ok": false,
+  "effect": "none",
+  "error": {
+    "code": "ValidationError",
+    "message": "Failed to update issue: Cannot remove labels that are not on ENG-123: bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+    "suggestion": "Read the issue's current labels before changing --remove-label."
+  }
+}
+-- exit --
+1
+-- mutations.json --
+{}
+-- run --
+linear issue update ENG-123 --unprotected --add-label Operations --remove-label Backend --json
+-- stdout.json --
+{
+  "ok": false,
+  "effect": "none",
+  "error": {
+    "code": "ValidationError",
+    "message": "Failed to update issue: Cannot remove labels that are not on ENG-123: bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+    "suggestion": "Read the issue's current labels before changing --remove-label."
+  }
+}
+-- exit --
+1
+-- mutations.json --
+{}

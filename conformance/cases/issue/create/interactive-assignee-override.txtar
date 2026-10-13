@@ -1,0 +1,25 @@
+Choosing the assignee field in interactive create and declining self-assignment overrides LINEAR_ISSUE_CREATE_ASSIGN_SELF=always.
+-- env --
+LINEAR_TEAM_KEY=ENG
+LINEAR_ISSUE_CREATE_ASSIGN_SELF=always
+-- tty --
+expect What's the title of your issue?
+send Interactive assignee override\r
+expect Description
+send \r
+expect What's next?
+send \e[B\r
+expect Select additional fields to configure
+send \e[B \r
+expect Press ↵ again to submit
+send \r
+expect Assign this issue to yourself?
+send \r
+-- run --
+linear issue create
+-- stdout --
+{{*}}✓ Created issue ENG-1: Interactive assignee override
+https://linear.app/kadoraba/issue/ENG-1/interactive-assignee-override
+ENG-1 has no --project or --parent.{{*}}
+-- state.json --
+{"Issue": [{"title": "Interactive assignee override", "assignee": null}]}

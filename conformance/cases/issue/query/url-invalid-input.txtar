@@ -1,0 +1,24 @@
+An empty or malformed --url, and --url combined with --search, are rejected before any request.
+-- run --
+linear issue query --all-teams --url '' --no-pager
+-- stderr --
+✗ Failed to query issues: --url cannot be empty
+-- exit --
+1
+-- no-requests --
+-- run --
+linear issue query --all-teams --url not-a-url
+-- stderr --
+✗ Failed to query issues: Invalid URL: "not-a-url"
+  Pass an absolute URL including its scheme, for example https://example.com/objects/123.
+-- exit --
+1
+-- no-requests --
+-- run --
+linear issue query --all-teams --search login --url https://example.com/x
+-- stderr --
+✗ Failed to query issues: Cannot use both --search and --url
+  Use --url for exact URL deduplication, or --search for relevance-ranked full-text search.
+-- exit --
+1
+-- no-requests --

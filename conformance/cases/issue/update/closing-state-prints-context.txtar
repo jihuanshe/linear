@@ -1,0 +1,27 @@
+Moving an issue to a duplicate or canceled state first prints its context on stderr (assignee, sub-issues, comments and changes by other accounts), then writes without blocking.
+-- seed.json --
+{"User": [{"id": "1b000000-0000-4000-8000-000000000009", "name": "other", "displayName": "Other"}],
+ "WorkflowState": [{"id": "0d000000-0000-4000-8000-000000000008", "team": "0c000000-0000-4000-8000-000000000001", "name": "Triage", "type": "triage", "position": -1, "color": "#fc7840"}],
+ "Issue": [{"id": "1a000000-0000-4000-8000-000000000123", "identifier": "ENG-123", "title": "Before title", "state": "0d000000-0000-4000-8000-000000000002", "assignee": "1b000000-0000-4000-8000-000000000009"},
+  {"identifier": "ENG-124", "title": "Child", "state": "0d000000-0000-4000-8000-000000000002", "parent": "1a000000-0000-4000-8000-000000000123"}],
+ "Comment": [{"issue": "1a000000-0000-4000-8000-000000000123", "user": "1b000000-0000-4000-8000-000000000009", "createdAt": "2025-09-02T09:00:00.000Z", "body": "Working on it"}],
+ "IssueHistory": [{"issue": "1a000000-0000-4000-8000-000000000123", "actor": "1b000000-0000-4000-8000-000000000009", "createdAt": "2025-09-02T08:00:00.000Z", "fromState": "0d000000-0000-4000-8000-000000000008", "toState": "0d000000-0000-4000-8000-000000000002"}]}
+-- run --
+linear issue update --unprotected ENG-123 --state Duplicate
+-- stdout --
+✓ Updated issue ENG-123: Before title
+https://linear.app/kadoraba/issue/ENG-123/before-title
+-- stderr --
+Moving ENG-123 to Duplicate. Context before closing:
+- Assignee: @Other (not the current account)
+- Parent: none
+- Sub-issues: 1 (Todo 1): ENG-124
+- Relations: none
+- Attachments: 0 | Comments: 1 (1 unresolved threads; 1 by other accounts, latest @Other 2025-09-02 09:00)
+- Changes by other accounts (all 1 history entries):
+  - 2025-09-02 08:00 @Other: state Triage -> Todo
+Traces to account for before closing: sub-issues, state or ownership changes by other accounts, comments by other accounts. Explain the decision in the closing comment; a duplicate must name the kept Issue.
+-- mutations.json --
+{"issueUpdate": 1}
+-- state.json --
+{"Issue": [{"identifier": "ENG-123", "state": "0d000000-0000-4000-8000-000000000007"}, {"identifier": "ENG-124"}]}

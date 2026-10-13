@@ -1,0 +1,42 @@
+The parent and every sub-issue are shown with their states.
+-- seed.json --
+{"User": [{"id": "1b000000-0000-4000-8000-000000000001", "name": "john.doe", "displayName": "John Doe"},
+  {"id": "1b000000-0000-4000-8000-000000000002", "name": "jane.smith", "displayName": "Jane Smith"},
+  {"id": "1b000000-0000-4000-8000-000000000003", "name": "alice.dev", "displayName": "Alice Developer"},
+  {"id": "1b000000-0000-4000-8000-000000000004", "name": "bob.senior", "displayName": "Bob Senior"}],
+ "Issue": [
+  {"id": "1a000000-0000-4000-8000-000000000100", "identifier": "ENG-100", "title": "Epic: Security Improvements", "state": "0d000000-0000-4000-8000-000000000003"},
+  {"id": "1a000000-0000-4000-8000-000000000456", "identifier": "ENG-456", "title": "Implement user authentication", "state": "0d000000-0000-4000-8000-000000000003", "priority": 2,
+   "assignee": "1b000000-0000-4000-8000-000000000003", "parent": "1a000000-0000-4000-8000-000000000100", "description": "Add user authentication to the application."},
+  {"identifier": "ENG-457", "title": "Add login form", "state": "0d000000-0000-4000-8000-000000000005", "parent": "1a000000-0000-4000-8000-000000000456"},
+  {"identifier": "ENG-458", "title": "Add password reset flow", "state": "0d000000-0000-4000-8000-000000000002", "parent": "1a000000-0000-4000-8000-000000000456"},
+  {"identifier": "ENG-459", "title": "Add OAuth support", "state": "0d000000-0000-4000-8000-000000000003", "parent": "1a000000-0000-4000-8000-000000000456"}]}
+-- run --
+linear issue view ENG-456 --no-comments
+-- stdout --
+# ENG-456: Implement user authentication
+
+**State:** In Progress | **Priority:** ▄▆█ | **Assignee:** @Alice Developer
+
+## Context
+
+- Assignee: @Alice Developer (not the current account)
+- Parent: ENG-100 Epic: Security Improvements [In Progress]
+- Sub-issues: 3 (In Progress 1, Todo 1, Done 1): ENG-459, ENG-458, ENG-457
+- Relations: none
+- Attachments: 0 | Comments: not fetched
+- Changes by other accounts: none (all 0 history entries)
+
+Add user authentication to the application.
+
+## Parent
+
+- **ENG-100**: Epic: Security Improvements _[In Progress]_
+
+
+## Sub-issues
+
+- **ENG-459**: Add OAuth support _[In Progress]_
+- **ENG-458**: Add password reset flow _[Todo]_
+- **ENG-457**: Add login form _[Done]_
+
