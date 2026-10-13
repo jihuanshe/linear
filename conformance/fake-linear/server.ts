@@ -416,6 +416,9 @@ export class FakeLinear {
     upload.sentAuthorization = request.headers.has("authorization")
     upload.sha256 = encodeHex(await crypto.subtle.digest("SHA-256", body))
     upload.text = new TextDecoder("utf-8", { fatal: false }).decode(body)
+    if (fault?.action === "patch-after" && fault.seed != null) {
+      this.store.patch(fault.seed)
+    }
     if (fault?.action === "stall") {
       // The upload is stored, but no response ever arrives.
       await new Promise<void>((resolve) => this.#pending.add(resolve))

@@ -1,4 +1,4 @@
-An invalid or non-ISO LINEAR_NOW fails every command, even one that shows no relative dates, instead of silently using the real clock or the local time zone.
+An invalid, non-ISO or impossible (February 30) LINEAR_NOW fails every command, even one that shows no relative dates, instead of silently using the real clock, the local time zone or a rolled-over date.
 -- seed.json --
 {"Issue": [{"identifier": "ENG-1", "title": "Any"}]}
 -- env --
@@ -28,6 +28,23 @@ linear issue view ENG-1 --json
   "error": {
     "code": "ValidationError",
     "message": "LINEAR_NOW is not a valid date: 10/11/2026",
+    "suggestion": "Set an ISO 8601 instant such as 2026-01-01T00:00:00Z, or unset it."
+  }
+}
+-- exit --
+1
+-- no-requests --
+-- env --
+LINEAR_NOW=2026-02-30T00:00:00Z
+-- run --
+linear issue view ENG-1 --json
+-- stdout.json --
+{
+  "ok": false,
+  "effect": "none",
+  "error": {
+    "code": "ValidationError",
+    "message": "LINEAR_NOW is not a valid date: 2026-02-30T00:00:00Z",
     "suggestion": "Set an ISO 8601 instant such as 2026-01-01T00:00:00Z, or unset it."
   }
 }

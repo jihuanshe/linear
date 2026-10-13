@@ -1,4 +1,4 @@
-A delete receipt with success false leaves the effect unknown.
+A delete receipt with success false leaves the effect unknown; a confirmed receipt without the deleted issue, or naming another issue, is reported as applied but not accepted.
 -- seed.json --
 {"Issue": [{"id": "11111111-1111-4111-8111-111111111111", "identifier": "ENG-42", "title": "Moved issue", "previousIdentifiers": ["OLD-123"]}, {"id": "22222222-2222-4222-8222-222222222222", "identifier": "ENG-43", "title": "Second"}, {"id": "33333333-3333-4333-8333-333333333333", "identifier": "ENG-44", "title": "Third"}]}
 -- faults.json --
@@ -19,6 +19,54 @@ linear issue delete ENG-42 --yes --json
     "code": "WriteError",
     "message": "Failed to delete issue: Mutation was not confirmed",
     "suggestion": "Reconcile the remote outcome before retrying this write."
+  }
+}
+-- exit --
+1
+-- faults.json --
+[{"on": "mutation:issueDelete", "action": "status", "status": 200, "body": {"data": {"issueDelete": {"success": true, "entity": null}}}}]
+-- run --
+linear issue delete ENG-43 --yes --json
+-- stdout.json --
+{
+  "ok": false,
+  "effect": "applied",
+  "data": {
+    "issueDelete": {
+      "success": true,
+      "entity": null
+    }
+  },
+  "error": {
+    "code": "WriteError",
+    "message": "Failed to delete issue: Mutation succeeded but returned no object identity",
+    "suggestion": "Locate the created or changed object before continuing; do not repeat the mutation."
+  }
+}
+-- exit --
+1
+-- faults.json --
+[{"on": "mutation:issueDelete", "action": "status", "status": 200, "body": {"data": {"issueDelete": {"success": true, "entity": {"id": "99999999-9999-4999-8999-999999999999", "identifier": "ENG-99", "title": "Someone else"}}}}}]
+-- run --
+linear issue delete ENG-44 --yes --json
+-- stdout.json --
+{
+  "ok": false,
+  "effect": "applied",
+  "data": {
+    "issueDelete": {
+      "success": true,
+      "entity": {
+        "id": "99999999-9999-4999-8999-999999999999",
+        "identifier": "ENG-99",
+        "title": "Someone else"
+      }
+    }
+  },
+  "error": {
+    "code": "WriteError",
+    "message": "Failed to delete issue: Mutation returned a different object identity",
+    "suggestion": "Reconcile the returned object before continuing."
   }
 }
 -- exit --
