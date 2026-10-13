@@ -1,0 +1,16 @@
+Parentheses inside a longer bare URL are not prose delimiters for an exact URL match.
+-- seed.json --
+{"Issue":[
+  {"id":"1a000000-0000-4000-8000-000000000001","identifier":"ENG-1","title":"Nested redirect URL","description":"https://redirect.example/(https://example.com/objects/42)tail"},
+  {"id":"1a000000-0000-4000-8000-000000000002","identifier":"ENG-2","title":"Nested URL in comment","description":null},
+  {"id":"1a000000-0000-4000-8000-000000000003","identifier":"ENG-3","title":"Nested redirect without suffix","description":"https://redirect.example/(https://example.com/objects/42)"}
+],"Comment":[
+  {"issue":"1a000000-0000-4000-8000-000000000002","body":"https://redirect.example/(https://example.com/objects/42)tail"}
+]}
+-- run --
+linear issue query --all-teams --url https://example.com/objects/42 --json
+-- stdout.json --
+{"nodes":[],"pageInfo":{"hasNextPage":false,"endCursor":null}}
+-- stderr --
+-- mutations.json --
+{}

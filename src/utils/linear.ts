@@ -1282,7 +1282,10 @@ function containsProseUrl(text: string, target: string): boolean {
     const singleQuoted = before === "'" &&
       !isUrlPrefixContinuation(text[index - 2]) &&
       text[index + target.length] === "'"
-    if (isUrlPrefixContinuation(before) && !singleQuoted) {
+    if (
+      (isUrlPrefixContinuation(before) && !singleQuoted) ||
+      (before === "(" && isUrlPrefixContinuation(text[index - 2]))
+    ) {
       offset = index + 1
       continue
     }
