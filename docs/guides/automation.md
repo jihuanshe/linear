@@ -131,7 +131,7 @@ linear api 'query { rateLimitStatus { kind limits { type remainingAmount reset }
 jq '.data.rateLimitStatus.limits[] | {type, remainingAmount, reset}' rate-limit.json
 ```
 
-专用命令与 `linear api` 共用 GraphQL 请求规则：每个逻辑请求最多 60 秒，包含响应正文读取和重试等待，query 最多尝试 3 次。分页的每一页分别计时，不是整个命令或整批 `apply` 的总时限；写后核验等调用方更短的取消期限仍然有效。此规则不涵盖文件 PUT、下载或其他非 GraphQL 网络操作。
+专用命令与 `linear api` 共用 GraphQL 请求规则：每个逻辑请求最多 60 秒，包含响应正文读取和重试等待，query 最多尝试 3 次。分页的每一页分别计时，不是整个命令或整批 `apply` 的总时限；写后核验等调用方更短的取消期限仍然有效。此规则不涵盖文件 PUT、下载或其他非 GraphQL 网络操作：上传文件的 PUT 最多 120 秒，另按每 256 KiB 加 1 秒；超时后上传结果为 `unknown` 并保留上传回执，先按回执对账，不要直接重试。下载每次请求最多 120 秒。
 
 只有明确选中的 query 会对 HTTP 429／502／503／504，以及 HTTP 200／400 中单纯的 `RATELIMITED` 错误重试；已有部分数据、认证、权限和校验错误不重试。等待使用有界退避并遵守 `Retry-After`；剩余时间不足时返回原始失败。
 

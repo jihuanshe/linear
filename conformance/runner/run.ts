@@ -21,6 +21,8 @@ import {
 } from "./match.ts"
 
 export interface RunOptions {
+  /** Also run cases marked `slow: true`. */
+  slow?: boolean
   binary: string
   world: Seed
   live?: { apiKey: string }
@@ -257,6 +259,10 @@ export async function runCase(
     updated,
   })
 
+  if (testCase.slow && options.slow !== true) return result("skip", [])
+  if (testCase.timeoutMs != null) {
+    options = { ...options, timeoutMs: testCase.timeoutMs }
+  }
   if (testCase.live) {
     const fakeOnly = testCase.seed != null ||
       testCase.steps.some((step) => step.faults != null)

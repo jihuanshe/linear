@@ -1,0 +1,39 @@
+If a signed upload never gets a response, the command gives up after the upload deadline (two minutes for a small file) instead of hanging, reports the upload outcome as unknown with its receipt, and creates no attachment.
+
+slow: true
+timeout: 180000
+-- seed.json --
+{"Issue": [{"id": "1a000000-0000-4000-8000-000000000017", "identifier": "ENG-17", "title": "Evidence"}]}
+-- file proof.txt --
+proof
+-- faults.json --
+[{"on": "upload", "action": "stall"}]
+-- run --
+linear issue attach ENG-17 proof.txt --json
+-- stdout.json --
+{
+  "ok": false,
+  "effect": "unknown",
+  "receipts": [
+    {
+      "kind": "upload",
+      "stage": "unknown",
+      "assetUrl": "https://uploads.linear.app/0a000000-0000-4000-8000-000000000001/f0000000-0000-4000-8000-000000000001/f0000000-0000-4000-8000-000000000001",
+      "filename": "proof.txt",
+      "size": 6,
+      "contentType": "text/plain",
+      "public": false
+    }
+  ],
+  "error": {
+    "code": "WriteError",
+    "message": "Failed to attach file: Upload transfer outcome is unknown",
+    "suggestion": "A signed URL is not proof the bytes were stored; reconcile this upload before retrying."
+  }
+}
+-- exit --
+1
+-- mutations.json --
+{"fileUpload": 1}
+-- state.json --
+{"Upload": [{"filename": "proof.txt", "received": true}], "Attachment": []}
