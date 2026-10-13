@@ -1,4 +1,4 @@
-A resolution receipt with success false is unknown; an acknowledged resolution that Linear did not apply is caught by the read-back.
+A resolution receipt with success false is unknown; an acknowledged resolution that Linear did not apply is caught by the read-back; a failing read-back reports only Linear's message.
 -- seed.json --
 {"Issue": [{"id": "1a000000-0000-4000-8000-000000000001", "identifier": "ENG-1", "title": "Thread"}, {"id": "1a000000-0000-4000-8000-000000000002", "identifier": "ENG-2", "title": "Elsewhere"}],
  "Comment": [
@@ -57,3 +57,30 @@ linear issue comment resolve abcdefab-1234-4567-89ab-abcdefabcdef --json
 1
 -- state.json --
 {"Comment": [{"id": "abcdefab-1234-4567-89ab-abcdefabcdef", "resolvedAt": null}, {}, {}, {}]}
+-- faults.json --
+[{"on": "query:comment", "after": "mutation", "action": "status", "status": 200, "times": 99, "body": {"data": null, "errors": [{"message": "read failed"}]}}]
+-- run --
+linear issue comment resolve 1c000000-0000-4000-8000-000000000003 --json
+-- stdout.json --
+{
+  "ok": false,
+  "effect": "applied",
+  "data": {
+    "commentResolve": {
+      "success": true,
+      "comment": {
+        "id": "abcdefab-1234-4567-89ab-abcdefabcdef"
+      }
+    }
+  },
+  "error": {
+    "code": "WriteError",
+    "message": "Failed to resolve comment: Thread mutation succeeded but verification failed",
+    "suggestion": "Read the root comment before continuing; do not repeat the mutation.",
+    "details": {
+      "reason": "read failed"
+    }
+  }
+}
+-- exit --
+1

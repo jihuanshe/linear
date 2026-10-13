@@ -51,7 +51,30 @@ export class Store {
         if (existing != null) Object.assign(existing, record)
         else {
           this.insert({
-            ...withDefaults(this, typename, record),
+            ...withDefaults(this, typename, { ...record, id }),
+            id,
+            __typename: typename,
+          })
+        }
+      }
+    }
+  }
+
+  /**
+   * Apply a concurrent edit made during a case: new records are created now,
+   * and changed records are updated now, on the same clock as writes.
+   */
+  patch(seed: Seed): void {
+    for (const [typename, records] of Object.entries(seed)) {
+      for (const record of records) {
+        const now = this.now()
+        const id = typeof record.id === "string" ? record.id : this.newId()
+        const existing = this.find(typename, id)
+        if (existing != null) {
+          Object.assign(existing, { updatedAt: now }, record)
+        } else {
+          this.insert({
+            ...withDefaults(this, typename, { createdAt: now, ...record, id }),
             id,
             __typename: typename,
           })

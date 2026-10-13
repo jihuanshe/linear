@@ -211,7 +211,8 @@ jobs:
         run: deno task conformance:build
 
       - name: Run conformance cases against the executable
-        run: deno task conformance --binary "$PWD/outputs/conformance/linear"
+        # --slow includes cases that wait out real deadlines (about two minutes).
+        run: deno task conformance --binary "$PWD/outputs/conformance/linear" --slow
 
       - name: Check conformance left the checkout unchanged
         run: |

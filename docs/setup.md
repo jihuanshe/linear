@@ -76,11 +76,12 @@ vcs = "git"
 
 ## 运行时开关
 
-| 变量                       | 作用                                     |
-| -------------------------- | ---------------------------------------- |
-| `LINEAR_PROMPT_DISABLED=1` | 禁止提示；缺少输入时失败，不代表授权写入 |
-| `LINEAR_GRAPHQL_ENDPOINT`  | 使用受控 GraphQL 代理；仍需核对身份      |
-| `LINEAR_DEBUG=1`           | 在 stderr 输出底层错误和堆栈             |
-| `NO_COLOR=1`               | 禁止颜色、动画和 OSC-8 链接              |
+| 变量                       | 作用                                                                                 |
+| -------------------------- | ------------------------------------------------------------------------------------ |
+| `LINEAR_PROMPT_DISABLED=1` | 禁止提示；缺少输入时失败，不代表授权写入                                             |
+| `LINEAR_GRAPHQL_ENDPOINT`  | 使用受控 GraphQL 代理；仍需核对身份                                                  |
+| `LINEAR_DEBUG=1`           | 在 stderr 输出底层错误和堆栈                                                         |
+| `LINEAR_NOW`               | 用带时区的 ISO 8601 时刻固定相对日期的“当前时间”，用于可复现的输出；无效值使命令失败 |
+| `NO_COLOR=1`               | 禁止颜色、动画和 OSC-8 链接                                                          |
 
 `--json`（`-j`）是全局输出选项，命令是否支持 JSON 以 `usage --json` 的 `outputModes` 为准；其他选项查看 `linear <command> --help`。无人值守输出、依据比较和写入效果见 `linear guide automation`。

@@ -115,14 +115,18 @@ function cyclePhase(
   cycle: EntityRecord,
   now: string,
 ): "past" | "active" | "future" {
-  if (String(cycle.startsAt) > now) return "future"
-  if (String(cycle.endsAt) <= now) return "past"
+  // Compare instants, not strings: "...00Z" and "...00.000Z" are equal.
+  const at = Date.parse(now)
+  if (Date.parse(String(cycle.startsAt)) > at) return "future"
+  if (Date.parse(String(cycle.endsAt)) <= at) return "past"
   return "active"
 }
 
 function teamCycles(store: Context["store"], teamId: string): EntityRecord[] {
   return store.all("Cycle").filter((c) => c.team === teamId)
-    .sort((a, b) => String(a.startsAt).localeCompare(String(b.startsAt)))
+    .sort((a, b) =>
+      Date.parse(String(a.startsAt)) - Date.parse(String(b.startsAt))
+    )
 }
 
 /**

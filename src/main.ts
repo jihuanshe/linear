@@ -88,6 +88,12 @@ if (import.meta.main) {
   try {
     const { cli } = await import("./cli.ts")
     setMachineOutput(machineOutputRequested(Deno.args, cli))
+    // An explicit LINEAR_NOW must be valid even for commands that show no
+    // relative dates; one loaded later from .env is checked when it is used.
+    if (Deno.env.get("LINEAR_NOW") != null) {
+      const { currentTime } = await import("./utils/clock.ts")
+      currentTime()
+    }
     const { withGraphQLContext } = await import("./utils/graphql.ts")
     await withGraphQLContext(() => cli.parse(Deno.args))
   } catch (error) {

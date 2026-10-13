@@ -98,33 +98,52 @@ function applyPatch(target: unknown, patch: unknown): unknown {
       value?: unknown
     }[]
   ) {
-    const keys = path.split("/").slice(1).map((key) =>
-      key.replaceAll("~1", "/").replaceAll("~0", "~")
-    )
+    if (!["add", "replace", "remove"].includes(op)) {
+      throw new Error(`unsupported JSON Patch op ${op}`)
+    }
+    if (path !== "" && !path.startsWith("/")) {
+      throw new Error(`JSON Patch path must start with "/": ${path}`)
+    }
+    const keys = path === ""
+      ? []
+      : path.split("/").slice(1).map((key) =>
+        key.replaceAll("~1", "/").replaceAll("~0", "~")
+      )
     if (keys.length === 0) {
+      if (op === "remove") throw new Error("JSON Patch cannot remove the root")
       document = value
       continue
     }
-    let parent = document as Record<string, unknown>
+    let parent: unknown = document
     for (const key of keys.slice(0, -1)) {
-      parent = parent[key] as Record<string, unknown>
+      if (parent === null || typeof parent !== "object" || !(key in parent)) {
+        throw new Error(`JSON Patch path does not exist: ${path}`)
+      }
+      parent = (parent as Record<string, unknown>)[key]
+    }
+    if (parent === null || typeof parent !== "object") {
+      throw new Error(`JSON Patch path does not exist: ${path}`)
     }
     const last = keys.at(-1)!
     if (Array.isArray(parent)) {
-      // Arrays insert, append ("-"), replace and remove by index.
+      // Arrays insert or append ("-") with add; replace and remove need an
+      // existing element.
       const index = last === "-" ? parent.length : Number(last)
-      if (!Number.isInteger(index) || index < 0 || index > parent.length) {
+      const limit = op === "add" ? parent.length : parent.length - 1
+      if (!Number.isInteger(index) || index < 0 || index > limit) {
         throw new Error(`JSON Patch index out of range: ${path}`)
       }
       if (op === "add") parent.splice(index, 0, value)
       else if (op === "replace") parent[index] = value
-      else if (op === "remove") parent.splice(index, 1)
-      else throw new Error(`unsupported JSON Patch op ${op}`)
+      else parent.splice(index, 1)
       continue
     }
-    if (op === "remove") delete parent[last]
-    else if (op === "add" || op === "replace") parent[last] = value
-    else throw new Error(`unsupported JSON Patch op ${op}`)
+    const object = parent as Record<string, unknown>
+    if (op !== "add" && !(last in object)) {
+      throw new Error(`JSON Patch path does not exist: ${path}`)
+    }
+    if (op === "remove") delete object[last]
+    else object[last] = value
   }
   return document
 }

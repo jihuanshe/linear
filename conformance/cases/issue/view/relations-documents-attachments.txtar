@@ -112,7 +112,7 @@ linear issue view ENG-246 --no-comments --json
     "attachments": {
       "nodes": [
         {
-          "id": "f0000000-0000-4000-8000-000000000007",
+          "id": "f0000000-0000-4000-8000-000000000005",
           "title": "Design mock",
           "url": "https://example.com/design-mock",
           "subtitle": "Figma file",
@@ -123,7 +123,7 @@ linear issue view ENG-246 --no-comments --json
       ],
       "pageInfo": {
         "hasNextPage": false,
-        "endCursor": "f0000000-0000-4000-8000-000000000007"
+        "endCursor": "f0000000-0000-4000-8000-000000000005"
       }
     },
     "relations": {
@@ -159,7 +159,7 @@ linear issue view ENG-246 --no-comments --json
     "documents": {
       "nodes": [
         {
-          "id": "f0000000-0000-4000-8000-000000000005",
+          "id": "f0000000-0000-4000-8000-000000000004",
           "title": "Implementation plan",
           "slugId": "f5e4d3c2b1a0",
           "url": "https://linear.app/kadoraba/document/implementation-plan-f5e4d3c2b1a0",

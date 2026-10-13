@@ -1,0 +1,169 @@
+Requested fields are still verified when the issue is archived or trashed right after the write.
+-- seed.json --
+{"Issue": [{"id": "1a000000-0000-4000-8000-000000000123", "identifier": "ENG-123", "title": "Before title", "description": "Before"}, {"id": "1a000000-0000-4000-8000-000000000124", "identifier": "ENG-124", "title": "Before title"}]}
+-- faults.json --
+[{"on": "mutation:issueUpdate", "action": "patch-after", "seed": {"Issue": [{"id": "1a000000-0000-4000-8000-000000000123", "archivedAt": "2025-12-31T00:00:00.000Z"}]}}]
+-- run --
+linear issue update ENG-123 --unprotected --title Renamed --json
+-- stdout.json --
+{
+  "ok": true,
+  "effect": "applied",
+  "data": {
+    "success": true,
+    "issue": {
+      "id": "1a000000-0000-4000-8000-000000000123",
+      "identifier": "ENG-123",
+      "url": "https://linear.app/kadoraba/issue/ENG-123/renamed",
+      "title": "Renamed",
+      "priority": 0,
+      "labels": {
+        "nodes": [],
+        "pageInfo": {
+          "hasNextPage": false,
+          "endCursor": null
+        }
+      }
+    }
+  },
+  "fields": [
+    {
+      "field": "title",
+      "inputField": "title",
+      "desired": "Renamed",
+      "remote": "Before title",
+      "verdict": "write"
+    }
+  ],
+  "verification": {
+    "scope": "issue-fields",
+    "status": "verified"
+  },
+  "readBack": {
+    "organization": {
+      "id": "0a000000-0000-4000-8000-000000000001",
+      "urlKey": "kadoraba"
+    },
+    "issue": {
+      "id": "1a000000-0000-4000-8000-000000000123",
+      "identifier": "ENG-123",
+      "archivedAt": "2025-12-31T00:00:00.000Z",
+      "trashed": null,
+      "title": "Renamed",
+      "description": "Before",
+      "url": "https://linear.app/kadoraba/issue/ENG-123/renamed",
+      "branchName": "alex/eng-123-renamed",
+      "priority": 0,
+      "estimate": null,
+      "dueDate": null,
+      "state": {
+        "id": "0d000000-0000-4000-8000-000000000001",
+        "name": "Backlog",
+        "type": "backlog",
+        "color": "#bec2c8"
+      },
+      "assignee": null,
+      "project": null,
+      "projectMilestone": null,
+      "cycle": null,
+      "team": {
+        "id": "0c000000-0000-4000-8000-000000000001",
+        "key": "ENG",
+        "activeCycle": null
+      },
+      "parent": null,
+      "labels": {
+        "nodes": [],
+        "pageInfo": {
+          "hasNextPage": false,
+          "endCursor": null
+        }
+      }
+    }
+  }
+}
+-- mutations.json --
+{"issueUpdate": 1}
+-- faults.json --
+[{"on": "mutation:issueUpdate", "action": "patch-after", "seed": {"Issue": [{"id": "1a000000-0000-4000-8000-000000000124", "trashed": true, "archivedAt": "2025-12-31T00:00:00.000Z"}]}}]
+-- run --
+linear issue update ENG-124 --unprotected --title Renamed --json
+-- stdout.json --
+{
+  "ok": true,
+  "effect": "applied",
+  "data": {
+    "success": true,
+    "issue": {
+      "id": "1a000000-0000-4000-8000-000000000124",
+      "identifier": "ENG-124",
+      "url": "https://linear.app/kadoraba/issue/ENG-124/renamed",
+      "title": "Renamed",
+      "priority": 0,
+      "labels": {
+        "nodes": [],
+        "pageInfo": {
+          "hasNextPage": false,
+          "endCursor": null
+        }
+      }
+    }
+  },
+  "fields": [
+    {
+      "field": "title",
+      "inputField": "title",
+      "desired": "Renamed",
+      "remote": "Before title",
+      "verdict": "write"
+    }
+  ],
+  "verification": {
+    "scope": "issue-fields",
+    "status": "verified"
+  },
+  "readBack": {
+    "organization": {
+      "id": "0a000000-0000-4000-8000-000000000001",
+      "urlKey": "kadoraba"
+    },
+    "issue": {
+      "id": "1a000000-0000-4000-8000-000000000124",
+      "identifier": "ENG-124",
+      "archivedAt": "2025-12-31T00:00:00.000Z",
+      "trashed": true,
+      "title": "Renamed",
+      "description": null,
+      "url": "https://linear.app/kadoraba/issue/ENG-124/renamed",
+      "branchName": "alex/eng-124-renamed",
+      "priority": 0,
+      "estimate": null,
+      "dueDate": null,
+      "state": {
+        "id": "0d000000-0000-4000-8000-000000000001",
+        "name": "Backlog",
+        "type": "backlog",
+        "color": "#bec2c8"
+      },
+      "assignee": null,
+      "project": null,
+      "projectMilestone": null,
+      "cycle": null,
+      "team": {
+        "id": "0c000000-0000-4000-8000-000000000001",
+        "key": "ENG",
+        "activeCycle": null
+      },
+      "parent": null,
+      "labels": {
+        "nodes": [],
+        "pageInfo": {
+          "hasNextPage": false,
+          "endCursor": null
+        }
+      }
+    }
+  }
+}
+-- mutations.json --
+{"issueUpdate": 1}

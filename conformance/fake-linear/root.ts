@@ -10,6 +10,9 @@ import { LinearError } from "./errors.ts"
 import { connectionOf, type Context, lookup, searchIssues } from "./resolve.ts"
 import type { EntityRecord } from "./store.ts"
 
+/** Natural keys an issue reference may use: its identifier, or an old one. */
+const ISSUE_KEYS = ["identifier", "previousIdentifiers"]
+
 type Args = Record<string, unknown>
 type Input = Record<string, unknown>
 type RootField = (args: Args, ctx: Context, info: GraphQLResolveInfo) => unknown
@@ -205,10 +208,7 @@ const issueUpdate: RootField = ({ id, input }, ctx) => {
     ],
     "issueUpdate",
   )
-  const issue = lookup(ctx, "Issue", String(id), [
-    "identifier",
-    "previousIdentifiers",
-  ])
+  const issue = lookup(ctx, "Issue", String(id), ISSUE_KEYS)
   // A rejected input leaves the issue unchanged.
   const next = structuredClone(issue)
   if ("teamId" in data) {
@@ -239,10 +239,7 @@ const issueUpdate: RootField = ({ id, input }, ctx) => {
 }
 
 const issueDelete: RootField = ({ id, permanentlyDelete }, ctx) => {
-  const issue = lookup(ctx, "Issue", String(id), [
-    "identifier",
-    "previousIdentifiers",
-  ])
+  const issue = lookup(ctx, "Issue", String(id), ISSUE_KEYS)
   if (permanentlyDelete === true) {
     ctx.store.remove("Issue", issue.id)
   } else {
@@ -288,7 +285,7 @@ const commentCreate: RootField = ({ input }, ctx) => {
   )
   const issue = data.issueId == null
     ? null
-    : lookup(ctx, "Issue", String(data.issueId), ["identifier"])
+    : lookup(ctx, "Issue", String(data.issueId), ISSUE_KEYS)
   const parent = data.parentId == null
     ? null
     : lookup(ctx, "Comment", String(data.parentId))
@@ -414,10 +411,7 @@ function upsertAttachment(
   issueRef: unknown,
   fields: Record<string, unknown>,
 ): EntityRecord {
-  const issue = lookup(ctx, "Issue", String(issueRef), [
-    "identifier",
-    "previousIdentifiers",
-  ])
+  const issue = lookup(ctx, "Issue", String(issueRef), ISSUE_KEYS)
   const now = ctx.store.now()
   const existing = ctx.store.all("Attachment").find((attachment) =>
     attachment.issue === issue.id && attachment.url === fields.url
@@ -487,10 +481,7 @@ const favoriteCreate: RootField = ({ input }, ctx) => {
   const now = ctx.store.now()
   const issue = data.issueId == null
     ? null
-    : lookup(ctx, "Issue", String(data.issueId), [
-      "identifier",
-      "previousIdentifiers",
-    ])
+    : lookup(ctx, "Issue", String(data.issueId), ISSUE_KEYS)
   const favorite = ctx.store.insert({
     id: typeof data.id === "string" ? data.id : ctx.store.newId(),
     __typename: "Favorite",
@@ -527,14 +518,8 @@ const issueRelationCreate: RootField = ({ input }, ctx) => {
     ["id", "issueId", "relatedIssueId", "type"],
     "issueRelationCreate",
   )
-  const issue = lookup(ctx, "Issue", String(data.issueId), [
-    "identifier",
-    "previousIdentifiers",
-  ])
-  const related = lookup(ctx, "Issue", String(data.relatedIssueId), [
-    "identifier",
-    "previousIdentifiers",
-  ])
+  const issue = lookup(ctx, "Issue", String(data.issueId), ISSUE_KEYS)
+  const related = lookup(ctx, "Issue", String(data.relatedIssueId), ISSUE_KEYS)
   if (issue.id === related.id) {
     throw LinearError.input(
       "Argument Validation Error",

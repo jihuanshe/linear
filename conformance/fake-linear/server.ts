@@ -100,7 +100,13 @@ export class FakeLinear {
   }
 
   set faults(rules: FaultRule[]) {
+    for (const rule of rules) {
+      if (rule.action === "stale" && !rule.on.startsWith("query")) {
+        throw new Error(`fault: stale applies to queries, not ${rule.on}`)
+      }
+    }
     this.#faults = rules
+    this.#beforeMutation = undefined
     this.#seen.clear()
     this.#mutatedSinceFaults = false
   }
@@ -274,11 +280,13 @@ export class FakeLinear {
       : [...rootFields(operation.selectionSet, fragments, coerced).values()]
 
     const selected = new Set<string>()
-    visit(document, {
-      Field: (node) => {
-        selected.add(node.name.value)
-      },
-    })
+    if (this.#faults.some((rule) => rule.selects != null)) {
+      visit(document, {
+        Field: (node) => {
+          selected.add(node.name.value)
+        },
+      })
+    }
     const fault = this.#fault(kind, fields, selected)
     if (fault?.action === "status") {
       return this.#log(
@@ -292,11 +300,14 @@ export class FakeLinear {
       return this.#log(kind, fields, variables, dropped())
     }
     if (fault?.action === "patch" && fault.seed != null) {
-      this.store.seed(fault.seed)
+      this.store.patch(fault.seed)
     }
 
     if (kind === "mutation") {
-      this.#beforeMutation = this.store.clone()
+      // Only stale reads need the data as it was before this write.
+      if (this.#faults.some((rule) => rule.action === "stale")) {
+        this.#beforeMutation = this.store.clone()
+      }
       this.#mutatedSinceFaults = true
     }
     const store = fault?.action === "stale" && this.#beforeMutation != null
@@ -340,7 +351,7 @@ export class FakeLinear {
       return this.#log(kind, fields, variables, dropped())
     }
     if (fault?.action === "patch-after" && fault.seed != null) {
-      this.store.seed(fault.seed)
+      this.store.patch(fault.seed)
     }
     const payload = {
       ...(result as object),
@@ -386,7 +397,7 @@ export class FakeLinear {
       return json(fault.status ?? 500, fault.body ?? {}, fault.headers)
     }
     if (fault?.action === "patch" && fault.seed != null) {
-      this.store.seed(fault.seed)
+      this.store.patch(fault.seed)
     }
     // Deno.serve cannot cut a connection before its status line, so a dropped
     // upload response cannot be modeled; refuse rather than pretend.

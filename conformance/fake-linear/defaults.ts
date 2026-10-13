@@ -41,7 +41,7 @@ const TYPE_DEFAULTS: Record<string, Defaults> = {
       project: null,
       projectMilestone: null,
       cycle: null,
-      state: defaultState(store, team.id),
+      state: record.state ?? defaultState(store, team.id),
       canceledAt: null,
       completedAt: null,
       startedAt: null,

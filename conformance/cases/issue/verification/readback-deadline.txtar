@@ -1,0 +1,54 @@
+A read-back that never answers runs into the read-back deadline (ten seconds); the update still reports its acknowledged mutation as applied, with verification unavailable, and does not repeat it.
+-- seed.json --
+{"Issue": [{"id": "1a000000-0000-4000-8000-000000000123", "identifier": "ENG-123", "title": "Before title", "description": "Before"}]}
+-- faults.json --
+[{"on": "query:issue", "after": "mutation", "action": "stall", "times": 99}]
+-- run --
+linear issue update ENG-123 --unprotected --title Renamed --json
+-- stdout.json --
+{
+  "ok": false,
+  "effect": "applied",
+  "data": {
+    "success": true,
+    "issue": {
+      "id": "1a000000-0000-4000-8000-000000000123",
+      "identifier": "ENG-123",
+      "url": "https://linear.app/kadoraba/issue/ENG-123/renamed",
+      "title": "Renamed",
+      "priority": 0,
+      "labels": {
+        "nodes": [],
+        "pageInfo": {
+          "hasNextPage": false,
+          "endCursor": null
+        }
+      }
+    }
+  },
+  "error": {
+    "code": "WriteError",
+    "message": "Failed to update issue: Issue mutation succeeded but read-back did not verify",
+    "suggestion": "Read the issue before continuing; do not repeat the mutation.",
+    "details": {
+      "verification": {
+        "scope": "issue-fields",
+        "status": "unavailable",
+        "detail": "Read-back timed out"
+      },
+      "fields": [
+        {
+          "field": "title",
+          "inputField": "title",
+          "desired": "Renamed",
+          "remote": "Before title",
+          "verdict": "write"
+        }
+      ]
+    }
+  }
+}
+-- exit --
+1
+-- mutations.json --
+{"issueUpdate": 1}

@@ -1,0 +1,60 @@
+An update to values the issue already has writes nothing and reports no effect.
+-- seed.json --
+{"Issue": [{"id": "1a000000-0000-4000-8000-000000000123", "identifier": "ENG-123", "title": "Before title", "description": "Before"}]}
+-- run --
+linear issue update ENG-123 --unprotected --title "Before title" --json
+-- stdout.json --
+{
+  "ok": true,
+  "effect": "none",
+  "data": {
+    "success": true,
+    "issue": {
+      "id": "1a000000-0000-4000-8000-000000000123",
+      "identifier": "ENG-123",
+      "archivedAt": null,
+      "trashed": null,
+      "title": "Before title",
+      "description": "Before",
+      "url": "https://linear.app/kadoraba/issue/ENG-123/before-title",
+      "branchName": "alex/eng-123-before-title",
+      "priority": 0,
+      "estimate": null,
+      "dueDate": null,
+      "state": {
+        "id": "0d000000-0000-4000-8000-000000000001",
+        "name": "Backlog",
+        "type": "backlog",
+        "color": "#bec2c8"
+      },
+      "assignee": null,
+      "project": null,
+      "projectMilestone": null,
+      "cycle": null,
+      "team": {
+        "id": "0c000000-0000-4000-8000-000000000001",
+        "key": "ENG",
+        "activeCycle": null
+      },
+      "parent": null,
+      "labels": {
+        "nodes": [],
+        "pageInfo": {
+          "hasNextPage": false,
+          "endCursor": null
+        }
+      }
+    }
+  },
+  "fields": [
+    {
+      "field": "title",
+      "inputField": "title",
+      "desired": "Before title",
+      "remote": "Before title",
+      "verdict": "idempotent"
+    }
+  ]
+}
+-- mutations.json --
+{}

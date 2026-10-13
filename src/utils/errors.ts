@@ -511,6 +511,15 @@ export function extractGraphQLMessage(error: ClientError): string {
 }
 
 /**
+ * A one-line message for any error. A GraphQL client error's own message
+ * embeds the whole request and response, so it gives Linear's message instead.
+ */
+export function errorMessage(error: unknown): string {
+  if (isClientError(error)) return extractGraphQLMessage(error)
+  return error instanceof Error ? error.message : String(error)
+}
+
+/**
  * Check if a GraphQL error indicates an entity was not found.
  */
 export function isNotFoundError(error: ClientError): boolean {
