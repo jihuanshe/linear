@@ -28,7 +28,7 @@ function rewriteLinks(line: string): string {
 }
 
 const BARE_HOST =
-  /(^|\s)((?:[a-z0-9-]+\.)+(?:com|cn|net|org|io))(?=$|[\s,;:!?)]|\.(?:$|\s))/g
+  /(^|\s)((?:[a-z0-9-]+\.)+(?:com|cn|net|org|io))(?=$|[\s,;!)]|[.?:](?:$|\s))/g
 const LINK_OR_AUTOLINK = /^(?:!?\[[^\]]*\]\([^)]*\)|<[^>\s]*>)/
 
 /** Split text into prose and protected ranges: code spans and links. */
@@ -72,7 +72,8 @@ function proseRanges(text: string): { prose: boolean; text: string }[] {
 /**
  * Observed (jihuanshe workspace): a bare "notes.jihuanshe.com" is stored as
  * "[notes.jihuanshe.com](<http://notes.jihuanshe.com>)". Modeled only for
- * whitespace-delimited host names on a few common top-level domains in prose:
+ * whitespace-delimited host names on a few common top-level domains in prose
+ * (a host followed by a path, query, fragment or port is left alone):
  * indented code lines, code spans (also across lines) and existing links stay
  * unchanged.
  */

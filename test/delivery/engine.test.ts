@@ -1364,10 +1364,23 @@ for (
       matches: false,
     },
     {
+      name: "an auto-link that drops a route fragment",
+      desired: "notes.jihuanshe.com#/settings",
+      actual: "[notes.jihuanshe.com](<http://notes.jihuanshe.com>)#/settings",
+      matches: false,
+    },
+    {
+      name: "an auto-link that drops a non-ASCII fragment",
+      desired: "notes.jihuanshe.com#设置",
+      actual: "[notes.jihuanshe.com](<http://notes.jihuanshe.com>)#设置",
+      matches: false,
+    },
+    {
       name: "an auto-linked domain before sentence punctuation",
-      desired: "见 notes.jihuanshe.com: 说明。另见 docs.jihuanshe.com.",
+      desired:
+        "见 notes.jihuanshe.com: 说明。另见 docs.jihuanshe.com.\n\n是 a.jihuanshe.com?",
       actual:
-        "见 [notes.jihuanshe.com](<http://notes.jihuanshe.com>): 说明。另见 [docs.jihuanshe.com](<http://docs.jihuanshe.com>).",
+        "见 [notes.jihuanshe.com](<http://notes.jihuanshe.com>): 说明。另见 [docs.jihuanshe.com](<http://docs.jihuanshe.com>).\n\n是 [a.jihuanshe.com](<http://a.jihuanshe.com>)?",
       matches: true,
     },
     {

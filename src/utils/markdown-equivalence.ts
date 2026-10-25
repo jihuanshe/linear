@@ -68,8 +68,11 @@ function bareTextBoundary(
   if (typeof after !== "string") return true
   if (/[\w/@-]/.test(after)) return false
   // A query, fragment, port or further label continues the URL.
-  return !(/[.?#:]/.test(after) && typeof next === "string" &&
-    /[\w%=&]/.test(next))
+  if (next == null) return true
+  if (typeof next !== "string") return !/[?#:]/.test(after)
+  if (after === "?" || after === "#") return !/\S/.test(next)
+  if (after === ":") return !/\d/.test(next)
+  return !(after === "." && /[\w%]/.test(next))
 }
 
 /**
