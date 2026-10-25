@@ -60,7 +60,7 @@
 
 `LINEAR_KADORABA_API_KEY` 是 Kadoraba 测试工作区的专用实验凭据。只有正确性依赖未文档化或不确定的 Linear API 行为、且确定性本地测试无法裁定时，才使用范围受限的实时实验。
 
-- 凭据只提供认证，不授权 mutation。先取得当前实验的明确授权，说明需要验证的行为和受影响对象；授权后可完成该范围内的必要测试。扩展到其他工作区、共享既有对象、预期外成本／停机或无法清理的资源时重新确认。
+- 在 Kadoraba 测试工作区内，创建、修改和清理本实验自己创建的对象不需另行确认。涉及其他工作区、他人既有对象、预期外成本／停机或无法清理的资源时，先说明要验证的行为和受影响对象，取得用户确认。
 - 只检查专用凭据是否存在。不得打印、派生、指纹化、比较或检查其内容；不得读取、使用或回退到已有 `LINEAR_API_KEY`。
 - CLI 需要 `LINEAR_API_KEY` 时，只对单个进程映射：`env LINEAR_API_KEY="$LINEAR_KADORABA_API_KEY" <linear-command>`。
 - 第一次 mutation 前，用同一个目标可执行文件运行 `auth whoami --json`。只有 `organization.name` 为 `Kadoraba` 或 `organization.urlKey` 为 `kadoraba` 才能继续；其他身份立即停止。
@@ -75,7 +75,7 @@
 3. 行为变化时修改对应层级测试。开发中运行最窄的相关 `deno task test --filter ...` 或测试文件；只在有意更新快照时运行 `deno task update-snapshots`。测试任务已固定 `TZ=UTC`。使用 Deno task、check 和 lint，不使用 `tsc` 或把 LSP 诊断当作验证结果。
 4. 修改 `graphql/schema.graphql` 或 `src/` 中的 `gql` document 后运行 `deno task generate-graphql-types`。生成文件被 ignore，不提交。
 5. 修改 Markdown 时检查相对链接；修改 Mermaid 时用目标渲染器解析并实际渲染。指南和示例中的操作指引必须提供安装后可用的命令。修改指南、示例或命令树时运行对应测试，确认元数据、内容与实时命令树一致，并验证编译产物离开源码目录后仍可读取。
-6. 提交前运行完整门禁：
+6. 提交前运行与改动相关的测试；开 Pull Request 前运行完整源码门禁：
 
    ```bash
    mise exec -- deno task verify-release
@@ -84,7 +84,7 @@
 
 pre-commit hook 只检查暂存文件的格式、Markdown 结构和中英文排版；`deno task verify-source` 负责 GraphQL codegen、format check、代码与 Markdown lint、AutoCorrect、type check 和所有非 Keyring 测试。`verify-release` 是源码门禁，也是 Pull Request 源码门禁，不包含编译产物、Linux 密钥环集成测试或五平台构建。后两者由滚动发布 workflow 执行。
 
-未经用户明确授权，不 push 或发布。用户要求发布 `main` 时，加载并遵循 `.agents/skills/releasing/SKILL.md`；不要手工修改版本、创建 tag 或另建发布流程。
+push `main` 或发布前取得用户明确授权；其他分支可直接 push。用户要求发布 `main` 时，加载并遵循 `.agents/skills/releasing/SKILL.md`；不要手工修改版本、创建 tag 或另建发布流程。
 
 ## 测试设计约束
 
