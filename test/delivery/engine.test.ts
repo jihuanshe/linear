@@ -1263,7 +1263,101 @@ for (
       actual: "* [x] 验证发布",
       matches: false,
     },
-  ]
+    {
+      name: "identical bytes",
+      desired: "* 原文",
+      actual: "* 原文",
+      matches: true,
+      exact: true,
+    },
+    {
+      name: "an auto-linked bare domain",
+      desired: "部署在 notes.jihuanshe.com 上。\n",
+      actual: "部署在 [notes.jihuanshe.com](<http://notes.jihuanshe.com>) 上。",
+      matches: true,
+    },
+    {
+      name: "an auto-linked bare domain with a non-ASCII path",
+      desired: "notes.jihuanshe.com/中文",
+      actual:
+        "[notes.jihuanshe.com/中文](<http://notes.jihuanshe.com/%E4%B8%AD%E6%96%87>)",
+      matches: true,
+    },
+    {
+      name: "a written www literal",
+      desired: "见 www.jihuanshe.com",
+      actual: "见 [www.jihuanshe.com](<http://www.jihuanshe.com>)",
+      matches: true,
+    },
+    {
+      name: "list markers, angle-bracket links and a trailing newline",
+      desired: "- a\n- [文档](https://notes.jihuanshe.com/a)\n",
+      actual: "* a\n* [文档](<https://notes.jihuanshe.com/a>)",
+      matches: true,
+    },
+    {
+      name: "an explicit domain link beside an auto-linked one",
+      desired:
+        "[notes.jihuanshe.com](http://notes.jihuanshe.com) 和 docs.jihuanshe.com\n",
+      actual:
+        "[notes.jihuanshe.com](<http://notes.jihuanshe.com>) 和 [docs.jihuanshe.com](<http://docs.jihuanshe.com>)",
+      matches: true,
+    },
+    {
+      name: "an auto-link with text other than its URL",
+      desired: "notes.jihuanshe.com",
+      actual: "[笔记](<http://notes.jihuanshe.com>)",
+      matches: false,
+    },
+    {
+      name: "an explicit dotless link read back bare",
+      desired: "[intranet](http://intranet)",
+      actual: "intranet",
+      matches: false,
+    },
+    {
+      name: "an explicit domain link read back bare",
+      desired: "[notes.jihuanshe.com](http://notes.jihuanshe.com)",
+      actual: "notes.jihuanshe.com",
+      matches: false,
+    },
+    {
+      name: "an https link over a bare domain",
+      desired: "notes.jihuanshe.com",
+      actual: "[notes.jihuanshe.com](<https://notes.jihuanshe.com>)",
+      matches: false,
+    },
+    {
+      name: "an auto-link to another domain",
+      desired: "notes.jihuanshe.com",
+      actual: "[notes.jihuanshe.com](<http://other.jihuanshe.com>)",
+      matches: false,
+    },
+    {
+      name: "an auto-link over part of a domain",
+      desired: "notes.jihuanshe.com",
+      actual: "notes.[jihuanshe.com](<http://jihuanshe.com>)",
+      matches: false,
+    },
+    {
+      name: "an auto-link that stops before the end of a domain",
+      desired: "notes.jihuanshe.com.cn",
+      actual: "[notes.jihuanshe.com](<http://notes.jihuanshe.com>).cn",
+      matches: false,
+    },
+    {
+      name: "a changed bare domain",
+      desired: "见 notes.jihuanshe.com",
+      actual: "见 docs.jihuanshe.com",
+      matches: false,
+    },
+  ] as {
+    name: string
+    desired: string
+    actual: string
+    matches: boolean
+    exact?: boolean
+  }[]
 ) {
   Deno.test(`delivery description read-back compares ${sample.name}`, async () => {
     const original = issue()
@@ -1297,6 +1391,10 @@ for (
       assertEquals(
         result.verification[0].status,
         sample.matches ? "verified" : "different",
+      )
+      assertEquals(
+        result.verification[0].normalizedFields,
+        sample.matches && !sample.exact ? ["description"] : undefined,
       )
       assertEquals(result.effect, "applied")
       assertEquals(f.mutations()[0].variables.input, {
