@@ -29,29 +29,66 @@ function rewriteLinks(line: string): string {
 
 const BARE_HOST =
   /(^|\s)((?:[a-z0-9-]+\.)+(?:com|cn|net|org|io))(?=$|[\s,;:!?)]|\.(?:$|\s))/g
-const NOT_PROSE = /(`+)[^`]*?\1(?!`)|!?\[[^\]]*\]\([^)]*\)|<[^>\s]*>/g
+const LINK_OR_AUTOLINK = /^(?:!?\[[^\]]*\]\([^)]*\)|<[^>\s]*>)/
+
+/** Split text into prose and protected ranges: code spans and links. */
+function proseRanges(text: string): { prose: boolean; text: string }[] {
+  const parts: { prose: boolean; text: string }[] = []
+  let prose = ""
+  let index = 0
+  const protect = (end: number) => {
+    if (prose) parts.push({ prose: true, text: prose })
+    parts.push({ prose: false, text: text.slice(index, end) })
+    prose = ""
+    index = end
+  }
+  while (index < text.length) {
+    if (text[index] === "`") {
+      const run = /^`+/.exec(text.slice(index))![0]
+      // A code span closes at the next backtick run of the same length.
+      const closing = new RegExp(`(?<!\`)${run}(?!\`)`, "g")
+      closing.lastIndex = index + run.length
+      const close = closing.exec(text)
+      if (close != null) {
+        protect(close.index + run.length)
+        continue
+      }
+      prose += run
+      index += run.length
+      continue
+    }
+    const link = LINK_OR_AUTOLINK.exec(text.slice(index))
+    if (link != null) {
+      protect(index + link[0].length)
+      continue
+    }
+    prose += text[index]
+    index++
+  }
+  if (prose) parts.push({ prose: true, text: prose })
+  return parts
+}
 
 /**
  * Observed (jihuanshe workspace): a bare "notes.jihuanshe.com" is stored as
  * "[notes.jihuanshe.com](<http://notes.jihuanshe.com>)". Modeled only for
  * whitespace-delimited host names on a few common top-level domains in prose:
- * indented code lines, code spans and existing links stay unchanged.
+ * indented code lines, code spans (also across lines) and existing links stay
+ * unchanged.
  */
-function linkBareDomains(line: string): string {
-  if (/^(?: {4}|\t)/.test(line)) return line
-  const link = (prose: string) =>
-    prose.replace(
-      BARE_HOST,
-      (_, before: string, host: string) =>
-        `${before}[${host}](<http://${host}>)`,
-    )
-  let out = ""
-  let last = 0
-  for (const match of line.matchAll(NOT_PROSE)) {
-    out += link(line.slice(last, match.index)) + match[0]
-    last = match.index + match[0].length
-  }
-  return out + link(line.slice(last))
+function linkBareDomains(lines: string[]): string[] {
+  const code = lines.map((line) => /^(?: {4}|\t)/.test(line))
+  const text = lines.map((line, i) => code[i] ? "" : line).join("\n")
+  const linked = proseRanges(text).map((part) =>
+    part.prose
+      ? part.text.replace(
+        BARE_HOST,
+        (_, before: string, host: string) =>
+          `${before}[${host}](<http://${host}>)`,
+      )
+      : part.text
+  ).join("").split("\n")
+  return lines.map((line, i) => code[i] ? line : linked[i])
 }
 
 const BULLET = /^(\s*)([-+*]) (.*)$/
@@ -88,9 +125,7 @@ export function normalizeLinearMarkdown(text: string): string {
   let block: string[] = []
   let fenced = false
   const flush = () => {
-    out.push(
-      ...rewriteLists(block).map((line) => linkBareDomains(rewriteLinks(line))),
-    )
+    out.push(...linkBareDomains(rewriteLists(block).map(rewriteLinks)))
     block = []
   }
   for (const line of lines) {

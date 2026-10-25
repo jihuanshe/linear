@@ -93,6 +93,21 @@ Deno.test("compareMarkdown - other link changes stay different", () => {
     ),
     "different",
   )
+  // A link over part of the written domain points somewhere else.
+  assertEquals(
+    compareMarkdown(
+      "notes.jihuanshe.com",
+      "notes.[jihuanshe.com](<http://jihuanshe.com>)",
+    ),
+    "different",
+  )
+  assertEquals(
+    compareMarkdown(
+      "notes.jihuanshe.com.cn",
+      "[notes.jihuanshe.com](<http://notes.jihuanshe.com>).cn",
+    ),
+    "different",
+  )
   // Only the observed http:// rewrite is accepted.
   assertEquals(
     compareMarkdown(

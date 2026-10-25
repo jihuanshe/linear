@@ -52,6 +52,25 @@ function tokens(children: MdNode[]): (string | MdNode)[] {
 }
 
 /**
+ * The written text must hold the whole domain or URL, not part of a longer
+ * one: `notes.[example.com](http://example.com)` is not an auto-link of
+ * `notes.example.com`.
+ */
+function bareTextBoundary(
+  w: (string | MdNode)[],
+  start: number,
+  length: number,
+): boolean {
+  const before = w[start - 1]
+  const after = w[start + length]
+  const next = w[start + length + 1]
+  if (typeof before === "string" && /[\w.@/:-]/.test(before)) return false
+  if (typeof after !== "string") return true
+  if (/[\w/@-]/.test(after)) return false
+  return !(after === "." && typeof next === "string" && /\w/.test(next))
+}
+
+/**
  * Structural equality where a read-back auto-link may stand for the same
  * bare text in the written Markdown. A link written explicitly must still
  * read back as a link, so a lost link stays different.
@@ -86,7 +105,8 @@ function sameNode(written: MdNode, actual: MdNode): boolean {
     const text = autoLinkText(right)
     const chars = text == null ? [] : [...text]
     if (
-      text == null || chars.some((char, offset) => w[i + offset] !== char)
+      text == null || chars.some((char, offset) => w[i + offset] !== char) ||
+      !bareTextBoundary(w, i, chars.length)
     ) return false
     i += chars.length
     j++
