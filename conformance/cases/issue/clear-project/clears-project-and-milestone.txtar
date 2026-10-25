@@ -79,7 +79,8 @@ linear issue update ENG-1001 --clear-project --base-file original.json --json
       "assignee": {
         "id": "1b000000-0000-4000-8000-000000000002",
         "name": "Jane",
-        "displayName": "jane"
+        "displayName": "jane",
+        "email": "jane@example.com"
       },
       "project": null,
       "projectMilestone": null,

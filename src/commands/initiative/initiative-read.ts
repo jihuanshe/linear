@@ -15,7 +15,7 @@ const ReadInitiative = gql(`
       nodes {
         id slugId name description content @include(if: $includeContent) status targetDate health color icon url archivedAt
         createdAt updatedAt trashed
-        owner { id name displayName }
+        owner { id name displayName email }
         projects(first: 50, after: $projectsAfter) {
           nodes { id slugId name description @include(if: $includeContent) url status { name type } }
           pageInfo { hasNextPage endCursor }

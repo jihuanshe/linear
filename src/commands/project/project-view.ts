@@ -30,11 +30,13 @@ const GetProjectDetails = gql(`
       creator {
         name
         displayName
+        email
       }
       lead {
         id
         name
         displayName
+        email
       }
       priority
       health
@@ -71,6 +73,7 @@ const GetProjectDetails = gql(`
         user {
           name
           displayName
+          email
         }
       }
     }

@@ -43,6 +43,7 @@ const GetInitiatives = gql(`
         owner {
           id
           displayName
+          email
           initials
         }
         projects(first: 50) {

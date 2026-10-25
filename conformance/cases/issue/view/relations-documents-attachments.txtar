@@ -22,7 +22,7 @@ linear issue view ENG-246 --no-comments
 -- stdout --
 # ENG-246: Audit issue resource output
 
-**State:** In Progress | **Priority:** ▄▆█ | **Assignee:** @Jane Smith
+**State:** In Progress | **Priority:** ▄▆█ | **Assignee:** @Jane Smith (jane.smith@example.com)
 
 ## Context
 
@@ -78,7 +78,8 @@ linear issue view ENG-246 --no-comments --json
     "assignee": {
       "id": "1b000000-0000-4000-8000-000000000002",
       "name": "jane.smith",
-      "displayName": "Jane Smith"
+      "displayName": "Jane Smith",
+      "email": "jane.smith@example.com"
     },
     "project": null,
     "projectMilestone": null,

@@ -16,7 +16,7 @@ linear issue view ENG-456 --no-comments
 -- stdout --
 # ENG-456: Implement user authentication
 
-**State:** In Progress | **Priority:** ▄▆█ | **Assignee:** @Alice Developer
+**State:** In Progress | **Priority:** ▄▆█ | **Assignee:** @Alice Developer (alice.dev@example.com)
 
 ## Context
 

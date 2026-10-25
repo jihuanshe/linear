@@ -13,7 +13,7 @@ export const issueScalarFieldsFragment = gql(`
     id identifier archivedAt trashed title description url branchName
     priority estimate dueDate
     state { id name type color }
-    assignee { id name displayName }
+    assignee { id name displayName email }
     project { id name slugId }
     projectMilestone { id name }
     cycle { id number name isActive isNext isPrevious isFuture isPast }

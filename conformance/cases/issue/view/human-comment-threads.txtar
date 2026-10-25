@@ -18,7 +18,7 @@ linear issue view ENG-123
 -- stdout --
 # ENG-123: Fix authentication bug in login flow
 
-**State:** In Progress | **Priority:** ⚠⚠⚠ | **Assignee:** @John Doe | **Unresolved threads:** 2
+**State:** In Progress | **Priority:** ⚠⚠⚠ | **Assignee:** @John Doe (john.doe@example.com) | **Unresolved threads:** 2
 
 ## Context
 

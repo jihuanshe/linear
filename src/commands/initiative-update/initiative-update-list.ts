@@ -71,6 +71,7 @@ export const listCommand = new Command()
                 createdAt
                 user {
                   name
+                  email
                 }
               }
               pageInfo {

@@ -22,7 +22,7 @@ const issueHistoryQuery = gql(`
           id
           createdAt
           updatedAt
-          actor { id name displayName }
+          actor { id name displayName email }
           botActor { id name type subType userDisplayName }
           changes
           archived
@@ -32,7 +32,7 @@ const issueHistoryQuery = gql(`
           attachment { id title url }
           attachmentId
           updatedDescription
-          descriptionUpdatedBy { id name displayName }
+          descriptionUpdatedBy { id name displayName email }
           fromTitle
           toTitle
           fromPriority
@@ -41,8 +41,8 @@ const issueHistoryQuery = gql(`
           toEstimate
           fromDueDate
           toDueDate
-          fromAssignee { id name displayName }
-          toAssignee { id name displayName }
+          fromAssignee { id name displayName email }
+          toAssignee { id name displayName email }
           fromState { id name type color }
           toState { id name type color }
           fromProject { id name slugId }
@@ -57,8 +57,8 @@ const issueHistoryQuery = gql(`
           toParent { id identifier title }
           fromTeam { id key name }
           toTeam { id key name }
-          fromDelegate { id name displayName }
-          toDelegate { id name displayName }
+          fromDelegate { id name displayName email }
+          toDelegate { id name displayName email }
           fromSlaBreached
           toSlaBreached
           fromSlaBreachesAt
@@ -334,5 +334,7 @@ function historyActor(entry: HistoryEntry): string {
       ? `${bot} [user: ${entry.botActor.userDisplayName}]`
       : bot
   }
-  return entry.actor?.displayName || entry.actor?.name || "system"
+  const actor = entry.actor?.displayName || entry.actor?.name
+  if (actor == null) return "system"
+  return entry.actor?.email ? `${actor} (${entry.actor.email})` : actor
 }

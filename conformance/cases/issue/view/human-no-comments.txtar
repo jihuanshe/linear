@@ -14,7 +14,7 @@ linear issue view ENG-123 --no-comments
 -- stdout --
 # ENG-123: Fix authentication bug in login flow
 
-**State:** In Progress | **Priority:** ▄▆█ | **Assignee:** @Jane Smith
+**State:** In Progress | **Priority:** ▄▆█ | **Assignee:** @Jane Smith (jane.smith@example.com)
 
 ## Context
 

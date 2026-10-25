@@ -17,8 +17,8 @@ linear issue history ENG-123 --json --limit 101 > l101.json
 -- run --
 linear issue history ENG-123 --limit 2
 -- stdout --
-2025-06-01T00:03:23.000Z alex: estimate: - -> 202
-2025-06-01T00:03:22.000Z alex: estimate: - -> 201
+2025-06-01T00:03:23.000Z alex (alex@example.com): estimate: - -> 202
+2025-06-01T00:03:22.000Z alex (alex@example.com): estimate: - -> 201
 -- stderr --
 Showing the first 2 history entries; more exist. Use --limit 0 to fetch all pages.
 -- run --

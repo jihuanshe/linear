@@ -46,6 +46,7 @@ const CreateProject = gql(`
           id
           name
           displayName
+          email
         }
         teams(first: 50) {
           nodes {

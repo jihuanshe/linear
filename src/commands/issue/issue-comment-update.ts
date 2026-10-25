@@ -210,6 +210,7 @@ export const commentUpdateCommand = withUsageMetadata(new Command(), {
               user {
                 name
                 displayName
+                email
               }
             }
           }

@@ -157,7 +157,9 @@ export const viewCommand = new Command()
       }
       metaParts.push(`**Priority:** ${getPriorityDisplay(issueData.priority)}`)
       const assigneeDisplay = issueData.assignee != null
-        ? `@${issueData.assignee.displayName}`
+        ? `@${issueData.assignee.displayName}${
+          issueData.assignee.email ? ` (${issueData.assignee.email})` : ""
+        }`
         : "Unassigned"
       metaParts.push(`**Assignee:** ${assigneeDisplay}`)
       if (issueData.project) {

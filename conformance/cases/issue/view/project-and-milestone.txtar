@@ -13,7 +13,7 @@ linear issue view ENG-789 --no-comments
 -- stdout --
 # ENG-789: Add monitoring dashboards
 
-**State:** In Progress | **Priority:** ▄▆  | **Assignee:** @Bob Senior | **Project:** Platform Infrastructure Q1 | **Milestone:** Phase 2: Observability
+**State:** In Progress | **Priority:** ▄▆  | **Assignee:** @Bob Senior (bob.senior@example.com) | **Project:** Platform Infrastructure Q1 | **Milestone:** Phase 2: Observability
 
 ## Context
 

@@ -533,7 +533,8 @@ linear issue view ENG-123 --json
           "user": {
             "id": "0b000000-0000-4000-8000-000000000001",
             "name": "Alex",
-            "displayName": "alex"
+            "displayName": "alex",
+            "email": "alex@example.com"
           },
           "externalUser": null,
           "parent": {
@@ -554,7 +555,8 @@ linear issue view ENG-123 --json
           "user": {
             "id": "0b000000-0000-4000-8000-000000000001",
             "name": "Alex",
-            "displayName": "alex"
+            "displayName": "alex",
+            "email": "alex@example.com"
           },
           "externalUser": null,
           "parent": {
@@ -575,7 +577,8 @@ linear issue view ENG-123 --json
           "user": {
             "id": "0b000000-0000-4000-8000-000000000001",
             "name": "Alex",
-            "displayName": "alex"
+            "displayName": "alex",
+            "email": "alex@example.com"
           },
           "externalUser": null,
           "parent": {
@@ -596,7 +599,8 @@ linear issue view ENG-123 --json
           "user": {
             "id": "0b000000-0000-4000-8000-000000000001",
             "name": "Alex",
-            "displayName": "alex"
+            "displayName": "alex",
+            "email": "alex@example.com"
           },
           "externalUser": null,
           "parent": {
@@ -617,7 +621,8 @@ linear issue view ENG-123 --json
           "user": {
             "id": "0b000000-0000-4000-8000-000000000001",
             "name": "Alex",
-            "displayName": "alex"
+            "displayName": "alex",
+            "email": "alex@example.com"
           },
           "externalUser": null,
           "parent": {
@@ -638,7 +643,8 @@ linear issue view ENG-123 --json
           "user": {
             "id": "0b000000-0000-4000-8000-000000000001",
             "name": "Alex",
-            "displayName": "alex"
+            "displayName": "alex",
+            "email": "alex@example.com"
           },
           "externalUser": null,
           "parent": {
@@ -659,7 +665,8 @@ linear issue view ENG-123 --json
           "user": {
             "id": "0b000000-0000-4000-8000-000000000001",
             "name": "Alex",
-            "displayName": "alex"
+            "displayName": "alex",
+            "email": "alex@example.com"
           },
           "externalUser": null,
           "parent": {
@@ -680,7 +687,8 @@ linear issue view ENG-123 --json
           "user": {
             "id": "0b000000-0000-4000-8000-000000000001",
             "name": "Alex",
-            "displayName": "alex"
+            "displayName": "alex",
+            "email": "alex@example.com"
           },
           "externalUser": null,
           "parent": {
@@ -701,7 +709,8 @@ linear issue view ENG-123 --json
           "user": {
             "id": "0b000000-0000-4000-8000-000000000001",
             "name": "Alex",
-            "displayName": "alex"
+            "displayName": "alex",
+            "email": "alex@example.com"
           },
           "externalUser": null,
           "parent": {
@@ -722,7 +731,8 @@ linear issue view ENG-123 --json
           "user": {
             "id": "0b000000-0000-4000-8000-000000000001",
             "name": "Alex",
-            "displayName": "alex"
+            "displayName": "alex",
+            "email": "alex@example.com"
           },
           "externalUser": null,
           "parent": {
@@ -743,7 +753,8 @@ linear issue view ENG-123 --json
           "user": {
             "id": "0b000000-0000-4000-8000-000000000001",
             "name": "Alex",
-            "displayName": "alex"
+            "displayName": "alex",
+            "email": "alex@example.com"
           },
           "externalUser": null,
           "parent": {
@@ -764,7 +775,8 @@ linear issue view ENG-123 --json
           "user": {
             "id": "0b000000-0000-4000-8000-000000000001",
             "name": "Alex",
-            "displayName": "alex"
+            "displayName": "alex",
+            "email": "alex@example.com"
           },
           "externalUser": null,
           "parent": {
@@ -785,7 +797,8 @@ linear issue view ENG-123 --json
           "user": {
             "id": "0b000000-0000-4000-8000-000000000001",
             "name": "Alex",
-            "displayName": "alex"
+            "displayName": "alex",
+            "email": "alex@example.com"
           },
           "externalUser": null,
           "parent": {
@@ -806,7 +819,8 @@ linear issue view ENG-123 --json
           "user": {
             "id": "0b000000-0000-4000-8000-000000000001",
             "name": "Alex",
-            "displayName": "alex"
+            "displayName": "alex",
+            "email": "alex@example.com"
           },
           "externalUser": null,
           "parent": {
@@ -827,7 +841,8 @@ linear issue view ENG-123 --json
           "user": {
             "id": "0b000000-0000-4000-8000-000000000001",
             "name": "Alex",
-            "displayName": "alex"
+            "displayName": "alex",
+            "email": "alex@example.com"
           },
           "externalUser": null,
           "parent": {
@@ -848,7 +863,8 @@ linear issue view ENG-123 --json
           "user": {
             "id": "0b000000-0000-4000-8000-000000000001",
             "name": "Alex",
-            "displayName": "alex"
+            "displayName": "alex",
+            "email": "alex@example.com"
           },
           "externalUser": null,
           "parent": {
@@ -869,7 +885,8 @@ linear issue view ENG-123 --json
           "user": {
             "id": "0b000000-0000-4000-8000-000000000001",
             "name": "Alex",
-            "displayName": "alex"
+            "displayName": "alex",
+            "email": "alex@example.com"
           },
           "externalUser": null,
           "parent": {
@@ -890,7 +907,8 @@ linear issue view ENG-123 --json
           "user": {
             "id": "0b000000-0000-4000-8000-000000000001",
             "name": "Alex",
-            "displayName": "alex"
+            "displayName": "alex",
+            "email": "alex@example.com"
           },
           "externalUser": null,
           "parent": {
@@ -911,7 +929,8 @@ linear issue view ENG-123 --json
           "user": {
             "id": "0b000000-0000-4000-8000-000000000001",
             "name": "Alex",
-            "displayName": "alex"
+            "displayName": "alex",
+            "email": "alex@example.com"
           },
           "externalUser": null,
           "parent": {
@@ -932,7 +951,8 @@ linear issue view ENG-123 --json
           "user": {
             "id": "0b000000-0000-4000-8000-000000000001",
             "name": "Alex",
-            "displayName": "alex"
+            "displayName": "alex",
+            "email": "alex@example.com"
           },
           "externalUser": null,
           "parent": {
@@ -953,7 +973,8 @@ linear issue view ENG-123 --json
           "user": {
             "id": "0b000000-0000-4000-8000-000000000001",
             "name": "Alex",
-            "displayName": "alex"
+            "displayName": "alex",
+            "email": "alex@example.com"
           },
           "externalUser": null,
           "parent": {
@@ -974,7 +995,8 @@ linear issue view ENG-123 --json
           "user": {
             "id": "0b000000-0000-4000-8000-000000000001",
             "name": "Alex",
-            "displayName": "alex"
+            "displayName": "alex",
+            "email": "alex@example.com"
           },
           "externalUser": null,
           "parent": {
@@ -995,7 +1017,8 @@ linear issue view ENG-123 --json
           "user": {
             "id": "0b000000-0000-4000-8000-000000000001",
             "name": "Alex",
-            "displayName": "alex"
+            "displayName": "alex",
+            "email": "alex@example.com"
           },
           "externalUser": null,
           "parent": {
@@ -1016,7 +1039,8 @@ linear issue view ENG-123 --json
           "user": {
             "id": "0b000000-0000-4000-8000-000000000001",
             "name": "Alex",
-            "displayName": "alex"
+            "displayName": "alex",
+            "email": "alex@example.com"
           },
           "externalUser": null,
           "parent": {
@@ -1037,7 +1061,8 @@ linear issue view ENG-123 --json
           "user": {
             "id": "0b000000-0000-4000-8000-000000000001",
             "name": "Alex",
-            "displayName": "alex"
+            "displayName": "alex",
+            "email": "alex@example.com"
           },
           "externalUser": null,
           "parent": {
@@ -1058,7 +1083,8 @@ linear issue view ENG-123 --json
           "user": {
             "id": "0b000000-0000-4000-8000-000000000001",
             "name": "Alex",
-            "displayName": "alex"
+            "displayName": "alex",
+            "email": "alex@example.com"
           },
           "externalUser": null,
           "parent": {
@@ -1079,7 +1105,8 @@ linear issue view ENG-123 --json
           "user": {
             "id": "0b000000-0000-4000-8000-000000000001",
             "name": "Alex",
-            "displayName": "alex"
+            "displayName": "alex",
+            "email": "alex@example.com"
           },
           "externalUser": null,
           "parent": {
@@ -1100,7 +1127,8 @@ linear issue view ENG-123 --json
           "user": {
             "id": "0b000000-0000-4000-8000-000000000001",
             "name": "Alex",
-            "displayName": "alex"
+            "displayName": "alex",
+            "email": "alex@example.com"
           },
           "externalUser": null,
           "parent": {
@@ -1121,7 +1149,8 @@ linear issue view ENG-123 --json
           "user": {
             "id": "0b000000-0000-4000-8000-000000000001",
             "name": "Alex",
-            "displayName": "alex"
+            "displayName": "alex",
+            "email": "alex@example.com"
           },
           "externalUser": null,
           "parent": {
@@ -1142,7 +1171,8 @@ linear issue view ENG-123 --json
           "user": {
             "id": "0b000000-0000-4000-8000-000000000001",
             "name": "Alex",
-            "displayName": "alex"
+            "displayName": "alex",
+            "email": "alex@example.com"
           },
           "externalUser": null,
           "parent": {
@@ -1163,7 +1193,8 @@ linear issue view ENG-123 --json
           "user": {
             "id": "0b000000-0000-4000-8000-000000000001",
             "name": "Alex",
-            "displayName": "alex"
+            "displayName": "alex",
+            "email": "alex@example.com"
           },
           "externalUser": null,
           "parent": {
@@ -1184,7 +1215,8 @@ linear issue view ENG-123 --json
           "user": {
             "id": "0b000000-0000-4000-8000-000000000001",
             "name": "Alex",
-            "displayName": "alex"
+            "displayName": "alex",
+            "email": "alex@example.com"
           },
           "externalUser": null,
           "parent": {
@@ -1205,7 +1237,8 @@ linear issue view ENG-123 --json
           "user": {
             "id": "0b000000-0000-4000-8000-000000000001",
             "name": "Alex",
-            "displayName": "alex"
+            "displayName": "alex",
+            "email": "alex@example.com"
           },
           "externalUser": null,
           "parent": {
@@ -1226,7 +1259,8 @@ linear issue view ENG-123 --json
           "user": {
             "id": "0b000000-0000-4000-8000-000000000001",
             "name": "Alex",
-            "displayName": "alex"
+            "displayName": "alex",
+            "email": "alex@example.com"
           },
           "externalUser": null,
           "parent": {
@@ -1247,7 +1281,8 @@ linear issue view ENG-123 --json
           "user": {
             "id": "0b000000-0000-4000-8000-000000000001",
             "name": "Alex",
-            "displayName": "alex"
+            "displayName": "alex",
+            "email": "alex@example.com"
           },
           "externalUser": null,
           "parent": {
@@ -1268,7 +1303,8 @@ linear issue view ENG-123 --json
           "user": {
             "id": "0b000000-0000-4000-8000-000000000001",
             "name": "Alex",
-            "displayName": "alex"
+            "displayName": "alex",
+            "email": "alex@example.com"
           },
           "externalUser": null,
           "parent": {
@@ -1289,7 +1325,8 @@ linear issue view ENG-123 --json
           "user": {
             "id": "0b000000-0000-4000-8000-000000000001",
             "name": "Alex",
-            "displayName": "alex"
+            "displayName": "alex",
+            "email": "alex@example.com"
           },
           "externalUser": null,
           "parent": {
@@ -1310,7 +1347,8 @@ linear issue view ENG-123 --json
           "user": {
             "id": "0b000000-0000-4000-8000-000000000001",
             "name": "Alex",
-            "displayName": "alex"
+            "displayName": "alex",
+            "email": "alex@example.com"
           },
           "externalUser": null,
           "parent": {
@@ -1331,7 +1369,8 @@ linear issue view ENG-123 --json
           "user": {
             "id": "0b000000-0000-4000-8000-000000000001",
             "name": "Alex",
-            "displayName": "alex"
+            "displayName": "alex",
+            "email": "alex@example.com"
           },
           "externalUser": null,
           "parent": {
@@ -1352,7 +1391,8 @@ linear issue view ENG-123 --json
           "user": {
             "id": "0b000000-0000-4000-8000-000000000001",
             "name": "Alex",
-            "displayName": "alex"
+            "displayName": "alex",
+            "email": "alex@example.com"
           },
           "externalUser": null,
           "parent": {
@@ -1373,7 +1413,8 @@ linear issue view ENG-123 --json
           "user": {
             "id": "0b000000-0000-4000-8000-000000000001",
             "name": "Alex",
-            "displayName": "alex"
+            "displayName": "alex",
+            "email": "alex@example.com"
           },
           "externalUser": null,
           "parent": {
@@ -1394,7 +1435,8 @@ linear issue view ENG-123 --json
           "user": {
             "id": "0b000000-0000-4000-8000-000000000001",
             "name": "Alex",
-            "displayName": "alex"
+            "displayName": "alex",
+            "email": "alex@example.com"
           },
           "externalUser": null,
           "parent": {
@@ -1415,7 +1457,8 @@ linear issue view ENG-123 --json
           "user": {
             "id": "0b000000-0000-4000-8000-000000000001",
             "name": "Alex",
-            "displayName": "alex"
+            "displayName": "alex",
+            "email": "alex@example.com"
           },
           "externalUser": null,
           "parent": {
@@ -1436,7 +1479,8 @@ linear issue view ENG-123 --json
           "user": {
             "id": "0b000000-0000-4000-8000-000000000001",
             "name": "Alex",
-            "displayName": "alex"
+            "displayName": "alex",
+            "email": "alex@example.com"
           },
           "externalUser": null,
           "parent": {
@@ -1457,7 +1501,8 @@ linear issue view ENG-123 --json
           "user": {
             "id": "0b000000-0000-4000-8000-000000000001",
             "name": "Alex",
-            "displayName": "alex"
+            "displayName": "alex",
+            "email": "alex@example.com"
           },
           "externalUser": null,
           "parent": {
@@ -1478,7 +1523,8 @@ linear issue view ENG-123 --json
           "user": {
             "id": "0b000000-0000-4000-8000-000000000001",
             "name": "Alex",
-            "displayName": "alex"
+            "displayName": "alex",
+            "email": "alex@example.com"
           },
           "externalUser": null,
           "parent": {
@@ -1499,7 +1545,8 @@ linear issue view ENG-123 --json
           "user": {
             "id": "0b000000-0000-4000-8000-000000000001",
             "name": "Alex",
-            "displayName": "alex"
+            "displayName": "alex",
+            "email": "alex@example.com"
           },
           "externalUser": null,
           "parent": {
@@ -1520,7 +1567,8 @@ linear issue view ENG-123 --json
           "user": {
             "id": "0b000000-0000-4000-8000-000000000001",
             "name": "Alex",
-            "displayName": "alex"
+            "displayName": "alex",
+            "email": "alex@example.com"
           },
           "externalUser": null,
           "parent": {
@@ -1541,7 +1589,8 @@ linear issue view ENG-123 --json
           "user": {
             "id": "0b000000-0000-4000-8000-000000000001",
             "name": "Alex",
-            "displayName": "alex"
+            "displayName": "alex",
+            "email": "alex@example.com"
           },
           "externalUser": null,
           "parent": {
@@ -1562,7 +1611,8 @@ linear issue view ENG-123 --json
           "user": {
             "id": "0b000000-0000-4000-8000-000000000001",
             "name": "Alex",
-            "displayName": "alex"
+            "displayName": "alex",
+            "email": "alex@example.com"
           },
           "externalUser": null,
           "parent": {
@@ -1583,7 +1633,8 @@ linear issue view ENG-123 --json
           "user": {
             "id": "0b000000-0000-4000-8000-000000000001",
             "name": "Alex",
-            "displayName": "alex"
+            "displayName": "alex",
+            "email": "alex@example.com"
           },
           "externalUser": null,
           "parent": {
@@ -1604,7 +1655,8 @@ linear issue view ENG-123 --json
           "user": {
             "id": "0b000000-0000-4000-8000-000000000001",
             "name": "Alex",
-            "displayName": "alex"
+            "displayName": "alex",
+            "email": "alex@example.com"
           },
           "externalUser": null,
           "parent": null
@@ -1623,7 +1675,8 @@ linear issue view ENG-123 --json
           "user": {
             "id": "0b000000-0000-4000-8000-000000000001",
             "name": "Alex",
-            "displayName": "alex"
+            "displayName": "alex",
+            "email": "alex@example.com"
           },
           "externalUser": null,
           "parent": null

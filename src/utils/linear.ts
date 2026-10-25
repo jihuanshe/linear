@@ -550,11 +550,13 @@ const issueDetailsWithCommentsQuery = gql(/* GraphQL */ `
           resolvingUser {
             name
             displayName
+            email
           }
           user {
             id
             name
             displayName
+            email
           }
           externalUser {
             name
@@ -717,8 +719,8 @@ const issueCommentsQuery = gql(/* GraphQL */ `
           url
           resolvedAt
           resolvingCommentId
-          resolvingUser { name displayName }
-          user { id name displayName }
+          resolvingUser { name displayName email }
+          user { id name displayName email }
           externalUser { name displayName }
           parent { id }
         }
@@ -926,6 +928,7 @@ const queryIssuesQuery = gql(/* GraphQL */ `
           id
           name
           displayName
+          email
           initials
         }
         team {
@@ -2049,6 +2052,7 @@ const searchIssuesQuery = gql(/* GraphQL */ `
           id
           name
           displayName
+          email
           initials
         }
         team {

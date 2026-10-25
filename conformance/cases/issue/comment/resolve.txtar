@@ -30,7 +30,8 @@ linear issue comment resolve ABCDEFAB-1234-4567-89AB-ABCDEFABCDEF --resolving-co
       "resolvingUser": {
         "id": "0b000000-0000-4000-8000-000000000001",
         "name": "Alex",
-        "displayName": "alex"
+        "displayName": "alex",
+        "email": "alex@example.com"
       }
     }
   }
@@ -63,7 +64,8 @@ linear issue comment resolve abcdefab-1234-4567-89ab-abcdefabcdef --resolving-co
       "resolvingUser": {
         "id": "0b000000-0000-4000-8000-000000000001",
         "name": "Alex",
-        "displayName": "alex"
+        "displayName": "alex",
+        "email": "alex@example.com"
       }
     }
   }
@@ -150,7 +152,8 @@ linear issue comment resolve fedcbafe-1234-4567-89ab-fedcbafedcba --json
       "resolvingUser": {
         "id": "0b000000-0000-4000-8000-000000000001",
         "name": "Alex",
-        "displayName": "alex"
+        "displayName": "alex",
+        "email": "alex@example.com"
       }
     }
   }

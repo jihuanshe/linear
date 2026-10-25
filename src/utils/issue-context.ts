@@ -17,12 +17,12 @@ export const issueHistoryPreviewFragment = gql(`
       nodes {
         id
         createdAt
-        actor { id name displayName }
+        actor { id name displayName email }
         botActor { name type userDisplayName }
         fromState { name }
         toState { name }
-        fromAssignee { id name displayName }
-        toAssignee { id name displayName }
+        fromAssignee { id name displayName email }
+        toAssignee { id name displayName email }
         fromProject { name }
         toProject { name }
       }
@@ -37,7 +37,7 @@ const issueContextQuery = gql(`
     issue(id: $id) {
       id
       identifier
-      assignee { id name displayName }
+      assignee { id name displayName email }
       parent { identifier title state { name } }
       children(first: 250) {
         nodes { identifier title state { name } }
@@ -60,7 +60,7 @@ const issueContextQuery = gql(`
           id
           createdAt
           resolvedAt
-          user { id name displayName }
+          user { id name displayName email }
           externalUser { name displayName }
           parent { id }
         }

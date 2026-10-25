@@ -35,6 +35,7 @@ const CreateInitiative = gql(`
           id
           name
           displayName
+          email
         }
       }
     }

@@ -93,6 +93,7 @@ linear issue query --team ENG --state-name 'in progress' --json
         "id": "1b000000-0000-4000-8000-000000000002",
         "name": "Jane Smith",
         "displayName": "jane",
+        "email": "jane.smith@example.com",
         "initials": "JS"
       },
       "team": {
@@ -171,6 +172,7 @@ linear issue query --project 1e000000-0000-4000-8000-000000000001 --json
         "id": "1b000000-0000-4000-8000-000000000002",
         "name": "Jane Smith",
         "displayName": "jane",
+        "email": "jane.smith@example.com",
         "initials": "JS"
       },
       "team": {
@@ -283,6 +285,7 @@ linear issue query --project 1e000000-0000-4000-8000-000000000001 --json
         "id": "0b000000-0000-4000-8000-000000000001",
         "name": "Alex",
         "displayName": "alex",
+        "email": "alex@example.com",
         "initials": "AL"
       },
       "team": {
@@ -513,6 +516,7 @@ linear issue query --all-teams --assignee @me --json
         "id": "0b000000-0000-4000-8000-000000000001",
         "name": "Alex",
         "displayName": "alex",
+        "email": "alex@example.com",
         "initials": "AL"
       },
       "team": {
@@ -588,6 +592,7 @@ linear issue query --all-teams --assignee 1b000000-0000-4000-8000-000000000002 -
         "id": "1b000000-0000-4000-8000-000000000002",
         "name": "Jane Smith",
         "displayName": "jane",
+        "email": "jane.smith@example.com",
         "initials": "JS"
       },
       "team": {
@@ -666,6 +671,7 @@ linear issue query --team ENG --label Bug --json
         "id": "1b000000-0000-4000-8000-000000000002",
         "name": "Jane Smith",
         "displayName": "jane",
+        "email": "jane.smith@example.com",
         "initials": "JS"
       },
       "team": {
@@ -744,6 +750,7 @@ linear issue query --project 'Auth Improvements' --milestone v1 --json
         "id": "0b000000-0000-4000-8000-000000000001",
         "name": "Alex",
         "displayName": "alex",
+        "email": "alex@example.com",
         "initials": "AL"
       },
       "team": {
@@ -819,6 +826,7 @@ linear issue query --team ENG --cycle active --json
         "id": "1b000000-0000-4000-8000-000000000002",
         "name": "Jane Smith",
         "displayName": "jane",
+        "email": "jane.smith@example.com",
         "initials": "JS"
       },
       "team": {
@@ -897,6 +905,7 @@ linear issue query --team ENG --created-after 2025-05-15 --json
         "id": "0b000000-0000-4000-8000-000000000001",
         "name": "Alex",
         "displayName": "alex",
+        "email": "alex@example.com",
         "initials": "AL"
       },
       "team": {
@@ -1016,6 +1025,7 @@ linear issue query --team ENG --updated-after 2025-12-01 --json
         "id": "1b000000-0000-4000-8000-000000000002",
         "name": "Jane Smith",
         "displayName": "jane",
+        "email": "jane.smith@example.com",
         "initials": "JS"
       },
       "team": {
@@ -1094,6 +1104,7 @@ linear issue query --team ENG --include-archived --json
         "id": "1b000000-0000-4000-8000-000000000002",
         "name": "Jane Smith",
         "displayName": "jane",
+        "email": "jane.smith@example.com",
         "initials": "JS"
       },
       "team": {
@@ -1205,6 +1216,7 @@ linear issue query --team ENG --include-archived --json
         "id": "0b000000-0000-4000-8000-000000000001",
         "name": "Alex",
         "displayName": "alex",
+        "email": "alex@example.com",
         "initials": "AL"
       },
       "team": {

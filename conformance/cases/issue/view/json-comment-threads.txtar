@@ -45,7 +45,8 @@ linear issue view ENG-123 --json
     "assignee": {
       "id": "1b000000-0000-4000-8000-000000000001",
       "name": "john.doe",
-      "displayName": "John Doe"
+      "displayName": "John Doe",
+      "email": "john.doe@example.com"
     },
     "project": null,
     "projectMilestone": null,
@@ -92,7 +93,8 @@ linear issue view ENG-123 --json
           "user": {
             "id": "1b000000-0000-4000-8000-000000000004",
             "name": "bob.senior",
-            "displayName": "Bob Senior"
+            "displayName": "Bob Senior",
+            "email": "bob.senior@example.com"
           },
           "externalUser": null,
           "parent": null
@@ -111,7 +113,8 @@ linear issue view ENG-123 --json
           "user": {
             "id": "1b000000-0000-4000-8000-000000000003",
             "name": "alice.dev",
-            "displayName": "Alice Developer"
+            "displayName": "Alice Developer",
+            "email": "alice.dev@example.com"
           },
           "externalUser": null,
           "parent": {
@@ -132,7 +135,8 @@ linear issue view ENG-123 --json
           "user": {
             "id": "1b000000-0000-4000-8000-000000000002",
             "name": "jane.smith",
-            "displayName": "Jane Smith"
+            "displayName": "Jane Smith",
+            "email": "jane.smith@example.com"
           },
           "externalUser": null,
           "parent": {
@@ -153,7 +157,8 @@ linear issue view ENG-123 --json
           "user": {
             "id": "1b000000-0000-4000-8000-000000000001",
             "name": "john.doe",
-            "displayName": "John Doe"
+            "displayName": "John Doe",
+            "email": "john.doe@example.com"
           },
           "externalUser": null,
           "parent": null

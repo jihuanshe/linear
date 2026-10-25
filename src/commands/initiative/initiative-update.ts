@@ -36,7 +36,7 @@ const UpdateInitiative = gql(`
       success
       initiative {
         id slugId name description status targetDate color icon url
-        owner { id displayName }
+        owner { id displayName email }
       }
     }
   }
@@ -48,7 +48,7 @@ const UpdateInitiativeWithContent = gql(`
       success
       initiative {
         id slugId name description content status targetDate color icon url
-        owner { id displayName }
+        owner { id displayName email }
       }
     }
   }

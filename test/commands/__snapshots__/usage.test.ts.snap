@@ -1298,7 +1298,7 @@ Run \`linear guide markdown\` for mentions, collapsible sections and rewrite ris
           variadic: false,
         },
       ],
-      description: "Update an issue by UUID, identifier (e.g. ENG-123), number in the configured team, or Linear URL; verify fields with up to 3 reads without repeating the write
+      description: "Update an issue by UUID, identifier (e.g. ENG-123), number in the configured team, or Linear URL; verify fields with up to 5 reads without repeating the write
 
 For API Markdown bodies, prefer a bare Linear URL for mentions.
 Named profile links can also mention people; \`@name\` handling varies by body.
