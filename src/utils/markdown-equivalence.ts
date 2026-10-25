@@ -25,10 +25,20 @@ const BARE_DOMAIN = /^(?:[a-z0-9-]+\.)+[a-z]{2,}(?:[/?#]\S*)?$/i
  * `[notes.example.com](<http://notes.example.com>)`. Only a link whose sole
  * text is a dotted host name (optionally with a path) and whose target is
  * that text behind `http://` counts as that rewrite; other links keep their
- * structure, so a lost link or changed wording still differs.
+ * structure, so a lost link or changed wording still differs. In the written
+ * Markdown only implicit GFM autolinks (no `[` or `<` in the source) unwrap:
+ * an explicit link that reads back bare was lost, not normalized.
  */
-function autoLinkText(node: Child): string | undefined {
+function autoLinkText(
+  node: Child,
+  source: string | undefined,
+): string | undefined {
   if (node.type !== "link" || node.title != null) return undefined
+  if (source != null) {
+    const start = node.position?.start.offset
+    const first = start == null ? undefined : source[start]
+    if (first == null || first === "[" || first === "<") return undefined
+  }
   if (!node.url.startsWith("http://") || node.children.length !== 1) {
     return undefined
   }
@@ -39,14 +49,21 @@ function autoLinkText(node: Child): string | undefined {
     : undefined
 }
 
-function comparableMarkdown(markdown: string): string {
+/**
+ * `written` marks the Markdown that was sent: there only implicit autolinks
+ * unwrap, while the read-back side also unwraps links Linear added.
+ */
+function comparableMarkdown(markdown: string, written: boolean): string {
   const tree = parser.parse(markdown)
   visit(tree, (node) => {
     delete node.position
     if ("children" in node) {
       const children: Child[] = node.children
       for (let index = 0; index < children.length; index++) {
-        const value = autoLinkText(children[index])
+        const value = autoLinkText(
+          children[index],
+          written ? markdown : undefined,
+        )
         if (value != null) children[index] = { type: "text", value }
       }
       // Rejoin the text around an unwrapped link into one node.
@@ -112,7 +129,8 @@ export function compareMarkdown(
   actual: string,
 ): "exact" | "normalized" | "different" {
   if (expected === actual) return "exact"
-  return comparableMarkdown(expected) === comparableMarkdown(actual)
+  return comparableMarkdown(expected, true) ===
+      comparableMarkdown(actual, false)
     ? "normalized"
     : "different"
 }

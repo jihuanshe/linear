@@ -27,23 +27,31 @@ function rewriteLinks(line: string): string {
   })
 }
 
+const BARE_HOST =
+  /(^|\s)((?:[a-z0-9-]+\.)+(?:com|cn|net|org|io))(?=$|[\s,;:!?)]|\.(?:$|\s))/g
+const NOT_PROSE = /(`+)[^`]*?\1(?!`)|!?\[[^\]]*\]\([^)]*\)|<[^>\s]*>/g
+
 /**
  * Observed (jihuanshe workspace): a bare "notes.jihuanshe.com" is stored as
  * "[notes.jihuanshe.com](<http://notes.jihuanshe.com>)". Modeled only for
- * whitespace-delimited host names on a few common top-level domains, outside
- * inline code and existing links.
+ * whitespace-delimited host names on a few common top-level domains in prose:
+ * indented code lines, code spans and existing links stay unchanged.
  */
 function linkBareDomains(line: string): string {
-  return line.split(/(`[^`]*`|!?\[[^\]]*\]\([^)]*\)|<[^>\s]*>)/).map((
-    part,
-    index,
-  ) =>
-    index % 2 === 1 ? part : part.replace(
-      /(^|\s)((?:[a-z0-9-]+\.)+(?:com|cn|net|org|io))(?=$|[\s,;:!?)]|\.(?:$|\s))/g,
+  if (/^(?: {4}|\t)/.test(line)) return line
+  const link = (prose: string) =>
+    prose.replace(
+      BARE_HOST,
       (_, before: string, host: string) =>
         `${before}[${host}](<http://${host}>)`,
     )
-  ).join("")
+  let out = ""
+  let last = 0
+  for (const match of line.matchAll(NOT_PROSE)) {
+    out += link(line.slice(last, match.index)) + match[0]
+    last = match.index + match[0].length
+  }
+  return out + link(line.slice(last))
 }
 
 const BULLET = /^(\s*)([-+*]) (.*)$/

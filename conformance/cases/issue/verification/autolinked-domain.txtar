@@ -4,7 +4,7 @@ Linear links a bare domain in a written description and rewrites list markers, a
 -- file desired.md --
 部署在 notes.jihuanshe.com 上。
 
-用 `curl -I notes.jihuanshe.com` 检查。
+用 ``curl -I notes.jihuanshe.com`` 检查。
 
 - 第一项
 - [第二项](https://example.com/b)
@@ -37,7 +37,7 @@ linear issue update ENG-123 --unprotected --description-file desired.md --json
     {
       "field": "description",
       "inputField": "description",
-      "desired": "部署在 notes.jihuanshe.com 上。\n\n用 `curl -I notes.jihuanshe.com` 检查。\n\n- 第一项\n- [第二项](https://example.com/b)\n",
+      "desired": "部署在 notes.jihuanshe.com 上。\n\n用 ``curl -I notes.jihuanshe.com`` 检查。\n\n- 第一项\n- [第二项](https://example.com/b)\n",
       "remote": "Before",
       "verdict": "write"
     }
@@ -60,7 +60,7 @@ linear issue update ENG-123 --unprotected --description-file desired.md --json
       "archivedAt": null,
       "trashed": null,
       "title": "Verified",
-      "description": "部署在 [notes.jihuanshe.com](<http://notes.jihuanshe.com>) 上。\n\n用 `curl -I notes.jihuanshe.com` 检查。\n\n* 第一项\n* [第二项](<https://example.com/b>)",
+      "description": "部署在 [notes.jihuanshe.com](<http://notes.jihuanshe.com>) 上。\n\n用 ``curl -I notes.jihuanshe.com`` 检查。\n\n* 第一项\n* [第二项](<https://example.com/b>)",
       "url": "https://linear.app/kadoraba/issue/ENG-123/verified",
       "branchName": "alex/eng-123-verified",
       "priority": 0,
@@ -95,4 +95,4 @@ linear issue update ENG-123 --unprotected --description-file desired.md --json
 -- mutations.json --
 {"issueUpdate": 1}
 -- state.json --
-{"Issue": [{"identifier": "ENG-123", "description": "部署在 [notes.jihuanshe.com](<http://notes.jihuanshe.com>) 上。\n\n用 `curl -I notes.jihuanshe.com` 检查。\n\n* 第一项\n* [第二项](<https://example.com/b>)"}]}
+{"Issue": [{"identifier": "ENG-123", "description": "部署在 [notes.jihuanshe.com](<http://notes.jihuanshe.com>) 上。\n\n用 ``curl -I notes.jihuanshe.com`` 检查。\n\n* 第一项\n* [第二项](<https://example.com/b>)"}]}

@@ -23,6 +23,14 @@ Deno.test("compareMarkdown - accepts Linear's auto-linked bare domain", () => {
     ),
     "normalized",
   )
+  // A GFM www. literal is already a link when parsed; Linear writes it out.
+  assertEquals(
+    compareMarkdown(
+      "见 www.jihuanshe.com",
+      "见 [www.jihuanshe.com](<http://www.jihuanshe.com>)",
+    ),
+    "normalized",
+  )
 })
 
 Deno.test("compareMarkdown - accepts Linear's Markdown serialization", () => {
@@ -57,6 +65,14 @@ Deno.test("compareMarkdown - other link changes stay different", () => {
   // so losing it is a real difference.
   assertEquals(
     compareMarkdown("[intranet](http://intranet)", "intranet"),
+    "different",
+  )
+  // An explicit link that reads back bare was lost, not auto-linked.
+  assertEquals(
+    compareMarkdown(
+      "[notes.jihuanshe.com](http://notes.jihuanshe.com)",
+      "notes.jihuanshe.com",
+    ),
     "different",
   )
   // Only the observed http:// rewrite is accepted.
