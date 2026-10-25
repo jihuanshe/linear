@@ -5,9 +5,6 @@ import { visit } from "unist-util-visit"
 
 const parser = unified().use(remarkParse).use(remarkGfm)
 
-type Tree = ReturnType<typeof parser.parse>
-type Child = Tree["children"][number]
-
 /** Percent-encode non-ASCII URL text the way Linear stores link targets. */
 function encodeNonAscii(url: string): string {
   try {
@@ -22,62 +19,85 @@ const BARE_DOMAIN = /^(?:[a-z0-9-]+\.)+[a-z]{2,}(?:[/?#]\S*)?$/i
 
 /**
  * Linear links bare domains on save: `notes.example.com` reads back as
- * `[notes.example.com](<http://notes.example.com>)`. Only a link whose sole
- * text is a dotted host name (optionally with a path) and whose target is
- * that text behind `http://` counts as that rewrite; other links keep their
- * structure, so a lost link or changed wording still differs. In the written
- * Markdown only implicit GFM autolinks (no `[` or `<` in the source) unwrap:
- * an explicit link that reads back bare was lost, not normalized.
+ * `[notes.example.com](<http://notes.example.com>)`. Only a read-back link
+ * whose sole text is a dotted host name (optionally with a path) and whose
+ * target is that text behind `http://` can stand for that text.
  */
-function autoLinkText(
-  node: Child,
-  source: string | undefined,
-): string | undefined {
+function autoLinkText(node: MdNode): string | undefined {
   if (node.type !== "link" || node.title != null) return undefined
-  if (source != null) {
-    const start = node.position?.start.offset
-    const first = start == null ? undefined : source[start]
-    if (first == null || first === "[" || first === "<") return undefined
-  }
-  if (!node.url.startsWith("http://") || node.children.length !== 1) {
+  if (typeof node.url !== "string" || !node.url.startsWith("http://")) {
     return undefined
   }
-  const [text] = node.children
-  return text.type === "text" && BARE_DOMAIN.test(text.value) &&
+  const [text, ...rest] = node.children ?? []
+  return rest.length === 0 && text?.type === "text" &&
+      typeof text.value === "string" && BARE_DOMAIN.test(text.value) &&
       encodeNonAscii(node.url.slice(7)) === encodeNonAscii(text.value)
     ? text.value
     : undefined
 }
 
+interface MdNode {
+  type: string
+  children?: MdNode[]
+  [key: string]: unknown
+}
+
+/** Text as one token per character; other nodes stay whole. */
+function tokens(children: MdNode[]): (string | MdNode)[] {
+  return children.flatMap((child): (string | MdNode)[] =>
+    child.type === "text" && typeof child.value === "string"
+      ? [...child.value]
+      : [child]
+  )
+}
+
 /**
- * `written` marks the Markdown that was sent: there only implicit autolinks
- * unwrap, while the read-back side also unwraps links Linear added.
+ * Structural equality where a read-back auto-link may stand for the same
+ * bare text in the written Markdown. A link written explicitly must still
+ * read back as a link, so a lost link stays different.
  */
-function comparableMarkdown(markdown: string, written: boolean): string {
+function sameNode(written: MdNode, actual: MdNode): boolean {
+  const { children: writtenChildren, ...writtenProps } = written
+  const { children: actualChildren, ...actualProps } = actual
+  if (JSON.stringify(writtenProps) !== JSON.stringify(actualProps)) {
+    return false
+  }
+  if (writtenChildren == null || actualChildren == null) {
+    return writtenChildren == null && actualChildren == null
+  }
+  const w = tokens(writtenChildren)
+  const a = tokens(actualChildren)
+  let i = 0
+  let j = 0
+  while (i < w.length && j < a.length) {
+    const left = w[i]
+    const right = a[j]
+    if (typeof right === "string") {
+      if (left !== right) return false
+      i++
+      j++
+      continue
+    }
+    if (typeof left !== "string" && sameNode(left, right)) {
+      i++
+      j++
+      continue
+    }
+    const text = autoLinkText(right)
+    const chars = text == null ? [] : [...text]
+    if (
+      text == null || chars.some((char, offset) => w[i + offset] !== char)
+    ) return false
+    i += chars.length
+    j++
+  }
+  return i === w.length && j === a.length
+}
+
+function comparableMarkdown(markdown: string): MdNode {
   const tree = parser.parse(markdown)
   visit(tree, (node) => {
     delete node.position
-    if ("children" in node) {
-      const children: Child[] = node.children
-      for (let index = 0; index < children.length; index++) {
-        const value = autoLinkText(
-          children[index],
-          written ? markdown : undefined,
-        )
-        if (value != null) children[index] = { type: "text", value }
-      }
-      // Rejoin the text around an unwrapped link into one node.
-      for (let index = 1; index < children.length;) {
-        const previous = children[index - 1]
-        const current = children[index]
-        if (previous.type === "text" && current.type === "text") {
-          previous.value += current.value
-          children.splice(index, 1)
-        } else {
-          index++
-        }
-      }
-    }
     // Linear joins adjacent unordered lists split by different bullet markers.
     // Merge parsed siblings, not source text: rewriting '* ---' as '- ---'
     // would turn a list item into a top-level thematic break.
@@ -114,7 +134,7 @@ function comparableMarkdown(markdown: string, written: boolean): string {
       for (const item of node.children) item.spread = false
     }
   })
-  return JSON.stringify(tree)
+  return tree as unknown as MdNode
 }
 
 /**
@@ -129,8 +149,7 @@ export function compareMarkdown(
   actual: string,
 ): "exact" | "normalized" | "different" {
   if (expected === actual) return "exact"
-  return comparableMarkdown(expected, true) ===
-      comparableMarkdown(actual, false)
+  return sameNode(comparableMarkdown(expected), comparableMarkdown(actual))
     ? "normalized"
     : "different"
 }

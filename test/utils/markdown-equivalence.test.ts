@@ -52,6 +52,24 @@ Deno.test("compareMarkdown - accepts Linear's Markdown serialization", () => {
   )
 })
 
+Deno.test("compareMarkdown - explicit links keep their structure", () => {
+  assertEquals(
+    compareMarkdown(
+      "[notes.jihuanshe.com](http://notes.jihuanshe.com)\n",
+      "[notes.jihuanshe.com](<http://notes.jihuanshe.com>)",
+    ),
+    "normalized",
+  )
+  // An explicit link next to a bare domain that Linear linked.
+  assertEquals(
+    compareMarkdown(
+      "[notes.jihuanshe.com](http://notes.jihuanshe.com) 和 docs.jihuanshe.com\n",
+      "[notes.jihuanshe.com](<http://notes.jihuanshe.com>) 和 [docs.jihuanshe.com](<http://docs.jihuanshe.com>)",
+    ),
+    "normalized",
+  )
+})
+
 Deno.test("compareMarkdown - other link changes stay different", () => {
   // Link text that is not the URL itself is content, not an auto-link.
   assertEquals(
