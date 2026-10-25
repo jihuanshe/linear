@@ -25,6 +25,6 @@ Linear 迁移父 Issue 时可能联动其子 Issue；`plan` 不模拟这类上�
 
 执行进度只由 `manifest.json.checkpoint.json` 记录。已确认成功的项在续跑时跳过，已知无效果的失败可在处理原因后续跑；未知结果必须先按 UUID 对账，不能直接重试。保留清单、依据、账本与每次原始输出，不覆盖旧结果文件；完整恢复步骤见 `linear guide issue-delivery`。
 
-**旧迁移目录不转换、不重放。** 旧 `scope.json`、`receipts.jsonl` 和原始 stdout／stderr 必须原样保留。本脚本不再提供 `move`，也不生成新的 `receipts.jsonl`。先由操作人按稳定 UUID 核对旧回执和实际效果；任何 `unknown` 未查清前，不把它加入新执行清单。对账后仅为明确的剩余工作另建 `schemaVersion: 2` 交付清单和依据文件，不直接把旧 scope 全量转换，也不删除旧账本绕过恢复边界。
+**旧迁移目录不转换、不重放。** 旧 `scope.json`、`receipts.jsonl` 和原始 stdout／stderr 必须原样保留。先由操作人按稳定 UUID 核对旧回执和实际效果；任何 `unknown` 未查清前，不把它加入新执行清单。对账后仅为明确的剩余工作另建 `schemaVersion: 2` 交付清单和依据文件，不直接把旧 scope 全量转换，也不删除旧账本绕过恢复边界。
 
 迁移完成后重新读取原团队，回执不能证明团队为空。团队删除是另一个必须取得授权的动作，归档和回收站对象同样计入空团队检查；用 `linear team delete OLD --dry-run --json` 检查，不为通过检查而擅自恢复或删除 Issue。

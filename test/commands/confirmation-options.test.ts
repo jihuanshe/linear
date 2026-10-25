@@ -117,7 +117,7 @@ async function runCli(args: string[]) {
   }
 }
 
-Deno.test("CLI rejects removed confirmation flags before any request", async () => {
+Deno.test("CLI rejects unknown confirmation flags before any request", async () => {
   const { server, cleanup } = await setupMockLinearServer([])
   try {
     const cases = [
