@@ -8,11 +8,24 @@ const parser = unified().use(remarkParse).use(remarkGfm)
 type Tree = ReturnType<typeof parser.parse>
 type Child = Tree["children"][number]
 
+/** Percent-encode non-ASCII URL text the way Linear stores link targets. */
+function encodeNonAscii(url: string): string {
+  try {
+    return url.replace(/\P{ASCII}+/gu, (text) => encodeURI(text))
+  } catch {
+    // Unpaired Unicode surrogates remain literal URL content.
+    return url
+  }
+}
+
+const BARE_DOMAIN = /^(?:[a-z0-9-]+\.)+[a-z]{2,}(?:[/?#]\S*)?$/i
+
 /**
  * Linear links bare domains on save: `notes.example.com` reads back as
  * `[notes.example.com](<http://notes.example.com>)`. Only a link whose sole
- * text is its own URL without `http://` counts as that rewrite; its text
- * stays, so changed wording still differs.
+ * text is a dotted host name (optionally with a path) and whose target is
+ * that text behind `http://` counts as that rewrite; other links keep their
+ * structure, so a lost link or changed wording still differs.
  */
 function autoLinkText(node: Child): string | undefined {
   if (node.type !== "link" || node.title != null) return undefined
@@ -20,7 +33,8 @@ function autoLinkText(node: Child): string | undefined {
     return undefined
   }
   const [text] = node.children
-  return text.type === "text" && text.value === node.url.slice(7)
+  return text.type === "text" && BARE_DOMAIN.test(text.value) &&
+      encodeNonAscii(node.url.slice(7)) === encodeNonAscii(text.value)
     ? text.value
     : undefined
 }
@@ -70,14 +84,7 @@ function comparableMarkdown(markdown: string): string {
       node.type === "link" || node.type === "image" ||
       node.type === "definition"
     ) {
-      try {
-        node.url = node.url.replace(
-          /\P{ASCII}+/gu,
-          (text) => encodeURI(text),
-        )
-      } catch {
-        // Unpaired Unicode surrogates remain literal URL content.
-      }
+      node.url = encodeNonAscii(node.url)
     }
     // Linear rewrites blank separators between single-paragraph list items.
     if (

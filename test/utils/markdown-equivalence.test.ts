@@ -35,6 +35,13 @@ Deno.test("compareMarkdown - accepts Linear's Markdown serialization", () => {
     "normalized",
   )
   assertEquals(compareMarkdown("结论\n", "结论"), "normalized")
+  assertEquals(
+    compareMarkdown(
+      "notes.jihuanshe.com/中文",
+      "[notes.jihuanshe.com/中文](<http://notes.jihuanshe.com/%E4%B8%AD%E6%96%87>)",
+    ),
+    "normalized",
+  )
 })
 
 Deno.test("compareMarkdown - other link changes stay different", () => {
@@ -44,6 +51,12 @@ Deno.test("compareMarkdown - other link changes stay different", () => {
       "notes.jihuanshe.com",
       "[笔记](<http://notes.jihuanshe.com>)",
     ),
+    "different",
+  )
+  // An explicit link to a host without a dot is not a bare-domain auto-link,
+  // so losing it is a real difference.
+  assertEquals(
+    compareMarkdown("[intranet](http://intranet)", "intranet"),
     "different",
   )
   // Only the observed http:// rewrite is accepted.

@@ -30,13 +30,20 @@ function rewriteLinks(line: string): string {
 /**
  * Observed (jihuanshe workspace): a bare "notes.jihuanshe.com" is stored as
  * "[notes.jihuanshe.com](<http://notes.jihuanshe.com>)". Modeled only for
- * whitespace-delimited host names on a few common top-level domains.
+ * whitespace-delimited host names on a few common top-level domains, outside
+ * inline code and existing links.
  */
 function linkBareDomains(line: string): string {
-  return line.replace(
-    /(^|\s)((?:[a-z0-9-]+\.)+(?:com|cn|net|org|io))(?=$|[\s,;:!?)]|\.(?:$|\s))/g,
-    (_, before: string, host: string) => `${before}[${host}](<http://${host}>)`,
-  )
+  return line.split(/(`[^`]*`|!?\[[^\]]*\]\([^)]*\)|<[^>\s]*>)/).map((
+    part,
+    index,
+  ) =>
+    index % 2 === 1 ? part : part.replace(
+      /(^|\s)((?:[a-z0-9-]+\.)+(?:com|cn|net|org|io))(?=$|[\s,;:!?)]|\.(?:$|\s))/g,
+      (_, before: string, host: string) =>
+        `${before}[${host}](<http://${host}>)`,
+    )
+  ).join("")
 }
 
 const BULLET = /^(\s*)([-+*]) (.*)$/
