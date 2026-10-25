@@ -19,7 +19,7 @@ const ThreadComment = gql(`
     organization { id urlKey }
     comment(id: $id) {
       id url parent { id } issue { id identifier }
-      resolvedAt resolvingCommentId resolvingUser { id name displayName }
+      resolvedAt resolvingCommentId resolvingUser { id name displayName email }
     }
   }
 `)

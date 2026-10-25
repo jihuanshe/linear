@@ -4,16 +4,16 @@ Each kind of history entry renders in human output and keeps its GraphQL fields 
 -- run --
 linear issue history ENG-123
 -- stdout --
-2025-09-05T00:00:10.000Z Alex: milestone: - -> Launch; parent: ENG-1 -> -; team: Old team -> Engineering; delegate: - -> Delegate; SLA breached: false -> true; SLA breaches at: - -> 2025-09-30T00:00:00.000Z; SLA started at: - -> 2025-09-05T00:00:10.000Z; SLA type: - -> highPriority; releases added: release-2; releases removed: release-1
+2025-09-05T00:00:10.000Z Alex (alex@example.com): milestone: - -> Launch; parent: ENG-1 -> -; team: Old team -> Engineering; delegate: - -> Delegate; SLA breached: false -> true; SLA breaches at: - -> 2025-09-30T00:00:00.000Z; SLA started at: - -> 2025-09-05T00:00:10.000Z; SLA type: - -> highPriority; releases added: release-2; releases removed: release-1
 2025-09-05T00:00:09.000Z system: metadata changed
 2025-09-05T00:00:08.000Z Automation Bot (bot:integration) [user: Jordan]: metadata changed
-2025-09-05T00:00:07.000Z Alex: archived: true; trashed: false; automatically archived; automatically closed
-2025-09-05T00:00:06.000Z Workflow Actor: description updated by: Description Editor
-2025-09-05T00:00:05.000Z Alex: attachment: attachment-deleted
-2025-09-05T00:00:04.000Z Alex: attachment: Design spec (1a100000-0000-4000-8000-000000000001) - https://notion.so/design-spec
-2025-09-05T00:00:03.000Z Alex: converted to project: Converted Project (1e000000-0000-4000-8000-000000000003)
-2025-09-05T00:00:02.000Z Alex: cycle: Cycle 4 -> Cycle 5
-2025-09-05T00:00:01.000Z Alex: title: Old title -> New title; priority: 2 -> 0; estimate: - -> 3; due date: 2025-09-30 -> -; assignee: - -> Alex; state: Todo -> Done; project: Old -> New; labels added: label-1; labels removed: label-2; relations: [{"identifier":"ENG-99","type":"added"}]; changes: {"priority":{"from":2,"to":0}}
+2025-09-05T00:00:07.000Z Alex (alex@example.com): archived: true; trashed: false; automatically archived; automatically closed
+2025-09-05T00:00:06.000Z Workflow Actor (workflow@example.com): description updated by: Description Editor
+2025-09-05T00:00:05.000Z Alex (alex@example.com): attachment: attachment-deleted
+2025-09-05T00:00:04.000Z Alex (alex@example.com): attachment: Design spec (1a100000-0000-4000-8000-000000000001) - https://notion.so/design-spec
+2025-09-05T00:00:03.000Z Alex (alex@example.com): converted to project: Converted Project (1e000000-0000-4000-8000-000000000003)
+2025-09-05T00:00:02.000Z Alex (alex@example.com): cycle: Cycle 4 -> Cycle 5
+2025-09-05T00:00:01.000Z Alex (alex@example.com): title: Old title -> New title; priority: 2 -> 0; estimate: - -> 3; due date: 2025-09-30 -> -; assignee: - -> Alex; state: Todo -> Done; project: Old -> New; labels added: label-1; labels removed: label-2; relations: [{"identifier":"ENG-99","type":"added"}]; changes: {"priority":{"from":2,"to":0}}
 -- run --
 linear issue history ENG-123 --json
 -- stdout.json --
@@ -26,7 +26,8 @@ linear issue history ENG-123 --json
       "actor": {
         "id": "1b000000-0000-4000-8000-000000000001",
         "name": "alex",
-        "displayName": "Alex"
+        "displayName": "Alex",
+        "email": "alex@example.com"
       },
       "botActor": null,
       "changes": null,
@@ -81,7 +82,8 @@ linear issue history ENG-123 --json
       "toDelegate": {
         "id": "1b000000-0000-4000-8000-000000000005",
         "name": "delegate",
-        "displayName": "Delegate"
+        "displayName": "Delegate",
+        "email": "delegate@example.com"
       },
       "fromSlaBreached": false,
       "toSlaBreached": true,
@@ -163,7 +165,8 @@ linear issue history ENG-123 --json
       "actor": {
         "id": "1b000000-0000-4000-8000-000000000004",
         "name": "external",
-        "displayName": "External Human"
+        "displayName": "External Human",
+        "email": "external@example.com"
       },
       "botActor": {
         "id": "bot-1",
@@ -228,7 +231,8 @@ linear issue history ENG-123 --json
       "actor": {
         "id": "1b000000-0000-4000-8000-000000000001",
         "name": "alex",
-        "displayName": "Alex"
+        "displayName": "Alex",
+        "email": "alex@example.com"
       },
       "botActor": null,
       "changes": null,
@@ -287,7 +291,8 @@ linear issue history ENG-123 --json
       "actor": {
         "id": "1b000000-0000-4000-8000-000000000002",
         "name": "workflow",
-        "displayName": "Workflow Actor"
+        "displayName": "Workflow Actor",
+        "email": "workflow@example.com"
       },
       "botActor": null,
       "changes": null,
@@ -302,7 +307,8 @@ linear issue history ENG-123 --json
         {
           "id": "1b000000-0000-4000-8000-000000000003",
           "name": "description.editor",
-          "displayName": "Description Editor"
+          "displayName": "Description Editor",
+          "email": "description.editor@example.com"
         }
       ],
       "fromTitle": null,
@@ -352,7 +358,8 @@ linear issue history ENG-123 --json
       "actor": {
         "id": "1b000000-0000-4000-8000-000000000001",
         "name": "alex",
-        "displayName": "Alex"
+        "displayName": "Alex",
+        "email": "alex@example.com"
       },
       "botActor": null,
       "changes": null,
@@ -411,7 +418,8 @@ linear issue history ENG-123 --json
       "actor": {
         "id": "1b000000-0000-4000-8000-000000000001",
         "name": "alex",
-        "displayName": "Alex"
+        "displayName": "Alex",
+        "email": "alex@example.com"
       },
       "botActor": null,
       "changes": null,
@@ -474,7 +482,8 @@ linear issue history ENG-123 --json
       "actor": {
         "id": "1b000000-0000-4000-8000-000000000001",
         "name": "alex",
-        "displayName": "Alex"
+        "displayName": "Alex",
+        "email": "alex@example.com"
       },
       "botActor": null,
       "changes": null,
@@ -537,7 +546,8 @@ linear issue history ENG-123 --json
       "actor": {
         "id": "1b000000-0000-4000-8000-000000000001",
         "name": "alex",
-        "displayName": "Alex"
+        "displayName": "Alex",
+        "email": "alex@example.com"
       },
       "botActor": null,
       "changes": null,
@@ -604,7 +614,8 @@ linear issue history ENG-123 --json
       "actor": {
         "id": "1b000000-0000-4000-8000-000000000001",
         "name": "alex",
-        "displayName": "Alex"
+        "displayName": "Alex",
+        "email": "alex@example.com"
       },
       "botActor": null,
       "changes": {
@@ -633,7 +644,8 @@ linear issue history ENG-123 --json
       "toAssignee": {
         "id": "1b000000-0000-4000-8000-000000000001",
         "name": "alex",
-        "displayName": "Alex"
+        "displayName": "Alex",
+        "email": "alex@example.com"
       },
       "fromState": {
         "id": "0d000000-0000-4000-8000-000000000002",

@@ -63,7 +63,8 @@ linear issue update --unprotected ENG-123 --assignee ABCDEF01-2345-4678-9ABC-DEF
       "assignee": {
         "id": "abcdef01-2345-4678-9abc-def012345678",
         "name": "Jane Developer",
-        "displayName": "jane"
+        "displayName": "jane",
+        "email": "jane.developer@example.com"
       },
       "project": null,
       "projectMilestone": null,

@@ -35,11 +35,13 @@ export const USER = {
   id: "00000000-0000-4000-8000-000000000030",
   name: "Alex",
   displayName: "alex",
+  email: "alex@example.com",
 }
 export const OTHER_USER = {
   id: "00000000-0000-4000-8000-000000000031",
   name: "Alex",
   displayName: "alex",
+  email: "alex.other@example.com",
 }
 export const STATE = {
   id: "00000000-0000-4000-8000-000000000040",

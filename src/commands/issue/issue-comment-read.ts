@@ -8,10 +8,10 @@ const ReadComment = gql(`
     organization { id urlKey }
     comment(id: $id) {
       id body url updatedAt archivedAt
-      user { id name displayName }
+      user { id name displayName email }
       issue { id identifier }
       parent { id }
-      resolvedAt resolvingCommentId resolvingUser { id name displayName }
+      resolvedAt resolvingCommentId resolvingUser { id name displayName email }
     }
   }
 `)

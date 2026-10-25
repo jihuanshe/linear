@@ -60,7 +60,7 @@ export async function createIssueComment(
       commentCreate(input: $input) {
         success
         comment {
-          id body createdAt url user { name displayName }
+          id body createdAt url user { name displayName email }
           issue { id }
           parent { id }
         }

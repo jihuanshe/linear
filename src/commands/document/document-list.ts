@@ -54,6 +54,7 @@ const ListDocuments = gql(`
         }
         creator {
           name
+          email
         }
       }
       pageInfo {

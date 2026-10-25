@@ -32,7 +32,8 @@ linear issue comment add ENG-123 --body "JSON comment" --json
       "url": "https://linear.app/kadoraba/issue/ENG-123/discussed#comment-f0000000",
       "user": {
         "name": "Alex",
-        "displayName": "alex"
+        "displayName": "alex",
+        "email": "alex@example.com"
       },
       "issue": {
         "id": "1a000000-0000-4000-8000-000000000123"

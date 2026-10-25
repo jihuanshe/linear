@@ -52,6 +52,7 @@ const GetProjects = gql(`
         lead {
           name
           displayName
+          email
           initials
         }
         priority

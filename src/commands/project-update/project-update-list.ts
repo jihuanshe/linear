@@ -27,6 +27,7 @@ const ListProjectUpdatesQuery = gql(`
           user {
             name
             displayName
+            email
           }
         }
         pageInfo {

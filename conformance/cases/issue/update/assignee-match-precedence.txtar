@@ -70,7 +70,8 @@ linear issue update --unprotected ENG-123 --assignee JANE@EXAMPLE.COM --json
       "assignee": {
         "id": "1b000000-0000-4000-8000-000000000011",
         "name": "Email Owner",
-        "displayName": "emailowner"
+        "displayName": "emailowner",
+        "email": "jane@example.com"
       },
       "project": null,
       "projectMilestone": null,
@@ -155,7 +156,8 @@ linear issue update --unprotected ENG-123 --assignee JANE --json
       "assignee": {
         "id": "1b000000-0000-4000-8000-000000000013",
         "name": "Display Owner",
-        "displayName": "jane"
+        "displayName": "jane",
+        "email": "display@example.com"
       },
       "project": null,
       "projectMilestone": null,
@@ -240,7 +242,8 @@ linear issue update --unprotected ENG-123 --assignee Developer --json
       "assignee": {
         "id": "1b000000-0000-4000-8000-000000000015",
         "name": "Developer",
-        "displayName": "dev"
+        "displayName": "dev",
+        "email": "dev@example.com"
       },
       "project": null,
       "projectMilestone": null,

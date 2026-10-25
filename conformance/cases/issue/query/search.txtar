@@ -39,6 +39,7 @@ linear issue query --search login --team ENG --json
         "id": "1b000000-0000-4000-8000-000000000002",
         "name": "Jane Smith",
         "displayName": "jane",
+        "email": "jane.smith@example.com",
         "initials": "JS"
       },
       "team": {
