@@ -54,7 +54,7 @@ function tokens(children: MdNode[]): (string | MdNode)[] {
 /**
  * The written text must hold the whole domain or URL, not part of a longer
  * one: `notes.[example.com](http://example.com)` is not an auto-link of
- * `notes.example.com`.
+ * `notes.example.com`, nor is a link that stops before `?tab=history`.
  */
 function bareTextBoundary(
   w: (string | MdNode)[],
@@ -67,7 +67,9 @@ function bareTextBoundary(
   if (typeof before === "string" && /[\w.@/:-]/.test(before)) return false
   if (typeof after !== "string") return true
   if (/[\w/@-]/.test(after)) return false
-  return !(after === "." && typeof next === "string" && /\w/.test(next))
+  // A query, fragment, port or further label continues the URL.
+  return !(/[.?#:]/.test(after) && typeof next === "string" &&
+    /[\w%=&]/.test(next))
 }
 
 /**

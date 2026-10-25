@@ -1346,6 +1346,31 @@ for (
       matches: false,
     },
     {
+      name: "an auto-link that drops a query",
+      desired: "notes.jihuanshe.com?tab=history",
+      actual: "[notes.jihuanshe.com](<http://notes.jihuanshe.com>)?tab=history",
+      matches: false,
+    },
+    {
+      name: "an auto-link that drops a fragment",
+      desired: "notes.jihuanshe.com#a",
+      actual: "[notes.jihuanshe.com](<http://notes.jihuanshe.com>)#a",
+      matches: false,
+    },
+    {
+      name: "an auto-link that drops a port",
+      desired: "notes.jihuanshe.com:8080",
+      actual: "[notes.jihuanshe.com](<http://notes.jihuanshe.com>):8080",
+      matches: false,
+    },
+    {
+      name: "an auto-linked domain before sentence punctuation",
+      desired: "见 notes.jihuanshe.com: 说明。另见 docs.jihuanshe.com.",
+      actual:
+        "见 [notes.jihuanshe.com](<http://notes.jihuanshe.com>): 说明。另见 [docs.jihuanshe.com](<http://docs.jihuanshe.com>).",
+      matches: true,
+    },
+    {
       name: "a changed bare domain",
       desired: "见 notes.jihuanshe.com",
       actual: "见 docs.jihuanshe.com",
