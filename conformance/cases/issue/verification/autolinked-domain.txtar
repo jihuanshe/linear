@@ -1,0 +1,96 @@
+Linear links a bare domain in a written description and rewrites list markers, and the first three read-backs still show the old description. The fourth read-back verifies, and the result reports that the description matched only after normalization.
+-- seed.json --
+{"Issue": [{"id": "1a000000-0000-4000-8000-000000000123", "identifier": "ENG-123", "title": "Verified", "description": "Before"}]}
+-- file desired.md --
+部署在 notes.jihuanshe.com 上。
+
+- 第一项
+- [第二项](https://example.com/b)
+-- faults.json --
+[{"on": "query:issue", "after": "mutation", "action": "stale", "times": 3}]
+-- run --
+linear issue update ENG-123 --unprotected --description-file desired.md --json
+-- stdout.json --
+{
+  "ok": true,
+  "effect": "applied",
+  "data": {
+    "success": true,
+    "issue": {
+      "id": "1a000000-0000-4000-8000-000000000123",
+      "identifier": "ENG-123",
+      "url": "https://linear.app/kadoraba/issue/ENG-123/verified",
+      "title": "Verified",
+      "priority": 0,
+      "labels": {
+        "nodes": [],
+        "pageInfo": {
+          "hasNextPage": false,
+          "endCursor": null
+        }
+      }
+    }
+  },
+  "fields": [
+    {
+      "field": "description",
+      "inputField": "description",
+      "desired": "部署在 notes.jihuanshe.com 上。\n\n- 第一项\n- [第二项](https://example.com/b)\n",
+      "remote": "Before",
+      "verdict": "write"
+    }
+  ],
+  "verification": {
+    "scope": "issue-fields",
+    "status": "verified",
+    "normalizedFields": [
+      "description"
+    ]
+  },
+  "readBack": {
+    "organization": {
+      "id": "0a000000-0000-4000-8000-000000000001",
+      "urlKey": "kadoraba"
+    },
+    "issue": {
+      "id": "1a000000-0000-4000-8000-000000000123",
+      "identifier": "ENG-123",
+      "archivedAt": null,
+      "trashed": null,
+      "title": "Verified",
+      "description": "部署在 [notes.jihuanshe.com](<http://notes.jihuanshe.com>) 上。\n\n* 第一项\n* [第二项](<https://example.com/b>)",
+      "url": "https://linear.app/kadoraba/issue/ENG-123/verified",
+      "branchName": "alex/eng-123-verified",
+      "priority": 0,
+      "estimate": null,
+      "dueDate": null,
+      "state": {
+        "id": "0d000000-0000-4000-8000-000000000001",
+        "name": "Backlog",
+        "type": "backlog",
+        "color": "#bec2c8"
+      },
+      "assignee": null,
+      "project": null,
+      "projectMilestone": null,
+      "cycle": null,
+      "team": {
+        "id": "0c000000-0000-4000-8000-000000000001",
+        "key": "ENG",
+        "activeCycle": null
+      },
+      "parent": null,
+      "labels": {
+        "nodes": [],
+        "pageInfo": {
+          "hasNextPage": false,
+          "endCursor": null
+        }
+      }
+    }
+  }
+}
+-- mutations.json --
+{"issueUpdate": 1}
+-- state.json --
+{"Issue": [{"identifier": "ENG-123", "description": "部署在 [notes.jihuanshe.com](<http://notes.jihuanshe.com>) 上。\n\n* 第一项\n* [第二项](<https://example.com/b>)"}]}

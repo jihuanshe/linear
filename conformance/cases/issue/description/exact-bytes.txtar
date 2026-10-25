@@ -51,7 +51,10 @@ linear issue update ENG-123 --unprotected --description-file exact.md --json
   ],
   "verification": {
     "scope": "issue-fields",
-    "status": "verified"
+    "status": "verified",
+    "normalizedFields": [
+      "description"
+    ]
   },
   "readBack": {
     "organization": {

@@ -40,7 +40,7 @@ import { errorResult, ValidationError, WriteError } from "../utils/errors.ts"
 import { uploadFile } from "../utils/upload.ts"
 import { type WriteEffect } from "../utils/write-result.ts"
 import {
-  differentIssueFields,
+  compareIssueFields,
   withReadBackRetries,
 } from "../utils/issue-verification.ts"
 import {
@@ -98,6 +98,8 @@ export interface VerificationResult {
   target: string
   status: "verified" | "different" | "unavailable"
   scope: "issue-fields-and-object-identities"
+  /** Markdown fields that matched only after Linear's save-time rewrites. */
+  normalizedFields?: string[]
   detail?: string
   url?: string
 }
@@ -622,7 +624,7 @@ async function verifyOnce(
       read.issue.id !== target.id ||
       read.organization.id !== checkpoint.workspace.id
     ) throw new ValidationError("Read-back returned a different identity")
-    const different = differentIssueFields(
+    const { different, normalized } = compareIssueFields(
       read.issue,
       checkpoint.items[items[0].key]?.expected ?? {},
       issueReplacementFields,
@@ -682,6 +684,8 @@ async function verifyOnce(
             detail: "Read-back differs: " + different.join(", ") +
               "; confirmed writes will not be repeated",
           }
+          : normalized.length
+          ? { normalizedFields: normalized }
           : {}),
       },
       data: { ...read, receipts: observed },

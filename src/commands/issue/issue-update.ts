@@ -42,7 +42,7 @@ import {
 } from "../../utils/replacement.ts"
 import { writeResult } from "../../utils/write-result.ts"
 import {
-  differentIssueFields,
+  compareIssueFields,
   type ReadBackOptions,
   withReadBackRetries,
 } from "../../utils/issue-verification.ts"
@@ -641,17 +641,19 @@ export async function updateIssueAndVerify(
       if (readBack.organization.id !== prepared.current.organization.id) {
         throw new ValidationError("Read-back returned a different workspace")
       }
-      const different = differentIssueFields(
+      const { different, normalized } = compareIssueFields(
         readBack.issue,
         expected,
         issueReplacementFields,
       )
       return {
-        verification: {
-          scope,
-          status: different.length ? "different" as const : "verified" as const,
-          ...(different.length ? { fields: different } : {}),
-        },
+        verification: different.length
+          ? { scope, status: "different" as const, fields: different }
+          : {
+            scope,
+            status: "verified" as const,
+            ...(normalized.length ? { normalizedFields: normalized } : {}),
+          },
         readBack,
       }
     } catch (error) {
@@ -685,7 +687,7 @@ export const updateCommand = withUsageMetadata(new Command(), { writes: true })
   .name("update")
   .type("priority", priorityType)
   .description(withMarkdownHint(
-    "Update an issue by UUID, identifier (e.g. ENG-123), number in the configured team, or Linear URL; verify fields with up to 3 reads without repeating the write",
+    "Update an issue by UUID, identifier (e.g. ENG-123), number in the configured team, or Linear URL; verify fields with up to 5 reads without repeating the write",
   ))
   .arguments("<issue:string>")
   .option(
