@@ -75,7 +75,7 @@ jq -e '((.errors // []) | length == 0) and (.data.issues.nodes | type == "array"
 
 结果在原分页连接中拼接 `nodes`，保留最后一页的 `pageInfo`。只需样本时省略 `--paginate`，用 `first` 限量。服务端分页约定见 [Linear 分页文档](https://linear.app/developers/pagination)。
 
-缺失或循环游标、连接路径改变、响应结构不完整和后续页读取失败都会非零退出，不输出已经累积的节点。上游返回 GraphQL `errors` 时保留该页的原始响应，绝不拼入之前的页冒充完整成功。完整分页只表示读到了终页，不保证所有页来自同一时刻。
+缺失或循环游标、连接路径改变、响应结构不完整和后续页读取失败都会非零退出，不输出已经累积的节点。上游返回 GraphQL `errors` 时只输出该页的原始响应，不拼接之前的页。完整分页只表示读到了终页，不保证所有页来自同一时刻。
 
 未显式传 `first` 的连接默认只返回 50 条，按 ID 集合筛选也一样：`issues(filter: {id: {in: [...]}})` 传入 85 个 ID 只返回前 50 个，同时 `pageInfo.hasNextPage` 为 `true`。不带 `--paginate` 的 query 若返回的连接（包括嵌套连接）还有后续页，`linear api` 会递归检查对象数组，并在 stderr 提示一行，stdout 不变；需要全部结果时读 `pageInfo`，或改用 `--paginate`。按编号批量读取 Issue 时改用 `issue query --id-file`，它会补齐迁移前编号并核对缺失，见 `linear guide automation`。
 

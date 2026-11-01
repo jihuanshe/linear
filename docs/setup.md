@@ -27,7 +27,7 @@ CLI 按以下顺序选择凭据：
 3. 配置 `workspace` 指定的已保存凭据；
 4. 已保存凭据中的默认工作区。
 
-`LINEAR_API_KEY` 不能与 `--workspace` 同用。使用已保存的多工作区凭据前，先移除环境变量。每次切换工作区都运行 `auth whoami --json`，核对 `organization.id` 和 `organization.urlKey`。认证成功不代表目标对象属于预期工作区。
+`LINEAR_API_KEY` 不能与 `--workspace` 同用。使用已保存的多工作区凭据前，先移除环境变量。每次切换工作区都运行 `auth whoami --json`，核对 `organization.id` 和 `organization.urlKey`。
 
 默认凭据存入系统密钥环；工作区列表和默认值存入凭据文件：
 
@@ -70,7 +70,7 @@ vcs = "git"
 
 显式非法值报错，不按未设置处理。查看正文保留远端链接；保存资产用 `linear download`。
 
-项目配置使用 `.linear.toml` 或 `.config/linear.toml`。若项目中仍有裸文件名 `linear.toml`，先核对已有目标文件，再手动迁移或合并；CLI 不覆盖文件。用户级 `$XDG_CONFIG_HOME/linear/linear.toml`、`$HOME/.config/linear/linear.toml` 和 Windows `%APPDATA%\linear\linear.toml` 不受此项目文件名规则影响。
+项目配置使用 `.linear.toml` 或 `.config/linear.toml`。项目根或当前目录有 `linear.toml` 时，读取配置的命令报错；把其中的非密钥设置移到 `.linear.toml`。用户级 `$XDG_CONFIG_HOME/linear/linear.toml`、`$HOME/.config/linear/linear.toml` 和 Windows `%APPDATA%\linear\linear.toml` 不受此项目文件名规则影响。
 
 根导航、帮助、版本、guide 和 recipe 不读取配置、`.env` 或私有凭据，配置损坏时仍可离线查阅。实际使用配置或凭据的命令会报告对应错误。
 
@@ -78,7 +78,7 @@ vcs = "git"
 
 | 变量                       | 作用                                                                                 |
 | -------------------------- | ------------------------------------------------------------------------------------ |
-| `LINEAR_PROMPT_DISABLED=1` | 禁止提示；缺少输入时失败，不代表授权写入                                             |
+| `LINEAR_PROMPT_DISABLED=1` | 禁止提示；缺少输入时失败                                                             |
 | `LINEAR_GRAPHQL_ENDPOINT`  | 使用受控 GraphQL 代理；仍需核对身份                                                  |
 | `LINEAR_DEBUG=1`           | 在 stderr 输出底层错误和堆栈                                                         |
 | `LINEAR_NOW`               | 用带时区的 ISO 8601 时刻固定相对日期的“当前时间”，用于可复现的输出；无效值使命令失败 |

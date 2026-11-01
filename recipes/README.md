@@ -12,7 +12,7 @@ linear recipe doctor --source > doctor.js
 
 说明和源码静态嵌入二进制，与已安装的 CLI 一起分发；读取不访问网络或执行脚本。具名 JSON 包含 `name`、`description`、`filename`、`body` 和 `source`。只需脚本字节时使用 `--source`，不要解析人类说明或 JSON。
 
-执行导出的文件需要 Deno 和当前 `linear`。`LINEAR_BIN=/absolute/path/to/linear` 可以固定同一 CLI。脚本通过命令参数、文件和 JSON 交互，不导入内部源码；用户可以修改自己的工作策略。脚本源码不构成写入授权，执行副作用仍由当前任务授权。
+执行导出的文件需要 Deno 和当前 `linear`。`LINEAR_BIN=/absolute/path/to/linear` 可以固定同一 CLI。脚本通过命令参数、文件和 JSON 交互，不导入内部源码；用户可以修改自己的工作策略。
 
 CLI 的操作、校验和写入结果是稳定边界；Recipe 只组合这些操作。需要 Issue 批量交付与自动恢复时，使用 `linear guide issue-delivery` 描述的清单和执行账本，不在示例里复制恢复引擎。
 

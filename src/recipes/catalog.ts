@@ -18,7 +18,7 @@ export const recipes = [
   },
   {
     name: "doctor",
-    description: "按可修改的治理规则示例检查任务与项目，生成只读候选报告",
+    description: "按可修改的规则示例检查 Issue 与项目，生成只读健康检查报告",
     filename: "doctor.js",
     body: doctorBody,
     source: doctorSource,
