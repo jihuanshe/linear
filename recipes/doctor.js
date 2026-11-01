@@ -68,7 +68,7 @@ export function evaluateDoctorIssues(
         terminal(issue) ? "P2" : "P0",
         "project",
         `项目「${issue.project.name}」未包含团队 ${issue.team.key}`,
-        "请确认项目归属，必要时将该任务移到合适的项目。",
+        "请确认项目归属，必要时将该 Issue 移到合适的项目。",
       )
     }
     if (!deferred && active && issue.project == null) {
@@ -78,8 +78,8 @@ export function evaluateDoctorIssues(
         "missing-project",
         severity,
         "project",
-        "任务没有项目",
-        "请为该任务指定项目。",
+        "Issue 没有项目",
+        "请为该 Issue 指定项目。",
       )
     }
     if (
@@ -92,8 +92,8 @@ export function evaluateDoctorIssues(
         "missing-priority",
         severity,
         "priority",
-        "任务没有优先级",
-        "请为该任务指定优先级。",
+        "Issue 没有优先级",
+        "请为该 Issue 指定优先级。",
       )
     }
     if (
@@ -106,8 +106,8 @@ export function evaluateDoctorIssues(
         "missing-estimate",
         severity,
         "estimate",
-        "任务没有估时",
-        "请填写该任务的估时。",
+        "Issue 没有估时",
+        "请填写该 Issue 的估时。",
       )
     }
     if (
@@ -120,8 +120,8 @@ export function evaluateDoctorIssues(
         "missing-cycle",
         severity,
         "cycle",
-        `任务没有周期；团队 ${issue.team.key} 已启用周期`,
-        "请确认是否将该任务加入当前周期；暂不排期时可以留空。",
+        `Issue 没有周期；团队 ${issue.team.key} 已启用周期`,
+        "请确认是否将该 Issue 加入当前周期；暂不排期时可以留空。",
       )
     }
     if (started && Date.parse(issue.updatedAt) < now.getTime() - threshold) {
@@ -131,8 +131,8 @@ export function evaluateDoctorIssues(
         "stale-started",
         "P1",
         "stale",
-        `进行中任务已至少 ${policy.staleDays} 天未更新`,
-        "请确认该任务是否仍在推进；如已阻塞、拆分或完成，请更新状态和下一步。",
+        `进行中的 Issue 已至少 ${policy.staleDays} 天未更新`,
+        "请确认该 Issue 是否仍在推进；如已阻塞、拆分或完成，请更新状态和下一步。",
       )
     }
   }

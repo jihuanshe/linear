@@ -36,8 +36,8 @@ linear usage --json          # 命令树与能力元数据
 
 以下名称相近，但操作不同：
 
-- `project update` 修改项目，`project-update create/list` 发布或读取项目进展；`initiative update` 与 `initiative-update create/list` 同理。
-- 项目（Project）的 `description` 是短简介，长正文属于 `content`，在 Linear 中显示为 overview。创建和更新长正文都用 `--content-file`；更新前用 `project view --json` 保存依据，提交时传 `--base-file`。
+- `project update` 修改项目（Project），`project-update create/list` 发布或读取项目进展；`initiative update` 与 `initiative-update create/list` 同理。
+- 项目的短简介是 `description`，长正文是 `content`，在 Linear 中显示为 Overview。创建和更新长正文都用 `--content-file`；更新前用 `project view --json` 保存依据，提交时传 `--base-file`。
 - `issue update --label` 和 `project update --label` 替换完整标签集。只给 Issue 增删标签用 `--add-label/--remove-label`；替换前读全现有标签并保留仍需要的项。
 - `issue comment add --attach` 把文件嵌入评论，`issue attach` 创建侧栏附件（Attachment）。材料放置见 `linear guide issue-authoring`。
 
@@ -61,7 +61,7 @@ linear usage --json          # 命令树与能力元数据
 
 已知 Issue URL 时可直接传给 `issue view`、`issue export` 或 `issue update`；CLI 解析编号并核对 URL 所属工作区。
 
-Project 和 Initiative URL 可直接传给接受 Project 或 Initiative 的参数，例如 `project view <project>`、`issue query --project` 和 `initiative view <initiative>`：
+项目和 Initiative URL 可直接传给接受项目或 Initiative 的参数，例如 `project view <project>`、`issue query --project` 和 `initiative view <initiative>`：
 
 ```text
 https://linear.app/<workspace>/project/<project-name>-<project-slug-id>/issues
