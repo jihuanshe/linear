@@ -65,7 +65,7 @@ linear config
 3. 打开 Client credentials，保存后记下 Client ID 和 Client secret。
 4. 令牌默认只能访问公开团队。需要访问私有团队时，在该应用详情页调整团队访问范围。
 
-scope 不在应用上勾选，而是在换取令牌时声明。常规读写 Issue、评论、项目和文档用 `read,write`；不要申请 `admin`。每次都用同一个 scope 字符串：Linear 在收到不同 scope 的请求时，会吊销该应用已签发的全部应用令牌。
+scope 不在应用上勾选，而是在换取令牌时声明。常规读写 Issue、评论、项目（Project）和文档用 `read,write`；不要申请 `admin`。每次都用同一个 scope 字符串：Linear 在收到不同 scope 的请求时，会吊销该应用已签发的全部应用令牌。
 
 Client ID 和 secret 只存入系统密钥管理器，不写入仓库、dotfiles、`.env`、`linear auth login` 或命令行参数。macOS 上可以这样保存（`-w` 放在最后会提示输入，不经过 shell 历史）：
 
@@ -148,7 +148,7 @@ NO_COLOR=1 linear issue view ENG-123 --json >issue.json 2>error.log
 jq -e ' .organization.id and .issue.id ' issue.json >/dev/null
 ```
 
-`--json`（`-j`）是全局选项，可放在命令路径前后；不支持机器输出的命令会明确报错，不回退成人类文本。支持情况由 `usage --json` 的 `outputModes` 描述；`--no-pager` 仍以目标命令的 `--help` 为准。多行 Markdown 按目标字段使用 `--description-file`、`--body-file` 或 `--content-file`，避免 shell 引号改变正文。写命令、跳过确认的 `--yes`（`-y`）、`LINEAR_PROMPT_DISABLED=1` 和 JSON 输出都只描述执行机制，不构成用户授权。输出、网络等待和并发边界见 `linear guide automation`。
+`--json`（`-j`）是全局选项，可放在命令路径前后；不支持机器输出的命令会明确报错，不回退成人类文本。支持情况由 `usage --json` 的 `outputModes` 描述；`--no-pager` 仍以目标命令的 `--help` 为准。多行 Markdown 按目标字段使用 `--description-file`、`--body-file` 或 `--content-file`，避免 shell 引号改变正文。输出、网络等待和并发边界见 `linear guide automation`。
 
 普通更新直接用专用命令；组合多个执行项并需要记录恢复进度时，使用同一份交付清单：
 

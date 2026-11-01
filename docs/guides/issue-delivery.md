@@ -64,7 +64,7 @@ commands:
 
 `set` 与共享 Issue 操作的选项对应，使用 camelCase：例如 `descriptionFile`、`dueDate`、`addLabel`、`removeLabel`、`unassign`、`clearCycle` 和 `clearProject`。团队位于 `set.team`，完整标签替换是 `set.label`。`label`、`addLabel`、`removeLabel` 对应可重复选项，因此值是字符串数组；清单的 `expectFields` 对应重复的 `--expect-field`。这些是输入选项名，读取和 mutation 仍保留 API 的字段名与结构。完整字段和有效值以 `issue create --help`、`issue update --help` 及清单校验为准，不另定义一套名称解析规则。
 
-`create` 要求 `set.title` 和 `set.team`，不接受已有 `identifier`、原始依据或期望字段。`update` 要求 `identifier`，可用 UUID 或完整编号。`unassign: true` 清除负责人，`clearCycle: true` 清除周期；不能分别与 `assignee`、`cycle` 同用。`clearProject: true` 清除 Project 及其 milestone，不能与 `project`、`milestone` 同用；这两个字段都按原始读取保护，已无 Project 且无 milestone 时不重复写入。标签增删与完整 `label` 替换互斥；空 `label` 替换不受支持，须逐项 `removeLabel`。只追加评论、附件或关系时省略 `set` 和原始依据。
+`create` 要求 `set.title` 和 `set.team`，不接受已有 `identifier`、原始依据或期望字段。`update` 要求 `identifier`，可用 UUID 或完整编号。`unassign: true` 清除负责人，`clearCycle: true` 清除周期；不能分别与 `assignee`、`cycle` 同用。`clearProject: true` 清除项目（Project）及其里程碑（Milestone），不能与 `project`、`milestone` 同用；这两个字段都按原始读取保护，已无项目且无里程碑时不重复写入。标签增删与完整 `label` 替换互斥；空 `label` 替换不受支持，须逐项 `removeLabel`。只追加评论、附件或关系时省略 `set` 和原始依据。
 
 `comments` 中的 `body`／`bodyFile` 互斥，`files` 嵌入评论；`public` 仅适用于该评论的上传图片。`attachments` 创建侧栏附件（Attachment）：`url` 项关联链接，`file` 项先上传再关联。关系使用完整编号或 UUID，支持 `related`、`blocks`、`blocked-by`、`duplicate`；`blocked-by` 反转 `blocks` 方向，同一边已存在时不重复写，不同类型或方向会拒绝。
 
@@ -82,7 +82,7 @@ linear issue apply --file delivery.json --confirm-workspace acme --json \
 
 所有本地文件先读取、校验并记录指纹，正文使用同一份已检查字节；上传前还会核对文件是否改变。实际名称解析、项目团队校验、父 Issue 读取、上传和 mutation 由单命令共用的操作负责。`apply` 直接调用这些函数，不转换成 argv 或启动另一份 CLI。
 
-`--confirm-workspace` 必须等于清单 `workspace` 中的工作区短名；执行时还用同一凭据核对远端 `organization.id`，已有执行账本必须属于同一工作区。这个参数不构成写入授权。
+`--confirm-workspace` 必须等于清单 `workspace` 中的工作区短名；执行时还用同一凭据核对远端 `organization.id`，已有执行账本必须属于同一工作区。
 
 `apply` 顺序执行，stderr 显示当前 Issue 标识与操作类型，新建时先显示清单位置，取得编号后使用该编号。stdout 为一份 `{ok,effect,data}` 写入结果：
 
@@ -99,9 +99,9 @@ jq -e '.ok == true and .data.status == "completed"' apply.json >/dev/null
 
 `.data.verification[].status` 是 `verified`、`different` 或 `unavailable`，`scope` 固定为 `issue-fields-and-object-identities`。核验包括目标 Issue 身份、执行账本中的预期字段，以及本次 Comment／Attachment／Relation 回执对象是否仍关联目标 Issue；不证明评论正文、关系对端与类型、上传字节、页面渲染或通知送达。
 
-正文读回按 Markdown 结构比较，识别链接尖括号、URL 非 ASCII 字符的编码、列表标记及单段列表项之间空行的规范化。文字、链接目标、段落、显式换行与代码内容的变化仍会报差异。这不证明富文本节点或提及通知等价；写入前的原始依据检查继续精确比较 API 字符串。
+正文读回按 Markdown 结构比较，接受的已知改写与 `issue update` 相同，见 `linear guide automation`。文字、链接目标、段落、显式换行与代码内容的变化仍会报差异。这不证明富文本节点或提及通知等价；写入前的原始依据检查继续精确比较 API 字符串。
 
-读到不同值时最多尝试 3 次，默认每个 Issue 的总时限为 10 秒；不可用结果直接报告。仅取消读回，不能据此推断此前 mutation 被取消。`.data.readBack` 按 `issues` 的零起始下标保存 `{organization,issue,receipts}`，不是完整 `issue view`；`createdIdentifiers` 同样按下标记录新建 Issue 的编号。
+读到不同值时最多读取 5 次，默认每个 Issue 的总时限为 10 秒；不可用结果直接报告。仅取消读回，不能据此推断此前 mutation 被取消。`.data.readBack` 按 `issues` 的零起始下标保存 `{organization,issue,receipts}`，不是完整 `issue view`；`createdIdentifiers` 同样按下标记录新建 Issue 的编号。
 
 ## 执行账本与恢复
 

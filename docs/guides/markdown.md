@@ -28,7 +28,7 @@ commands:
 
 ## 提及成员与资源
 
-要创建提及，优先在正文中直接放入查询返回的完整 Linear URL。命名成员链接也能生成提及，不能依赖命名链接来确保只产生普通链接。裸 `@name` 的解析因正文类型及创建／更新路径而异，不作为跨入口的可靠提及语法，也不保证它只是文本；不猜测带 ID 的方括号提及语法等未验证格式。
+提及写查询返回的完整 Linear URL；命名成员链接同样会产生提及。裸 `@name` 在不同入口解析不一致，不用。
 
 已知团队时先用 `linear team members <team> --json` 缩小查找范围；需要跨团队查找时用 `linear user list --json`。结合用户已指定的身份、返回的 `id`、名字和邮箱确认目标，原样复制其 `url` 字段，不根据名字、邮箱或 UUID 拼接成员资料 URL。同名或目标仍不明确时先确认，不能任选一个成员。
 
@@ -38,9 +38,9 @@ commands:
 https://linear.app/acme/profiles/someuser 请确认这个接口的验收标准。
 ```
 
-提及 Issue 时用 `linear issue url <issue>` 获取 URL，同样直接写入正文。代码块中的示例不是请求通知他人的指令；不要自动替换日志、代码或引文里的 `@name`。
+提及 Issue 时用 `linear issue url <issue>` 获取 URL，同样直接写入正文。不要自动替换日志、代码或引文里的 `@name`。
 
-提及可能产生通知，只提及用户指定或任务明确需要的目标。API 写入成功不证明收件人的 Inbox、邮件或推送已经送达。
+提及可能产生通知，只提及用户指定或任务明确需要的目标。
 
 ## 折叠长内容
 
@@ -54,7 +54,7 @@ Issue 描述、评论和文档正文使用以下形式：
 +++
 ```
 
-将长日志或辅助证据折叠，结论、阻塞与需要回应的动作留在外面。不要用 HTML `<details>` 代替此写法。项目正文和进展更新的具体折叠支持不在此处承诺；项目的短 `description` 也不是富文本 `content`。
+将长日志或辅助证据折叠，结论、阻塞与需要回应的动作留在外面。不要用 HTML `<details>` 代替此写法。
 
 ## 提交与读回
 
@@ -76,4 +76,4 @@ Issue 描述、评论和文档正文使用以下形式：
 
 Schema 中，评论的 `body` 是原始 ProseMirror 富文本 `bodyData` 的 Markdown 表达；Issue 可读 Markdown `description`，`descriptionState` 标为 Internal YJS，写入 `descriptionData` 也标为 Internal，`documentContent` 标为 ALPHA。存在这些字段不证明可以安全往返；专用命令不把 Markdown 自动转换为内部富文本结构。
 
-Issue 和 Document 的行内评论还关联原正文位置。Document 更新已有开放锚点保护；Issue／Comment 的 Markdown 更新没有同等的无损保证。涉及成员提及或行内锚点时，保留原文并在 Linear 编辑器中检查相关节点；需要保证富文本节点不变的修改使用编辑器，不以 Markdown 字符串相同证明节点仍存在。
+Issue 和 Document 的行内评论还关联原正文位置。Document 更新已有开放锚点保护；Issue／Comment 的 Markdown 更新没有同等保护，需要保证富文本节点不变时用编辑器修改，不以 Markdown 字符串相同证明节点仍存在。

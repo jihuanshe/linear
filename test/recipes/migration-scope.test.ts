@@ -211,7 +211,7 @@ Deno.test("Empty team reports no work instead of an invalid executable manifest"
   }
 })
 
-Deno.test("Old migration scope and unknown receipts are never converted or replayed", async () => {
+Deno.test("Team freeze refuses an existing directory and leaves its files untouched", async () => {
   const f = await fixture()
   try {
     await Deno.mkdir(f.migration)
