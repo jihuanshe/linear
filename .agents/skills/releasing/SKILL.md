@@ -12,7 +12,6 @@ description: 通过仓库的滚动 GitHub Release 工作流验证并发布当前
 - 每次 `main` 更新都会进入串行发布队列。运行成功后会自动创建 tag 和 GitHub Release。
 - 发布任务不会取消已经在运行的任务，队列最多保留 100 个等待中的任务。
 - 不要手动递增版本、创建发布 tag 或推送 tag。
-- 不要创建 npm、JSR、Homebrew 或 cargo-dist 发布。
 
 ## 准备
 
@@ -76,8 +75,6 @@ flowchart TD
 
 每个平台产出一个安装归档、一个独立自更新二进制和各自的 SHA-256 校验和文件。GitHub Release 只有在对应提交仍是当前 `main` 最新提交时才标记为 `latest`，防止较早的排队任务把安装目标倒退到旧版本。Linear Release 使用准确的 `before..HEAD` 推送范围；其 ID 和 URL 必须非空，版本必须与 GitHub Release 一致。
 
-除非密钥环集成测试和每个目标的构建都成功，否则不得运行 GitHub Release 任务。除非 GitHub Release 任务成功，否则不得运行 Linear Release 任务。
-
 ## 发布后验证
 
 根据推送的提交推导预期版本，并检查该确切 Release：
@@ -108,5 +105,5 @@ test "$actual" = "linear $version"
 
 - 本地源码检查、CI 密钥环集成检查或构建失败时，不得产生已发布的 Release。使用新的 `main` 提交修复问题。
 - 被取消的任务不算已发布 Release，可能会留下不可见的 Draft。`main` 前进后不要重新运行它；如有需要，之后再清理。
-- 固定的并发组会串行执行发布任务，并保留最多 100 个待处理的 `main` 更新。已完成的历史 Release 保持不可变且可下载。
+- 已完成的历史 Release 保持不可变且可下载。
 - 如果 GitHub 拒绝写入权限、证明或 Release 创建，报告阻塞它的仓库设置，不要改用个人 token 或私有 runner。

@@ -15,8 +15,8 @@ import {
   validateReplacementOptions,
 } from "../utils/replacement.ts"
 
-// v2 carries the native original read rather than a hand-transcribed list of
-// old names. set uses the same option names consumed by createIssue/updateIssue.
+// v2 carries the native original read. set uses the same option names consumed
+// by createIssue/updateIssue.
 const referenceSchema = v.pipe(
   v.string(),
   v.check(

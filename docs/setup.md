@@ -9,7 +9,7 @@ linear --version
 
 需要可复现安装时，把 `latest` 换成 [GitHub Releases](https://github.com/jihuanshe/linear/releases/latest) 中的确切版本。已安装的发行版用 `linear update` 更新。
 
-mise 配置钉成确切版本时，`mise up` 不会越过它，`linear update` 会报错并给出两种选择：`linear update --bump` 把配置改写为最新的确切版本；或把配置改为 `"github:jihuanshe/linear" = { version = "latest", minimum_release_age = "0s" }`，之后 `linear update` 持续跟随发布。只对本工具豁免发布等待期，不设置全局 `MISE_MINIMUM_RELEASE_AGE`。交给 AI Agent 修改配置的提示词见 [README 的更新章节](../README.md#更新)；无法修改配置时，单次任务可用 `mise exec github:jihuanshe/linear@<最新 tag> -- linear ...`。
+mise 配置钉成确切版本时 `linear update` 会报错，处理方式和交给 AI Agent 的提示词见 [README 的更新章节](../README.md#更新)。
 
 ## 认证
 
@@ -45,11 +45,11 @@ linear auth default <workspace>
 linear auth logout <workspace>
 ```
 
-`auth list` 只展示本地凭据库存，实际联网检查用 `auth whoami`。普通命令只读取选中工作区的凭据，登录不迁移其他工作区；迁移已有明文凭据须显式运行 `auth migrate`。
+`auth list` 只展示本地凭据库存，实际联网检查用 `auth whoami`。普通命令只读取选中工作区的凭据。迁移已有明文凭据用 `auth migrate`。
 
-脚本和 CI 优先从密钥管理器向单个进程注入 `LINEAR_API_KEY`。CLI 保留 `.env` 加载；从环境密钥切换到已保存账号前，也要检查 `.env`。明文凭据和 `.env` 容易进入源码、备份或日志，不要用于长期共享密钥。`linear auth key` 只在底层 HTTP 客户端确实需要时使用。
+脚本和 CI 优先从密钥管理器向单个进程注入 `LINEAR_API_KEY`。CLI 会加载 `.env`；从环境密钥切换到已保存账号前，先检查 `.env`。明文凭据和 `.env` 容易进入源码、备份或日志，不要用于长期共享密钥。`linear auth key` 只在底层 HTTP 客户端确实需要时使用。
 
-配置文件不能保存 `api_key`。已有该字段时，实际读取配置的操作会拒绝执行；先通过 `auth login` 保存并核对密钥，再移除 TOML 中的密钥字段。CLI 不自动搬移或删除凭据。
+配置文件不能保存 `api_key`。已有该字段时，实际读取配置的操作会拒绝执行；先通过 `auth login` 保存并核对密钥，再移除 TOML 中的密钥字段。
 
 ## 项目配置
 
@@ -68,7 +68,7 @@ vcs = "git"
 
 `team_key` 保存团队可读 key（如 `ENG`），不是团队 UUID；对应环境变量为 `LINEAR_TEAM_KEY`。
 
-显式非法值报错，不按未设置处理。查看正文保留远端链接；保存资产用 `linear download`。
+显式非法值报错，不按未设置处理。
 
 项目配置使用 `.linear.toml` 或 `.config/linear.toml`。项目根或当前目录有 `linear.toml` 时，读取配置的命令报错；把其中的非密钥设置移到 `.linear.toml`。用户级 `$XDG_CONFIG_HOME/linear/linear.toml`、`$HOME/.config/linear/linear.toml` 和 Windows `%APPDATA%\linear\linear.toml` 不受此项目文件名规则影响。
 

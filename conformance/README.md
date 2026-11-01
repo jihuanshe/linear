@@ -1,6 +1,6 @@
 # Conformance cases
 
-These cases describe the CLI only through what a user can observe: arguments, stdin, environment and files go in; stdout, stderr, the exit code, written files and the resulting Linear state come out. They run against any `linear` executable, whatever language implements it. A replacement implementation is done when it passes them.
+These cases describe the CLI only through what a user can observe: arguments, stdin, environment and files go in; stdout, stderr, the exit code, written files and the resulting Linear state come out. They run against any `linear` executable, whatever language implements it.
 
 ```bash
 deno task conformance:build

@@ -91,6 +91,6 @@ jq -e '((.errors // []) | length == 0) and (.data.issues.nodes | type == "array"
 
 组合多个执行项且均在交付清单支持范围内时，用 `linear guide issue-delivery`；其他已支持的操作用专用命令逐条执行。只有未覆盖的写入才用 `linear api --unprotected`。这个显式参数只放行原生 mutation，不提供专用命令的领域校验、依据比较、回执或执行账本；任意 mutation 不映射成另一份领域命令目录。
 
-原生 mutation 不自动重试；query 与专用命令共用有界的网络等待和查询重试规则，见 `linear guide automation`。最终的 GraphQL 响应保留在 stdout，错误以非零退出码表示。写后核对 mutation 的业务结果（如 `success`、返回对象）和目标字段；GraphQL 部分错误或结果无法读取并不证明零写入，结果未知时先对账，不盲目重发。
+原生 mutation 不自动重试；query 与专用命令共用有界的网络等待和查询重试规则，见 `linear guide automation`。最终的 GraphQL 响应保留在 stdout，错误以非零退出码表示。写后核对 mutation 的业务结果（如 `success`、返回对象）和目标字段。
 
 仅在 `linear api` 无法提供所需 HTTP 控制时直接请求。凭据由进程环境或密钥存储注入，不进入命令参数、文件或日志；`auth key` 会输出密钥，只能在受控进程内消费。

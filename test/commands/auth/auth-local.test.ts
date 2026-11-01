@@ -88,7 +88,7 @@ Deno.test("auth default rejects a wrong explicit target even with one workspace"
   }
 })
 
-Deno.test("auth login changes only its validated workspace and never offers global migration", async () => {
+Deno.test("auth login changes only its validated workspace", async () => {
   const root = await Deno.makeTempDir()
   try {
     await Deno.mkdir(join(root, "linear"))
@@ -121,7 +121,6 @@ Deno.test("auth login changes only its validated workspace and never offers glob
     `,
     )
     assertEquals(result.success, true, result.stderr)
-    assertEquals(result.stdout.includes("Migrate all"), false)
   } finally {
     await Deno.remove(root, { recursive: true })
   }

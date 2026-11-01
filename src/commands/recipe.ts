@@ -26,7 +26,7 @@ export const recipeCommand = new Command()
         else {
           const width = Math.max(...index.map((recipe) => recipe.name.length))
           console.log([
-            "内嵌 Recipe（可修改的工作流示例）：",
+            "内嵌工作流示例：",
             ...index.map((recipe) =>
               `  ${recipe.name.padEnd(width + 2)}${recipe.description}`
             ),
@@ -34,7 +34,6 @@ export const recipeCommand = new Command()
             "说明：linear recipe <name>",
             "说明与源码：linear recipe <name> --json",
             "脚本原文：linear recipe <name> --source",
-            "读取不会执行脚本。",
           ].join("\n"))
         }
         return

@@ -45,7 +45,7 @@ linear usage --json          # 命令树与能力元数据
 
 用户明确要求按给定内容创建或修改即构成授权，无需重复确认；调查、查看和起草不授权写入。只在未决信息会改变目标、责任、访问范围或业务结果时展示草稿或变更摘要并确认，措辞细节直接处理。
 
-`writes: true` 表示命令能修改远端状态或本地配置。能力元数据、跳过确认的 `--yes`（`-y`）、禁用提示和 JSON 输出都不构成授权。`document update --force` 仅用于绕过内联评论锚点保护，不是跳过确认；使用前需用户接受锚点丢失风险。
+`writes: true` 表示命令能修改远端状态或本地配置。能力元数据、跳过确认的 `--yes`（`-y`）、禁用提示和 JSON 输出都不构成授权。
 
 用与后续命令相同的凭据和工作区参数运行 `auth whoami --json`，核对工作区短名 `organization.urlKey`；稳定工作区身份是 `organization.id`。
 
@@ -71,7 +71,7 @@ CLI 取路径末尾的 slug ID，并在同一请求中核对 URL 所属工作区
 
 ## 确定查询范围
 
-`issue query --project` 默认覆盖项目关联的全部团队；显式 `--team` 会缩窄结果。`--url` 与 `--url-file` 未给 `--team` 时查整个工作区，不使用默认团队；同时给 `--cycle` 时仍以默认团队解析周期。没有项目或 URL 范围时，默认团队来自 `LINEAR_TEAM_KEY` 或配置 `team_key`（环境变量优先），不从目录名推断。查询整个工作区用 `--all-teams`；未知团队用 `team list` 查找。
+`issue query --project` 默认覆盖项目关联的全部团队；显式 `--team` 会缩窄结果。`--url` 与 `--url-file` 未给 `--team` 时查整个工作区，不使用默认团队；同时给 `--cycle` 时仍以默认团队解析周期。没有项目或 URL 范围时，默认团队来自 `LINEAR_TEAM_KEY` 或配置 `team_key`（环境变量优先）。查询整个工作区用 `--all-teams`；未知团队用 `team list` 查找。
 
 个人未开始待办用 `issue query --team ENG --assignee self --state-type unstarted`，将 `ENG` 换成目标团队 key；添加项目筛选时保留 `--team`，查询范围仍是该团队与项目的交集。终端选择用只读 `issue pick`。`--state-type` 匹配状态类型，如 `started`；`--state-name` 匹配工作流名称，如 `Merged`。写入状态仍用 `issue create/update --state`，接受 UUID、名称或类型。状态和成员分别用 `team states --json`、`user list --json` 查询。
 

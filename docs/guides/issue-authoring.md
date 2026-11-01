@@ -107,7 +107,7 @@ linear issue comment update "$COMMENT_ID" --base-file comment-base.json --attach
 
 ## 维护正文与讨论
 
-`issue view <issue>` 默认显示未解决根线程及数量；已解决历史用 `--show-resolved-threads` 读取。未解决线程不天然等于待办，也不要求关闭 Issue 前将评论清零。
+`issue view <issue>` 默认显示未解决根线程及数量；已解决历史用 `--show-resolved-threads` 读取。
 
 讨论形成结论后，更新正文中的问题理解、处理结果与剩余工作。属性变更保留在原生活动记录，评论补充会影响接手的原因、证据或未决问题。需要后续处理的工作有明确去向后，或问题已得到回答时，用 `issue comment resolve <commentId>` 收束，可用 `--resolving-comment <commentId>` 传入结论回复的 UUID。仍缺证据或决定时保持开放，判断改变后可以 `unresolve`。
 
@@ -132,6 +132,6 @@ jq -e --arg reply "$REPLY_ID" \
 
 正文编辑从 `issue export <issue> --output <directory>` 开始，目标目录必须不存在；在导出的 `desired.md` 中保留有效内容并修改。提交使用同目录的原始依据，完整例子与冲突处理见 `linear guide automation`。成员提及和内联锚点的往返限制见 `linear guide markdown`。
 
-取消、判重或改派前先看 `issue view` 开头的 Context 区：负责人是否为当前账号、父 Issue、Sub-issue 及其状态、关系、附件与评论数、最近一条他人评论，以及最近 50 条历史中他人做的状态或归属变更。Sub-issue、他人的状态变更和他人评论都是人工痕迹，正文是模板不代表没人接手。`issue update --state` 转到取消类或 duplicate 状态时会在 stderr 再打印一次同样的摘要，不阻塞写入；有痕迹时在关闭评论里解释为什么仍然关闭。完整变更经过用 `issue history`。
+取消、判重或改派前先看 `issue view` 开头的 Context 区：负责人是否为当前账号、父 Issue、Sub-issue 及其状态、关系、附件与评论数、最近一条他人评论，以及最近 50 条历史中他人做的状态或归属变更。Sub-issue、他人的状态变更和他人评论都是人工痕迹。`issue update --state` 转到取消类或 duplicate 状态时会在 stderr 再打印一次同样的摘要，不阻塞写入；有痕迹时在关闭评论里解释为什么仍然关闭。完整变更经过用 `issue history`。
 
 关闭时说明原因，未完成的工作链接到后续 Issue 或 PR。判重必须指向保留的 Issue，让读者知道结果和后续讨论在哪里。需要组合多项写入并记录执行进度时使用 `linear guide issue-delivery`。

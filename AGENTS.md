@@ -24,7 +24,7 @@
 
 命令事实以实时 Cliffy 命令树为准。能由一个命令完整表达的内容写进该命令的描述、选项帮助或校验错误；跨多个命令的 Linear 工作流写进内嵌指南；可供用户审阅和修改的脚本及说明写进工作流示例；安装、配置和维护规则写进 `README.md`、`docs/` 或本文件。不要新增与命令树重复的手册。
 
-供 Agent 激活本 CLI 的外部 Skill 由 `jihuanshe/skills` 维护。本仓不生成命令手册，也不把外部 Skill 当作命令事实源。
+供 Agent 激活本 CLI 的外部 Skill 由 `jihuanshe/skills` 维护。
 
 ## 实现边界
 
@@ -32,7 +32,7 @@
 - `usage` 与根／领域导航从实际 Cliffy 命令树生成，不维护第二份命令目录。`withUsageMetadata` 与定义和执行该行为的命令模块放在一起；`writes`、`interactive` 和 `outputModes` 描述能力，不代表授权。
 - 全局 `--json`／`-j` 选择机器输出，命令是否支持由自身输出契约决定，不能从继承到的选项反推能力。不支持或与其他输出方式冲突时，在命令副作用前拒绝；根／领域 JSON 导航复用 `usage` 数据。命令局部 JSON 定义保留类型与语义描述，根命令统一接入别名和执行前校验。
 - 指南的 Markdown 是内容事实源。元数据头只使用 `name`、`description`、`commands`；它定义命令与指南的关系。新增指南时同步 `src/guides/content.ts` 的静态导入清单，指南测试必须证明文件、名称、命令引用和二进制嵌入一致。
-- 工作流示例的说明与脚本以 `recipes/` 为源，通过静态文本导入随二进制分发。`linear recipe` 只展示和导出，不执行脚本、不访问网络。说明必须写清依赖、输入、写入范围及失败后的动作；安装用户不能依赖源码目录。测试核对说明、脚本、索引与编译产物的一致性。
+- 工作流示例的说明与脚本以 `recipes/` 为源，通过静态文本导入随二进制分发。`linear recipe` 只展示和导出。说明必须写清依赖、输入、写入范围及失败后的动作。测试核对说明、脚本、索引与编译产物的一致性。
 - 保留 GraphQL 字段名称和嵌套结构。分页 JSON 保留 `{nodes,pageInfo}` 分页连接，拼接 `nodes`，不扁平化或重命名。机器输出 stdout 不混入进度、诊断或提示；具体支持的输出模式以目标命令为准。
 - 显式无效输入必须失败，不能回退或静默忽略。命令 action 使用 `errors.ts` 的领域错误并以 `handleError` 统一处理。专用写入结果由 `write-result.ts` 序列化；JSON 错误也只在 stdout 输出一份结果，人类诊断写 stderr。GraphQL／网络／回执错误保留 `none`、`applied`、`unknown` 写入效果，不能用普通错误抹掉已确认效果。堆栈只在 `LINEAR_DEBUG=1` 时显示。
 - 专用命令与原生 `api` 共用 `utils/graphql-transport.ts` 的请求期限与查询重试。按实际选中的 GraphQL 操作分类，不重试 mutation；总期限包含正文读取与等待，保留调用方更短的取消期限，不丢弃部分数据或改变原始响应结构。
@@ -53,7 +53,7 @@
 - `plan` 对远端零写入；`apply` 要求 `--confirm-workspace` 精确匹配交付清单，并在 mutation 前使用同一凭据核对实际工作区。
 - 单命令不强制交付清单；需要组合和恢复时再建立清单。整批本地文件首写前读取并校验，`base`／`baseFile` 保存原始读取。`set` 使用共享 Issue 操作的选项名；`apply` 直接调用其实现，不组装 argv 或启动子 CLI。
 - 派发 mutation 前先把执行项记为 `unknown`。结果未知时停止一切自动续跑，等待显式对账；不把网络失败解释为远端未写入。
-- 执行账本记录在交付清单旁：真实派发前记为 `unknown`，取得有效回执后记为 `completed`；上传有独立回执。已确认写入不因读回失败变成可重试。`apply` 在读取账本前取得旁边固定锁文件的系统排他锁并持有至读回结束，不删除或替换锁文件；清单副本、不同账本路径和跨机器执行仍需调用者移交执行权。执行账本不是远端锁或事务，部分成功不自动回滚。
+- 执行账本记录在交付清单旁：真实派发前记为 `unknown`，取得有效回执后记为 `completed`；上传有独立回执。已确认写入不因读回失败变成可重试。`apply` 在读取账本前取得旁边固定锁文件的系统排他锁并持有至读回结束，不删除或替换锁文件；清单副本、不同账本路径和跨机器执行仍需调用者移交执行权。远端并发边界见 [`docs/guides/automation.md`](docs/guides/automation.md)。
 - 交付清单与执行账本使用 `schemaVersion: 2`。修改格式、状态、执行项 key、回执或恢复语义时，同步 `engine`／`checkpoint` 测试和 `docs/guides/issue-delivery.md`。测试走生产入口，不复写实现。
 
 ## Kadoraba 实时 API 实验
@@ -70,7 +70,7 @@
 
 ## 开发与验证
 
-1. 使用 `mise.toml` 固定的 Deno `2.9.7` 及检查工具。非 Orb 环境按 [README 开发入口](README.md#开发)安装工具和 hook；Orb 只在工具链缺失或损坏时运行 `.agents/setup`，平时由 `.agents/resume` 维护源码包装脚本和 pre-commit hook。
+1. 使用 `mise.toml` 固定的 Deno 及检查工具。非 Orb 环境按 [README 开发入口](README.md#开发)安装工具和 hook；Orb 只在工具链缺失或损坏时运行 `.agents/setup`，平时由 `.agents/resume` 维护源码包装脚本和 pre-commit hook。
 2. 修改前读取负责该行为的模块及其测试。命令测试通常镜像源码路径，例如 `src/commands/issue/issue-view.ts` 对应 `test/commands/issue/issue-view.test.ts`。
 3. 行为变化时修改对应层级测试。开发中运行最窄的相关 `deno task test --filter ...` 或测试文件；只在有意更新快照时运行 `deno task update-snapshots`。测试任务已固定 `TZ=UTC`。使用 Deno task、check 和 lint，不使用 `tsc` 或把 LSP 诊断当作验证结果。
 4. 修改 `graphql/schema.graphql` 或 `src/` 中的 `gql` document 后运行 `deno task generate-graphql-types`。生成文件被 ignore，不提交。
@@ -89,5 +89,5 @@ push `main` 或发布前取得用户明确授权；其他分支可直接 push。
 ## 测试设计约束
 
 - 不要在写完生产代码之后才补单元测试。若隔离测试确有必要，先写下该系统可能失败的方式，再写实现和测试。
-- 高度优先使用 E2E 测试作为唯一测试机制；复杂功能用 E2E 验证完整行为。这里的 E2E 指经生产命令入口（`main.ts`、`cli` 或命令 action）对 `MockLinearServer` 或临时文件运行；测试结束时必须产出可验证、可重复的结果工件，例如提交的快照，或对 stdout、请求和写入文件的结构化断言。
+- 默认用 E2E 测试；复杂功能用 E2E 验证完整行为。这里的 E2E 指经生产命令入口（`main.ts`、`cli` 或命令 action）对 `MockLinearServer` 或临时文件运行；测试结束时必须产出可验证、可重复的结果工件，例如提交的快照，或对 stdout、请求和写入文件的结构化断言。
 - 只有 E2E 无法有效覆盖的真实风险才允许保留隔离测试；不要只为实现细节、单独驱动的子命令注册关系或重复的帮助文本写测试。usage、指南和示例的机器可读元数据是契约，继续由测试覆盖。

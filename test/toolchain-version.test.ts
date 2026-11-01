@@ -1,10 +1,8 @@
 import { assert, assertEquals, assertStringIncludes } from "@std/assert"
 
-// mise.toml is the canonical home of the Deno toolchain version. These files
-// repeat it for documentation and release builds and must follow a bump
-// together; this test keeps the mirrors from drifting.
+// mise.toml is the canonical home of the Deno toolchain version. Release
+// builds repeat it and must follow a bump together.
 const MIRRORS = [
-  "AGENTS.md",
   ".github/workflows/ship-main.yml",
 ]
 
