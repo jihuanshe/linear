@@ -53,8 +53,6 @@ test "$code" -eq 0
 
 其他字段可直接保存读取输出，不手抄旧字段。各入口的 JSON 根对象如下；`organization` 均包含稳定 `id` 和 `urlKey`。
 
-负责人、状态等字段替换同样需要原始依据。比如改派负责人，按 `linear guide issue-delivery`「保存清单」的脚本保存 `original.json`，再执行 `linear issue update ENG-123 --assignee <assignee> --base-file original.json --json`。使用 `--workspace` 时，两次命令保持相同选择。
-
 | 读取入口                                | 对象路径            | 对应更新入口           |
 | --------------------------------------- | ------------------- | ---------------------- |
 | `issue view <issue> --json`             | `.issue`            | `issue update`         |
@@ -64,22 +62,23 @@ test "$code" -eq 0
 | `document view <document> --json`       | `.document`         | `document update`      |
 | `milestone view <milestone> --json`     | `.projectMilestone` | `milestone update`     |
 
+负责人、状态等字段替换同样需要原始依据。比如改派负责人，按 `linear guide issue-delivery`「保存清单」的脚本保存 `original.json`，再执行 `linear issue update ENG-123 --assignee <assignee> --base-file original.json --json`。使用 `--workspace` 时，两次命令保持相同选择。
+
 ID、字段名以及字段是否存在均保留 API 语义：缺字段不同于 `null`、`""`、`0` 或空集合。不同对象或工作区的依据会被拒绝。需要额外条件时，可重复传 `--expect-field`，名称使用该对象支持的 API 响应字段，例如 Issue 的 `state`；不会监控任意查询或整个评论集合。
 
 ## CLI 能检查什么
 
 CLI 会检查它能从本地读取和 Linear 返回值中确认的错误。它不能提供远端并发安全：Linear API 没有给这些命令提供条件写入、锁或事务，最后一次读取之后仍有竞争窗口。
 
-- 带 `--base-file` 的字段替换会比较对象、工作区、原始值和目标值。发现冲突时不发 mutation；它只能挡住最后一次读取前已经发生的变化。
-- `--unprotected` 字段替换仍检查身份、文件和字段，但跳过原始值比较。它是明确的覆盖路径，不能挡住并发覆盖。
-- 普通对象创建会检查引用、`success` 和返回对象的稳定 ID，但没有原始值依据。重复调用可能创建多个对象。
-- Issue 的 `--add-label` / `--remove-label` 使用上游增量字段，不把标签集合读回后整体覆盖。
-- 评论、附件、文档和关联创建会检查返回对象的 ID 和归属（文档核对所属项目（Project）或 Issue），但 CLI 不会去重。重复调用可能创建重复对象。
+- 带 `--base-file` 的字段替换会比较对象、工作区、原始值和目标值。发现冲突时不发 mutation。
+- `--unprotected` 字段替换仍检查身份、文件和字段，但跳过原始值比较。
+- 普通对象创建会检查引用、`success` 和返回对象的稳定 ID；评论、附件、文档和关联创建还检查返回对象的归属（文档核对所属项目（Project）或 Issue）。创建和追加类写入没有原始依据，CLI 不去重。
+- Issue 的 `--add-label`／`--remove-label` 使用 Linear 原生增量字段。
 - 关系创建会检查两端 ID，并在已经读到同类型、同方向关系时跳过写入；两个并发的首次调用仍可能重复创建。关系删除在读不到指定关系时同样不写入，返回 `effect: none`，可用于对账后重跑。
 - 删除前先按解析后的 ID 预读目标；目标不存在时以 `NotFoundError` 失败且不发 mutation（`effect: none`）。多数删除路径不做删除后的读回。
 - 上传会先捕获并校验本地字节，保存上传回执和已确认的效果；签发上传许可或 PUT 失败不能证明远端效果，不要盲目重传。
 - `resolve`／`unresolve` 会读取当前状态，并在已经达到目标时不写入。
-- `issue apply` 用执行账本跳过已记录的完成项，`unknown` 阻止自动续跑。同机使用同一账本旁锁文件的执行者互斥；清单副本或其他机器不在保护范围内，部分成功不回滚。锁文件与移交边界见 `linear guide issue-delivery`。
+- `issue apply` 用执行账本跳过已记录的完成项，`unknown` 阻止自动续跑。同机使用同一账本旁锁文件的执行者互斥；锁文件与移交边界见 `linear guide issue-delivery`。
 - `linear api` 的 mutation 只要求显式 `--unprotected`，保留原始 GraphQL 响应；它不提供专用命令的校验、回执或恢复，未知效果由调用者对账。
 
 CLI 完成名称解析后，会按同一 UUID 最后读取并比较原始依据。当前值已等于目标值的字段不写；当前值仍等于原始值的字段可写；其余为冲突。一个字段冲突就拒绝整个更新。`--expect-field` 指定的额外依赖也要保持原值，即使目标字段已无需修改。引用按稳定 ID、明确的 ID 集合按集合比较，Markdown 则精确比较字符串。
@@ -100,11 +99,11 @@ CLI 完成名称解析后，会按同一 UUID 最后读取并比较原始依据�
 
 JSON 不与浏览器／应用跳转、显式交互／编辑或原文／脚本输出组合。`--json --help`、`--json --version` 同样被拒绝；命令元数据用 `usage --json`，构建身份用 `version --json`。`schema --json --output <path>` 保存 JSON 文件，成功时 stdout 留空。
 
-`--no-pager` 仍是命令级选项。自动化显式传入目标编号或 UUID，并使用 `LINEAR_PROMPT_DISABLED=1` 禁用提示。人类输出和 `NO_COLOR=1` 都不能代替机器协议。
+`--no-pager` 仍是命令级选项。自动化显式传入目标编号或 UUID，并使用 `LINEAR_PROMPT_DISABLED=1` 禁用提示。
 
 专用业务写命令的 `--json` 在 stdout 输出一份 `{ok,effect,data,...}`，可附 `fields`、`verification` 或回执。失败使用 `ok: false` 和 `error`。退出码为零只表示本次调用完整成功；`effect` 单独说明写入效果。`linear api` 是例外：它保留原始 GraphQL 响应，规则见 `linear guide graphql`。
 
-创建单个实体时，`data` 下保留 GraphQL 资源字段，而不是把字段直接展开到 `data`；例如 Issue 编号在 `data.issue.identifier`，Document ID 在 `data.document.id`。具体路径见创建命令的 `--json` 帮助。删除、批量操作、上传与原生 API 各自保留其合同。
+创建单个实体时，`data` 下保留 GraphQL 资源字段，例如 Issue 编号在 `data.issue.identifier`，Document ID 在 `data.document.id`。具体路径见创建命令的 `--json` 帮助。删除、批量操作、上传与原生 API 各自保留其合同。
 
 提取下一步要用的 ID 时使用 `jq -er`，并检查类型和非空值，例如 `jq -er 'select(.ok == true) | .data.comment.id | strings | select(length > 0)' comment-result.json`。普通 `jq -r` 在路径不存在时会输出 `null` 并成功退出。stdout 只有这一份 JSON，进度与提示（如上传时的 `✓ Uploaded <file>`）写到 stderr；分别重定向 stdout 和 stderr，不要用 `2>&1` 合并后解析。先将 CLI 结果保存到文件并检查退出码，再解析；不要用默认只检查最后一段退出码的管道掩盖 CLI 失败。解析失败不说明写入失败：保留结果，修正解析路径，不要重复创建对象。在 zsh 中不要用 `echo "$result"` 转交 JSON：zsh 的 `echo` 会把字符串里的 `\n` 转义展开成真实换行，解析器随即报「Invalid control character」；直接重定向到文件，或用 `printf '%s\n' "$result"`。
 
@@ -122,24 +121,22 @@ JSON 不与浏览器／应用跳转、显式交互／编辑或原文／脚本输
 
 Linear 保存正文时会改写 Markdown。结构比较只接受这些已知改写：列表符号改为 `*`、链接地址写成 `(<url>)` 并对非 ASCII 字符做百分号编码、列表项之间的空行、首尾空白，以及把裸域名 `notes.example.com` 自动链接为 `[notes.example.com](<http://notes.example.com>)`。其余差异都算不一致。正文只在经过这些改写后才一致时，`verification.normalizedFields` 列出该字段（如 `["description"]`）；这仍是 `verified`，不需要再手动读回。`issue apply` 的 `verification[]` 使用同一字段。
 
-读回不匹配或不可用时，命令以非零退出，保留 `effect: applied` 与 `data` 中的 mutation 回执；`error.details.verification.status` 为 `different` 或 `unavailable`。此时只补充读取和对账，不重发 mutation。这个读回不验证评论、附件或更晚发生的并发修改。
+读回不匹配或不可用时，命令以非零退出，保留 `effect: applied` 与 `data` 中的 mutation 回执；`error.details.verification.status` 为 `different` 或 `unavailable`。这个读回不验证评论、附件或更晚发生的并发修改。
 
 ## 网络等待与查询重试
 
-并发命令和脚本共享 API 密钥的限流额度；分页和批处理前先估算 GraphQL 请求及尝试次数。本地命令和 API 请求前的参数校验不会消耗 GraphQL 请求。需要安排批处理时，用只读查询 `rateLimitStatus` 查看剩余额度和重置时间，不要靠固定等待猜测：
+并发命令和脚本共享 API 密钥的限流额度；分页和批处理前先估算 GraphQL 请求及尝试次数。需要安排批处理时，用只读查询 `rateLimitStatus` 查看剩余额度和重置时间，不要靠固定等待猜测：
 
 ```bash
 linear api 'query { rateLimitStatus { kind limits { type remainingAmount reset } } }' >rate-limit.json
 jq '.data.rateLimitStatus.limits[] | {type, remainingAmount, reset}' rate-limit.json
 ```
 
-专用命令与 `linear api` 共用 GraphQL 请求规则：每个逻辑请求最多 60 秒，包含响应正文读取和重试等待，query 最多尝试 3 次。分页的每一页分别计时，不是整个命令或整批 `apply` 的总时限；写后核验等调用方更短的取消期限仍然有效。此规则不涵盖文件 PUT、下载或其他非 GraphQL 网络操作：上传文件的 PUT 最多 120 秒，另按每 256 KiB 加 1 秒；超时后上传结果为 `unknown` 并保留上传回执，先按回执对账，不要直接重试。下载每次请求最多 120 秒。
+专用命令与 `linear api` 共用 GraphQL 请求规则：每个逻辑请求最多 60 秒，包含响应正文读取和重试等待，query 最多尝试 3 次。分页的每一页分别计时，不是整个命令或整批 `apply` 的总时限；写后核验等调用方更短的取消期限仍然有效。此规则不涵盖文件 PUT、下载或其他非 GraphQL 网络操作：上传文件的 PUT 最多 120 秒，另按每 256 KiB 加 1 秒；超时后上传结果为 `unknown` 并保留上传回执。下载每次请求最多 120 秒。
 
 只有明确选中的 query 会对 HTTP 429／502／503／504，以及 HTTP 200／400 中单纯的 `RATELIMITED` 错误重试；已有部分数据、认证、权限和校验错误不重试。等待使用有界退避并遵守 `Retry-After`；剩余时间不足时返回原始失败。
 
-专用命令被限流时，JSON 错误会给出 `RateLimited`、额度；当所有耗尽额度都有可用的未来重置时间时才提供 `retryAfter`。该字段缺失时，按返回的建议或新的 `rateLimitStatus` 查询安排重试。query 的 `effect` 为 `none`，可以在 `retryAfter` 后重试；mutation 仍为 `unknown`，先对账再重试。原生 `linear api` 保留原始 GraphQL 响应。
-
-mutation 不自动重发。派发后的超时、连接或响应读取失败仍可能已经写入，按 `effect` 与回执对账，不把超时理解为撤销。
+专用命令被限流时，JSON 错误会给出 `RateLimited`、额度；当所有耗尽额度都有可用的未来重置时间时才提供 `retryAfter`。该字段缺失时，按返回的建议或新的 `rateLimitStatus` 查询安排重试。query 的 `effect` 为 `none`，可以在 `retryAfter` 后重试；mutation 仍为 `unknown`。原生 `linear api` 保留原始 GraphQL 响应。
 
 ## 分页与详情
 

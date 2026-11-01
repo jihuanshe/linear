@@ -24,7 +24,7 @@ commands:
 
 # Linear Markdown
 
-本指南说明通过 CLI 提交 Markdown 时的提及、折叠与格式边界。CLI 原样传递正文，提及由 Linear 服务端解析；在编辑器中输入 `@` 并选择成员是另一条入口。
+本指南说明通过 CLI 提交 Markdown 时的提及、折叠与格式边界。CLI 原样传递正文，提及由 Linear 服务端解析。
 
 ## 提及成员与资源
 

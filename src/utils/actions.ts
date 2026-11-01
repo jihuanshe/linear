@@ -62,7 +62,7 @@ export async function openTeamAssigneeView(options: { app?: boolean } = {}) {
   const teamKey = getTeamKey()
   if (!teamKey) {
     console.error(
-      "Could not determine team key from configuration or directory name.",
+      "Could not determine team key; set team_key or LINEAR_TEAM_KEY.",
     )
     Deno.exit(1)
   }

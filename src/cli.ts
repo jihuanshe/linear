@@ -52,8 +52,7 @@ export const cli = new Command()
   .versionOption("-V, --version", "Show the version number for this program.", {
     action: function (options) {
       guardMachineOutput.call(this, options)
-      // Keep the original build-identity line; capability metadata belongs in
-      // usage/help, not in the legacy --version response.
+      // `--version` prints only the build-identity line.
       if (this.getRawArgs().includes("--version")) {
         console.log(this.getLongVersion().split("\n")[0])
       } else this.showVersion()

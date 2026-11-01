@@ -19,4 +19,4 @@ rg -n --glob '!deno.lock' -- '--allow-|--deny-' \
   deno.json .agents .github test conformance
 ```
 
-更新所有会执行受影响代码路径的入口，然后运行 `deno task verify-source`。工作流示例的脚本权限由各自运行命令声明；查看或导出示例不会执行脚本。
+更新所有会执行受影响代码路径的入口，然后运行 `deno task verify-source`。工作流示例的脚本权限由各自运行命令声明。

@@ -95,7 +95,7 @@ jq -e '.ok == true and .data.status == "completed"' apply.json >/dev/null
 
 ## 写入确认与读回核验
 
-整体状态只有在本次执行与规定范围的读回核验都成功时才是 `completed`，并返回零退出码。写入已确认但读回不匹配或不可用时，整体为 `applied-unverified`；保留写入回执，重跑只补需要的读取，不再次发送已完成写入。`effect: applied` 不因读回失败变成可重试。
+整体状态只有在本次执行与规定范围的读回核验都成功时才是 `completed`，并返回零退出码。写入已确认但读回不匹配或不可用时，整体为 `applied-unverified`；保留写入回执，重跑只补需要的读取，不再次发送已完成写入。
 
 `.data.verification[].status` 是 `verified`、`different` 或 `unavailable`，`scope` 固定为 `issue-fields-and-object-identities`。核验包括目标 Issue 身份、执行账本中的预期字段，以及本次 Comment／Attachment／Relation 回执对象是否仍关联目标 Issue；不证明评论正文、关系对端与类型、上传字节、页面渲染或通知送达。
 
@@ -123,4 +123,4 @@ jq -e '.ok == true and .data.status == "completed"' apply.json >/dev/null
 
 `apply` 在读取执行账本前取得账本旁 `.lock` 文件的系统排他锁，例如 `delivery.json.checkpoint.json.lock`，持有到执行和读回结束。同机使用同一锁文件的另一个执行者会等待；取得锁后重新读取执行账本，跳过已完成项，遇到 `unknown` 仍拒绝续跑。锁随文件关闭或进程退出释放；空锁文件会保留，其存在不表示正在执行，不要删除或替换它。`plan` 不创建锁文件。
 
-这只约束使用同一本地锁文件的 CLI 执行者。复制清单、使用不同的账本路径或移到另一台机器不会共享执行权；交接前仍须停止原执行者并传递清单、引用材料和执行账本。其他客户端直接修改 Linear 不受此锁约束；执行账本不提供远端锁、事务或 exactly-once。
+这只约束使用同一本地锁文件的 CLI 执行者。复制清单、使用不同的账本路径或移到另一台机器不会共享执行权；交接前仍须停止原执行者并传递清单、引用材料和执行账本。其他客户端直接修改 Linear 不受此锁约束，远端并发边界见 `linear guide automation`。

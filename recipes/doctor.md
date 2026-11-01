@@ -2,7 +2,7 @@
 
 按一套明确的、可修改的规则检查 Issue 和项目（Project）时使用。脚本是带主观看法的策略示例，通过 `linear api --paginate` 只读数据，输出候选与证据。
 
-执行需要 Deno 和当前 `linear`；`LINEAR_BIN` 可以固定 CLI 的绝对路径。脚本使用固定版本的 Deno 标准库参数解析模块，不依赖源码仓库或其配置；首次执行时 Deno 可能需要获取该依赖。仅从 CLI 读取说明或源码不需要 Deno 和网络。
+执行需要 Deno 和当前 `linear`；`LINEAR_BIN` 可以固定 CLI 的绝对路径。脚本使用固定版本的 Deno 标准库参数解析模块，不依赖源码仓库或其配置；首次执行时 Deno 可能需要获取该依赖。
 
 ```sh
 linear recipe doctor --source > doctor.js

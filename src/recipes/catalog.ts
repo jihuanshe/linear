@@ -7,7 +7,7 @@ import migrateTeamSource from "../../recipes/migrate-team.js" with {
 import doctorBody from "../../recipes/doctor.md" with { type: "text" }
 import doctorSource from "../../recipes/doctor.js" with { type: "text" }
 
-/** 每项说明和脚本原文都静态嵌入二进制，不依赖源码目录或远端下载。 */
+/** 每项说明和脚本原文都静态嵌入二进制。 */
 export const recipes = [
   {
     name: "migrate-team",

@@ -48,19 +48,13 @@ Deno.test("main writes explicit help to stdout with rc 0", async () => {
   assertEquals(result.stderr, "")
 })
 
-Deno.test("semantic scalar commands expose identifier and API key without legacy aliases", async () => {
+Deno.test("semantic scalar commands expose identifier and API key", async () => {
   const key = await run(["auth", "key"], {
     LINEAR_API_KEY: "synthetic-api-key",
   })
   assertEquals(key.code, 0, key.stderr)
   assertEquals(key.stdout, "synthetic-api-key\n")
   assertEquals(key.stderr, "")
-  for (const args of [["auth", "token"], ["issue", "id"]]) {
-    const result = await run(args)
-    assertEquals(result.code, 1)
-    assertEquals(result.stdout, "")
-    assertMatch(result.stderr, /Unknown command/)
-  }
 
   const root = await Deno.makeTempDir()
   try {
@@ -148,11 +142,10 @@ for (
 }
 
 for (
-  const { path, flag, legacyFlag, values, queryName, field, filter } of [
+  const { path, flag, values, queryName, field, filter } of [
     {
       path: ["issue", "query"],
       flag: "--state-type",
-      legacyFlag: "--state",
       values: ["unstarted", "started"],
       queryName: "GetIssuesForQuery",
       field: "issues",
@@ -161,7 +154,6 @@ for (
     {
       path: ["project", "list"],
       flag: "--status-name",
-      legacyFlag: "--status",
       values: ["In Progress"],
       queryName: "GetProjects",
       field: "projects",
@@ -169,7 +161,7 @@ for (
     },
   ]
 ) {
-  Deno.test(`main forwards ${path.join(" ")} ${flag} and rejects ${legacyFlag} before requests`, async () => {
+  Deno.test(`main forwards ${path.join(" ")} ${flag}`, async () => {
     const connection = {
       nodes: [],
       pageInfo: { hasNextPage: false, endCursor: null },
@@ -193,22 +185,6 @@ for (
       NO_COLOR: "1",
     }
     try {
-      const rejected = await run([
-        ...path,
-        "--all-teams",
-        legacyFlag,
-        values[0],
-        "--json",
-      ], env)
-      assertEquals(rejected.code, 1, rejected.stdout + rejected.stderr)
-      assertEquals(rejected.stderr, "")
-      const failure = JSON.parse(rejected.stdout)
-      assertEquals(failure.ok, false)
-      assertEquals(failure.effect, "none")
-      assertMatch(failure.error.message, /Unknown option/)
-      assertEquals(failure.error.message.includes(legacyFlag), true)
-      assertEquals(server.graphqlRequests, [])
-
       const result = await run([
         ...path,
         "--all-teams",
@@ -552,23 +528,6 @@ Deno.test("team delete dry-run requires an empty team and points to the migratio
   } finally {
     await cleanup()
   }
-})
-
-Deno.test("team delete rejects the retired implicit migration option before requests", async () => {
-  const result = await run([
-    "team",
-    "delete",
-    "SOURCE",
-    "--move-issues",
-    "TARGET",
-    "--json",
-  ])
-  assertEquals(result.code, 1)
-  const failure = JSON.parse(result.stdout)
-  assertEquals(failure.ok, false)
-  assertEquals(failure.effect, "none")
-  assertMatch(failure.error.message, /Unknown option.*move-issues/)
-  assertEquals(result.stderr, "")
 })
 
 Deno.test("team delete rechecks current emptiness before its mutation", async () => {

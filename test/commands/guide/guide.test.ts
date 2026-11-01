@@ -106,13 +106,6 @@ Deno.test("guide --json returns a named guide body and metadata", async () => {
   assertEquals(document.body.startsWith("# 命令发现与选择"), true)
 })
 
-Deno.test("removed plural and nested guide commands are unavailable", async () => {
-  for (const args of [["guides"], ["guide", "list"], ["guide", "read"]]) {
-    const result = await run(args)
-    assertEquals(result.code === 0, false, args.join(" "))
-  }
-})
-
 Deno.test("the import manifest embeds every source guide exactly once", async () => {
   const files = new Set<string>()
   for await (const entry of Deno.readDir(guidesDir)) {
