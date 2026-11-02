@@ -1257,6 +1257,11 @@ type AiConversation implements Node {
   slugId: String!
 
   """
+  The immutable special-purpose UI launch that created this conversation, if recorded.
+  """
+  sourceMetadata: JSONObject
+
+  """
   The materialized conversation-level processing summary used by list and gating surfaces. Assistant response lifecycle is recorded on its turn.
   """
   status: AiConversationStatus!
@@ -1322,6 +1327,45 @@ type AiConversationAckPart implements AiConversationBasePart {
   type: AiConversationPartType!
 }
 
+"""An agent-origin message in a conversation turn."""
+type AiConversationAgentMessagePart implements AiConversationBasePart {
+  """When durable submission was acknowledged."""
+  acceptedAt: String
+
+  """Source identity, full message and display summary."""
+  agentMessage: JSONObject!
+
+  """The reserved assistant response identity."""
+  assistantTurnId: String!
+
+  """Whether removal canceled the exchange."""
+  canceled: Boolean
+
+  """When the recipient consumed this message."""
+  consumedAt: String
+
+  """When the message was saved."""
+  createdAt: String!
+
+  """The acknowledged delivery job."""
+  deliveryRunId: String
+
+  """The accepted substantive reply identity."""
+  fulfilledByMessageId: String
+
+  """The ID of the part."""
+  id: String!
+
+  """The metadata of the part."""
+  metadata: AiConversationPartMetadata!
+
+  """The human owner whose access authorizes this exchange."""
+  ownerUserId: String!
+
+  """The type of the part."""
+  type: AiConversationPartType!
+}
+
 """A base part in an AI conversation."""
 interface AiConversationBasePart {
   """The ID of the part."""
@@ -1352,6 +1396,11 @@ interface AiConversationBaseWidget {
   Display information for the widget, including ProseMirror and Markdown representations.
   """
   displayInfo: AiConversationWidgetDisplayInfo
+
+  """
+  A Markdown fallback for the widget, for clients that can't render this widget natively. Always present for every widget, and never contains internal model names or identifiers.
+  """
+  fallbackText: String!
 
   """The name of the widget."""
   name: AiConversationWidgetName!
@@ -1586,6 +1635,32 @@ type AiConversationDeleteEntityToolCallResult {
   deletedEntities: [AiConversationCreateEntityToolCallResultCreatedEntities!]
 }
 
+type AiConversationDevServerToolCall implements AiConversationBaseToolCall {
+  """The arguments to the tool call."""
+  args: AiConversationDevServerToolCallArgs
+  displayInfo: AiConversationToolDisplayInfo!
+
+  """The name of the tool that was called."""
+  name: AiConversationTool!
+
+  """The arguments of the tool call."""
+  rawArgs: JSON
+
+  """The result of the tool call."""
+  rawResult: JSON
+}
+
+type AiConversationDevServerToolCallArgs {
+  action: AiConversationDevServerToolCallArgsAction!
+}
+
+enum AiConversationDevServerToolCallArgsAction {
+  restart
+  start
+  status
+  stop
+}
+
 type AiConversationEditSandboxFileToolCall implements AiConversationBaseToolCall {
   """The arguments to the tool call."""
   args: AiConversationEditSandboxFileToolCallArgs
@@ -1717,6 +1792,11 @@ type AiConversationEntityCardWidget implements AiConversationBaseWidget {
   """
   displayInfo: AiConversationWidgetDisplayInfo
 
+  """
+  A Markdown fallback for the widget, for clients that can't render this widget natively. Always present for every widget, and never contains internal model names or identifiers.
+  """
+  fallbackText: String!
+
   """The name of the widget."""
   name: AiConversationWidgetName!
 
@@ -1790,6 +1870,11 @@ type AiConversationEntityListWidget implements AiConversationBaseWidget {
   Display information for the widget, including ProseMirror and Markdown representations.
   """
   displayInfo: AiConversationWidgetDisplayInfo
+
+  """
+  A Markdown fallback for the widget, for clients that can't render this widget natively. Always present for every widget, and never contains internal model names or identifiers.
+  """
+  fallbackText: String!
 
   """The name of the widget."""
   name: AiConversationWidgetName!
@@ -1898,6 +1983,7 @@ type AiConversationErrorPart implements AiConversationBasePart {
 """The category of an error part in an AI conversation."""
 enum AiConversationErrorType {
   billing
+  providerPolicy
   unknown
   untrustedSources
   usageLimit
@@ -2048,6 +2134,7 @@ type AiConversationGitPushToolCall implements AiConversationBaseToolCall {
 }
 
 type AiConversationGitPushToolCallArgs {
+  branch: String
   force: Boolean
 }
 
@@ -2151,6 +2238,7 @@ type AiConversationListCodingSessionsToolCallArgs {
 
 type AiConversationListCodingSessionsToolCallResult {
   agentSessions: [AiConversationListCodingSessionsToolCallResultAgentSessions!]!
+  codingSubagents: [AiConversationSearchEntitiesToolCallResultEntities!]
   entities: [AiConversationSearchEntitiesToolCallResultEntities!]
 }
 
@@ -2158,6 +2246,21 @@ type AiConversationListCodingSessionsToolCallResultAgentSessions {
   id: String!
   pullRequests: [AiConversationSearchEntitiesToolCallResultEntities!]
   type: String!
+}
+
+type AiConversationListSubagentsToolCall implements AiConversationBaseToolCall {
+  """The arguments to the tool call."""
+  args: JSONObject
+  displayInfo: AiConversationToolDisplayInfo!
+
+  """The name of the tool that was called."""
+  name: AiConversationTool!
+
+  """The arguments of the tool call."""
+  rawArgs: JSON
+
+  """The result of the tool call."""
+  rawResult: JSON
 }
 
 """The integration connected by an MCP server connection elicitation."""
@@ -2249,6 +2352,7 @@ type AiConversationMessageSubagentToolCall implements AiConversationBaseToolCall
 
 type AiConversationMessageSubagentToolCallArgs {
   conversationId: String!
+  description: String
   prompt: String!
   wait: Boolean
 }
@@ -2327,7 +2431,7 @@ type AiConversationNotifyUsersToolCallResult {
 }
 
 """A part in an AI conversation."""
-union AiConversationPart = AiConversationAckPart | AiConversationElicitationPart | AiConversationElicitationResponsePart | AiConversationErrorPart | AiConversationEventPart | AiConversationPromptPart | AiConversationReasoningPart | AiConversationTextPart | AiConversationToolCallPart | AiConversationWidgetPart
+union AiConversationPart = AiConversationAckPart | AiConversationAgentMessagePart | AiConversationElicitationPart | AiConversationElicitationResponsePart | AiConversationErrorPart | AiConversationEventPart | AiConversationPromptPart | AiConversationReasoningPart | AiConversationTextPart | AiConversationToolCallPart | AiConversationWidgetPart
 
 """Metadata about a part in an AI conversation."""
 type AiConversationPartMetadata {
@@ -2359,6 +2463,7 @@ enum AiConversationPartPhase {
 """The type of a part in an AI conversation."""
 enum AiConversationPartType {
   ack
+  agentMessage
   elicitation
   elicitationResponse
   error
@@ -2427,6 +2532,7 @@ type AiConversationPostChatMessageToolCallResult {
   error: String
   message: String
   posted: Boolean!
+  snippet: String
 }
 
 type AiConversationPostChatMessageToolCallResultDestination {
@@ -3002,6 +3108,11 @@ type AiConversationSettingWidget implements AiConversationBaseWidget {
   """
   displayInfo: AiConversationWidgetDisplayInfo
 
+  """
+  A Markdown fallback for the widget, for clients that can't render this widget natively. Always present for every widget, and never contains internal model names or identifiers.
+  """
+  fallbackText: String!
+
   """The name of the widget."""
   name: AiConversationWidgetName!
 
@@ -3185,6 +3296,7 @@ enum AiConversationTool {
   CreateEntity
   CreateSandbox
   DeleteEntity
+  DevServer
   EditSandboxFile
   GetMicrosoftTeamsConversationHistory
   GetPullRequestCheckLogs
@@ -3195,6 +3307,7 @@ enum AiConversationTool {
   HandoffToCodingSession
   InvokeMcpTool
   ListCodingSessions
+  ListSubagents
   Memory
   MessageSubagent
   NavigateToPage
@@ -3238,7 +3351,7 @@ enum AiConversationTool {
 }
 
 """The tool call."""
-union AiConversationToolCall = AiConversationBashKillToolCall | AiConversationBashOutputToolCall | AiConversationBashToolCall | AiConversationCodeIntelligenceToolCall | AiConversationCodeModeToolCall | AiConversationContactSupportToolCall | AiConversationCreateAgentChatToolCall | AiConversationCreateEntityToolCall | AiConversationCreateSandboxToolCall | AiConversationDeleteEntityToolCall | AiConversationEditSandboxFileToolCall | AiConversationGetMicrosoftTeamsConversationHistoryToolCall | AiConversationGetPullRequestCheckLogsToolCall | AiConversationGetPullRequestDiffToolCall | AiConversationGetPullRequestFileToolCall | AiConversationGetSlackConversationHistoryToolCall | AiConversationGitPushToolCall | AiConversationHandoffToCodingSessionToolCall | AiConversationInvokeMcpToolToolCall | AiConversationListCodingSessionsToolCall | AiConversationMemoryToolCall | AiConversationMessageSubagentToolCall | AiConversationNavigateToPageToolCall | AiConversationNotifyUsersToolCall | AiConversationPatchSettingsToolCall | AiConversationPostChatMessageToolCall | AiConversationPromptCodingSessionToolCall | AiConversationQueryActivityToolCall | AiConversationQueryUpdatesToolCall | AiConversationQueryViewToolCall | AiConversationReadFileToolCall | AiConversationReadSandboxFileToolCall | AiConversationReadSettingToolCall | AiConversationRemoveSpendLimitToolCall | AiConversationRenameAgentChatToolCall | AiConversationRerunPullRequestReviewToolCall | AiConversationResearchToolCall | AiConversationRestoreEntityToolCall | AiConversationRetrieveEntitiesToolCall | AiConversationRetryPullRequestCheckToolCall | AiConversationRunLoopToolCall | AiConversationSandboxGitHistoryToolCall | AiConversationSandboxPullRequestToolCall | AiConversationSearchChatChannelsToolCall | AiConversationSearchDocumentationToolCall | AiConversationSearchEntitiesToolCall | AiConversationSearchSettingsToolCall | AiConversationSetSpendLimitToolCall | AiConversationSpawnSubagentToolCall | AiConversationStartCodingSessionToolCall | AiConversationSubscribeToEventToolCall | AiConversationSuggestRepositoryToolCall | AiConversationSuggestValuesToolCall | AiConversationTranscribeMediaToolCall | AiConversationTranscribeVideoToolCall | AiConversationUnsubscribeFromEventToolCall | AiConversationUpdateEntityToolCall | AiConversationUpdatePullRequestReviewFindingToolCall | AiConversationWebSearchToolCall | AiConversationWriteSandboxFileToolCall
+union AiConversationToolCall = AiConversationBashKillToolCall | AiConversationBashOutputToolCall | AiConversationBashToolCall | AiConversationCodeIntelligenceToolCall | AiConversationCodeModeToolCall | AiConversationContactSupportToolCall | AiConversationCreateAgentChatToolCall | AiConversationCreateEntityToolCall | AiConversationCreateSandboxToolCall | AiConversationDeleteEntityToolCall | AiConversationDevServerToolCall | AiConversationEditSandboxFileToolCall | AiConversationGetMicrosoftTeamsConversationHistoryToolCall | AiConversationGetPullRequestCheckLogsToolCall | AiConversationGetPullRequestDiffToolCall | AiConversationGetPullRequestFileToolCall | AiConversationGetSlackConversationHistoryToolCall | AiConversationGitPushToolCall | AiConversationHandoffToCodingSessionToolCall | AiConversationInvokeMcpToolToolCall | AiConversationListCodingSessionsToolCall | AiConversationListSubagentsToolCall | AiConversationMemoryToolCall | AiConversationMessageSubagentToolCall | AiConversationNavigateToPageToolCall | AiConversationNotifyUsersToolCall | AiConversationPatchSettingsToolCall | AiConversationPostChatMessageToolCall | AiConversationPromptCodingSessionToolCall | AiConversationQueryActivityToolCall | AiConversationQueryUpdatesToolCall | AiConversationQueryViewToolCall | AiConversationReadFileToolCall | AiConversationReadSandboxFileToolCall | AiConversationReadSettingToolCall | AiConversationRemoveSpendLimitToolCall | AiConversationRenameAgentChatToolCall | AiConversationRerunPullRequestReviewToolCall | AiConversationResearchToolCall | AiConversationRestoreEntityToolCall | AiConversationRetrieveEntitiesToolCall | AiConversationRetryPullRequestCheckToolCall | AiConversationRunLoopToolCall | AiConversationSandboxGitHistoryToolCall | AiConversationSandboxPullRequestToolCall | AiConversationSearchChatChannelsToolCall | AiConversationSearchDocumentationToolCall | AiConversationSearchEntitiesToolCall | AiConversationSearchSettingsToolCall | AiConversationSetSpendLimitToolCall | AiConversationSpawnSubagentToolCall | AiConversationStartCodingSessionToolCall | AiConversationSubscribeToEventToolCall | AiConversationSuggestRepositoryToolCall | AiConversationSuggestValuesToolCall | AiConversationTranscribeMediaToolCall | AiConversationTranscribeVideoToolCall | AiConversationUnsubscribeFromEventToolCall | AiConversationUpdateEntityToolCall | AiConversationUpdatePullRequestReviewFindingToolCall | AiConversationWebSearchToolCall | AiConversationWriteSandboxFileToolCall
 
 """A tool call part in an AI conversation."""
 type AiConversationToolCallPart implements AiConversationBasePart {
@@ -4411,6 +4524,47 @@ input CandidateRepository {
   repositoryFullName: String!
 }
 
+"""[Internal] A sandbox belonging to a coding session or conversation."""
+type CodingAgentSandbox implements Node {
+  """The coding session that owns this container."""
+  agentSession: AgentSession
+
+  """The conversation that owns this container."""
+  aiConversation: AiConversation
+
+  """
+  The time at which the entity was archived. Null if the entity has not been archived.
+  """
+  archivedAt: DateTime
+
+  """The coding environment used by this container."""
+  codingEnvironment: CodingEnvironment
+
+  """The time at which the entity was created."""
+  createdAt: DateTime!
+
+  """When this sandbox stopped accepting work."""
+  endedAt: DateTime
+
+  """The unique identifier of the entity."""
+  id: ID!
+
+  """A user-visible lifecycle failure."""
+  lifecycleError: String
+
+  """The container lifecycle state."""
+  lifecycleState: String
+
+  """When the container first became available."""
+  startedAt: DateTime
+
+  """
+  The last time at which the entity was meaningfully updated. This is the same as the creation time if the entity hasn't
+      been updated after creation.
+  """
+  updatedAt: DateTime!
+}
+
 """
 [Internal] Detailed information about the coding agent sandbox environment associated with an agent session, including cloud infrastructure URLs for debugging and monitoring.
 """
@@ -4476,6 +4630,66 @@ type CodingAgentSandboxPayload {
 
   """Temporal URL to view workflows for this session."""
   temporalWorkflowsUrl: String
+}
+
+"""
+[Internal] A reusable coding session environment that defines repositories, agent settings, network access, and dependency setup.
+"""
+type CodingEnvironment implements Node {
+  """The coding agent settings that override workspace defaults."""
+  agent: JSONObject!
+
+  """
+  The time at which the entity was archived. Null if the entity has not been archived.
+  """
+  archivedAt: DateTime
+
+  """The time at which the entity was created."""
+  createdAt: DateTime!
+
+  """Custom instructions for coding sessions in this environment."""
+  customGuidance: String
+
+  """
+  Whether generated repository dependency settings supplement user-defined environment settings.
+  """
+  dependencyManagement: String!
+
+  """
+  The foreground server started when someone opens a coding session preview.
+  """
+  devServer: JSONObject
+
+  """
+  Mise TOML representation of user-defined global environment settings, such as environment variables.
+  """
+  environmentSettingsMiseConfig: String
+
+  """
+  [Internal] Mise TOML generated from repository dependencies and retained for debugging.
+  """
+  generatedDependencyMiseConfig: String
+
+  """The GitHub host shared by every repository in the environment."""
+  gitHubHostName: String!
+
+  """The unique identifier of the entity."""
+  id: ID!
+
+  """The environment's display name."""
+  name: String!
+
+  """The environment's network configuration."""
+  network: JSONObject!
+
+  """The identifiers of users who can manage this environment."""
+  ownerIds: [String!]!
+
+  """
+  The last time at which the entity was meaningfully updated. This is the same as the creation time if the entity hasn't
+      been updated after creation.
+  """
+  updatedAt: DateTime!
 }
 
 """[Internal] A saved workspace inference credential, without the key."""
@@ -7121,6 +7335,9 @@ input CustomerTierFilter {
   """Comparator for the identifier."""
   id: IDComparator
 
+  """Filter based on the existence of the relation."""
+  null: Boolean
+
   """
   Compound filters, one of which needs to be matched by the customer tier.
   """
@@ -7886,6 +8103,11 @@ type Dashboard implements Node {
   id: ID!
 
   """
+  A global initiative filter applied to all dashboard widgets that display initiative data. Individual widgets may apply additional filters on top of this.
+  """
+  initiativeFilter: JSONObject
+
+  """
   A global issue filter applied to all dashboard widgets that display issue data. Individual widgets may apply additional filters on top of this.
   """
   issueFilter: JSONObject
@@ -7905,6 +8127,11 @@ type Dashboard implements Node {
   A global project filter applied to all dashboard widgets that display project data. Individual widgets may apply additional filters on top of this.
   """
   projectFilter: JSONObject
+
+  """
+  A global pull request filter applied to all dashboard widgets that display pull request data. Individual widgets may apply additional filters on top of this.
+  """
+  pullRequestFilter: JSONObject
 
   """
   Whether the dashboard is shared with everyone in the workspace. Shared dashboards are visible to all members; unshared dashboards are only visible to the owner.
@@ -8145,6 +8372,9 @@ type Diff implements Node {
   The time at which the entity was archived. Null if the entity has not been archived.
   """
   archivedAt: DateTime
+
+  """The sandbox the diff belongs to."""
+  codingAgentSandbox: CodingAgentSandbox
 
   """
   [Internal] The opaque content hash identifying the diff's content in code.storage.
@@ -13714,6 +13944,7 @@ enum IntegrationService {
   githubImport
   githubPersonal
   gitlab
+  gitlabPersonal
   gong
   googleCalendarPersonal
   googleSheets
@@ -15458,6 +15689,11 @@ type IssueDraft implements Node {
 
   """The date at which the issue would be due."""
   dueDate: TimelessDate
+
+  """
+  Blocking links to other drafts in the same draft tree, recreated when the tree is published. Contains a local identifier for this draft and the local identifiers of the drafts that block it.
+  """
+  embeddedDependencies: JSONObject
 
   """
   The estimate of the complexity of the draft. Null if no estimate has been set.
@@ -18537,18 +18773,10 @@ type JiraProjectStatusesPayload {
 }
 
 input JiraSettingsInput {
-  """The custom OAuth server token endpoint URL (enterprise SSO)."""
-  customOAuthServerUrl: String
-
   """
   Whether this integration authenticates with a Jira Cloud service account API key.
   """
   isCloudServiceAccount: Boolean
-
-  """
-  Whether this integration uses custom OAuth authentication (enterprise SSO).
-  """
-  isCustomOAuth: Boolean
 
   """Whether this integration is for Jira Server or not."""
   isJiraServer: Boolean = false
@@ -18560,14 +18788,6 @@ input JiraSettingsInput {
 
   """Whether this integration is using a manual setup flow."""
   manualSetup: Boolean
-
-  """
-  The OAuth client ID for the personal connection OAuth app, when using custom OAuth.
-  """
-  personalOAuthClientId: String
-
-  """The mapping of Jira project id => Linear team id."""
-  projectMapping: [JiraLinearMappingInput!]
 
   """The Jira projects for the organization."""
   projects: [JiraProjectDataInput!]!
@@ -24844,6 +25064,11 @@ type OAuthApplication {
   """Allowed redirect URIs for OAuth authorization flows."""
   redirectUris: [String!]!
 
+  """
+  Whether token requests for the OAuth application, including refresh token requests, must include a DPoP proof.
+  """
+  requireTokenBinding: Boolean!
+
   """The time at which the OAuth application was last updated."""
   updatedAt: DateTime!
 
@@ -24907,6 +25132,11 @@ input OAuthApplicationCreateInput {
 
   """Allowed redirect URIs for OAuth authorization flows."""
   redirectUris: [String!]!
+
+  """
+  Whether token requests for the OAuth application, including refresh token requests, must include a DPoP proof. Defaults to false.
+  """
+  requireTokenBinding: Boolean
 
   """Resource types the OAuth application's webhooks subscribe to."""
   webhookResourceTypes: [WebhookResourceType!]
@@ -24999,6 +25229,11 @@ input OAuthApplicationUpdateInput {
 
   """Allowed redirect URIs for OAuth authorization flows."""
   redirectUris: [String!]
+
+  """
+  Whether token requests for the OAuth application, including refresh token requests, must include a DPoP proof. Access tokens issued before this is enabled are not affected.
+  """
+  requireTokenBinding: Boolean
 
   """Whether webhook delivery is enabled for this OAuth application."""
   webhookEnabled: Boolean
@@ -25457,6 +25692,9 @@ type Organization implements Node {
   The URL of the workspace's logo image. Null if no logo has been uploaded.
   """
   logoUrl: String
+
+  """[Internal] Whether Loop webhook triggers are enabled."""
+  loopWebhooksEnabled: Boolean!
 
   """
   Loops in the workspace that are visible to the requesting user, including workspace and team loops. Includes enabled and disabled loops.
@@ -26223,6 +26461,37 @@ input OrganizationLinearAgentTrustedSourcesAllowlistEntryInput {
   key: String!
 }
 
+"""[Internal] A repository that Linear Review covers."""
+input OrganizationLinearReviewRepositoryInput {
+  """[Internal] Full name of the repository, such as owner/repo."""
+  fullName: String!
+
+  """[Internal] Host of the repository, such as github.com."""
+  hostname: String!
+}
+
+"""[Internal] Linear Review settings for the workspace."""
+input OrganizationLinearReviewSettingsInput {
+  """[Internal] Whether Linear reviews pull requests."""
+  enabled: Boolean!
+
+  """[Internal] Repositories Linear reviews when the scope is selected."""
+  repositories: [OrganizationLinearReviewRepositoryInput!]!
+
+  """
+  [Internal] Whether Linear reviews every connected repository or only the selected ones.
+  """
+  repositoryScope: RepositoryScope!
+
+  """
+  [Internal] Whether Linear resolves other bots' comments that raise a problem Linear already reported. Defaults to true.
+  """
+  resolveDuplicates: Boolean
+
+  """[Internal] Whether Linear also reviews drafts without being asked."""
+  reviewDrafts: Boolean!
+}
+
 """[Internal] One team a managed team feature is limited to."""
 input OrganizationManagedFeatureTeamInput {
   """
@@ -26239,12 +26508,17 @@ input OrganizationManagedFeatureTeamInput {
 """
 input OrganizationManagedTeamFeaturesInput {
   """
-  [Internal] The teams coding sessions are limited to. Omit it to not limit coding sessions by team, or pass an empty list to allow no team. `codingAgentEnabled` still turns coding sessions on or off for the workspace.
+  [Internal] The teams coding sessions are limited to. Omit it to not limit coding sessions by team. A changed list needs at least one team. If every team left in it was deleted, the list is saved empty, so no team can use coding sessions. `codingAgentEnabled` still turns coding sessions on or off for the workspace.
   """
   codingSessions: [OrganizationManagedFeatureTeamInput!]
 
   """
-  [Internal] The teams Loops are limited to. Omit it to not limit Loops by team, or pass an empty list to allow no team. `agentAutomationEnabled` still turns Loops on or off for the workspace.
+  [Internal] The teams Loop webhook triggers are limited to. Omit it to allow all teams. A changed list needs at least one team. If every team left in it was deleted, the list is saved empty, so no Loop can use webhook triggers. `loopWebhooksEnabled` turns webhook triggers on or off for the workspace.
+  """
+  loopWebhooks: [OrganizationManagedFeatureTeamInput!]
+
+  """
+  [Internal] The teams Loops are limited to. Omit it to not limit Loops by team. A changed list needs at least one team. If every team left in it was deleted, the list is saved empty, so only Loops with no team run. `agentAutomationEnabled` still turns Loops on or off for the workspace.
   """
   loops: [OrganizationManagedFeatureTeamInput!]
 }
@@ -26550,8 +26824,16 @@ input OrganizationUpdateInput {
   """[Internal] Settings for Linear Agent features."""
   linearAgentSettings: OrganizationLinearAgentSettingsInput
 
+  """
+  [Internal] Linear Review settings: whether reviews are on and which repositories they cover.
+  """
+  linearReviewSettings: OrganizationLinearReviewSettingsInput
+
   """The logo URL of the workspace."""
   logoUrl: String
+
+  """[Internal] Whether Loop webhook triggers are enabled."""
+  loopWebhooksEnabled: Boolean
 
   """
   [Internal] The teams each managed team feature is limited to. Replaces the current lists, and updates each team's matching setting.
@@ -30859,7 +31141,7 @@ type ProjectUpdate implements Node {
   id: ID!
 
   """
-  [Internal] A snapshot of project properties at the time the update was posted, including team, milestone, and issue statistics. Used to compute diffs between consecutive updates.
+  [Internal] A snapshot of project properties at the time the update was posted, including milestone and issue progress. Used to compute diffs between consecutive updates.
   """
   infoSnapshot: JSONObject
 
@@ -31401,6 +31683,11 @@ type PullRequestCheck {
   completedAt: DateTime
 
   """
+  A short description the hosting provider shows next to the check. Null if the provider did not supply one.
+  """
+  description: String
+
+  """
   Whether this check is required to pass before the pull request can be merged. Null if the required status is unknown.
   """
   isRequired: Boolean
@@ -31548,6 +31835,11 @@ type PullRequestMergeSettings {
 
   """Whether the branch will be deleted when the pull request is merged."""
   deleteBranchOnMerge: Boolean!
+
+  """
+  Whether the merge queue takes pull requests that carry a label, such as Trunk's, instead of GitHub's merge queue. Such a queue merges a native stack's pull requests below a queued one together with it.
+  """
+  isLabelMergeQueue: Boolean
 
   """
   Whether a merge queue is enabled for pull requests in this repository. When enabled, merges go through an ordered queue rather than being merged directly.
@@ -36319,6 +36611,14 @@ input RepositoryDataInput {
 }
 
 """
+[Internal] The scope of repositories that non-repository-members can access when allowNonRepoMembers is enabled. Can be 'all' for all workspace-connected repositories or 'selected' for a curated list.
+"""
+enum RepositoryScope {
+  all
+  selected
+}
+
+"""
 A suggested code repository that may be relevant for implementing an issue.
 """
 type RepositorySuggestion {
@@ -38307,6 +38607,9 @@ type Team implements Node {
   The number of initiatives led by this team that would be deleted along with it. Counts every led initiative, including ones not otherwise visible to the caller, to mirror what deleting the team cascades.
   """
   ledInitiativeCount: Int!
+
+  """[Internal] Whether Loop webhook triggers are enabled."""
+  loopWebhooksEnabled: Boolean!
 
   """
   Loops owned by the team that are visible to the requesting user. Includes enabled and disabled loops.
@@ -41024,6 +41327,7 @@ enum UserFlagType {
   tryRoadmapsDismissed
   tryTriageDismissed
   updatedSlackThreadSyncIntegration
+  workspaceSetupCompletedHidden
 }
 
 """Operations that can be applied to UserFlagType."""
@@ -41600,6 +41904,12 @@ type ViewPreferencesValues {
   """The loop ordering."""
   automationOrdering: String
 
+  """Whether to group consecutive runs with no changes in Loop run history."""
+  automationRunHistoryGroupNoChanges: Boolean
+
+  """Whether to show the number of recorded changes in Loop run history."""
+  automationRunHistoryShowChangeCount: Boolean
+
   """Whether to show the run duration in Loop run history."""
   automationRunHistoryShowDuration: Boolean
 
@@ -41977,6 +42287,11 @@ type ViewPreferencesValues {
 
   """Whether to show the member teams field."""
   memberFieldTeams: Boolean
+
+  """
+  Whether clicking an item in a board or list opens it in a split view panel.
+  """
+  openInSplitView: Boolean
 
   """
   [Internal] Ordered ids of the documents pinned to the top of a documents list.
