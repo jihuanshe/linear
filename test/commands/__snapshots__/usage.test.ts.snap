@@ -1391,6 +1391,16 @@ Run \`linear guide markdown\` for mentions, collapsible sections and rewrite ris
           staticallyRequired: false,
         },
         {
+          arguments: [],
+          description: "Move the issue out of its parent issue (cannot be combined with --parent)",
+          flags: [
+            "--clear-parent",
+          ],
+          name: "clear-parent",
+          repeatable: false,
+          staticallyRequired: false,
+        },
+        {
           arguments: [
             {
               name: "priority",

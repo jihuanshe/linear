@@ -1,0 +1,35 @@
+--clear-parent needs an original read and cannot be combined with --parent; both are rejected before any request.
+-- seed.json --
+{"Issue": [
+  {"id": "1a000000-0000-4000-8000-000000001000", "identifier": "ENG-1000", "title": "Parent"},
+  {"id": "1a000000-0000-4000-8000-000000001001", "identifier": "ENG-1001", "title": "Child", "parent": "1a000000-0000-4000-8000-000000001000"}]}
+-- run --
+linear issue update ENG-1001 --clear-parent --json
+-- stdout.json --
+{
+  "ok": false,
+  "effect": "none",
+  "error": {
+    "code": "ValidationError",
+    "message": "Failed to update issue: Replacement requires the original read",
+    "suggestion": "In a POSIX shell, save a new original read without overwriting an existing basis: (if [ -e original.json ] || [ -L original.json ]; then echo 'original.json exists' >&2; exit 1; fi; t=$(mktemp original.json.XXXXXX) || exit; s=0; linear issue view 'ENG-1001' --json >| \"$t\" || { cat \"$t\" >&2; s=1; }; [ \"$s\" != 0 ] || ln \"$t\" original.json || s=1; rm -f \"$t\"; exit \"$s\"). Stop if it fails. Review its current values and reconfirm your intended change. Pass --base-file original.json to the original update command."
+  }
+}
+-- exit --
+1
+-- no-requests --
+-- run --
+linear issue update ENG-1001 --clear-parent --parent ENG-1000 --unprotected --json
+-- stdout.json --
+{
+  "ok": false,
+  "effect": "none",
+  "error": {
+    "code": "ValidationError",
+    "message": "Failed to update issue: Cannot specify both --parent and --clear-parent",
+    "suggestion": "Use --parent <issue> to set a parent, or --clear-parent on its own to remove it."
+  }
+}
+-- exit --
+1
+-- no-requests --

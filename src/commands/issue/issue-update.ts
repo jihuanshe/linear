@@ -61,6 +61,7 @@ export interface UpdateIssueOptions {
   unassign?: boolean
   dueDate?: string
   parent?: string
+  clearParent?: boolean
   priority?: number
   estimate?: number
   description?: string
@@ -161,6 +162,7 @@ export async function prepareIssueUpdate(
     clearCycle,
     dueDate,
     parent,
+    clearParent,
     priority,
     estimate,
     description,
@@ -198,7 +200,7 @@ export async function prepareIssueUpdate(
     title,
     labelReferences,
   ].some((value) => value !== undefined) || unassign === true ||
-    clearCycle === true || clearProject === true
+    clearCycle === true || clearProject === true || clearParent === true
   if (
     hasReplacement || original != null || (options.expectField?.length ?? 0) > 0
   ) {
@@ -247,6 +249,16 @@ export async function prepareIssueUpdate(
     )
   }
 
+  if (clearParent && parent != null) {
+    throw new ValidationError(
+      "Cannot specify both --parent and --clear-parent",
+      {
+        suggestion:
+          "Use --parent <issue> to set a parent, or --clear-parent on its own to remove it.",
+      },
+    )
+  }
+
   if (clearCycle && cycle != null) {
     throw new ValidationError(
       "Cannot specify both --cycle and --clear-cycle",
@@ -259,6 +271,7 @@ export async function prepareIssueUpdate(
 
   if (
     assignee == null && !unassign && dueDate == null && parent == null &&
+    !clearParent &&
     priority == null && estimate == null && description == null &&
     descriptionFile == null && !replacesLabels && !addsLabels &&
     !removesLabels && team == null && project == null && !clearProject &&
@@ -398,7 +411,9 @@ export async function prepareIssueUpdate(
     input.assigneeId = assigneeId
   }
   if (dueDate !== undefined) input.dueDate = dueDate
-  if (parent !== undefined) {
+  if (clearParent) {
+    input.parentId = null
+  } else if (parent !== undefined) {
     const parentReference = await getIssueReference(parent)
     if (!parentReference) {
       throw new ValidationError(
@@ -708,6 +723,10 @@ export const updateCommand = withUsageMetadata(new Command(), { writes: true })
     "--parent <issue:string>",
     "Parent issue (UUID, identifier, number in the configured team, or Linear URL)",
     { preserveEmpty: true },
+  )
+  .option(
+    "--clear-parent",
+    "Move the issue out of its parent issue (cannot be combined with --parent)",
   )
   .option(
     "-p, --priority <priority:priority>",
