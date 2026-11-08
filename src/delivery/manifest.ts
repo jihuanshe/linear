@@ -46,6 +46,7 @@ const setSchema = v.strictObject({
   project: v.optional(v.string()),
   clearProject: v.optional(v.boolean()),
   parent: v.optional(referenceSchema),
+  clearParent: v.optional(v.boolean()),
   milestone: v.optional(v.string()),
   cycle: v.optional(v.string()),
   clearCycle: v.optional(v.boolean()),
@@ -134,6 +135,7 @@ function validateIssue(issue: DeliveryIssue, index: number): void {
     }
     if (
       issue.set.unassign || issue.set.clearCycle || issue.set.clearProject ||
+      issue.set.clearParent ||
       issue.set.addLabel != null || issue.set.removeLabel != null
     ) {
       throw new ValidationError(
@@ -182,6 +184,11 @@ function validateIssue(issue: DeliveryIssue, index: number): void {
     if (set.clearProject && (set.project != null || set.milestone != null)) {
       throw new ValidationError(
         label + ": clearProject cannot be combined with project or milestone",
+      )
+    }
+    if (set.parent !== undefined && set.clearParent) {
+      throw new ValidationError(
+        label + ": parent and clearParent are mutually exclusive",
       )
     }
     if (set.cycle !== undefined && set.clearCycle) {
