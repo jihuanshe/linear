@@ -13,6 +13,7 @@ await snapshotTest({
     const server = new MockLinearServer([
       {
         queryName: "GetIssueLabels",
+        queryIncludes: "groupType",
         variables: { filter: undefined, first: 100, after: undefined },
         response: {
           data: {
@@ -23,6 +24,9 @@ await snapshotTest({
                   name: "backend",
                   description: "Backend label",
                   color: "#00ff00",
+                  isGroup: false,
+                  groupType: null,
+                  parent: { id: "group-1", name: "Platform" },
                   team: {
                     key: "ENG",
                     name: "Engineering",
@@ -33,6 +37,29 @@ await snapshotTest({
                   name: "bug",
                   description: "Bug label",
                   color: "#ff0000",
+                  isGroup: false,
+                  groupType: null,
+                  parent: null,
+                  team: null,
+                },
+                {
+                  id: "group-1",
+                  name: "Platform",
+                  description: null,
+                  color: "#123456",
+                  isGroup: true,
+                  groupType: "multiSelect",
+                  parent: null,
+                  team: { key: "ENG", name: "Engineering" },
+                },
+                {
+                  id: "group-2",
+                  name: "Priority",
+                  description: null,
+                  color: "#654321",
+                  isGroup: true,
+                  groupType: null,
+                  parent: null,
                   team: null,
                 },
               ],

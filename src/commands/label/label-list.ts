@@ -32,6 +32,9 @@ const GetIssueLabels = gql(`
         name
         description
         color
+        isGroup
+        groupType
+        parent { id name }
         team {
           key
           name
@@ -62,7 +65,10 @@ export const listCommand = new Command()
     "--all",
     "Show all labels (both workspace and team)",
   )
-  .option("-j, --json", "Output as JSON")
+  .option(
+    "-j, --json",
+    "Output {nodes, pageInfo}, including isGroup, groupType and parent; groups with null groupType use singleSelect",
+  )
   .action(async ({ team: teamKey, workspaceLabels, all, json }) => {
     const { Spinner } = await import("@std/cli/unstable-spinner")
     const showSpinner = !json && shouldShowSpinner()
