@@ -60,13 +60,13 @@ export const deleteCommand = withUsageMetadata(new Command(), {
 })
   .name("delete")
   .description(
-    "Delete (trash) an issue by UUID, identifier (e.g. ENG-123), number in the configured team, or Linear URL; requires an explicit issue or bulk input. Bulk stops after an unknown outcome.",
+    "Delete (trash) an issue and its sub-issues by UUID, identifier (e.g. ENG-123), number in the configured team, or Linear URL; requires an explicit issue or bulk input. Bulk stops after an unknown outcome.",
   )
   .arguments("[issue:string]")
   .option("-y, --yes", "Skip confirmation prompt")
   .option(
     "--bulk <issues...:string>",
-    "Delete multiple issues by UUID, identifier, number in the configured team, or Linear URL",
+    "Delete multiple issues and their sub-issues by UUID, identifier, number in the configured team, or Linear URL",
   )
   .option(
     "--bulk-file <path:string>",
@@ -96,7 +96,8 @@ export const deleteCommand = withUsageMetadata(new Command(), {
           assertPromptAllowed({ suggestion: "Use --yes to skip." })
           if (
             !await Confirm.prompt({
-              message: `Delete ${ids.length} issue(s)?`,
+              message:
+                `Delete ${ids.length} issue(s) and all their sub-issues?`,
               default: false,
               writer: Deno.stderr,
             })
@@ -168,7 +169,7 @@ export const deleteCommand = withUsageMetadata(new Command(), {
         if (
           !await Confirm.prompt({
             message:
-              `Are you sure you want to delete "${issue.identifier}: ${issue.title}"?`,
+              `Are you sure you want to delete "${issue.identifier}: ${issue.title}" and all its sub-issues?`,
             default: false,
             writer: Deno.stderr,
           })

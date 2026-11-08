@@ -892,7 +892,7 @@ Creates original.json and desired.md in a new directory. Read the saved discussi
           variadic: false,
         },
       ],
-      description: "Delete (trash) an issue by UUID, identifier (e.g. ENG-123), number in the configured team, or Linear URL; requires an explicit issue or bulk input. Bulk stops after an unknown outcome.",
+      description: "Delete (trash) an issue and its sub-issues by UUID, identifier (e.g. ENG-123), number in the configured team, or Linear URL; requires an explicit issue or bulk input. Bulk stops after an unknown outcome.",
       details: "linear issue delete --help",
       hasSubcommands: false,
       interactive: true,
@@ -918,7 +918,7 @@ Creates original.json and desired.md in a new directory. Read the saved discussi
               variadic: true,
             },
           ],
-          description: "Delete multiple issues by UUID, identifier, number in the configured team, or Linear URL",
+          description: "Delete multiple issues and their sub-issues by UUID, identifier, number in the configured team, or Linear URL",
           flags: [
             "--bulk",
           ],
