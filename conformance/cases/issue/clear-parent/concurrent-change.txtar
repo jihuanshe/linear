@@ -1,0 +1,43 @@
+--clear-parent refuses to write when the parent changed since the original read.
+-- seed.json --
+{"Issue": [
+  {"id": "1a000000-0000-4000-8000-000000001000", "identifier": "ENG-1000", "title": "Parent"},
+  {"id": "1a000000-0000-4000-8000-000000001003", "identifier": "ENG-1003", "title": "Other parent"},
+  {"id": "1a000000-0000-4000-8000-000000001001", "identifier": "ENG-1001", "title": "Child", "parent": "1a000000-0000-4000-8000-000000001000"}]}
+-- run --
+linear issue view ENG-1001 --json > original.json
+-- run --
+linear issue update ENG-1001 --unprotected --parent ENG-1003 --json
+-- stdout.json --
+{"ok": true, "effect": "applied", "...": true}
+-- run --
+linear issue update ENG-1001 --clear-parent --base-file original.json --json
+-- stdout.json --
+{
+  "ok": false,
+  "effect": "none",
+  "error": {
+    "code": "ConflictError",
+    "message": "Failed to update issue: Original values changed: parent",
+    "suggestion": "Read the current object and reconsider the change; do not refresh the original file merely to bypass this conflict.",
+    "details": {
+      "fields": [
+        {
+          "field": "parent",
+          "inputField": "parentId",
+          "base": "1a000000-0000-4000-8000-000000001000",
+          "desired": null,
+          "remote": "1a000000-0000-4000-8000-000000001003",
+          "verdict": "conflict"
+        }
+      ],
+      "dependencies": []
+    }
+  }
+}
+-- exit --
+1
+-- mutations.json --
+{}
+-- state.json --
+{"Issue": [{"identifier": "ENG-1000"}, {"identifier": "ENG-1003"}, {"identifier": "ENG-1001", "parent": "1a000000-0000-4000-8000-000000001003"}]}
