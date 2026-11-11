@@ -1,4 +1,4 @@
-import { Command } from "@cliffy/command"
+import { Command, EnumType } from "@cliffy/command"
 import { withUsageMetadata } from "../usage.ts"
 import { Input, Select } from "../../utils/prompt.ts"
 import { gql } from "../../__codegen__/gql.ts"
@@ -7,11 +7,14 @@ import { getAllTeams, getTeamKey } from "../../utils/linear.ts"
 import { resolveTeam } from "../../utils/issue-read.ts"
 import { shouldShowSpinner } from "../../utils/hyperlink.ts"
 import { printWriteResult } from "../../utils/write-result.ts"
+import { readLabelGroup } from "./label-read.ts"
 import {
   assertMutationReceipt,
+  assertMutationReferences,
   assertMutationSuccess,
   handleError,
   ValidationError,
+  WriteError,
 } from "../../utils/errors.ts"
 
 const CreateIssueLabel = gql(`
@@ -23,6 +26,9 @@ const CreateIssueLabel = gql(`
         name
         color
         description
+        isGroup
+        groupType
+        parent { id name }
         team {
           key
           name
@@ -55,7 +61,18 @@ export const createCommand = withUsageMetadata(new Command(), {
     "--json",
     "Output a JSON write result; the created label is in data.issueLabel",
   )
-  .description("Create a new issue label")
+  .description("Create an issue label or label group")
+  .type("groupType", new EnumType(["singleSelect", "multiSelect"] as const))
+  .option("--group", "Create a label group")
+  .option(
+    "--group-type <type:groupType>",
+    "Selection mode; requires --group (default: singleSelect)",
+  )
+  .option(
+    "--parent <uuid:string>",
+    "Create the label in this group UUID; cannot be combined with --group",
+    { preserveEmpty: true },
+  )
   .option("-n, --name <name:string>", "Label name (required)")
   .option(
     "-c, --color <color:string>",
@@ -72,6 +89,12 @@ export const createCommand = withUsageMetadata(new Command(), {
   )
   .action(async (options) => {
     try {
+      if (options.groupType != null && !options.group) {
+        throw new ValidationError("--group-type requires --group")
+      }
+      if (options.group && options.parent != null) {
+        throw new ValidationError("A label group cannot have a parent group")
+      }
       if (options.json && options.interactive) {
         throw new ValidationError(
           "--json cannot be combined with --interactive",
@@ -204,11 +227,17 @@ export const createCommand = withUsageMetadata(new Command(), {
         teamId = (await resolveTeam(providedTeam)).id
       }
 
+      const parent = options.parent == null
+        ? undefined
+        : await readLabelGroup(client, options.parent)
       const input = {
         name,
         color,
         ...(description && { description }),
         ...(teamId && { teamId }),
+        ...(options.group &&
+          { isGroup: true, groupType: options.groupType ?? "singleSelect" }),
+        ...(parent && { parentId: parent.id }),
       }
 
       const { Spinner } = await import("@std/cli/unstable-spinner")
@@ -227,6 +256,27 @@ export const createCommand = withUsageMetadata(new Command(), {
         const label = result?.issueLabelCreate.issueLabel
         spinner?.stop()
         assertMutationReceipt(label, result?.issueLabelCreate)
+        if (parent) {
+          assertMutationReferences(label, result.issueLabelCreate, {
+            parent: parent.id,
+          })
+        }
+        if (
+          options.group &&
+          (!label.isGroup ||
+            (label.groupType === null ? "singleSelect" : label.groupType) !==
+              input.groupType)
+        ) {
+          throw new WriteError(
+            "Label creation succeeded but the receipt did not match the requested group type",
+            {
+              effect: "applied",
+              data: { issueLabel: label },
+              suggestion:
+                "Read the label before continuing; do not repeat the mutation.",
+            },
+          )
+        }
         if (options.json) {
           printWriteResult({ issueLabel: label })
           return

@@ -64,6 +64,7 @@ const CANONICAL_WRITES_COMMAND_PATHS = [
   "linear issue update",
   "linear label create",
   "linear label delete",
+  "linear label update",
   "linear milestone create",
   "linear milestone delete",
   "linear milestone update",
