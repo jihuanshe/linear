@@ -663,6 +663,11 @@ type AgentSession implements Node {
   issue: Issue
 
   """
+  [Internal] The time the agent last replied in this session with a response, elicitation, or error. Null if the agent has not replied.
+  """
+  lastAgentReplyAt: DateTime
+
+  """
   [Internal] How Adaptive selected the model route used by this coding session.
   """
   modelSelection: JSON
@@ -844,6 +849,126 @@ input AgentSessionExternalUrlInput {
 
   """The URL of the external resource."""
   url: String!
+}
+
+"""
+A notification about an agent session awaiting input, failing, or completing a turn.
+"""
+type AgentSessionNotification implements Entity & Node & Notification {
+  """
+  The user that caused the notification. Null if the notification was triggered by a non-user actor such as an integration, external user, or system event.
+  """
+  actor: User
+
+  """[Internal] Notification actor initials if avatar is not available."""
+  actorAvatarColor: String!
+
+  """[Internal] Notification avatar URL."""
+  actorAvatarUrl: String
+
+  """
+  [Internal] Whether the notification's user actor is deactivated in the workspace.
+  """
+  actorInactive: Boolean!
+
+  """[Internal] Notification actor initials if avatar is not available."""
+  actorInitials: String
+
+  """The activity that produced the notification."""
+  agentActivityId: String
+
+  """The session that produced the notification."""
+  agentSessionId: String!
+
+  """
+  The time at which the entity was archived. Null if the entity has not been archived.
+  """
+  archivedAt: DateTime
+
+  """The bot that caused the notification."""
+  botActor: ActorBot
+
+  """The category of the notification."""
+  category: NotificationCategory!
+
+  """The time at which the entity was created."""
+  createdAt: DateTime!
+
+  """
+  The time at which an email reminder for this notification was sent to the user. Null if no email reminder has been sent.
+  """
+  emailedAt: DateTime
+
+  """
+  The external user that caused the notification. Populated when the notification was triggered by an external user (e.g., a commenter from a connected integration like Slack or GitHub) rather than a Linear workspace member.
+  """
+  externalUserActor: ExternalUser
+
+  """
+  [Internal] Notifications with the same grouping key will be grouped together in the UI.
+  """
+  groupingKey: String!
+
+  """
+  [Internal] Priority of the notification with the same grouping key. Higher number means higher priority. If priority is the same, notifications should be sorted by `createdAt`.
+  """
+  groupingPriority: Float!
+
+  """The unique identifier of the entity."""
+  id: ID!
+
+  """[Internal] Inbox URL for the notification."""
+  inboxUrl: String!
+
+  """[Internal] Initiative update health for new updates."""
+  initiativeUpdateHealth: String
+
+  """[Internal] If notification actor was Linear."""
+  isLinearActor: Boolean!
+
+  """[Internal] Issue's status type for issue notifications."""
+  issueStatusType: String
+
+  """[Internal] Project update health for new updates."""
+  projectUpdateHealth: String
+
+  """
+  The time at which the user marked the notification as read. Null if the notification is unread.
+  """
+  readAt: DateTime
+
+  """
+  The time until which a notification is snoozed. After this time, the notification reappears in the user's inbox. Null if the notification is not currently snoozed.
+  """
+  snoozedUntilAt: DateTime
+
+  """[Internal] Notification subtitle."""
+  subtitle: String!
+
+  """[Internal] Notification title."""
+  title: String!
+
+  """
+  Notification type. Determines the kind of event that triggered this notification and which associated entity fields will be populated.
+  """
+  type: String!
+
+  """
+  The time at which a notification was unsnoozed. Null if the notification has not been unsnoozed.
+  """
+  unsnoozedAt: DateTime
+
+  """
+  The last time at which the entity was meaningfully updated. This is the same as the creation time if the entity hasn't
+      been updated after creation.
+  """
+  updatedAt: DateTime!
+
+  """[Internal] URL to the target of the notification."""
+  url: String!
+
+  """The recipient user of this notification."""
+  user: User!
 }
 
 type AgentSessionPayload {
@@ -1262,6 +1387,11 @@ type AiConversation implements Node {
   sourceMetadata: JSONObject
 
   """
+  [Internal] The conversation that spawned this independent conversation.
+  """
+  spawnedFromConversationId: String
+
+  """
   The materialized conversation-level processing summary used by list and gating surfaces. Assistant response lifecycle is recorded on its turn.
   """
   status: AiConversationStatus!
@@ -1327,13 +1457,76 @@ type AiConversationAckPart implements AiConversationBasePart {
   type: AiConversationPartType!
 }
 
+type AiConversationAddToWorkbenchToolCall implements AiConversationBaseToolCall {
+  """The arguments to the tool call."""
+  args: JSONObject
+  displayInfo: AiConversationToolDisplayInfo!
+
+  """The name of the tool that was called."""
+  name: AiConversationTool!
+
+  """The arguments of the tool call."""
+  rawArgs: JSON
+
+  """The result of the tool call."""
+  rawResult: JSON
+
+  """The result of the tool call."""
+  result: AiConversationAddToWorkbenchToolCallResult
+}
+
+type AiConversationAddToWorkbenchToolCallResult {
+  operation: AiConversationAddToWorkbenchToolCallResultOperation
+}
+
+enum AiConversationAddToWorkbenchToolCallResultOperation {
+  added
+  alreadyInWorkbench
+}
+
+"""A message one agent conversation sent to another."""
+type AiConversationAgentMessage {
+  """The data of the message. Messages sent before it was saved have none."""
+  bodyData: JSONObject
+
+  """The message identifier."""
+  id: String!
+
+  """The identifier of the message this one replies to."""
+  inReplyToId: String
+
+  """The Markdown body of the message."""
+  message: String!
+
+  """The conversation that receives the message."""
+  recipientConversationId: String!
+
+  """The conversation that sent the message."""
+  senderConversationId: String!
+
+  """The name of the sending conversation."""
+  senderName: String!
+
+  """Where the sending conversation started."""
+  senderSource: AiConversationInitialSource
+
+  """Whether the sender asked for a reply."""
+  shouldReply: Boolean!
+
+  """The short summary people read."""
+  summary: String!
+
+  """The identifier of the message's thread."""
+  threadId: String!
+}
+
 """An agent-origin message in a conversation turn."""
 type AiConversationAgentMessagePart implements AiConversationBasePart {
   """When durable submission was acknowledged."""
   acceptedAt: String
 
   """Source identity, full message and display summary."""
-  agentMessage: JSONObject!
+  agentMessage: AiConversationAgentMessage!
 
   """The reserved assistant response identity."""
   assistantTurnId: String!
@@ -2527,12 +2720,23 @@ enum AiConversationPostChatMessageToolCallArgsPlatform {
 }
 
 type AiConversationPostChatMessageToolCallResult {
+  author: AiConversationPostChatMessageToolCallResultAuthor
   conversationUrl: String
   destination: AiConversationPostChatMessageToolCallResultDestination
   error: String
   message: String
   posted: Boolean!
   snippet: String
+}
+
+type AiConversationPostChatMessageToolCallResultAuthor {
+  iconUrl: String
+  kind: AiConversationPostChatMessageToolCallResultAuthorKind!
+  name: String!
+}
+
+enum AiConversationPostChatMessageToolCallResultAuthorKind {
+  custom
 }
 
 type AiConversationPostChatMessageToolCallResultDestination {
@@ -2754,6 +2958,34 @@ type AiConversationReasoningPart implements AiConversationBasePart {
 
   """The type of the part."""
   type: AiConversationPartType!
+}
+
+type AiConversationRemoveFromWorkbenchToolCall implements AiConversationBaseToolCall {
+  """The arguments to the tool call."""
+  args: JSONObject
+  displayInfo: AiConversationToolDisplayInfo!
+
+  """The name of the tool that was called."""
+  name: AiConversationTool!
+
+  """The arguments of the tool call."""
+  rawArgs: JSON
+
+  """The result of the tool call."""
+  rawResult: JSON
+
+  """The result of the tool call."""
+  result: AiConversationRemoveFromWorkbenchToolCallResult
+}
+
+type AiConversationRemoveFromWorkbenchToolCallResult {
+  operation: AiConversationRemoveFromWorkbenchToolCallResultOperation
+}
+
+enum AiConversationRemoveFromWorkbenchToolCallResultOperation {
+  alreadyArchived
+  notInWorkbench
+  removed
 }
 
 type AiConversationRemoveSpendLimitToolCall implements AiConversationBaseToolCall {
@@ -3200,6 +3432,25 @@ enum AiConversationStatus {
   waiting
 }
 
+type AiConversationSubmitEvidenceToolCall implements AiConversationBaseToolCall {
+  """The arguments to the tool call."""
+  args: AiConversationSubmitEvidenceToolCallArgs
+  displayInfo: AiConversationToolDisplayInfo!
+
+  """The name of the tool that was called."""
+  name: AiConversationTool!
+
+  """The arguments of the tool call."""
+  rawArgs: JSON
+
+  """The result of the tool call."""
+  rawResult: JSON
+}
+
+type AiConversationSubmitEvidenceToolCallArgs {
+  summary: String
+}
+
 type AiConversationSubscribeToEventToolCall implements AiConversationBaseToolCall {
   """The arguments to the tool call."""
   args: AiConversationSubscribeToEventToolCallArgs
@@ -3286,6 +3537,7 @@ type AiConversationTextPart implements AiConversationBasePart {
 
 """The name of a tool that was called in an AI conversation."""
 enum AiConversationTool {
+  AddToWorkbench
   Bash
   BashKill
   BashOutput
@@ -3321,6 +3573,7 @@ enum AiConversationTool {
   ReadFile
   ReadSandboxFile
   ReadSetting
+  RemoveFromWorkbench
   RemoveSpendLimit
   RenameAgentChat
   RerunPullRequestReview
@@ -3338,6 +3591,7 @@ enum AiConversationTool {
   SetSpendLimit
   SpawnSubagent
   StartCodingSession
+  SubmitEvidence
   SubscribeToEvent
   SuggestRepository
   SuggestValues
@@ -3345,13 +3599,14 @@ enum AiConversationTool {
   TranscribeVideo
   UnsubscribeFromEvent
   UpdateEntity
+  UpdateEventSubscription
   UpdatePullRequestReviewFinding
   WebSearch
   WriteSandboxFile
 }
 
 """The tool call."""
-union AiConversationToolCall = AiConversationBashKillToolCall | AiConversationBashOutputToolCall | AiConversationBashToolCall | AiConversationCodeIntelligenceToolCall | AiConversationCodeModeToolCall | AiConversationContactSupportToolCall | AiConversationCreateAgentChatToolCall | AiConversationCreateEntityToolCall | AiConversationCreateSandboxToolCall | AiConversationDeleteEntityToolCall | AiConversationDevServerToolCall | AiConversationEditSandboxFileToolCall | AiConversationGetMicrosoftTeamsConversationHistoryToolCall | AiConversationGetPullRequestCheckLogsToolCall | AiConversationGetPullRequestDiffToolCall | AiConversationGetPullRequestFileToolCall | AiConversationGetSlackConversationHistoryToolCall | AiConversationGitPushToolCall | AiConversationHandoffToCodingSessionToolCall | AiConversationInvokeMcpToolToolCall | AiConversationListCodingSessionsToolCall | AiConversationListSubagentsToolCall | AiConversationMemoryToolCall | AiConversationMessageSubagentToolCall | AiConversationNavigateToPageToolCall | AiConversationNotifyUsersToolCall | AiConversationPatchSettingsToolCall | AiConversationPostChatMessageToolCall | AiConversationPromptCodingSessionToolCall | AiConversationQueryActivityToolCall | AiConversationQueryUpdatesToolCall | AiConversationQueryViewToolCall | AiConversationReadFileToolCall | AiConversationReadSandboxFileToolCall | AiConversationReadSettingToolCall | AiConversationRemoveSpendLimitToolCall | AiConversationRenameAgentChatToolCall | AiConversationRerunPullRequestReviewToolCall | AiConversationResearchToolCall | AiConversationRestoreEntityToolCall | AiConversationRetrieveEntitiesToolCall | AiConversationRetryPullRequestCheckToolCall | AiConversationRunLoopToolCall | AiConversationSandboxGitHistoryToolCall | AiConversationSandboxPullRequestToolCall | AiConversationSearchChatChannelsToolCall | AiConversationSearchDocumentationToolCall | AiConversationSearchEntitiesToolCall | AiConversationSearchSettingsToolCall | AiConversationSetSpendLimitToolCall | AiConversationSpawnSubagentToolCall | AiConversationStartCodingSessionToolCall | AiConversationSubscribeToEventToolCall | AiConversationSuggestRepositoryToolCall | AiConversationSuggestValuesToolCall | AiConversationTranscribeMediaToolCall | AiConversationTranscribeVideoToolCall | AiConversationUnsubscribeFromEventToolCall | AiConversationUpdateEntityToolCall | AiConversationUpdatePullRequestReviewFindingToolCall | AiConversationWebSearchToolCall | AiConversationWriteSandboxFileToolCall
+union AiConversationToolCall = AiConversationAddToWorkbenchToolCall | AiConversationBashKillToolCall | AiConversationBashOutputToolCall | AiConversationBashToolCall | AiConversationCodeIntelligenceToolCall | AiConversationCodeModeToolCall | AiConversationContactSupportToolCall | AiConversationCreateAgentChatToolCall | AiConversationCreateEntityToolCall | AiConversationCreateSandboxToolCall | AiConversationDeleteEntityToolCall | AiConversationDevServerToolCall | AiConversationEditSandboxFileToolCall | AiConversationGetMicrosoftTeamsConversationHistoryToolCall | AiConversationGetPullRequestCheckLogsToolCall | AiConversationGetPullRequestDiffToolCall | AiConversationGetPullRequestFileToolCall | AiConversationGetSlackConversationHistoryToolCall | AiConversationGitPushToolCall | AiConversationHandoffToCodingSessionToolCall | AiConversationInvokeMcpToolToolCall | AiConversationListCodingSessionsToolCall | AiConversationListSubagentsToolCall | AiConversationMemoryToolCall | AiConversationMessageSubagentToolCall | AiConversationNavigateToPageToolCall | AiConversationNotifyUsersToolCall | AiConversationPatchSettingsToolCall | AiConversationPostChatMessageToolCall | AiConversationPromptCodingSessionToolCall | AiConversationQueryActivityToolCall | AiConversationQueryUpdatesToolCall | AiConversationQueryViewToolCall | AiConversationReadFileToolCall | AiConversationReadSandboxFileToolCall | AiConversationReadSettingToolCall | AiConversationRemoveFromWorkbenchToolCall | AiConversationRemoveSpendLimitToolCall | AiConversationRenameAgentChatToolCall | AiConversationRerunPullRequestReviewToolCall | AiConversationResearchToolCall | AiConversationRestoreEntityToolCall | AiConversationRetrieveEntitiesToolCall | AiConversationRetryPullRequestCheckToolCall | AiConversationRunLoopToolCall | AiConversationSandboxGitHistoryToolCall | AiConversationSandboxPullRequestToolCall | AiConversationSearchChatChannelsToolCall | AiConversationSearchDocumentationToolCall | AiConversationSearchEntitiesToolCall | AiConversationSearchSettingsToolCall | AiConversationSetSpendLimitToolCall | AiConversationSpawnSubagentToolCall | AiConversationStartCodingSessionToolCall | AiConversationSubmitEvidenceToolCall | AiConversationSubscribeToEventToolCall | AiConversationSuggestRepositoryToolCall | AiConversationSuggestValuesToolCall | AiConversationTranscribeMediaToolCall | AiConversationTranscribeVideoToolCall | AiConversationUnsubscribeFromEventToolCall | AiConversationUpdateEntityToolCall | AiConversationUpdateEventSubscriptionToolCall | AiConversationUpdatePullRequestReviewFindingToolCall | AiConversationWebSearchToolCall | AiConversationWriteSandboxFileToolCall
 
 """A tool call part in an AI conversation."""
 type AiConversationToolCallPart implements AiConversationBasePart {
@@ -3455,6 +3710,26 @@ type AiConversationUpdateEntityToolCallResult {
   updatedEntities: [AiConversationCreateEntityToolCallResultCreatedEntities!]
 }
 
+type AiConversationUpdateEventSubscriptionToolCall implements AiConversationBaseToolCall {
+  """The arguments to the tool call."""
+  args: AiConversationUpdateEventSubscriptionToolCallArgs
+  displayInfo: AiConversationToolDisplayInfo!
+
+  """The name of the tool that was called."""
+  name: AiConversationTool!
+
+  """The arguments of the tool call."""
+  rawArgs: JSON
+
+  """The result of the tool call."""
+  rawResult: JSON
+}
+
+type AiConversationUpdateEventSubscriptionToolCallArgs {
+  message: String
+  subscriptionId: String!
+}
+
 type AiConversationUpdatePullRequestReviewFindingToolCall implements AiConversationBaseToolCall {
   """The arguments to the tool call."""
   args: AiConversationUpdatePullRequestReviewFindingToolCallArgs
@@ -3485,6 +3760,11 @@ type AiConversationUserState {
 
   """The time at which the user most recently viewed the conversation."""
   lastReadAt: DateTime
+
+  """
+  The IDs of the elicitation parts the user resolved without replying, oldest first. Updates add to the recorded IDs.
+  """
+  resolvedElicitationIds: [String!]
 
   """The ID of the user this state belongs to."""
   userId: String!
@@ -4692,6 +4972,12 @@ type CodingEnvironment implements Node {
   updatedAt: DateTime!
 }
 
+"""[Internal] Start of an Anthropic organization connection."""
+type CodingInferenceAnthropicConnectPayload {
+  """The URL where an Anthropic organization admin approves the connection."""
+  authorizationUrl: String!
+}
+
 """[Internal] A saved workspace inference credential, without the key."""
 type CodingInferenceKey {
   """The inference endpoint."""
@@ -4700,7 +4986,9 @@ type CodingInferenceKey {
   """The coding harness that uses this credential: codex or claude."""
   harness: String!
 
-  """The inference provider: openai, anthropic, or amazon-bedrock."""
+  """
+  The inference provider: openai, anthropic, amazon-bedrock, or anthropic-connection.
+  """
   provider: String!
 
   """When the credential was last saved."""
@@ -5357,6 +5645,11 @@ input ContactCreateInput {
 
   """The user's operating system name and version (e.g., 'macOS 14.0')."""
   operatingSystem: String
+
+  """
+  [INTERNAL] Where the message was sent from: `app` (default) or `website`.
+  """
+  source: String
 
   """The type of support contact."""
   type: String!
@@ -6333,7 +6626,7 @@ type CustomerNeed implements Node {
   id: ID!
 
   """
-  The issue this need is linked to. Either issueId or projectId must be set. When set, the need's projectId is denormalized from the issue's project.
+  The issue this need is linked to. Either issueId or projectId must be set, unless the need is linked to an internal customer signal. When set, the need's projectId is denormalized from the issue's project.
   """
   issue: Issue
 
@@ -8467,6 +8760,11 @@ type Document implements Node {
   archivedAt: DateTime
 
   """
+  [Internal] The users the document is shared with and their roles, in the order they were shared within each role: editors, then commenters, then viewers. The owner of a personal document is its `personalUser` and is not listed.
+  """
+  collaborators: [DocumentCollaborator!]!
+
+  """
   The hex color of the document icon. Null if no custom color has been set.
   """
   color: String
@@ -8526,6 +8824,11 @@ type Document implements Node {
   documentContentId: String
 
   """
+  [Internal] What users other than the owner can do with a document that is not personal: edit, comment, or view. People shared on the document with a higher role keep it. Null on a personal document, which only its owner and collaborators can access.
+  """
+  generalAccess: DocumentShareRole
+
+  """
   The time at which the document was hidden from the default view. Null if the document has not been hidden.
   """
   hiddenAt: DateTime
@@ -8562,6 +8865,11 @@ type Document implements Node {
   [Internal] The parent document. Null if the document is not a sub-document.
   """
   parentDocument: Document
+
+  """
+  [Internal] The user whose personal space holds the document, who owns and manages it. Null if the document belongs to a different parent entity type.
+  """
+  personalUser: User
 
   """
   The project that the document is associated with. Null if the document belongs to a different parent entity type.
@@ -8652,6 +8960,21 @@ type Document implements Node {
 
   """The canonical url for the document."""
   url: String!
+
+  """
+  [Internal] Whether the viewer can comment on the document. On a personal document, the owner and people it is shared with as editors or commenters can. On any other document, its owner can, and so can everyone else when its general access is edit or comment or they are shared on it as editors or commenters. False when the request has no user.
+  """
+  viewerCanComment: Boolean!
+
+  """
+  [Internal] Whether the viewer can edit the document's fields and content. On a personal document, the owner and people it is shared with as editors can. On any other document, its owner can, and so can everyone else when its general access is edit or they are shared on it as editors. False when the request has no user.
+  """
+  viewerCanEdit: Boolean!
+
+  """
+  [Internal] Whether the viewer can change who has access to the document: share it, change collaborator roles, and set its general access. On a personal document, only the owner can. On any other document, its owner, an owner of a team it belongs to, or a workspace admin can. False when the request has no user.
+  """
+  viewerCanManageAccess: Boolean!
 }
 
 """A generic payload return from entity archive mutations."""
@@ -8664,6 +8987,15 @@ type DocumentArchivePayload implements ArchivePayload {
 
   """Whether the operation was successful."""
   success: Boolean!
+}
+
+"""[Internal] A user a document is shared with, and their role on it."""
+type DocumentCollaborator {
+  """What the user can do with the document."""
+  role: DocumentShareRole!
+
+  """The user the document is shared with."""
+  user: User!
 }
 
 type DocumentConnection {
@@ -9075,6 +9407,16 @@ input DocumentFilter {
   """Filters that the document's owner must satisfy."""
   owner: NullableUserFilter
 
+  """
+  [Internal] Filters that the document's parent document must satisfy. Use `null: true` for documents that are not sub-documents.
+  """
+  parentDocument: NullableDocumentFilter
+
+  """
+  [Internal] Filters that the user owning the personal space of a personal document must satisfy. Use `null: false` for personal documents.
+  """
+  personalUser: NullableUserFilter
+
   """Filters that the document's project must satisfy."""
   project: ProjectFilter
 
@@ -9268,6 +9610,11 @@ type DocumentSearchResult implements Node {
   archivedAt: DateTime
 
   """
+  [Internal] The users the document is shared with and their roles, in the order they were shared within each role: editors, then commenters, then viewers. The owner of a personal document is its `personalUser` and is not listed.
+  """
+  collaborators: [DocumentCollaborator!]!
+
+  """
   The hex color of the document icon. Null if no custom color has been set.
   """
   color: String
@@ -9327,6 +9674,11 @@ type DocumentSearchResult implements Node {
   documentContentId: String
 
   """
+  [Internal] What users other than the owner can do with a document that is not personal: edit, comment, or view. People shared on the document with a higher role keep it. Null on a personal document, which only its owner and collaborators can access.
+  """
+  generalAccess: DocumentShareRole
+
+  """
   The time at which the document was hidden from the default view. Null if the document has not been hidden.
   """
   hiddenAt: DateTime
@@ -9366,6 +9718,11 @@ type DocumentSearchResult implements Node {
   [Internal] The parent document. Null if the document is not a sub-document.
   """
   parentDocument: Document
+
+  """
+  [Internal] The user whose personal space holds the document, who owns and manages it. Null if the document belongs to a different parent entity type.
+  """
+  personalUser: User
 
   """
   The project that the document is associated with. Null if the document belongs to a different parent entity type.
@@ -9456,6 +9813,21 @@ type DocumentSearchResult implements Node {
 
   """The canonical url for the document."""
   url: String!
+
+  """
+  [Internal] Whether the viewer can comment on the document. On a personal document, the owner and people it is shared with as editors or commenters can. On any other document, its owner can, and so can everyone else when its general access is edit or comment or they are shared on it as editors or commenters. False when the request has no user.
+  """
+  viewerCanComment: Boolean!
+
+  """
+  [Internal] Whether the viewer can edit the document's fields and content. On a personal document, the owner and people it is shared with as editors can. On any other document, its owner can, and so can everyone else when its general access is edit or they are shared on it as editors. False when the request has no user.
+  """
+  viewerCanEdit: Boolean!
+
+  """
+  [Internal] Whether the viewer can change who has access to the document: share it, change collaborator roles, and set its general access. On a personal document, only the owner can. On any other document, its owner, an owner of a team it belongs to, or a workspace admin can. False when the request has no user.
+  """
+  viewerCanManageAccess: Boolean!
 }
 
 type DocumentSearchResultEdge {
@@ -9464,7 +9836,7 @@ type DocumentSearchResultEdge {
   node: DocumentSearchResult!
 }
 
-"""[Internal] The role of a user a personal document is shared with."""
+"""[Internal] What a user can do with a document: edit, comment, or view."""
 enum DocumentShareRole {
   """The user can read and comment on the document but not edit it."""
   comment
@@ -11804,6 +12176,20 @@ type ImageUploadFromUrlPayload {
   url: String
 }
 
+"""Which users of the source service an import maps to Linear users."""
+enum ImportUsersOption {
+  """
+  Map users who match a Linear user by email, and invite the users whose email is on one of the workspace's domains. Skip the rest.
+  """
+  matchAndInvite
+
+  """Map users who match a Linear user by email, and skip the rest."""
+  matchOnly
+
+  """Import no users."""
+  skip
+}
+
 """Which Inbox notifications contribute to Inbox badges."""
 enum InboxBadgeScope {
   all
@@ -13931,6 +14317,7 @@ type IntegrationRequestPayload {
 enum IntegrationService {
   airbyte
   asksWeb
+  claudeSecurity
   datadog
   discord
   email
@@ -18743,6 +19130,159 @@ input JiraPersonalSettingsInput {
   workspaceIntegrationId: String
 }
 
+"""
+A Jira project that the workspace syncs with a Linear team, imported issues from, or both. Projects of a connected Jira site that the workspace never synced or imported have no Jira project; read them from the Jira integration's settings.
+"""
+type JiraProject implements Node {
+  """
+  The time at which the entity was archived. Null if the entity has not been archived.
+  """
+  archivedAt: DateTime
+
+  """
+  Why Linear cannot read the configuration of a project that syncs, such as its issue types and fields, from Jira. The Jira projects table shows it as a warning. Null when the last read succeeded.
+  """
+  configurationError: String
+
+  """The time at which the entity was created."""
+  createdAt: DateTime!
+
+  """
+  The user who linked the project or first imported it. For a link made by a background job, the user who connected the Jira site. Null if the user has been deleted.
+  """
+  creator: User
+
+  """The Jira project ID, such as 10016. Unique only within one Jira site."""
+  externalId: String!
+
+  """The unique identifier of the entity."""
+  id: ID!
+
+  """
+  Where the project's latest import stands, as the Jira projects table shows it.
+  """
+  importStatus: JiraProjectImportStatus!
+
+  """
+  The number of issues the project's latest import created. Null until that import completes.
+  """
+  importedIssueCount: Int
+
+  """The Jira integration of the site that hosts the project."""
+  integration: Integration!
+
+  """
+  Whether issues created in the team go to this Jira project. A team has at most one default project, and only a two-way sync can be it.
+  """
+  isDefault: Boolean!
+
+  """
+  The Jira project key, such as ENG. Jira admins can change it, and Linear then updates it.
+  """
+  key: String!
+
+  """
+  The project's newest import that the user can see, with its status, progress, and error. Null when the project has none.
+  """
+  latestImport: IssueImport
+
+  """
+  The Linear team the Jira projects table shows for the project: the team it syncs with, or else the team its latest import goes into. Null when the import has not created its new team yet, or the user cannot see the team.
+  """
+  linearTeam: Team
+
+  """The Jira project name."""
+  name: String!
+
+  """
+  The direction in which the project syncs with its team. Null when the project does not sync.
+  """
+  syncDirection: JiraSyncDirection
+
+  """
+  The time at which sync last turned on for the project. Null if the project never synced.
+  """
+  syncEnabledAt: DateTime
+
+  """
+  How the project syncs with its team, as the Jira projects table shows it. `afterImport` while its running import is about to link it.
+  """
+  syncStatus: JiraProjectSyncStatus!
+
+  """
+  The Linear team the project syncs with. Null when the project does not sync with a team.
+  """
+  team: Team
+
+  """
+  The last time at which the entity was meaningfully updated. This is the same as the creation time if the entity hasn't
+      been updated after creation.
+  """
+  updatedAt: DateTime!
+}
+
+"""The Jira projects of one connected Jira site to migrate to Linear."""
+input JiraProjectBatchMigrateInput {
+  """
+  The identifier of the Jira integration of the site that hosts every project.
+  """
+  integrationId: String!
+
+  """The projects to migrate: 1 to 50, each at most once."""
+  projects: [JiraProjectBatchMigrateProjectInput!]!
+}
+
+"""The result of a migration of Jira projects."""
+type JiraProjectBatchMigratePayload {
+  """The identifier of the last sync operation."""
+  lastSyncId: Float!
+
+  """One result per project, in input order."""
+  projects: [JiraProjectMigrationResult!]!
+
+  """
+  Whether every project is migrating. False when a project failed its checks; the projects that passed still started.
+  """
+  success: Boolean!
+}
+
+"""
+One Jira project to migrate, with the choices of the Migrate Jira project form. Give exactly one of `externalId` and `key`, and at least one of `import` and `sync`.
+"""
+input JiraProjectBatchMigrateProjectInput {
+  """The Jira project ID, such as 10016."""
+  externalId: String
+
+  """
+  The import of the project's existing issues. Omit to only sync. Several imports into one team run one at a time.
+  """
+  import: JiraProjectMigrateImportInput
+
+  """The Jira project key, such as ENG. Case-insensitive."""
+  key: String
+
+  """
+  How the project syncs. With an import, sync starts once the import completes. Omit to only import. Requires a team identifier when there is no import.
+  """
+  sync: JiraProjectMigrateSyncInput
+
+  """
+  The identifier or key of the team to import into and sync with. An import of a project that already syncs must go into the team it syncs with.
+  """
+  teamId: String
+
+  """
+  The name of a team for the import to create, when no team identifier is given. Requires an import and the team creation permission. A name that a team already has gets a number added.
+  """
+  teamName: String
+}
+
+type JiraProjectConnection {
+  edges: [JiraProjectEdge!]!
+  nodes: [JiraProject!]!
+  pageInfo: PageInfo!
+}
+
 input JiraProjectDataInput {
   """The Jira id for this project."""
   id: String!
@@ -18752,6 +19292,256 @@ input JiraProjectDataInput {
 
   """The Jira name for this project, such as Engineering."""
   name: String!
+}
+
+type JiraProjectEdge {
+  """Used in `before` and `after` args"""
+  cursor: String!
+  node: JiraProject!
+}
+
+"""Jira project filtering options."""
+input JiraProjectFilter {
+  """Compound filters, all of which need to be matched by the Jira project."""
+  and: [JiraProjectFilter!]
+
+  """Comparator for the created at date."""
+  createdAt: DateComparator
+
+  """Comparator for the identifier."""
+  id: IDComparator
+
+  """
+  Comparator for the identifier of the Jira integration of the site that hosts the project.
+  """
+  integrationId: IDComparator
+
+  """Comparator for the Jira project key, such as ENG."""
+  key: StringComparator
+
+  """
+  Compound filters, one of which needs to be matched by the Jira project.
+  """
+  or: [JiraProjectFilter!]
+
+  """
+  Filters that the team the project syncs with must satisfy. Use `{ null: true }` to find the projects that do not sync.
+  """
+  team: NullableTeamFilter
+
+  """Comparator for the updated at date."""
+  updatedAt: DateComparator
+}
+
+"""
+Where a Jira project's latest import stands, as the Jira projects table in the settings shows it.
+"""
+enum JiraProjectImportStatus {
+  """The import is being deleted, with the issues it created."""
+  deleting
+
+  """The import expired before it completed."""
+  expired
+
+  """The import failed before it completed."""
+  failed
+
+  """The import completed."""
+  imported
+
+  """The import is reading issues from Jira or creating them in Linear."""
+  importing
+
+  """The project has no import."""
+  none
+
+  """
+  The import has not started. It waits for the imports into its team that were requested before it, or for the workspace's other Jira imports.
+  """
+  queued
+}
+
+"""
+The import of a Jira project's existing issues through the site's connection, with the choices of the Migrate Jira project form.
+"""
+input JiraProjectMigrateImportInput {
+  """Whether to import closed and done issues. They are imported archived."""
+  includeClosedIssues: Boolean!
+
+  """
+  Whether to import issues not updated in the last 6 months. They are imported archived.
+  """
+  includeStaleIssues: Boolean!
+
+  """
+  A JQL filter that limits which of the project's issues are imported. Linear adds it to the project's query, so it cannot reach other projects.
+  """
+  jql: String
+
+  """Which Jira users to map to Linear users."""
+  users: ImportUsersOption!
+}
+
+"""How a Jira project syncs with its team."""
+input JiraProjectMigrateSyncInput {
+  """
+  The direction in which the project syncs with the team. The legacy one-way mode is not accepted.
+  """
+  syncDirection: JiraSyncDirection!
+}
+
+"""Why one project of a Jira project migration failed its checks."""
+type JiraProjectMigrationError {
+  """The stable code of the failure."""
+  code: JiraProjectMigrationErrorCode!
+
+  """A message that explains the failure to the user."""
+  message: String!
+}
+
+"""Why one project of a Jira project migration failed its checks."""
+enum JiraProjectMigrationErrorCode {
+  """The project appears more than once in the migration."""
+  duplicateProject
+
+  """
+  A Jira import of the workspace is being deleted, or, for a project that only syncs, one of its own imports. Retry once it finishes.
+  """
+  importDeletionRunning
+
+  """The JQL filter does not parse."""
+  invalidJql
+
+  """
+  The project has no import and no sync, no team, a new team without an import, or not exactly one of an ID and a key.
+  """
+  invalidOptions
+
+  """Linear cannot sign in to Jira with the site's connection."""
+  jiraAuthFailed
+
+  """Jira rate limited the checks. Retry later."""
+  jiraRateLimited
+
+  """
+  Jira did not answer the checks, or answered with something they cannot read. Retry later.
+  """
+  jiraUnavailable
+
+  """
+  The legacy one-way sync was asked for. Only links that already use it keep it.
+  """
+  legacySyncDirection
+
+  """
+  Two-way sync was asked for, and the site's connection lacks Create Issues on the project.
+  """
+  missingCreateIssuesPermission
+
+  """Inviting users was asked for without the permission to invite users."""
+  missingInvitePermission
+
+  """
+  The user's own Jira account cannot access the project, or cannot sign in to Jira.
+  """
+  missingJiraAccess
+
+  """A new team was asked for without the team creation permission."""
+  missingTeamCreationPermission
+
+  """
+  The site's connection lacks the global ADMINISTER permission, which Linear needs to create the project's webhook.
+  """
+  missingWebhookPermission
+
+  """The import would read no issues."""
+  noMatchingIssues
+
+  """
+  Sync was asked for a project that already syncs. A project that only syncs, and already syncs with the same team in the same direction, counts as started instead.
+  """
+  projectAlreadySyncing
+
+  """
+  The project has a queued import, or a running one that changed in the last 24 hours. An import by the same user with the same choices counts as started instead.
+  """
+  projectBeingImported
+
+  """
+  The project was already migrating as asked when the checks began, but its import completed or its link changed before the migration could start. Send the project again.
+  """
+  projectChanged
+
+  """The ID or key is not in the site's project list."""
+  projectNotFound
+
+  """The site's connection cannot read the project."""
+  projectNotReadable
+
+  """
+  An import was asked into a team other than the one the project syncs with.
+  """
+  projectSyncsWithAnotherTeam
+
+  """
+  The team inherits its parent's workflow statuses, which an import would need to create.
+  """
+  teamInheritsWorkflowStatuses
+
+  """The user cannot access the team."""
+  teamNotAccessible
+
+  """The team does not exist or is archived."""
+  teamNotFound
+
+  """
+  The project's new team would exceed the workspace's team limit. The projects that pass their other checks take the room left under the limit in input order.
+  """
+  teamQuotaExceeded
+}
+
+"""What happened to one project of a Jira project migration."""
+type JiraProjectMigrationResult {
+  """
+  Why the project failed its checks and did not start. Null when the project is migrating.
+  """
+  error: JiraProjectMigrationError
+
+  """The Jira project ID. Null when the project was not found on the site."""
+  externalId: String
+
+  """The position of the project in the input, from 0."""
+  index: Int!
+
+  """
+  The number of issues the import reads, counted by the checks before it started. Null when the checks did not count them: for a project that only syncs, one that failed before the count, or one that was already migrating when the checks began.
+  """
+  issueCount: Int
+
+  """
+  The import that the migration started, or the queued or running import of a project that was already migrating. Null for a project that only syncs, or one that failed its checks.
+  """
+  issueImport: IssueImport
+
+  """
+  The Jira project that the migration wrote, or the existing one of a project that was already migrating. For a project that failed its checks, its existing Jira project, if any.
+  """
+  jiraProject: JiraProject
+
+  """
+  The Jira project key, read from Jira when the checks counted the project's issues. Null when the project was not found on the site.
+  """
+  key: String
+
+  """
+  The Jira project name. Null when the project was not found on the site.
+  """
+  name: String
+
+  """
+  Whether the project is migrating: the migration started it, or an earlier call already migrates it as asked.
+  """
+  success: Boolean!
 }
 
 type JiraProjectStatusesPayload {
@@ -18770,6 +19560,25 @@ type JiraProjectStatusesPayload {
 
   """The Jira project's project statuses (Epic)."""
   projectStatuses: [String!]!
+}
+
+"""
+How a Jira project syncs with its Linear team, as the Jira projects table in the settings shows it.
+"""
+enum JiraProjectSyncStatus {
+  """The project starts syncing once its running import completes."""
+  afterImport
+
+  """The project syncs both ways with its team."""
+  bidirectional
+
+  """
+  The project syncs from Jira to its team, in the one-way or legacy one-way mode.
+  """
+  jiraToLinear
+
+  """The project does not sync with a team."""
+  notSyncing
 }
 
 input JiraSettingsInput {
@@ -18806,6 +19615,24 @@ type JiraStatusNameCategoriesPayload {
 
   """The name of the Jira status."""
   name: String!
+}
+
+"""The direction in which a Jira project syncs with its Linear team."""
+enum JiraSyncDirection {
+  """
+  Changes sync both ways, and issues created in the Linear team can create issues in Jira.
+  """
+  bidirectional
+
+  """
+  Issues are created from Jira only. Changes to synced issues still sync back to Jira.
+  """
+  jiraToLinear
+
+  """
+  Issues are created from Jira only, and no changes sync back to Jira. Only links that already use it keep it.
+  """
+  legacyJiraToLinear
 }
 
 """
@@ -21367,6 +22194,14 @@ type Mutation {
     attachmentId: String!
   ): IssuePayload!
 
+  """
+  [INTERNAL] Dismisses a saved GitHub issue creation failure on an issue that has no linked GitHub issue. Linked GitHub issues and attachments are not changed.
+  """
+  issueGitHubSyncFailureDismiss(
+    """The identifier of the issue whose GitHub sync failure to dismiss."""
+    id: String!
+  ): IssuePayload!
+
   """Kicks off an Asana import job."""
   issueImportCreateAsana(
     """
@@ -21739,6 +22574,14 @@ type Mutation {
     input: JiraConfigurationInput!
   ): IntegrationPayload!
 
+  """
+  Migrates Jira projects of one connected Jira site to Linear. Each project is imported through the site's connection, synced with a team, or both. With both, sync starts once the import completes. Starts every project that passes its checks. A project that fails has an error and does not start, and does not stop the others; to retry, send only the failed projects again. Imports into one team run one at a time. A project that is already migrating as asked, such as when a call that timed out is sent again, counts as started: nothing new starts for it, and its result has the existing Jira project and import. Requires the `admin` scope, and the permissions the Migrate Jira project form needs. Takes up to 50 projects.
+  """
+  jiraProjectBatchMigrate(
+    """The Jira projects to migrate."""
+    input: JiraProjectBatchMigrateInput!
+  ): JiraProjectBatchMigratePayload!
+
   """Join a workspace from onboarding."""
   joinOrganizationFromOnboarding(
     """Details of the workspace to join."""
@@ -21931,6 +22774,22 @@ type Mutation {
   Cancels a previously requested workspace deletion, if the workspace has not yet been fully deleted.
   """
   organizationCancelDelete: OrganizationCancelDeletePayload!
+
+  """
+  [Internal] Completes connecting the workspace's Anthropic organization and selects it for new Claude Code sessions.
+  """
+  organizationCodingInferenceAnthropicConnectComplete(
+    """The authorization code from the callback."""
+    code: String!
+
+    """The state from the callback."""
+    state: String!
+  ): OrganizationPayload!
+
+  """
+  [Internal] Starts connecting the workspace's Anthropic organization to bill Claude Code sessions.
+  """
+  organizationCodingInferenceAnthropicConnectStart: CodingInferenceAnthropicConnectPayload!
 
   """
   [Internal] Removes a workspace inference credential and switches the harness to Linear inference.
@@ -24064,6 +24923,70 @@ input NullableDocumentContentFilter {
   updatedAt: DateComparator
 }
 
+"""Document filtering options."""
+input NullableDocumentFilter {
+  """Compound filters, all of which need to be matched by the document."""
+  and: [NullableDocumentFilter!]
+
+  """Comparator for the created at date."""
+  createdAt: DateComparator
+
+  """Filters that the document's creator must satisfy."""
+  creator: UserFilter
+
+  """Filters that the document's cycle must satisfy."""
+  cycle: CycleFilter
+
+  """Comparator for the identifier."""
+  id: IDComparator
+
+  """Filters that the document's initiative must satisfy."""
+  initiative: InitiativeFilter
+
+  """Filters that the document's issue must satisfy."""
+  issue: IssueFilter
+
+  """Filter based on the existence of the relation."""
+  null: Boolean
+
+  """Compound filters, one of which need to be matched by the document."""
+  or: [NullableDocumentFilter!]
+
+  """Filters that the document's owner must satisfy."""
+  owner: NullableUserFilter
+
+  """
+  [Internal] Filters that the document's parent document must satisfy. Use `null: true` for documents that are not sub-documents.
+  """
+  parentDocument: NullableDocumentFilter
+
+  """
+  [Internal] Filters that the user owning the personal space of a personal document must satisfy. Use `null: false` for personal documents.
+  """
+  personalUser: NullableUserFilter
+
+  """Filters that the document's project must satisfy."""
+  project: ProjectFilter
+
+  """Filters that the document's release must satisfy."""
+  release: ReleaseFilter
+
+  """[Internal] Comparator for the document's searchable content."""
+  searchableContent: ContentComparator
+
+  """Comparator for the document slug ID."""
+  slugId: StringComparator
+
+  """Filters that the document's team must satisfy."""
+  team: NullableTeamFilter
+
+  """Comparator for the document title."""
+  title: StringComparator
+
+  """Comparator for the updated at date."""
+  updatedAt: DateComparator
+}
+
 """Nullable comparator for optional durations."""
 input NullableDurationComparator {
   """Equals constraint."""
@@ -25568,7 +26491,7 @@ type Organization implements Node {
   generatedUpdatesEnabled: Boolean!
 
   """
-  The template format for Git branch names created from issues. Supports template variables like {issueIdentifier} and {issueTitle}. If null, the default formatting will be used.
+  The template format for Git branch names created from issues. Supports template variables like {issueIdentifier} and {issueTitle}. If null, the default formatting will be used. To get an issue's branch name, read the issue's branchName field instead of rendering this format.
   """
   gitBranchFormat: String
 
@@ -25729,6 +26652,11 @@ type Organization implements Node {
   [Internal] The teams each managed team feature is limited to, keyed by feature. The workspace's own setting for each feature still applies.
   """
   managedTeamFeatures: JSONObject!
+
+  """
+  [Internal] Workspace admin policy for the Linear MCP server, such as the teams MCP connections can access. Empty until saved, which allows every team.
+  """
+  mcpSettings: JSONObject!
 
   """The workspace's name."""
   name: String!
@@ -26461,6 +27389,38 @@ input OrganizationLinearAgentTrustedSourcesAllowlistEntryInput {
   key: String!
 }
 
+"""[Internal] A review category that Linear checks in its own research."""
+input OrganizationLinearReviewCategoryInput {
+  """[Internal] Whether Linear checks the category in reviews."""
+  enabled: Boolean!
+
+  """[Internal] The identifier of the category."""
+  id: String!
+
+  """
+  [Internal] Markdown instructions that tell the researcher what to check.
+  """
+  instructions: String!
+
+  """[Internal] How deeply the researcher reasons. Absent means auto."""
+  intelligence: WorkflowIntelligence
+
+  """
+  [Internal] Short name shown in settings and on the findings the category raises.
+  """
+  name: String!
+
+  """
+  [Internal] Repositories the category runs in when the scope is selected.
+  """
+  repositories: [OrganizationLinearReviewRepositoryInput!]!
+
+  """
+  [Internal] Whether the category runs in every reviewed repository or only the selected ones.
+  """
+  repositoryScope: RepositoryScope!
+}
+
 """[Internal] A repository that Linear Review covers."""
 input OrganizationLinearReviewRepositoryInput {
   """[Internal] Full name of the repository, such as owner/repo."""
@@ -26472,6 +27432,11 @@ input OrganizationLinearReviewRepositoryInput {
 
 """[Internal] Linear Review settings for the workspace."""
 input OrganizationLinearReviewSettingsInput {
+  """
+  [Internal] Review categories the workspace wrote. Omit to keep the saved categories.
+  """
+  categories: [OrganizationLinearReviewCategoryInput!]
+
   """[Internal] Whether Linear reviews pull requests."""
   enabled: Boolean!
 
@@ -26521,6 +27486,14 @@ input OrganizationManagedTeamFeaturesInput {
   [Internal] The teams Loops are limited to. Omit it to not limit Loops by team. A changed list needs at least one team. If every team left in it was deleted, the list is saved empty, so only Loops with no team run. `agentAutomationEnabled` still turns Loops on or off for the workspace.
   """
   loops: [OrganizationManagedFeatureTeamInput!]
+}
+
+"""[Internal] Workspace admin policy for the Linear MCP server."""
+input OrganizationMcpSettingsInput {
+  """
+  [Internal] The teams MCP connections can access. Omit it to allow every team, including teams created later. A changed list needs at least one team, and teams created later are not added to it. Workspace-level data, such as users and initiatives, stays available.
+  """
+  allowedTeamIds: [UUID!]
 }
 
 """
@@ -26840,6 +27813,11 @@ input OrganizationUpdateInput {
   """
   managedTeamFeatures: OrganizationManagedTeamFeaturesInput
 
+  """
+  [Internal] Workspace admin policy for the Linear MCP server. Replaces the current policy, so omitted settings return to their defaults.
+  """
+  mcpSettings: OrganizationMcpSettingsInput
+
   """The name of the workspace."""
   name: String
 
@@ -26954,6 +27932,11 @@ type OriginInstallationDetails {
 }
 
 input OriginSettingsInput {
+  """
+  Whether the installation granted the scopes Linear needs to read pull request code.
+  """
+  codeAccess: Boolean
+
   """The slug of the Origin team or user that owns the installation."""
   ownerSlug: String
 }
@@ -31628,7 +32611,7 @@ type PullRequest implements Node {
   openedAt: DateTime!
 
   """
-  [Internal] The deploy/build preview links parsed from the pull request description and comments.
+  [Internal] The preview links to show: the pull request's deployments and the links parsed from its description and comments.
   """
   previewLinks: [PullRequestPreviewLink!]!
 
@@ -31832,6 +32815,11 @@ enum PullRequestMergeMethod {
 type PullRequestMergeSettings {
   """Whether auto-merge is allowed for the PR's repository."""
   autoMergeAllowed: Boolean!
+
+  """
+  The merge method the repository uses by default. GitLab projects report one through their squash option. Null for GitHub, which has no default, and for settings synced before Linear stored it.
+  """
+  defaultMergeMethod: PullRequestMergeMethod
 
   """Whether the branch will be deleted when the pull request is merged."""
   deleteBranchOnMerge: Boolean!
@@ -32186,14 +33174,6 @@ type Query {
     """The identifier of the agent session."""
     agentSessionId: String!
   ): CodingAgentSandboxPayload
-
-  """
-  [Internal] SSH address of the current user's running coding sandbox for this agent session.
-  """
-  agentSessionSshAddress(
-    """The identifier of the agent session."""
-    agentSessionId: String!
-  ): String
 
   """All agent sessions."""
   agentSessions(
@@ -33542,6 +34522,46 @@ type Query {
   ): IssueConnection!
 
   """
+  One Jira project that the Jira projects table lists. Poll it until its import completes and its sync starts: `importStatus` is `imported`, `failed`, or `expired`, and `syncStatus` is no longer `afterImport`.
+  """
+  jiraProject(
+    """The identifier of the Jira project to retrieve."""
+    id: String!
+  ): JiraProject!
+
+  """
+  Jira projects that the workspace syncs with a Linear team or imported issues from, with the sync and import status of the Jira projects table in the settings. Lists the projects that sync with teams the user can administer, and those whose imports the user can see.
+  """
+  jiraProjects(
+    """A cursor to be used with first for forward pagination"""
+    after: String
+
+    """A cursor to be used with last for backward pagination."""
+    before: String
+
+    """Filter returned Jira projects."""
+    filter: JiraProjectFilter
+
+    """
+    The number of items to forward paginate (used with after). Defaults to 50.
+    """
+    first: Int
+
+    """Should archived resources be included (default: false)"""
+    includeArchived: Boolean
+
+    """
+    The number of items to backward paginate (used with before). Defaults to 50.
+    """
+    last: Int
+
+    """
+    By which field should the pagination order by. Available options are createdAt (default) and updatedAt.
+    """
+    orderBy: PaginationOrderBy
+  ): JiraProjectConnection!
+
+  """
   Returns the most recently completed or updated release for the pipeline associated with the access key.
   """
   latestReleaseByAccessKey: AccessKeyRelease
@@ -33645,6 +34665,11 @@ type Query {
 
   """The authenticated user's workspace."""
   organization: Organization!
+
+  """
+  [Internal] Whether this workspace can connect an Anthropic organization to bill Claude Code sessions.
+  """
+  organizationCodingInferenceAnthropicAvailable: Boolean!
 
   """
   [Internal] Saved workspace inference credentials for Coding Sessions, without their keys.
@@ -41505,7 +42530,12 @@ type UserSettings implements Node {
   notificationDeliveryPreferences: NotificationDeliveryPreferences!
 
   """
-  [Internal] The user's preferred merge method for pull requests. Null if the user chooses a method for each pull request.
+  [Internal] Whether the user merges each pull request with its repository's default merge method, as `mergeSettings.defaultMergeMethod` reports it. When true, `pullRequestMergeStrategyPreference` reports squash.
+  """
+  pullRequestMergeStrategyIsRepositoryDefault: Boolean!
+
+  """
+  [Internal] The user's preferred merge method for pull requests. Null if the user chooses a method for each pull request. Squash when the user merges with each repository's default method.
   """
   pullRequestMergeStrategyPreference: PullRequestMergeMethod
 
@@ -42036,6 +43066,11 @@ type ViewPreferencesValues {
 
   """The dashboards ordering."""
   dashboardsOrdering: String
+
+  """
+  [Internal] Whether to show the viewer's access column in documents lists.
+  """
+  documentFieldAccess: Boolean
 
   """
   [Internal] Whether to show the collaborators column in documents lists.
@@ -42685,6 +43720,9 @@ type ViewPreferencesValues {
   """Whether to show unread items first."""
   showUnreadItemsFirst: Boolean
 
+  """[Internal] Ordering of the sub-documents listed on a document."""
+  subDocumentsOrdering: String
+
   """Whether to show the team cycle field."""
   teamFieldCycle: Boolean
 
@@ -42808,6 +43846,9 @@ enum ViewType {
   projectsBacklog
   projectsClosed
   quickView
+
+  """[Internal] The Recent tab of the documents page."""
+  recentDocuments
   release
   releaseOverviewIssues
   releasePipelines
@@ -42823,12 +43864,16 @@ enum ViewType {
   """[Internal] The Shared with me tab of the documents page."""
   sharedDocuments
   splitSearch
+
+  """[Internal] The sub-documents list of a document."""
+  subDocuments
   subIssues
 
   """[Internal] The documents list of a team."""
   teamDocuments
   teams
   triage
+  upcomingCycle
   userProfile
   userProfileCreatedByUser
   userProfileDiffs
@@ -43849,6 +44894,7 @@ enum WorkflowTrigger {
 }
 
 enum WorkflowTriggerType {
+  aiConversation
   chat
   cycle
   document
@@ -43989,6 +45035,9 @@ type WorkspaceAnnouncementNotification implements Entity & Node & Notification {
 input WorkspaceTeamSecuritySettingsInput {
   """Whether members may join teams without an invitation."""
   allMembersCanJoin: Boolean
+
+  """Minimum role required to manage team loops."""
+  automationManagement: TeamRoleType
 
   """Minimum role required to manage team members."""
   memberManagement: TeamRoleType
