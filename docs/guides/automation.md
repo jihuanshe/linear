@@ -119,7 +119,7 @@ JSON 不与浏览器／应用跳转、显式交互／编辑或原文／脚本输
 
 `issue update` 在 mutation 确认后读取相同 Issue 和工作区，核对请求的字段及标签增删结果；仅在读到不同值时重读，最多读取 5 次，总时限 10 秒，用来等过 Linear 短暂返回的写入前旧值。身份、权限、结构等导致的不可用结果直接报告。正文沿用 `issue apply` 的 Markdown 结构比较，写前原始依据仍精确比较。成功结果的 `verification.status` 为 `verified`，`readBack` 保存 `{organization,issue}`；无需写入时沿用提交前的读取，不另做写后核验。
 
-Linear 保存正文时会改写 Markdown。结构比较只接受这些已知改写：列表符号改为 `*`、链接地址写成 `(<url>)` 并对非 ASCII 字符做百分号编码、列表项之间的空行、首尾空白，以及把裸域名 `notes.example.com` 自动链接为 `[notes.example.com](<http://notes.example.com>)`。其余差异都算不一致。正文只在经过这些改写后才一致时，`verification.normalizedFields` 列出该字段（如 `["description"]`）；这仍是 `verified`，不需要再手动读回。`issue apply` 的 `verification[]` 使用同一字段。
+Linear 保存正文时会改写 Markdown。结构比较只接受这些已知改写：列表符号改为 `*`、链接地址写成 `(<url>)` 并对非 ASCII 字符做百分号编码、列表项之间的空行、首尾空白，把裸域名 `notes.example.com` 自动链接为 `[notes.example.com](<http://notes.example.com>)`，以及把加粗里的行内代码移到加粗外（``**黑名单（`2015`）**`` 存为 ``**黑名单（**`2015`**）**``）。其余差异都算不一致。正文只在经过这些改写后才一致时，`verification.normalizedFields` 列出该字段（如 `["description"]`）；这仍是 `verified`，不需要再手动读回。`issue apply` 的 `verification[]` 使用同一字段。
 
 读回不匹配或不可用时，命令以非零退出，保留 `effect: applied` 与 `data` 中的 mutation 回执；`error.details.verification.status` 为 `different` 或 `unavailable`。这个读回不验证评论、附件或更晚发生的并发修改。
 

@@ -1384,6 +1384,42 @@ for (
       matches: true,
     },
     {
+      name: "bold text split around inline code",
+      desired: "- 范围\n- **黑名单（`2015`）**\n",
+      actual: "* 范围\n* **黑名单（**`2015`**）**",
+      matches: true,
+    },
+    {
+      name: "bold text split around inline code between spaces",
+      desired: "**对 `2015` 生效**",
+      actual: "**对** `2015` **生效**",
+      matches: true,
+    },
+    {
+      name: "bold text holding only inline code",
+      desired: "**`2015`**",
+      actual: "`2015`",
+      matches: true,
+    },
+    {
+      name: "edited text beside split bold code",
+      desired: "**黑名单（`2015`）**",
+      actual: "**白名单（**`2015`**）**",
+      matches: false,
+    },
+    {
+      name: "edited code inside split bold text",
+      desired: "**黑名单（`2015`）**",
+      actual: "**黑名单（**`2016`**）**",
+      matches: false,
+    },
+    {
+      name: "lost bold text around inline code",
+      desired: "**黑名单（`2015`）**",
+      actual: "黑名单（`2015`）",
+      matches: false,
+    },
+    {
       name: "a changed bare domain",
       desired: "见 notes.jihuanshe.com",
       actual: "见 docs.jihuanshe.com",
