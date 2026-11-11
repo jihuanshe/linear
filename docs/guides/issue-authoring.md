@@ -60,6 +60,7 @@ CLI 会检查 Issue 团队与项目是否兼容，但不判定业务归属。需
 - 录屏、日志、Replay、样本等用 `issue attach <issue> <path> --title <title>` 放入侧栏，或随评论上传，并写明复查方法。
 - 要在正文或表格中指定插入位置，先 `linear upload <path>`，再写入返回的 Markdown 片段。
 - 外部材料使用持久链接；仓库材料注明仓库、提交或分支、路径。本机路径、聊天附件和文件名不能替代接手者可访问的材料。
+- 正文、评论和文档引用其他 Issue 时写成 Markdown 链接，如 `[ENG-123](https://linear.app/<workspace>/issue/ENG-123)`，URL 可用 `linear issue url <issue>` 取得；经 CLI 或 API 写入的纯文本编号不会变成链接。GitHub 的 PR 和 Issue 同样写完整 URL。
 
 上传前移除凭据和非必要个人数据。上传默认工作区私有；用户要求公开访问时可用 `--public`，它只支持位图。附件存在不证明外部链接可以访问，未验证时注明。
 
