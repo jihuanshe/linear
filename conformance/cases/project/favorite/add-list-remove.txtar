@@ -1,0 +1,101 @@
+project favorite add writes only when the project is not yet a favorite and accepts the project's name, slug ID, UUID or URL; list shows only the viewer's project favorites, and remove deletes only an existing favorite.
+-- seed.json --
+{"Project": [{"id": "1e000000-0000-4000-8000-000000000001", "name": "Roadmap", "slugId": "a1b2c3d4e5f6", "url": "https://linear.app/kadoraba/project/roadmap-a1b2c3d4e5f6"}],
+ "Issue": [{"id": "1a000000-0000-4000-8000-000000000123", "identifier": "ENG-123", "title": "Feedback"}],
+ "Favorite": [{"id": "1f100000-0000-4000-8000-000000000001", "type": "issue", "owner": "0b000000-0000-4000-8000-000000000001", "issue": "1a000000-0000-4000-8000-000000000123", "parent": null}]}
+-- run --
+linear project favorite add Roadmap --json
+-- stdout.json --
+{
+  "ok": true,
+  "effect": "applied",
+  "data": {
+    "project": {
+      "id": "1e000000-0000-4000-8000-000000000001",
+      "slugId": "a1b2c3d4e5f6",
+      "name": "Roadmap",
+      "favorite": null
+    },
+    "favorite": {
+      "id": "{{=FAV}}",
+      "type": "project",
+      "title": "Roadmap",
+      "url": "https://linear.app/kadoraba/project/roadmap-a1b2c3d4e5f6",
+      "folderName": null,
+      "parent": null,
+      "project": {
+        "id": "1e000000-0000-4000-8000-000000000001",
+        "slugId": "a1b2c3d4e5f6",
+        "name": "Roadmap"
+      }
+    }
+  }
+}
+-- mutations.json --
+{"favoriteCreate": 1}
+-- state.json --
+{"Favorite": [{"type": "issue"}, {"type": "project", "project": "1e000000-0000-4000-8000-000000000001", "parent": null}]}
+-- run --
+linear project favorite add a1b2c3d4e5f6 --json
+-- stdout.json --
+{"ok": true, "effect": "none", "data": {"project": {"id": "1e000000-0000-4000-8000-000000000001", "...": true}, "favorite": {"id": "{{FAV}}", "type": "project", "...": true}}}
+-- mutations.json --
+{}
+-- run --
+linear project favorite list --json
+-- stdout.json --
+{
+  "nodes": [
+    {
+      "id": "{{FAV}}",
+      "type": "project",
+      "title": "Roadmap",
+      "url": "https://linear.app/kadoraba/project/roadmap-a1b2c3d4e5f6",
+      "folderName": null,
+      "parent": null,
+      "project": {
+        "id": "1e000000-0000-4000-8000-000000000001",
+        "slugId": "a1b2c3d4e5f6",
+        "name": "Roadmap"
+      }
+    }
+  ],
+  "pageInfo": {
+    "hasNextPage": false,
+    "endCursor": "{{*}}"
+  }
+}
+-- run --
+linear project favorite list
+-- stdout --
+a1b2c3d4e5f6	Roadmap
+-- run --
+linear issue favorite list --json
+-- stdout.json --
+{"nodes": [{"id": "1f100000-0000-4000-8000-000000000001", "type": "issue", "issue": {"id": "1a000000-0000-4000-8000-000000000123", "identifier": "ENG-123"}, "...": true}], "pageInfo": "{{*}}"}
+-- run --
+linear project favorite remove https://linear.app/kadoraba/project/roadmap-a1b2c3d4e5f6/overview --json
+-- stdout.json --
+{"ok": true, "effect": "applied", "data": {"project": {"id": "1e000000-0000-4000-8000-000000000001", "...": true}, "favorite": {"id": "{{FAV}}", "...": true}}}
+-- mutations.json --
+{"favoriteDelete": 1}
+-- run --
+linear project favorite remove 1e000000-0000-4000-8000-000000000001 --json
+-- stdout.json --
+{
+  "ok": true,
+  "effect": "none",
+  "data": {
+    "project": {
+      "id": "1e000000-0000-4000-8000-000000000001",
+      "slugId": "a1b2c3d4e5f6",
+      "name": "Roadmap",
+      "favorite": null
+    },
+    "favorite": null
+  }
+}
+-- mutations.json --
+{}
+-- state.json --
+{"Favorite": [{"type": "issue"}]}
