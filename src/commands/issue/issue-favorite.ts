@@ -3,7 +3,12 @@ import { gql } from "../../__codegen__/gql.ts"
 import { getGraphQLClient } from "../../utils/graphql.ts"
 import { getIssueReference } from "../../utils/linear.ts"
 import { readIssueHeader } from "../../utils/issue-read.ts"
-import { completeConnection } from "../../utils/pagination.ts"
+import {
+  assertFavoriteFolder,
+  deleteFavorite,
+  listFavorites,
+  resolveFavoriteFolder,
+} from "../../utils/favorites.ts"
 import {
   assertMutationReferences,
   assertMutationSuccess,
@@ -12,23 +17,6 @@ import {
 } from "../../utils/errors.ts"
 import { printWriteResult, writeResult } from "../../utils/write-result.ts"
 import { createUsageAction, withUsageMetadata } from "../usage.ts"
-
-const ListFavorites = gql(`
-  query ListFavorites($after: String, $first: Int) {
-    favorites(after: $after, first: $first) {
-      nodes {
-        id
-        type
-        title
-        url
-        folderName
-        parent { id folderName }
-        issue { id identifier }
-      }
-      pageInfo { hasNextPage endCursor }
-    }
-  }
-`)
 
 const CreateFavorite = gql(`
   mutation CreateFavorite($input: FavoriteCreateInput!) {
@@ -47,25 +35,6 @@ const CreateFavorite = gql(`
   }
 `)
 
-const DeleteFavorite = gql(`
-  mutation DeleteFavorite($id: String!) {
-    favoriteDelete(id: $id) { success }
-  }
-`)
-
-/** The authenticated user's complete favorites, used for list and folder lookup. */
-export async function listFavorites() {
-  const client = getGraphQLClient()
-  const first = await client.request(ListFavorites, { first: 100 })
-  return await completeConnection(
-    first.favorites,
-    async (after, pageSize) =>
-      (await client.request(ListFavorites, { after, first: pageSize }))
-        .favorites,
-    "favorites",
-  )
-}
-
 async function resolveIssue(reference: string) {
   const resolved = await getIssueReference(reference)
   if (resolved == null) {
@@ -83,38 +52,12 @@ export async function addIssueFavorite(
   const issue = await resolveIssue(reference)
   const existing = issue.favorite
   if (existing != null) {
-    if (
-      folderName != null && existing.parent?.folderName !== folderName
-    ) {
-      const current = existing.parent?.folderName == null
-        ? "the root favorites list"
-        : `folder ${JSON.stringify(existing.parent.folderName)}`
-      throw new ValidationError(
-        `Issue ${issue.identifier} is already favorited in ${current}; cannot place it in folder ${
-          JSON.stringify(folderName)
-        } without removing it first`,
-      )
-    }
+    assertFavoriteFolder(existing, folderName, `Issue ${issue.identifier}`)
     return writeResult({ issue, favorite: existing }, { effect: "none" })
   }
-  let parentId: string | undefined
-  if (folderName != null) {
-    const folders = (await listFavorites()).nodes.filter((favorite) =>
-      favorite.type === "folder" && favorite.folderName === folderName
-    )
-    if (folders.length === 0) {
-      throw new ValidationError(`Favorite folder not found: ${folderName}`)
-    }
-    if (folders.length > 1) {
-      throw new ValidationError(
-        `Favorite folder name is ambiguous: ${
-          JSON.stringify(folderName)
-        } matches ${folders.length} folders`,
-      )
-    }
-    const folder = folders[0]
-    parentId = folder.id
-  }
+  const parentId = folderName == null
+    ? undefined
+    : await resolveFavoriteFolder(folderName)
   const data = await getGraphQLClient().request(CreateFavorite, {
     input: { issueId: issue.id, ...(parentId == null ? {} : { parentId }) },
   })
@@ -134,10 +77,7 @@ export async function removeIssueFavorite(reference: string) {
   if (existing == null) {
     return writeResult({ issue, favorite: null }, { effect: "none" })
   }
-  const data = await getGraphQLClient().request(DeleteFavorite, {
-    id: existing.id,
-  })
-  assertMutationSuccess(data.favoriteDelete, data)
+  await deleteFavorite(existing.id)
   return writeResult({ issue, favorite: existing })
 }
 
@@ -153,7 +93,9 @@ const listCommand = new Command()
       const all = await listFavorites()
       const favorites = {
         ...all,
-        nodes: all.nodes.filter((favorite) => favorite.issue != null),
+        nodes: all.nodes.flatMap(({ project: _, ...favorite }) =>
+          favorite.issue == null ? [] : [favorite]
+        ),
       }
       if (json) {
         console.log(JSON.stringify(favorites, null, 2))

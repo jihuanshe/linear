@@ -469,25 +469,31 @@ const attachmentCreate: RootField = ({ input }, ctx) => {
 }
 
 // ---------------------------------------------------------------------------
-// Favorite: the viewer's own; issue favorites take the issue's title and URL.
+// Favorite: the viewer's own; issue and project favorites take the target's
+// title and URL.
 
 const favoriteCreate: RootField = ({ input }, ctx) => {
   const data = input as Input
   rejectUnknown(
     data,
-    ["id", "issueId", "folderName", "parentId", "sortOrder"],
+    ["id", "issueId", "projectId", "folderName", "parentId", "sortOrder"],
     "favoriteCreate",
   )
   const now = ctx.store.now()
   const issue = data.issueId == null
     ? null
     : lookup(ctx, "Issue", String(data.issueId), ISSUE_KEYS)
+  const project = data.projectId == null
+    ? null
+    : lookup(ctx, "Project", String(data.projectId), ["slugId"])
+  const target = issue ?? project
   const favorite = ctx.store.insert({
     id: typeof data.id === "string" ? data.id : ctx.store.newId(),
     __typename: "Favorite",
-    type: issue == null ? "folder" : "issue",
-    folderName: issue == null ? data.folderName ?? null : null,
+    type: issue != null ? "issue" : project != null ? "project" : "folder",
+    folderName: target == null ? data.folderName ?? null : null,
     issue: issue?.id ?? null,
+    project: project?.id ?? null,
     parent: ref(ctx, "Favorite", data.parentId),
     owner: ctx.store.viewer().id,
     sortOrder: data.sortOrder ?? 0,

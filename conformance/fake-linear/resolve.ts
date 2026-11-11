@@ -95,19 +95,27 @@ const COMPUTED: Record<string, Computed> = {
     teamCycles(store, team.id)
       .find((c) => cyclePhase(c, store.worldNow()) === "active")?.id ?? null,
   "Team.organization": (_, { store }) => store.singleton("Organization").id,
-  // The viewer's own favorite of this issue, if any.
+  // The viewer's own favorite of this issue or project, if any.
   "Issue.favorite": (issue, { store }) =>
     store.all("Favorite").find((favorite) =>
       favorite.issue === issue.id && favorite.owner === store.viewer().id
     )?.id ?? null,
-  // Issue favorites show the issue's current title and URL.
+  "Project.favorite": (project, { store }) =>
+    store.all("Favorite").find((favorite) =>
+      favorite.project === project.id && favorite.owner === store.viewer().id
+    )?.id ?? null,
+  // Issue and project favorites show the target's current title and URL.
   "Favorite.title": (favorite, ctx) => {
     const issue = ctx.store.find("Issue", favorite.issue as string)
-    return issue == null ? (favorite.folderName ?? null) : issue.title
+    if (issue != null) return issue.title
+    const project = ctx.store.find("Project", favorite.project as string)
+    return project == null ? (favorite.folderName ?? null) : project.name
   },
   "Favorite.url": (favorite, ctx) => {
     const issue = ctx.store.find("Issue", favorite.issue as string)
-    return issue == null ? null : COMPUTED["Issue.url"](issue, ctx)
+    if (issue != null) return COMPUTED["Issue.url"](issue, ctx)
+    const project = ctx.store.find("Project", favorite.project as string)
+    return project?.url ?? null
   },
 }
 
