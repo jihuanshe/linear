@@ -30,19 +30,20 @@ function rewriteLinks(line: string): string {
 /**
  * Observed (jihuanshe workspace): "**黑名单（`2015`）**" is stored as
  * "**黑名单（**`2015`**）**": bold text stops around inline code. Modeled only
- * for a bold run on one line, outside indented code; code spans and links
- * stay as written.
+ * for a bold run on one line, outside indented code; code spans (also across
+ * lines) and links stay as written.
  */
-function splitBoldAroundCode(line: string): string {
-  if (/^(?: {4}|\t)/.test(line)) return line
+function splitBoldAroundCode(lines: string[]): string[] {
+  const code = lines.map((line) => /^(?: {4}|\t)/.test(line))
+  const text = lines.map((line, i) => code[i] ? "" : line).join("\n")
   const protectedParts: string[] = []
-  const masked = proseRanges(line).map((part) => {
+  const masked = proseRanges(text).map((part) => {
     if (part.prose) return part.text
     protectedParts.push(part.text)
     return `\0${protectedParts.length - 1}\0`
   }).join("")
   const isCode = (index: string) => protectedParts[Number(index)][0] === "`"
-  return masked.replace(
+  const split = masked.replace(
     /\*\*([^*\n]*?)\*\*/g,
     (bold, inner: string) => {
       const pieces = inner.split(/(\0\d+\0)/)
@@ -65,8 +66,8 @@ function splitBoldAroundCode(line: string): string {
         run = ""
       }
       for (const piece of pieces) {
-        const code = /^\0(\d+)\0$/.exec(piece)
-        if (code != null && isCode(code[1])) {
+        const index = /^\0(\d+)\0$/.exec(piece)?.[1]
+        if (index != null && isCode(index)) {
           flush()
           out.push(piece)
         } else run += piece
@@ -75,6 +76,8 @@ function splitBoldAroundCode(line: string): string {
       return out.join("")
     },
   ).replace(/\0(\d+)\0/g, (_, index: string) => protectedParts[Number(index)])
+    .split("\n")
+  return lines.map((line, i) => code[i] ? line : split[i])
 }
 
 const BARE_HOST =
@@ -178,9 +181,7 @@ export function normalizeLinearMarkdown(text: string): string {
   const flush = () => {
     out.push(
       ...linkBareDomains(
-        rewriteLists(block).map((line) =>
-          rewriteLinks(splitBoldAroundCode(line))
-        ),
+        splitBoldAroundCode(rewriteLists(block)).map(rewriteLinks),
       ),
     )
     block = []

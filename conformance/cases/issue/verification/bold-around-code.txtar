@@ -1,4 +1,4 @@
-Linear stores bold text that holds inline code as bold runs around the code, together with its other list and whitespace rewrites; `**` inside a code span stays literal. A protected update verifies that read-back and reports the normalized description; an edit by someone else right after the write still fails verification.
+Linear stores bold text that holds inline code as bold runs around the code, together with its other list and whitespace rewrites; `**` inside a code span, also one across lines, stays literal. A protected update verifies that read-back and reports the normalized description; an edit by someone else right after the write still fails verification.
 -- seed.json --
 {"Issue": [{"id": "1a000000-0000-4000-8000-000000000123", "identifier": "ENG-123", "title": "Verified", "description": "Before"}]}
 -- run --
@@ -7,6 +7,10 @@ linear issue view ENG-123 --json > original.json
 - 范围
 - **黑名单（`2015`）**
 - 写法 ``**a `b` c**``
+
+示例 ``开始
+**a `b` c**
+结束``
 -- run --
 linear issue update ENG-123 --description-file desired.md --base-file original.json --json
 -- stdout.json --
@@ -19,7 +23,7 @@ linear issue update ENG-123 --description-file desired.md --base-file original.j
       "field": "description",
       "inputField": "description",
       "base": "Before",
-      "desired": "- 范围\n- **黑名单（`2015`）**\n- 写法 ``**a `b` c**``\n",
+      "desired": "- 范围\n- **黑名单（`2015`）**\n- 写法 ``**a `b` c**``\n\n示例 ``开始\n**a `b` c**\n结束``\n",
       "remote": "Before",
       "verdict": "write"
     }
@@ -35,14 +39,14 @@ linear issue update ENG-123 --description-file desired.md --base-file original.j
     "organization": {"...": true},
     "issue": {
       "...": true,
-      "description": "* 范围\n* **黑名单（**`2015`**）**\n* 写法 ``**a `b` c**``"
+      "description": "* 范围\n* **黑名单（**`2015`**）**\n* 写法 ``**a `b` c**``\n\n示例 ``开始\n**a `b` c**\n结束``"
     }
   }
 }
 -- mutations.json --
 {"issueUpdate": 1}
 -- state.json --
-{"Issue": [{"identifier": "ENG-123", "description": "* 范围\n* **黑名单（**`2015`**）**\n* 写法 ``**a `b` c**``"}]}
+{"Issue": [{"identifier": "ENG-123", "description": "* 范围\n* **黑名单（**`2015`**）**\n* 写法 ``**a `b` c**``\n\n示例 ``开始\n**a `b` c**\n结束``"}]}
 -- run --
 linear issue view ENG-123 --json > second.json
 -- file desired2.md --
@@ -79,9 +83,9 @@ linear issue update ENG-123 --description-file desired2.md --base-file second.js
         {
           "field": "description",
           "inputField": "description",
-          "base": "* 范围\n* **黑名单（**`2015`**）**\n* 写法 ``**a `b` c**``",
+          "base": "* 范围\n* **黑名单（**`2015`**）**\n* 写法 ``**a `b` c**``\n\n示例 ``开始\n**a `b` c**\n结束``",
           "desired": "**对 `2015` 生效**\n",
-          "remote": "* 范围\n* **黑名单（**`2015`**）**\n* 写法 ``**a `b` c**``",
+          "remote": "* 范围\n* **黑名单（**`2015`**）**\n* 写法 ``**a `b` c**``\n\n示例 ``开始\n**a `b` c**\n结束``",
           "verdict": "write"
         }
       ]
