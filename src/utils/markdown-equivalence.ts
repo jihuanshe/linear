@@ -119,6 +119,54 @@ function sameNode(written: MdNode, actual: MdNode): boolean {
   return i === w.length && j === a.length
 }
 
+/**
+ * Linear keeps inline code out of bold text: `**a (`x`)**` reads back as
+ * `**a (**`x`**)**`. Split each bold run around its code spans, moving the
+ * whitespace at a cut outside the bold text, so both forms compare equal.
+ */
+function liftCodeOutOfStrong(node: MdNode): void {
+  if (node.children == null) return
+  node.children.forEach(liftCodeOutOfStrong)
+  node.children = node.children.flatMap((child): MdNode[] => {
+    const parts = child.children
+    if (
+      child.type !== "strong" || parts == null ||
+      !parts.some((part) => part.type === "inlineCode")
+    ) return [child]
+    const out: MdNode[] = []
+    let run: MdNode[] = []
+    const flush = () => {
+      const edge = (index: number, pattern: RegExp): string => {
+        const part = run.at(index)
+        if (part?.type !== "text" || typeof part.value !== "string") return ""
+        const space = pattern.exec(part.value)![0]
+        const value = index === 0
+          ? part.value.slice(space.length)
+          : part.value.slice(0, part.value.length - space.length)
+        run[index < 0 ? run.length + index : index] = { ...part, value }
+        return space
+      }
+      const before = edge(0, /^\s*/)
+      const after = edge(-1, /\s*$/)
+      run = run.filter((part) => part.type !== "text" || part.value !== "")
+      if (before) out.push({ type: "text", value: before })
+      if (run.length) out.push({ ...child, children: run })
+      if (after) out.push({ type: "text", value: after })
+      run = []
+    }
+    for (const part of parts) {
+      if (part.type === "inlineCode") {
+        flush()
+        out.push(part)
+      } else {
+        run.push(part)
+      }
+    }
+    flush()
+    return out
+  })
+}
+
 function comparableMarkdown(markdown: string): MdNode {
   const tree = parser.parse(markdown)
   visit(tree, (node) => {
@@ -159,15 +207,17 @@ function comparableMarkdown(markdown: string): MdNode {
       for (const item of node.children) item.spread = false
     }
   })
-  return tree as unknown as MdNode
+  const root = tree as unknown as MdNode
+  liftCodeOutOfStrong(root)
+  return root
 }
 
 /**
  * How Markdown read back after a write matches what was sent: `exact` bytes,
  * `normalized` when it differs only by the rewrites Linear applies on save
  * (bullet markers, `(<url>)` link destinations, percent-encoded URLs, blank
- * lines between list items, trailing whitespace and auto-linked bare
- * domains), or `different`. Original-value guards stay exact.
+ * lines between list items, trailing whitespace, auto-linked bare domains
+ * and bold text split around inline code), or `different`. Original-value guards stay exact.
  */
 export function compareMarkdown(
   expected: string,

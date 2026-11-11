@@ -1,0 +1,98 @@
+Linear stores bold text that holds inline code as bold runs around the code, together with its other list and whitespace rewrites; `**` inside a code span, also one across lines, stays literal. A protected update verifies that read-back and reports the normalized description; an edit by someone else right after the write still fails verification.
+-- seed.json --
+{"Issue": [{"id": "1a000000-0000-4000-8000-000000000123", "identifier": "ENG-123", "title": "Verified", "description": "Before"}]}
+-- run --
+linear issue view ENG-123 --json > original.json
+-- file desired.md --
+- 范围
+- **黑名单（`2015`）**
+- 写法 ``**a `b` c**``
+
+示例 ``开始
+**a `b` c**
+结束``
+-- run --
+linear issue update ENG-123 --description-file desired.md --base-file original.json --json
+-- stdout.json --
+{
+  "ok": true,
+  "effect": "applied",
+  "data": {"...": true},
+  "fields": [
+    {
+      "field": "description",
+      "inputField": "description",
+      "base": "Before",
+      "desired": "- 范围\n- **黑名单（`2015`）**\n- 写法 ``**a `b` c**``\n\n示例 ``开始\n**a `b` c**\n结束``\n",
+      "remote": "Before",
+      "verdict": "write"
+    }
+  ],
+  "verification": {
+    "scope": "issue-fields",
+    "status": "verified",
+    "normalizedFields": [
+      "description"
+    ]
+  },
+  "readBack": {
+    "organization": {"...": true},
+    "issue": {
+      "...": true,
+      "description": "* 范围\n* **黑名单（**`2015`**）**\n* 写法 ``**a `b` c**``\n\n示例 ``开始\n**a `b` c**\n结束``"
+    }
+  }
+}
+-- mutations.json --
+{"issueUpdate": 1}
+-- state.json --
+{"Issue": [{"identifier": "ENG-123", "description": "* 范围\n* **黑名单（**`2015`**）**\n* 写法 ``**a `b` c**``\n\n示例 ``开始\n**a `b` c**\n结束``"}]}
+-- run --
+linear issue view ENG-123 --json > second.json
+-- file desired2.md --
+**对 `2015` 生效**
+-- faults.json --
+[{"on": "mutation:issueUpdate", "action": "patch-after", "seed": {"Issue": [{"id": "1a000000-0000-4000-8000-000000000123", "description": "**对** `2016` **生效**"}]}}]
+-- run --
+linear issue update ENG-123 --description-file desired2.md --base-file second.json --json
+-- stdout.json --
+{
+  "ok": false,
+  "effect": "applied",
+  "data": {"...": true},
+  "error": {
+    "code": "WriteError",
+    "message": "Failed to update issue: Issue mutation succeeded but read-back did not verify",
+    "suggestion": "Read the issue before continuing; do not repeat the mutation.",
+    "details": {
+      "verification": {
+        "scope": "issue-fields",
+        "status": "different",
+        "fields": [
+          "description"
+        ]
+      },
+      "readBack": {
+        "organization": {"...": true},
+        "issue": {
+          "...": true,
+          "description": "**对** `2016` **生效**"
+        }
+      },
+      "fields": [
+        {
+          "field": "description",
+          "inputField": "description",
+          "base": "* 范围\n* **黑名单（**`2015`**）**\n* 写法 ``**a `b` c**``\n\n示例 ``开始\n**a `b` c**\n结束``",
+          "desired": "**对 `2015` 生效**\n",
+          "remote": "* 范围\n* **黑名单（**`2015`**）**\n* 写法 ``**a `b` c**``\n\n示例 ``开始\n**a `b` c**\n结束``",
+          "verdict": "write"
+        }
+      ]
+    }
+  }
+}
+-- exit --
+1
+-- mutations.json --
+{"issueUpdate": 1}

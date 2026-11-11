@@ -27,6 +27,59 @@ function rewriteLinks(line: string): string {
   })
 }
 
+/**
+ * Observed (jihuanshe workspace): "**黑名单（`2015`）**" is stored as
+ * "**黑名单（**`2015`**）**": bold text stops around inline code. Modeled only
+ * for a bold run on one line, outside indented code; code spans (also across
+ * lines) and links stay as written.
+ */
+function splitBoldAroundCode(lines: string[]): string[] {
+  const code = lines.map((line) => /^(?: {4}|\t)/.test(line))
+  const text = lines.map((line, i) => code[i] ? "" : line).join("\n")
+  const protectedParts: string[] = []
+  const masked = proseRanges(text).map((part) => {
+    if (part.prose) return part.text
+    protectedParts.push(part.text)
+    return `\0${protectedParts.length - 1}\0`
+  }).join("")
+  const isCode = (index: string) => protectedParts[Number(index)][0] === "`"
+  const split = masked.replace(
+    /\*\*([^*\n]*?)\*\*/g,
+    (bold, inner: string) => {
+      const pieces = inner.split(/(\0\d+\0)/)
+      if (
+        !pieces.some((piece) =>
+          /^\0(\d+)\0$/.test(piece) && isCode(piece.slice(1, -1))
+        )
+      ) {
+        return bold
+      }
+      const out: string[] = []
+      let run = ""
+      const flush = () => {
+        const text = run.trim()
+        if (text !== "") {
+          const [before] = /^\s*/.exec(run)!
+          const [after] = /\s*$/.exec(run)!
+          out.push(`${before}**${text}**${after}`)
+        } else out.push(run)
+        run = ""
+      }
+      for (const piece of pieces) {
+        const index = /^\0(\d+)\0$/.exec(piece)?.[1]
+        if (index != null && isCode(index)) {
+          flush()
+          out.push(piece)
+        } else run += piece
+      }
+      flush()
+      return out.join("")
+    },
+  ).replace(/\0(\d+)\0/g, (_, index: string) => protectedParts[Number(index)])
+    .split("\n")
+  return lines.map((line, i) => code[i] ? line : split[i])
+}
+
 const BARE_HOST =
   /(^|\s)((?:[a-z0-9-]+\.)+(?:com|cn|net|org|io))(?=$|[\s,;!)]|[.?:](?:$|\s))/g
 const LINK_OR_AUTOLINK = /^(?:!?\[[^\]]*\]\([^)]*\)|<[^>\s]*>)/
@@ -126,7 +179,11 @@ export function normalizeLinearMarkdown(text: string): string {
   let block: string[] = []
   let fenced = false
   const flush = () => {
-    out.push(...linkBareDomains(rewriteLists(block).map(rewriteLinks)))
+    out.push(
+      ...linkBareDomains(
+        splitBoldAroundCode(rewriteLists(block)).map(rewriteLinks),
+      ),
+    )
     block = []
   }
   for (const line of lines) {
