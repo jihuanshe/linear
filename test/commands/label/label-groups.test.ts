@@ -123,9 +123,13 @@ for (
     "wrong workspace",
     "dependency conflict",
     "receipt mismatch",
+    "partial receipt",
+    "unconfirmed partial receipt",
   ]
 ) {
   Deno.test(`label group mode update: ${scenario}`, async () => {
+    const partialReceipt = scenario === "partial receipt" ||
+      scenario === "unconfirmed partial receipt"
     const current = {
       ...group,
       groupType: scenario === "repeat" ? "multiSelect" : "singleSelect",
@@ -140,15 +144,25 @@ for (
         response: {
           data: {
             issueLabelUpdate: {
-              success: true,
+              success: scenario !== "unconfirmed partial receipt",
               issueLabel: {
                 ...group,
-                groupType: scenario === "receipt mismatch"
+                groupType: partialReceipt
+                  ? null
+                  : scenario === "receipt mismatch"
                   ? "singleSelect"
                   : "multiSelect",
               },
             },
           },
+          ...(partialReceipt
+            ? {
+              errors: [{
+                message: "Group type unavailable",
+                path: ["issueLabelUpdate", "issueLabel", "groupType"],
+              }],
+            }
+            : {}),
         },
       },
     ])
@@ -199,8 +213,24 @@ for (
         assertEquals(result.body.effect, "none")
         assertEquals(mutations.length, 0)
       } else {
-        assertEquals(result.code, scenario === "receipt mismatch" ? 1 : 0)
-        assertEquals(result.body.effect, "applied")
+        assertEquals(
+          result.code,
+          scenario === "receipt mismatch" || partialReceipt ? 1 : 0,
+        )
+        assertEquals(
+          result.body.effect,
+          scenario === "unconfirmed partial receipt" ? "unknown" : "applied",
+        )
+        if (partialReceipt) {
+          assertStringIncludes(
+            result.body.error.message,
+            "Group type unavailable",
+          )
+          assertEquals(
+            result.body.data.issueLabelUpdate.success,
+            scenario !== "unconfirmed partial receipt",
+          )
+        }
         assertEquals(mutations.map((r) => r.variables), [{
           id: groupId,
           input: { groupType: "multiSelect" },

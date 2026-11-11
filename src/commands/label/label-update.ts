@@ -25,7 +25,11 @@ const UpdateIssueLabel = gql(`
   mutation UpdateIssueLabel($id: String!, $input: IssueLabelUpdateInput!) {
     issueLabelUpdate(id: $id, input: $input) {
       success
-      issueLabel { ...IssueLabelDetails }
+      issueLabel {
+        id name color description isGroup groupType archivedAt
+        parent { id name }
+        team { id key name }
+      }
     }
   }
 `)
