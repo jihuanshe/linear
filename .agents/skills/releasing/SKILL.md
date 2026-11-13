@@ -62,7 +62,7 @@ gh run watch "$run_id" --exit-status
 flowchart TD
   push["推送 main"] --> keyring["Linux 密钥环集成测试"]
   push --> builds["五个平台构建"]
-  keyring --> assets["10 个分发文件<br/>10 个 SHA-256 校验和文件<br/>sha256.sum"]
+  keyring --> assets["11 个分发文件<br/>11 个 SHA-256 校验和文件<br/>sha256.sum"]
   builds --> assets
   assets --> draft["创建或恢复 Draft Release"]
   draft --> attest["验证来源并发布 GitHub Release"]
@@ -73,7 +73,7 @@ flowchart TD
   history --> linear
 ```
 
-每个平台产出一个安装归档、一个独立自更新二进制和各自的 SHA-256 校验和文件。GitHub Release 只有在对应提交仍是当前 `main` 最新提交时才标记为 `latest`，防止较早的排队任务把安装目标倒退到旧版本。Linear Release 使用准确的 `before..HEAD` 推送范围；其 ID 和 URL 必须非空，版本必须与 GitHub Release 一致。
+每个平台产出一个安装归档、一个独立自更新二进制和各自的 SHA-256 校验和文件。发布任务额外打包仓库根目录的 `install.sh` 和 `install.sh.sha256`，并将脚本纳入 `sha256.sum` 与来源证明。GitHub Release 只有在对应提交仍是当前 `main` 最新提交时才标记为 `latest`，防止较早的排队任务把安装目标倒退到旧版本。Linear Release 使用准确的 `before..HEAD` 推送范围；其 ID 和 URL 必须非空，版本必须与 GitHub Release 一致。
 
 ## 发布后验证
 
@@ -90,7 +90,7 @@ if [[ "$(git rev-parse origin/main)" == "$(git rev-parse HEAD)" ]]; then
 fi
 ```
 
-必须确认该 Release 指向推送的提交、已经发布且不是预发布版本。如果推送的提交仍是当前 `main` 的最新提交，还必须确认它是 `latest`。它必须包含 21 个文件：10 个可分发文件、10 个独立校验和文件以及 `sha256.sum`。
+必须确认该 Release 指向推送的提交、已经发布且不是预发布版本。如果推送的提交仍是当前 `main` 的最新提交，还必须确认它是 `latest`。它必须包含 23 个文件：10 个二进制／归档、`install.sh`、11 个独立校验和文件以及 `sha256.sum`。匿名下载该确切 tag 的 `install.sh` 和 `install.sh.sha256` 并校验；再确认 `releases/latest/download/` 下这两个资产可匿名下载。
 
 如果 mise 可用，验证公开安装解析出的版本是否符合预期：
 

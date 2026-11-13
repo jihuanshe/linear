@@ -11,6 +11,31 @@ linear --version
 
 mise 配置钉成确切版本时 `linear update` 会报错，处理方式和交给 AI Agent 的提示词见 [README 的更新章节](../README.md#更新)。
 
+### Orb setup
+
+Linux x86_64、Linux aarch64／arm64 和 macOS arm64 可以使用 Release 资产 `install.sh`。依赖 Bash、curl、tar（支持 xz）及 `sha256sum` 或 `shasum`。在各仓库 `.agents/setup` 的其他 PATH 初始化之后加入：
+
+```bash
+if ! (
+  installer="$(mktemp)" || exit 1
+  trap 'rm -f "$installer"' EXIT
+  curl -q --fail --silent --show-error --location --proto '=https' --proto-redir '=https' \
+    --connect-timeout 10 --max-time 120 --retry 2 --retry-max-time 180 \
+    --output "$installer" https://github.com/jihuanshe/linear/releases/latest/download/install.sh || exit 1
+  bash "$installer" --strict
+) >/dev/null 2>&1; then
+  printf 'WARN: Linear CLI bootstrap failed; continuing setup\n' >&2
+fi
+```
+
+安装器匿名解析当刻 Latest 的确切 tag，并下载同 tag 的平台归档和 `.sha256`；校验和、文件名、二进制版本及最低版本全部通过后，原子替换 `~/.local/bin/linear`。它在 Bash 实际使用的首个 login 文件（`.bash_profile`、`.bash_login`、`.profile`，均不存在时创建 `.bash_profile`）末尾维护一条 local bin 优先的 PATH，每次执行都会将该行移到最后，并验收当前目录和 HOME 中的新 login shell。
+
+默认下限为 `0.0.1794558300-g5800a29`。`LINEAR_MIN_VERSION=<tag>` 或 `bash install.sh --min-version <tag>` 可以提高下限。成功时没有输出；失败时只向 stderr 输出一行 `WARN: Linear CLI <stage> failed; continuing setup`，保留旧入口并返回 0。`--strict` 使失败返回 1；上面的 wrapper 使用此模式统一收口下载或安装失败，setup 继续执行。修复失败阶段后重新运行 wrapper 即可。
+
+安装事务使用 `~/.local/bin/.linear-install.lock` 目录锁，重叠调用在 `lock` 阶段失败。PATH 文件与二进制在同一锁内验收，失败时恢复两者。进程被 SIGKILL 等强制终止后，先确认没有安装器仍在运行，再检查遗留的 `.linear-install.*`、login 文件旁的 `.linear-profile.*` 中的 `previous` 备份，恢复需要的文件，最后用 `rmdir ~/.local/bin/.linear-install.lock` 解除锁并重试。
+
+Release 同时提供 `install.sh.sha256`；需要独立检查脚本时，从同一确切 tag 下载这两个文件后执行 `sha256sum --check install.sh.sha256`。
+
 ## 认证
 
 在 Linear 的 Settings > Account > Security & Access 创建 Personal API key，再通过提示符登录：
