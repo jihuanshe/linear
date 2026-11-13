@@ -8,7 +8,11 @@ import {
   parse,
   type SelectionSetNode,
 } from "graphql"
-import { getGraphQLEndpoint, getResolvedApiKey } from "../utils/graphql.ts"
+import {
+  getGraphQLCancellationSignal,
+  getGraphQLEndpoint,
+  getResolvedApiKey,
+} from "../utils/graphql.ts"
 import { graphqlFetch } from "../utils/graphql-transport.ts"
 import { completeConnection, type Connection } from "../utils/pagination.ts"
 import { setMachineOutput } from "../utils/write-result.ts"
@@ -263,7 +267,7 @@ async function requestPage(
     method: "POST",
     headers,
     body: JSON.stringify(body),
-  })
+  }, getGraphQLCancellationSignal())
 
   const text = await response.text()
 

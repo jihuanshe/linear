@@ -12,6 +12,7 @@ import { graphqlFetch, graphQLOperation } from "./graphql-transport.ts"
 import { LINEAR_API_ENDPOINT } from "../const.ts"
 import { AsyncLocalStorage } from "node:async_hooks"
 import { ClientCredentialsSession } from "./oauth.ts"
+import { CommandExit } from "./process-exit.ts"
 
 export { ClientError }
 
@@ -143,10 +144,16 @@ async function resolveApiKey(forDisplay = false): Promise<string | undefined> {
 export function getResolvedApiKey(
   options: { forDisplay?: boolean } = {},
 ): Promise<string | undefined> {
+  getGraphQLCancellationSignal()?.throwIfAborted()
   if (options.forDisplay) return resolveApiKey(true)
   const invocation = invocationClient.getStore()
   if (!invocation?.active) return resolveApiKey()
   return invocation.apiKey ??= resolveApiKey()
+}
+
+/** Cancellation stops new dispatches without discarding in-flight receipts. */
+export function getGraphQLCancellationSignal(): AbortSignal | undefined {
+  return invocationClient.getStore()?.oauth?.signal
 }
 
 /**
@@ -179,7 +186,11 @@ function createClient(
       const operation = graphQLOperation(init?.body)
       const mutation = operation === "mutation" || operation == null
       try {
-        const response = await graphqlFetch(input, init)
+        const response = await graphqlFetch(
+          input,
+          init,
+          getGraphQLCancellationSignal(),
+        )
         if (!mutation) return response
         // Transport has already bounded and buffered the receipt. Invalid JSON
         // or a missing receipt after headers is still an unknown mutation.
@@ -213,6 +224,7 @@ function createClient(
           headers: response.headers,
         })
       } catch (cause) {
+        if (cause instanceof CommandExit) throw cause
         if (!mutation) throw cause
         if (cause instanceof WriteError) throw cause
         throw new WriteError("Mutation response was not received", {

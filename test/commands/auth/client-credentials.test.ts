@@ -1,5 +1,14 @@
 import { assertEquals, assertMatch, assertNotMatch } from "@std/assert"
 import { fromFileUrl } from "@std/path"
+import {
+  fixture as deliveryFixture,
+  issue,
+  manifest,
+  update,
+  WORKSPACE,
+} from "../../delivery/fixture.ts"
+import { checkpointPath } from "../../../src/delivery/checkpoint.ts"
+import { MockLinearServer } from "../../utils/mock_linear_server.ts"
 
 const main = fromFileUrl(new URL("../../../src/main.ts", import.meta.url))
 const config = fromFileUrl(new URL("../../../deno.json", import.meta.url))
@@ -16,6 +25,7 @@ async function fixture(
     revokeStatus?: number
     alreadyRevoked?: boolean
     pause?: "token" | "graphql" | "revoke"
+    graphqlEndpoint?: string
   },
   action: (f: {
     run: (args: string[], env?: Record<string, string>) => Deno.ChildProcess
@@ -36,10 +46,11 @@ async function fixture(
     { hostname: "127.0.0.1", port: 0, onListen() {} },
     async (request) => {
       const path = new URL(request.url).pathname
+      const body = await request.text()
       requests.push({
         path,
         authorization: request.headers.get("authorization"),
-        body: await request.text(),
+        body,
       })
       if (
         path ===
@@ -74,6 +85,13 @@ async function fixture(
             status: options.revokeStatus ?? 200,
           },
         )
+      }
+      if (options.graphqlEndpoint) {
+        return await fetch(options.graphqlEndpoint, {
+          method: "POST",
+          headers: request.headers,
+          body,
+        })
       }
       return Response.json(
         options.graphqlFailure ? { errors: [{ message: "Denied" }] } : {
@@ -162,6 +180,234 @@ function noSecrets(result: Deno.CommandOutput) {
     /client-secret|access-token/,
   )
 }
+
+Deno.test("OAuth delivery plan and apply verify the manifest workspace with the application principal", async () => {
+  for (const mode of ["plan", "apply"] as const) {
+    for (const mismatch of [false, true]) {
+      const original = issue()
+      const delivery = await deliveryFixture({ issues: [original] })
+      const workspace = mismatch ? "other" : WORKSPACE.urlKey
+      try {
+        const item = update(original)
+        item.base.organization = { ...WORKSPACE, urlKey: workspace }
+        await delivery.write(manifest([item], workspace))
+        await fixture(
+          { graphqlEndpoint: delivery.server.getEndpoint() },
+          async ({ run, requests }) => {
+            const result = await run([
+              "issue",
+              mode,
+              "--file",
+              delivery.path,
+              "--json",
+              ...(mode === "apply" ? ["--confirm-workspace", workspace] : []),
+            ]).output()
+            noSecrets(result)
+            assertEquals(
+              result.code,
+              mismatch ? 1 : 0,
+              decoder.decode(result.stdout) + decoder.decode(result.stderr),
+            )
+            const json = JSON.parse(decoder.decode(result.stdout))
+            if (mismatch) {
+              assertMatch(
+                json.error.message,
+                /do not belong to delivery workspace/,
+              )
+            } else {
+              assertEquals(
+                mode === "plan" ? json.status : json.data.status,
+                mode === "plan" ? "ready" : "completed",
+              )
+            }
+            assertEquals(
+              delivery.mutations().length,
+              !mismatch && mode === "apply" ? 1 : 0,
+            )
+            assertEquals(
+              delivery.server.graphqlAuthorizations.every((value) =>
+                value === "Bearer access-token"
+              ),
+              true,
+            )
+            assertEquals(
+              requests.filter((r) => r.path === "/oauth/token").length,
+              1,
+            )
+            assertEquals(
+              requests.filter((r) => r.path === "/oauth/revoke").length,
+              1,
+            )
+          },
+        )
+      } finally {
+        await delivery.cleanup()
+      }
+    }
+  }
+})
+
+Deno.test({
+  name:
+    "OAuth cancellation preserves an in-flight delivery receipt and blocks the next mutation",
+  ignore: Deno.build.os === "windows",
+  fn: async () => {
+    for (const signal of ["SIGINT", "SIGTERM"] as const) {
+      const mutation = Promise.withResolvers<void>()
+      const finishMutation = Promise.withResolvers<void>()
+      const first = issue()
+      const second = issue(1002)
+      const delivery = await deliveryFixture({
+        issues: [first, second],
+        overrides: (state) => [{
+          queryName: "UpdateIssue",
+          response: async ({ variables }) => {
+            const changed = state.patch(
+              state.find(variables.id)!,
+              variables.input as Record<string, unknown>,
+            )
+            mutation.resolve()
+            await finishMutation.promise
+            return { data: { issueUpdate: { success: true, issue: changed } } }
+          },
+        }],
+      })
+      try {
+        await delivery.write(manifest([update(first), update(second)]))
+        await fixture({
+          pause: "revoke",
+          graphqlEndpoint: delivery.server.getEndpoint(),
+        }, async ({ run, reached, release, requests }) => {
+          const child = run([
+            "issue",
+            "apply",
+            "--file",
+            delivery.path,
+            "--confirm-workspace",
+            WORKSPACE.urlKey,
+            "--json",
+          ], { LINEAR_CLIENT_SCOPE: "read,write" })
+          const output = child.output()
+          try {
+            await Promise.race([
+              mutation.promise,
+              output.then(() => {
+                throw new Error("Delivery exited before mutation")
+              }),
+            ])
+            child.kill(signal)
+            await reached
+            finishMutation.resolve()
+            // Wait until the receipt is persisted, then allow the command to
+            // advance while revocation is deliberately still pending.
+            for (let attempt = 0; attempt < 100; attempt++) {
+              const ledger = JSON.parse(
+                await Deno.readTextFile(checkpointPath(delivery.path)),
+              )
+              if (
+                Object.values(ledger.items).some((item) =>
+                  (item as { status: string }).status === "completed"
+                )
+              ) break
+              await new Promise((resolve) => setTimeout(resolve, 20))
+            }
+            await new Promise((resolve) => setTimeout(resolve, 200))
+            assertEquals(delivery.mutations().length, 1)
+            assertEquals(delivery.state.find(second.id)?.title, second.title)
+            const ledger = JSON.parse(
+              await Deno.readTextFile(checkpointPath(delivery.path)),
+            )
+            assertEquals(
+              Object.values(ledger.items).map((item) =>
+                (item as { status: string }).status
+              ),
+              ["completed"],
+            )
+          } finally {
+            finishMutation.resolve()
+            release()
+            const result = await output
+            noSecrets(result)
+            assertEquals(result.code, signal === "SIGINT" ? 130 : 143)
+            assertEquals(
+              requests.filter((r) => r.path === "/oauth/revoke").length,
+              1,
+            )
+          }
+        })
+      } finally {
+        finishMutation.resolve()
+        await delivery.cleanup()
+      }
+    }
+  },
+})
+
+Deno.test({
+  name:
+    "OAuth cancellation blocks the next raw API page while revocation is pending",
+  ignore: Deno.build.os === "windows",
+  fn: async () => {
+    for (const signal of ["SIGINT", "SIGTERM"] as const) {
+      const page = Promise.withResolvers<void>()
+      const finishPage = Promise.withResolvers<void>()
+      const server = new MockLinearServer([{
+        queryName: "Pages",
+        response: async ({ variables }) => {
+          page.resolve()
+          await finishPage.promise
+          return {
+            data: {
+              issues: {
+                nodes: [{ id: variables.after == null ? "one" : "two" }],
+                pageInfo: {
+                  hasNextPage: variables.after == null,
+                  endCursor: "next",
+                },
+              },
+            },
+          }
+        },
+      }])
+      server.start()
+      try {
+        await fixture({
+          pause: "revoke",
+          graphqlEndpoint: server.getEndpoint(),
+        }, async ({ run, reached, release }) => {
+          const child = run([
+            "api",
+            "query Pages($after: String) { issues(after: $after) { nodes { id } pageInfo { hasNextPage endCursor } } }",
+            "--paginate",
+          ])
+          const output = child.output()
+          try {
+            await Promise.race([
+              page.promise,
+              output.then(() => {
+                throw new Error("Raw API exited before first page")
+              }),
+            ])
+            child.kill(signal)
+            await reached
+            finishPage.resolve()
+            await new Promise((resolve) => setTimeout(resolve, 200))
+            assertEquals(server.graphqlRequests.length, 1)
+          } finally {
+            finishPage.resolve()
+            release()
+            const result = await output
+            noSecrets(result)
+            assertEquals(result.code, signal === "SIGINT" ? 130 : 143)
+          }
+        })
+      } finally {
+        finishPage.resolve()
+        await server.stop()
+      }
+    }
+  },
+})
 
 Deno.test("client credentials authenticate typed and raw commands and revoke on success or failure", async () => {
   for (const raw of [false, true]) {

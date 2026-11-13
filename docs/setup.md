@@ -34,6 +34,8 @@ Client credentials 要求 Linear OAuth 应用开启 Client credentials，身份�
 
 CLI 在首次认证请求时向 `https://api.linear.app/oauth/token` 换取一个令牌，同一命令的请求共用它；结束时向 `https://api.linear.app/oauth/revoke` 吊销。成功、失败、SIGINT 和 Unix 上的 SIGTERM 都会等待吊销；Windows 强制终止进程和 SIGKILL 无法执行清理。换取与吊销请求各有 10 秒期限，不自动重试。吊销失败时保留命令结果，向 stderr 报告并以非零状态退出；令牌可能仍有效，需要在 Linear 应用页面轮换 Client secret 才能作废该应用的全部 client credentials 令牌。网络中断导致无法取得已签发令牌时也需这样处理。
 
+收到 SIGINT 或 SIGTERM 后立即停止派发新请求，包括分页、查询重试和后续写入；已发出的请求在进程退出前仍可接收回执。`issue apply` 的恢复边界见[执行账本与恢复](guides/issue-delivery.md#执行账本与恢复)。
+
 Linear 的 GraphQL 鉴权可能延迟反映吊销结果；吊销成功后，旧令牌仍可能短暂通过查询。
 
 Client secret 和临时令牌不写入凭据文件、命令参数或诊断输出；`auth key` 在此模式下报错。已有 OAuth access token 仍可通过 `LINEAR_API_KEY` 传入，其吊销由调用方负责。

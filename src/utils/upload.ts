@@ -1,5 +1,5 @@
 import { gql } from "../__codegen__/gql.ts"
-import { getGraphQLClient } from "./graphql.ts"
+import { getGraphQLCancellationSignal, getGraphQLClient } from "./graphql.ts"
 import { basename, extname } from "@std/path"
 import {
   assertMutationSuccess,
@@ -339,6 +339,7 @@ export async function uploadFile(
       uploadHeaders[header.key] = header.value
     }
 
+    getGraphQLCancellationSignal()?.throwIfAborted()
     putStarted = true
     const response = await fetch(uploadUrl, {
       method: "PUT",

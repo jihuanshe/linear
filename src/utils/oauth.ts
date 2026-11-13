@@ -47,7 +47,12 @@ export class ClientCredentialsSession {
   private pending?: Promise<string>
   private closing?: Promise<void>
   private signalCode?: number
+  private readonly cancellation = new AbortController()
   private listeners: [Deno.Signal, () => void][] = []
+
+  get signal(): AbortSignal {
+    return this.cancellation.signal
+  }
 
   authorization(
     clientId: string,
@@ -61,6 +66,7 @@ export class ClientCredentialsSession {
     for (const signal of signals) {
       const listener = () => {
         this.signalCode ??= signal === "SIGINT" ? 130 : 143
+        this.cancellation.abort(new CommandExit(this.signalCode))
         void this.close().then(() => Deno.exit(this.signalCode))
       }
       Deno.addSignalListener(signal, listener)
