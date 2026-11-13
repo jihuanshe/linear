@@ -266,6 +266,14 @@ jobs:
           merge-multiple: true
           path: artifacts
 
+      - name: Package installer
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash -n install.sh
+          cp install.sh artifacts/install.sh
+          (cd artifacts && sha256sum install.sh > install.sh.sha256)
+
       - name: Verify checksums
         shell: bash
         run: |
@@ -273,8 +281,8 @@ jobs:
           mapfile -d '' -t checksums < <(
             find artifacts -maxdepth 1 -type f -name '*.sha256' -print0
           )
-          if ((${#checksums[@]} != 10)); then
-            echo "Expected 10 checksum files, got ${#checksums[@]}" >&2
+          if ((${#checksums[@]} != 11)); then
+            echo "Expected 11 checksum files, got ${#checksums[@]}" >&2
             exit 1
           fi
           for checksum in "${checksums[@]}"; do
@@ -286,11 +294,11 @@ jobs:
 
           mapfile -t release_artifacts < <(
             find artifacts -maxdepth 1 -type f \
-              \( -name '*.tar.xz' -o -name '*.zip' -o -name 'linear-self-update-*' \) \
+              \( -name '*.tar.xz' -o -name '*.zip' -o -name 'linear-self-update-*' -o -name 'install.sh' \) \
               ! -name '*.sha256' -printf '%f\n' | sort
           )
-          if ((${#release_artifacts[@]} != 10)); then
-            echo "Expected 10 distributables, got ${#release_artifacts[@]}" >&2
+          if ((${#release_artifacts[@]} != 11)); then
+            echo "Expected 11 distributables, got ${#release_artifacts[@]}" >&2
             exit 1
           fi
           (cd artifacts && sha256sum "${release_artifacts[@]}" > sha256.sum)
@@ -346,6 +354,7 @@ jobs:
             artifacts/linear-self-update-*-darwin
             artifacts/linear-self-update-*-linux-gnu
             artifacts/linear-self-update-*-windows-msvc.exe
+            artifacts/install.sh
 
       - name: Publish GitHub rolling release
         if: steps.prepare.outputs.skip != 'true'
