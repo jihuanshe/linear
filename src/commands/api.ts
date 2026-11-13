@@ -8,10 +8,16 @@ import {
   parse,
   type SelectionSetNode,
 } from "graphql"
-import { getGraphQLEndpoint, getResolvedApiKey } from "../utils/graphql.ts"
+import {
+  getGraphQLCancellationSignal,
+  getGraphQLEndpoint,
+  getResolvedApiKey,
+  reportClientCredentialsWriteFailure,
+} from "../utils/graphql.ts"
 import { graphqlFetch } from "../utils/graphql-transport.ts"
 import { completeConnection, type Connection } from "../utils/pagination.ts"
 import { setMachineOutput } from "../utils/write-result.ts"
+import { CommandExit, exit } from "../utils/process-exit.ts"
 import {
   CliError,
   handleError,
@@ -252,6 +258,7 @@ async function requestPage(
   request: RawRequest,
   variables: Record<string, unknown>,
   headers: Record<string, string>,
+  mutation = false,
 ): Promise<Record<string, unknown>> {
   const body: Record<string, unknown> = { ...request }
   if (Object.keys(variables).length > 0) {
@@ -262,7 +269,7 @@ async function requestPage(
     method: "POST",
     headers,
     body: JSON.stringify(body),
-  })
+  }, getGraphQLCancellationSignal())
 
   const text = await response.text()
 
@@ -270,10 +277,11 @@ async function requestPage(
   const hasGraphQLErrors = Array.isArray(parsed.errors) &&
     parsed.errors.length > 0
   if (!response.ok || hasGraphQLErrors) {
+    if (mutation) reportClientCredentialsWriteFailure()
     // Preserve partial data and GraphQL errors, including HTTP 400 RATELIMITED.
     // The shared transport only retries definitively selected queries.
     outputJSON(parsed, text)
-    Deno.exit(1)
+    exit(1)
   }
   return parsed
 }
@@ -286,9 +294,11 @@ async function executeSingle(
 ): Promise<void> {
   let parsed: Record<string, unknown>
   try {
-    parsed = await requestPage(request, variables, headers)
+    parsed = await requestPage(request, variables, headers, mutation)
   } catch (error) {
+    if (error instanceof CommandExit) throw error
     if (mutation) {
+      reportClientCredentialsWriteFailure()
       throw new WriteError(
         "Raw mutation outcome is unknown; no GraphQL result was received",
         {

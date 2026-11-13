@@ -140,6 +140,7 @@ async function readBody(
 export async function graphqlFetch(
   input: RequestInfo | URL,
   init?: RequestInit,
+  dispatchSignal?: AbortSignal,
 ): Promise<Response> {
   // Request objects and non-string bodies cannot be replayed safely here.
   const query = !(input instanceof Request) &&
@@ -155,6 +156,9 @@ export async function graphqlFetch(
 
   for (let attempt = 1;; attempt++) {
     checkDeadline()
+    // Do not abort an already dispatched mutation or lose its receipt. This
+    // signal gates every new request, including retries of a selected query.
+    dispatchSignal?.throwIfAborted()
     const pending = fetch(input, { ...init, signal: overall.signal })
     // Even a fetch implementation that resolves after cancellation must not
     // leave an unread response body behind.

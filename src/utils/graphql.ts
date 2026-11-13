@@ -5,12 +5,14 @@ import {
   loadConfig,
   loadEnvironment,
 } from "../config.ts"
-import { getCredentialApiKey } from "../credentials.ts"
+import { getCredentialApiKey, getWorkspaces } from "../credentials.ts"
 import denoConfig from "../../deno.json" with { type: "json" }
 import { AuthError, ValidationError, WriteError } from "./errors.ts"
 import { graphqlFetch, graphQLOperation } from "./graphql-transport.ts"
 import { LINEAR_API_ENDPOINT } from "../const.ts"
 import { AsyncLocalStorage } from "node:async_hooks"
+import { ClientCredentialsSession } from "./oauth.ts"
+import { CommandExit } from "./process-exit.ts"
 
 export { ClientError }
 
@@ -20,6 +22,7 @@ interface Invocation {
   active: boolean
   client?: GraphQLClient
   apiKey?: Promise<string | undefined>
+  oauth?: ClientCredentialsSession
 }
 
 const invocationClient = new AsyncLocalStorage<Invocation>()
@@ -32,6 +35,7 @@ export function withGraphQLContext<T>(action: () => Promise<T>): Promise<T> {
     try {
       return await action()
     } finally {
+      await invocation.oauth?.close()
       // The cache belongs to this awaited invocation. A still-reachable async
       // context must not lend its finished invocation's principal to later work.
       invocation.active = false
@@ -54,8 +58,9 @@ function workspaceCredentialNotFound(workspace: string): Error {
  * 2. --workspace flag → credentials lookup
  * 3. LINEAR_WORKSPACE or project's workspace config → credentials lookup
  * 4. default workspace from credentials file
+ * 5. LINEAR_CLIENT_ID + LINEAR_CLIENT_SECRET
  */
-async function resolveApiKey(): Promise<string | undefined> {
+async function resolveApiKey(forDisplay = false): Promise<string | undefined> {
   // Reject obsolete/invalid selected configuration even if an env key exists.
   loadConfig()
   const cliWorkspace = getCliWorkspace()
@@ -84,7 +89,6 @@ async function resolveApiKey(): Promise<string | undefined> {
     }
     const key = await getCredentialApiKey(cliWorkspace)
     if (key) return key
-    // Explicit --workspace flag must match a configured workspace
     throw workspaceCredentialNotFound(cliWorkspace)
   }
 
@@ -95,14 +99,66 @@ async function resolveApiKey(): Promise<string | undefined> {
     throw workspaceCredentialNotFound(projectWorkspace)
   }
 
-  return await getCredentialApiKey()
+  const storedKey = await getCredentialApiKey()
+  if (storedKey) return storedKey
+  if (getWorkspaces().length > 0) {
+    throw new AuthError(
+      "No default workspace is selected for saved credentials",
+      {
+        suggestion:
+          "Run `linear auth default <workspace>` or select a saved workspace with --workspace; list them with `linear auth list`.",
+      },
+    )
+  }
+
+  const clientId = Deno.env.get("LINEAR_CLIENT_ID")
+  const clientSecret = Deno.env.get("LINEAR_CLIENT_SECRET")
+  if (clientId != null || clientSecret != null) {
+    if (!clientId?.trim() || !clientSecret?.trim()) {
+      throw new AuthError(
+        "Set both LINEAR_CLIENT_ID and LINEAR_CLIENT_SECRET to non-empty values",
+      )
+    }
+    if (forDisplay) {
+      throw new AuthError("auth key does not expose temporary OAuth tokens", {
+        suggestion:
+          "Run the desired command directly; the CLI manages its temporary token.",
+      })
+    }
+    const scope = Deno.env.get("LINEAR_CLIENT_SCOPE") ?? "read"
+    if (!scope.trim()) {
+      throw new AuthError("LINEAR_CLIENT_SCOPE must not be empty")
+    }
+    const invocation = invocationClient.getStore()
+    if (!invocation?.active) {
+      throw new AuthError(
+        "OAuth client credentials require a command invocation",
+      )
+    }
+    invocation.oauth ??= new ClientCredentialsSession()
+    return await invocation.oauth.authorization(clientId, clientSecret, scope)
+  }
 }
 
 /** Resolve once per invocation, shared by typed requests and attachment fetches. */
-export function getResolvedApiKey(): Promise<string | undefined> {
+export function getResolvedApiKey(
+  options: { forDisplay?: boolean } = {},
+): Promise<string | undefined> {
+  getGraphQLCancellationSignal()?.throwIfAborted()
+  if (options.forDisplay) return resolveApiKey(true)
   const invocation = invocationClient.getStore()
   if (!invocation?.active) return resolveApiKey()
   return invocation.apiKey ??= resolveApiKey()
+}
+
+/** Cancellation stops new dispatches without discarding in-flight receipts. */
+export function getGraphQLCancellationSignal(): AbortSignal | undefined {
+  return invocationClient.getStore()?.oauth?.signal
+}
+
+/** Keep identity diagnostics off stdout, including for raw GraphQL results. */
+export function reportClientCredentialsWriteFailure(): void {
+  invocationClient.getStore()?.oauth?.reportWriteFailure()
 }
 
 /**
@@ -135,7 +191,11 @@ function createClient(
       const operation = graphQLOperation(init?.body)
       const mutation = operation === "mutation" || operation == null
       try {
-        const response = await graphqlFetch(input, init)
+        const response = await graphqlFetch(
+          input,
+          init,
+          getGraphQLCancellationSignal(),
+        )
         if (!mutation) return response
         // Transport has already bounded and buffered the receipt. Invalid JSON
         // or a missing receipt after headers is still an unknown mutation.
@@ -163,13 +223,22 @@ function createClient(
             },
           )
         }
+        if (
+          hasErrors || !response.ok ||
+          Object.values(envelope.data ?? {}).some((payload) =>
+            payload != null && typeof payload === "object" &&
+            "success" in payload && payload.success === false
+          )
+        ) reportClientCredentialsWriteFailure()
         return new Response(text, {
           status: response.status,
           statusText: response.statusText,
           headers: response.headers,
         })
       } catch (cause) {
+        if (cause instanceof CommandExit) throw cause
         if (!mutation) throw cause
+        reportClientCredentialsWriteFailure()
         if (cause instanceof WriteError) throw cause
         throw new WriteError("Mutation response was not received", {
           effect: "unknown",

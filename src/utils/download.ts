@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto"
 import { dirname, resolve } from "@std/path"
-import { getResolvedApiKey } from "./graphql.ts"
+import { getGraphQLCancellationSignal, getResolvedApiKey } from "./graphql.ts"
 import { AuthError, CliError, ValidationError } from "./errors.ts"
 
 export interface DownloadResult {
@@ -57,6 +57,7 @@ export async function downloadFile(
     // A redirect may point at signed object storage. Credentials belong only
     // to the original Linear request, never to a redirect destination.
     for (let redirects = 0; redirects <= 5; redirects++) {
+      getGraphQLCancellationSignal()?.throwIfAborted()
       response = await fetch(url, {
         redirect: "manual",
         headers: redirects === 0 && key != null ? { Authorization: key } : {},

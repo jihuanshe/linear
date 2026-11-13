@@ -23,6 +23,7 @@ import {
   WriteError,
 } from "../../utils/errors.ts"
 import { printWriteResult } from "../../utils/write-result.ts"
+import { exit } from "../../utils/process-exit.ts"
 
 const IssueDeleteDetails = gql(`
   query GetIssueDeleteDetails($id: String!) {
@@ -151,7 +152,7 @@ export const deleteCommand = withUsageMetadata(new Command(), {
             operationName: "deleted",
             showDetails: true,
           })
-          if (summary.failed || summary.unattempted.length) Deno.exit(1)
+          if (summary.failed || summary.unattempted.length) exit(1)
         }
         return
       }

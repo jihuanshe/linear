@@ -107,6 +107,8 @@ jq -e '.ok == true and .data.status == "completed"' apply.json >/dev/null
 
 执行账本在交付清单路径后追加 `.checkpoint.json`；例如 `delivery.json` 对应 `delivery.json.checkpoint.json`。账本使用 `schemaVersion: 2`，包含工作区身份和 `items`。执行项 key 绑定清单位置、目标、内容及文件指纹。每次真实派发写入前先保存 `unknown`，收到有效回执后保存 `completed`；上传有独立回执，后续关联失败不会重复上传已完成资产。
 
+OAuth client credentials 模式收到 SIGINT 或 SIGTERM 后停止派发后续请求，并等待令牌吊销后退出。退出前收到并成功保存的写入回执保留为 `completed`；已派发但未确认的写入保留 `unknown`，续跑前先对账。
+
 执行账本中的状态与本次输出不同：
 
 | 执行账本状态 | 写入效果与恢复边界                                                             |

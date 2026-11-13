@@ -1,6 +1,7 @@
 import { encodeHex } from "@std/encoding/hex"
 import { gql } from "../__codegen__/gql.ts"
 import { getCliWorkspace, setCliWorkspace } from "../config.ts"
+import { hasWorkspace } from "../credentials.ts"
 import {
   createIssue,
   prepareIssueCreate,
@@ -21,7 +22,11 @@ import {
   createIssueComment,
   linkIssueUrl,
 } from "../operations/issue-content.ts"
-import { getGraphQLClient, withGraphQLContext } from "../utils/graphql.ts"
+import {
+  getGraphQLCancellationSignal,
+  getGraphQLClient,
+  withGraphQLContext,
+} from "../utils/graphql.ts"
 import { readIssueBasis, readIssueHeader } from "../utils/issue-read.ts"
 import {
   EMPTY_ISSUE_RELATION_SNAPSHOT,
@@ -177,7 +182,13 @@ async function inWorkspace<T>(
         "CLI workspace does not match the delivery workspace",
       )
     }
-    if (Deno.env.get("LINEAR_API_KEY") == null) {
+    if (
+      Deno.env.get("LINEAR_API_KEY") == null &&
+      (hasWorkspace(loaded.manifest.workspace) ||
+        ["LINEAR_CLIENT_ID", "LINEAR_CLIENT_SECRET"].every(
+          (name) => Deno.env.get(name) == null,
+        ))
+    ) {
       setCliWorkspace(loaded.manifest.workspace)
     }
     try {
@@ -755,6 +766,7 @@ export async function applyManifest(
       let issueStopped = false
       let inspected = false
       for (const item of items) {
+        getGraphQLCancellationSignal()?.throwIfAborted()
         const previous = checkpoint.items[item.key]
         if (previous?.status === "completed") {
           if (previous.receipt?.kind === "issue") {
@@ -780,6 +792,7 @@ export async function applyManifest(
         let started = false
         let acknowledged: Completion | undefined
         const beforeWrite = async () => {
+          getGraphQLCancellationSignal()?.throwIfAborted()
           checkpoint.items[item.key] = {
             status: "unknown",
             effect: "unknown",

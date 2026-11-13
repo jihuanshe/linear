@@ -3,6 +3,7 @@ import { applyManifest, type ApplyOutcome } from "../../delivery/engine.ts"
 import { loadManifest } from "../../delivery/manifest.ts"
 import { handleError, ValidationError } from "../../utils/errors.ts"
 import { withUsageMetadata } from "../usage.ts"
+import { exit } from "../../utils/process-exit.ts"
 
 // `issue apply` calls the same typed operations as direct commands,
 // reporting applied/failed/unknown/unattempted/skipped per
@@ -119,7 +120,7 @@ export const issueApplyCommand = withUsageMetadata(
             : formatApply(outcome),
         )
         if (outcome.status !== "completed") {
-          Deno.exit(1)
+          exit(1)
         }
       } catch (error) {
         handleError(error, "Failed to apply delivery")
