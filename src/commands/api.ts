@@ -12,6 +12,7 @@ import { getGraphQLEndpoint, getResolvedApiKey } from "../utils/graphql.ts"
 import { graphqlFetch } from "../utils/graphql-transport.ts"
 import { completeConnection, type Connection } from "../utils/pagination.ts"
 import { setMachineOutput } from "../utils/write-result.ts"
+import { CommandExit, exit } from "../utils/process-exit.ts"
 import {
   CliError,
   handleError,
@@ -273,7 +274,7 @@ async function requestPage(
     // Preserve partial data and GraphQL errors, including HTTP 400 RATELIMITED.
     // The shared transport only retries definitively selected queries.
     outputJSON(parsed, text)
-    Deno.exit(1)
+    exit(1)
   }
   return parsed
 }
@@ -288,6 +289,7 @@ async function executeSingle(
   try {
     parsed = await requestPage(request, variables, headers)
   } catch (error) {
+    if (error instanceof CommandExit) throw error
     if (mutation) {
       throw new WriteError(
         "Raw mutation outcome is unknown; no GraphQL result was received",

@@ -7,7 +7,7 @@ export const keyCommand = new Command()
   .description("Print the resolved API key")
   .action(async () => {
     try {
-      const apiKey = await getResolvedApiKey()
+      const apiKey = await getResolvedApiKey({ forDisplay: true })
       if (apiKey) {
         console.log(apiKey)
       } else {

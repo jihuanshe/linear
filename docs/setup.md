@@ -23,11 +23,20 @@ linear auth whoami --json
 CLI 按以下顺序选择凭据：
 
 1. 环境变量 `LINEAR_API_KEY`（值原样作为 `Authorization` 请求头；OAuth access token 写作 `Bearer <token>`，见 [README 的「给 AI 配置独立身份」](../README.md#给-ai-配置独立身份)）；
-2. `--workspace` 指定的已保存凭据；
-3. 配置 `workspace` 指定的已保存凭据；
-4. 已保存凭据中的默认工作区。
+2. 环境变量 `LINEAR_CLIENT_ID` 和 `LINEAR_CLIENT_SECRET`，自动换取临时 OAuth client credentials 令牌；
+3. `--workspace` 指定的已保存凭据；
+4. 配置 `workspace` 指定的已保存凭据；
+5. 已保存凭据中的默认工作区。
 
-`LINEAR_API_KEY` 不能与 `--workspace` 同用。使用已保存的多工作区凭据前，先移除环境变量。每次切换工作区都运行 `auth whoami --json`，核对 `organization.id` 和 `organization.urlKey`。
+`LINEAR_API_KEY` 和 client credentials 都不能与 `--workspace` 同用。使用已保存的多工作区凭据前，先移除对应环境变量。每次切换工作区都运行 `auth whoami --json`，核对 `organization.id` 和 `organization.urlKey`。
+
+Client credentials 要求 Linear OAuth 应用开启 Client credentials，身份为 `actor=app`。通过密钥管理器注入 `LINEAR_CLIENT_ID` 和 `LINEAR_CLIENT_SECRET` 后直接运行命令，无需 `auth login`。两者缺一或为空时报错，不回退到已保存凭据。`LINEAR_CLIENT_SCOPE` 默认 `read`，可设为逗号分隔的 scope（如 `read,write`）；同一应用、工作区的进程应保持 scope 一致，改变 scope 会使已有应用令牌失效。
+
+CLI 在首次认证请求时向 `https://api.linear.app/oauth/token` 换取一个令牌，同一命令的请求共用它；结束时向 `https://api.linear.app/oauth/revoke` 吊销。成功、失败、SIGINT 和 Unix 上的 SIGTERM 都会等待吊销；Windows 强制终止进程和 SIGKILL 无法执行清理。换取与吊销请求各有 10 秒期限，不自动重试。吊销失败时保留命令结果，向 stderr 报告并以非零状态退出；令牌可能仍有效，需要在 Linear 应用页面轮换 Client secret 才能作废该应用的全部 client credentials 令牌。网络中断导致无法取得已签发令牌时也需这样处理。
+
+Linear 的 GraphQL 鉴权可能延迟反映吊销结果；吊销成功后，旧令牌仍可能短暂通过查询。
+
+Client secret 和临时令牌不写入凭据文件、命令参数或诊断输出；`auth key` 在此模式下报错。已有 OAuth access token 仍可通过 `LINEAR_API_KEY` 传入，其吊销由调用方负责。
 
 默认凭据存入系统密钥环；工作区列表和默认值存入凭据文件：
 

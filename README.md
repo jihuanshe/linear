@@ -56,7 +56,7 @@ linear config
 
 ## 给 AI 配置独立身份
 
-让 AI Agent 以独立的 Linear 应用身份（`actor=app`）读写，而不是借用某个成员的个人 API 密钥。CLI 把 `LINEAR_API_KEY` 的值原样作为 `Authorization` 请求头发送：个人 API 密钥直接填密钥；OAuth access token 按 Linear 要求填 `Bearer <token>`。因此无需额外配置项，只要在进程启动前取得令牌。
+让 AI Agent 以独立的 Linear 应用身份（`actor=app`）访问 Linear。CLI 可以自动取得 client credentials 令牌，命令结束时吊销。
 
 工作区管理员一次性创建应用：
 
@@ -65,36 +65,16 @@ linear config
 3. 打开 Client credentials，保存后记下 Client ID 和 Client secret。
 4. 令牌默认只能访问公开团队。需要访问私有团队时，在该应用详情页调整团队访问范围。
 
-scope 不在应用上勾选，而是在换取令牌时声明。常规读写 Issue、评论、项目（Project）和文档用 `read,write`；不要申请 `admin`。每次都用同一个 scope 字符串：Linear 在收到不同 scope 的请求时，会吊销该应用已签发的全部应用令牌。
-
-Client ID 和 secret 只存入系统密钥管理器，不写入仓库、dotfiles、`.env`、`linear auth login` 或命令行参数。macOS 上可以这样保存（`-w` 放在最后会提示输入，不经过 shell 历史）：
+用密钥管理器向 CLI 进程注入 `LINEAR_CLIENT_ID` 和 `LINEAR_CLIENT_SECRET`，并移除 `LINEAR_API_KEY`。随后直接执行：
 
 ```bash
-security add-generic-password -U -s linear-ai-oauth -a client-id -w
-security add-generic-password -U -s linear-ai-oauth -a client-secret -w
+linear auth whoami --json
+linear issue view JHS-123 --json --no-pager
 ```
 
-每次 AI 会话开始时换取一次 client credentials 令牌，只放进该会话的环境变量。令牌有效期 30 天、没有 refresh token；Linear 要求每次运行重新获取，不把它当作长期密钥保存，因此不要写入 shell 启动文件，也不要用 `linear auth login` 保存：
+`whoami` 输出 `"app": true`、应用名称和预期的 `organization.urlKey` 后，再读取目标工作区的数据。scope 默认 `read`；需要写入时设置 `LINEAR_CLIENT_SCOPE=read,write`。同一应用在同一工作区的进程应使用一致的 scope，改变 scope 会使已有应用令牌失效。
 
-```bash
-linear_ai_token() {
-  local id secret
-  id=$(security find-generic-password -s linear-ai-oauth -a client-id -w) || return
-  secret=$(security find-generic-password -s linear-ai-oauth -a client-secret -w) || return
-  # 通过 stdin 把凭据交给 curl，避免出现在进程参数中。
-  printf 'user = "%s:%s"\n' "$id" "$secret" |
-    curl -fsS -K - https://api.linear.app/oauth/token \
-      -d grant_type=client_credentials -d scope=read,write |
-    jq -er .access_token
-}
-
-LINEAR_AI_TOKEN=$(linear_ai_token) || exit 1
-export LINEAR_API_KEY="Bearer $LINEAR_AI_TOKEN"
-unset LINEAR_AI_TOKEN
-linear auth whoami --json | jq '{app, name, workspace: .organization.urlKey}'
-```
-
-`whoami` 输出 `"app": true`、应用名称和预期的 `organization.urlKey`，才说明后续写入会以 AI 身份出现。收到 401 时重新换取令牌；怀疑泄露时在应用页面轮换 Client secret，Linear 会立即作废该应用的全部 client credentials 令牌。`LINEAR_API_KEY` 不能与 `--workspace` 同用，凭据选择规则见[安装、认证与配置](docs/setup.md#认证)。
+临时令牌只保存在内存中；成功、失败、SIGINT 和 SIGTERM 都会触发吊销。凭据优先级、吊销失败处理与平台限制见[安装、认证与配置](docs/setup.md#认证)。
 
 ## 找命令和工作流
 

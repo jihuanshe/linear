@@ -5,6 +5,7 @@ import { getNoIssueFoundMessage } from "./vcs.ts"
 import { LINEAR_WEB_BASE_URL } from "../const.ts"
 import { gql } from "../__codegen__/gql.ts"
 import { getGraphQLClient } from "./graphql.ts"
+import { exit } from "./process-exit.ts"
 
 /** Browser navigation uses the same authenticated principal as API operations. */
 export async function getWorkspaceUrl(): Promise<string> {
@@ -23,7 +24,7 @@ export async function openIssuePage(
   const issueReference = await getIssueReference(providedReference)
   if (!issueReference) {
     console.error(getNoIssueFoundMessage())
-    Deno.exit(1)
+    exit(1)
   }
 
   const { issue } = await getGraphQLClient().request(
@@ -64,7 +65,7 @@ export async function openTeamAssigneeView(options: { app?: boolean } = {}) {
     console.error(
       "Could not determine team key; set team_key or LINEAR_TEAM_KEY.",
     )
-    Deno.exit(1)
+    exit(1)
   }
 
   const workspaceUrl = await getWorkspaceUrl()

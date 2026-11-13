@@ -14,6 +14,7 @@ import { gray, red } from "@std/fmt/colors"
 import { withTerminalColors } from "./terminal.ts"
 import { Kind, parse } from "graphql"
 import { isMachineOutput, type WriteEffect } from "./write-result.ts"
+import { CommandExit, exit } from "./process-exit.ts"
 
 /**
  * Check if debug mode is enabled via LINEAR_DEBUG environment variable.
@@ -552,9 +553,10 @@ export function isClientError(error: unknown): error is ClientError {
  * In debug mode (LINEAR_DEBUG=1): Also shows the full error details
  */
 export function handleError(error: unknown, context?: string): never {
+  if (error instanceof CommandExit) throw error
   if (isMachineOutput()) {
     console.log(JSON.stringify(errorResult(error, context), null, 2))
-    Deno.exit(1)
+    exit(1)
   }
   withTerminalColors(Deno.stderr, () => {
     if (error instanceof CliError) {
@@ -578,7 +580,7 @@ export function handleError(error: unknown, context?: string): never {
     }
   }
 
-  Deno.exit(1)
+  exit(1)
 }
 
 function printCliError(error: CliError, context?: string): void {

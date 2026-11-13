@@ -5,6 +5,7 @@ import {
 import { initializeStdoutColors } from "./utils/terminal.ts"
 import { handleError } from "./utils/errors.ts"
 import { setMachineOutput } from "./utils/write-result.ts"
+import { CommandExit, withDeferredExit } from "./utils/process-exit.ts"
 
 interface OutputCommandSource {
   getOptions(hidden?: boolean): FlagOptions[]
@@ -95,8 +96,9 @@ if (import.meta.main) {
       currentTime()
     }
     const { withGraphQLContext } = await import("./utils/graphql.ts")
-    await withGraphQLContext(() => cli.parse(Deno.args))
+    await withDeferredExit(() => withGraphQLContext(() => cli.parse(Deno.args)))
   } catch (error) {
-    handleError(error)
+    if (error instanceof CommandExit) Deno.exitCode = error.code
+    else handleError(error)
   }
 }
