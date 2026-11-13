@@ -47,6 +47,7 @@ export class ClientCredentialsSession {
   private pending?: Promise<string>
   private closing?: Promise<void>
   private signalCode?: number
+  private readOnly = false
   private readonly cancellation = new AbortController()
   private listeners: [Deno.Signal, () => void][] = []
 
@@ -95,9 +96,19 @@ export class ClientCredentialsSession {
         })
       }
       if (this.signalCode != null) throw new CommandExit(this.signalCode)
+      this.readOnly = (typeof data.scope === "string" ? data.scope : scope)
+        .trim() === "read"
       return `Bearer ${this.token}`
     })()
     return this.pending
+  }
+
+  reportWriteFailure(): void {
+    console.error(
+      `Current identity: ${
+        this.readOnly ? "read-only app" : "app"
+      } from LINEAR_CLIENT_ID. To write, set LINEAR_API_KEY or run \`linear auth login\`.`,
+    )
   }
 
   close(): Promise<void> {

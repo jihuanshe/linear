@@ -65,7 +65,7 @@ linear config
 3. 打开 Client credentials，保存后记下 Client ID 和 Client secret。
 4. 令牌默认只能访问公开团队。需要访问私有团队时，在该应用详情页调整团队访问范围。
 
-用密钥管理器向 CLI 进程注入 `LINEAR_CLIENT_ID` 和 `LINEAR_CLIENT_SECRET`，并移除 `LINEAR_API_KEY`。随后直接执行：
+在没有已保存个人登录凭据的运行环境中，用密钥管理器向 CLI 进程注入 `LINEAR_CLIENT_ID` 和 `LINEAR_CLIENT_SECRET`，并移除 `LINEAR_API_KEY`。随后直接执行：
 
 ```bash
 linear auth whoami --json

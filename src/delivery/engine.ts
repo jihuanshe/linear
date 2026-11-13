@@ -1,6 +1,7 @@
 import { encodeHex } from "@std/encoding/hex"
 import { gql } from "../__codegen__/gql.ts"
 import { getCliWorkspace, setCliWorkspace } from "../config.ts"
+import { hasWorkspace } from "../credentials.ts"
 import {
   createIssue,
   prepareIssueCreate,
@@ -182,9 +183,11 @@ async function inWorkspace<T>(
       )
     }
     if (
-      ["LINEAR_API_KEY", "LINEAR_CLIENT_ID", "LINEAR_CLIENT_SECRET"].every(
-        (name) => Deno.env.get(name) == null,
-      )
+      Deno.env.get("LINEAR_API_KEY") == null &&
+      (hasWorkspace(loaded.manifest.workspace) ||
+        ["LINEAR_CLIENT_ID", "LINEAR_CLIENT_SECRET"].every(
+          (name) => Deno.env.get(name) == null,
+        ))
     ) {
       setCliWorkspace(loaded.manifest.workspace)
     }

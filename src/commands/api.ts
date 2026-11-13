@@ -12,6 +12,7 @@ import {
   getGraphQLCancellationSignal,
   getGraphQLEndpoint,
   getResolvedApiKey,
+  reportClientCredentialsWriteFailure,
 } from "../utils/graphql.ts"
 import { graphqlFetch } from "../utils/graphql-transport.ts"
 import { completeConnection, type Connection } from "../utils/pagination.ts"
@@ -257,6 +258,7 @@ async function requestPage(
   request: RawRequest,
   variables: Record<string, unknown>,
   headers: Record<string, string>,
+  mutation = false,
 ): Promise<Record<string, unknown>> {
   const body: Record<string, unknown> = { ...request }
   if (Object.keys(variables).length > 0) {
@@ -275,6 +277,7 @@ async function requestPage(
   const hasGraphQLErrors = Array.isArray(parsed.errors) &&
     parsed.errors.length > 0
   if (!response.ok || hasGraphQLErrors) {
+    if (mutation) reportClientCredentialsWriteFailure()
     // Preserve partial data and GraphQL errors, including HTTP 400 RATELIMITED.
     // The shared transport only retries definitively selected queries.
     outputJSON(parsed, text)
@@ -291,10 +294,11 @@ async function executeSingle(
 ): Promise<void> {
   let parsed: Record<string, unknown>
   try {
-    parsed = await requestPage(request, variables, headers)
+    parsed = await requestPage(request, variables, headers, mutation)
   } catch (error) {
     if (error instanceof CommandExit) throw error
     if (mutation) {
+      reportClientCredentialsWriteFailure()
       throw new WriteError(
         "Raw mutation outcome is unknown; no GraphQL result was received",
         {

@@ -26,6 +26,8 @@ async function fixture(
     alreadyRevoked?: boolean
     pause?: "token" | "graphql" | "revoke"
     graphqlEndpoint?: string
+    mutationFailure?: "errors" | "payload" | "body"
+    credentials?: string
   },
   action: (f: {
     run: (args: string[], env?: Record<string, string>) => Deno.ChildProcess
@@ -35,6 +37,13 @@ async function fixture(
   }) => Promise<void>,
 ) {
   const root = await Deno.makeTempDir()
+  if (options.credentials != null) {
+    await Deno.mkdir(`${root}/linear`)
+    await Deno.writeTextFile(
+      `${root}/linear/credentials.toml`,
+      options.credentials,
+    )
+  }
   const requests: {
     path: string
     authorization: string | null
@@ -66,7 +75,7 @@ async function fixture(
           options.tokenStatus ? { error: "client-secret access-token" } : {
             access_token: options.accessToken ?? "access-token",
             token_type: options.tokenType ?? "Bearer",
-            scope: "read",
+            scope: new URLSearchParams(body).get("scope") ?? "read",
             expires_in: 2591999,
           },
           { status: options.tokenStatus ?? 200 },
@@ -86,6 +95,22 @@ async function fixture(
           },
         )
       }
+      if (
+        options.mutationFailure &&
+        /^\s*mutation\b/.test(JSON.parse(body).query)
+      ) {
+        if (options.mutationFailure === "body") return new Response("invalid")
+        return Response.json(
+          options.mutationFailure === "errors"
+            ? {
+              errors: [{
+                message: "Not authorized",
+                extensions: { code: "FORBIDDEN" },
+              }],
+            }
+            : { data: { issueUpdate: { success: false, issue: null } } },
+        )
+      }
       if (options.graphqlEndpoint) {
         return await fetch(options.graphqlEndpoint, {
           method: "POST",
@@ -98,8 +123,12 @@ async function fixture(
           data: {
             viewer: {
               id: "app-user",
-              name: "Review Bot",
-              app: true,
+              name: request.headers.get("authorization")?.startsWith("Bearer ")
+                ? "Review Bot"
+                : "Human",
+              app:
+                request.headers.get("authorization")?.startsWith("Bearer ") ??
+                  false,
               organization: { id: "org", name: "Acme", urlKey: "acme" },
             },
           },
@@ -180,6 +209,236 @@ function noSecrets(result: Deno.CommandOutput) {
     /client-secret|access-token/,
   )
 }
+
+Deno.test("stored login credentials outrank client credentials and environment API keys outrank both", async () => {
+  await fixture({ mutationFailure: "errors" }, async ({ run, requests }) => {
+    const login = await run([
+      "auth",
+      "login",
+      "--plaintext",
+      "--key",
+      "human_key",
+    ]).output()
+    assertEquals(login.code, 0, decoder.decode(login.stderr))
+    for (
+      const selection of [
+        "default",
+        "workspace",
+        "config",
+        "partial",
+        "scope",
+        "api-key",
+      ] as const
+    ) {
+      requests.length = 0
+      const result = await run(
+        [
+          "auth",
+          "whoami",
+          "--json",
+          ...(selection === "workspace" ? ["--workspace", "acme"] : []),
+        ],
+        selection === "config"
+          ? { LINEAR_WORKSPACE: "acme" }
+          : selection === "partial"
+          ? { LINEAR_CLIENT_SECRET: "" }
+          : selection === "scope"
+          ? { LINEAR_CLIENT_SCOPE: "" }
+          : selection === "api-key"
+          ? { LINEAR_API_KEY: "environment-key" }
+          : {},
+      ).output()
+      noSecrets(result)
+      assertEquals(
+        result.code,
+        0,
+        decoder.decode(result.stdout) + decoder.decode(result.stderr),
+      )
+      assertEquals(JSON.parse(decoder.decode(result.stdout)).app, false)
+      assertEquals(JSON.parse(decoder.decode(result.stdout)).name, "Human")
+      assertEquals(requests.map((r) => [r.path, r.authorization]), [[
+        "/graphql",
+        selection === "api-key" ? "environment-key" : "human_key",
+      ]])
+    }
+    requests.length = 0
+    const missing = await run([
+      "auth",
+      "whoami",
+      "--json",
+      "--workspace",
+      "missing",
+    ]).output()
+    assertEquals(missing.code, 1)
+    assertEquals(requests.length, 0)
+    const denied = await run([
+      "api",
+      "mutation UpdateIssue { issueUpdate { success } }",
+      "--unprotected",
+    ]).output()
+    assertEquals(denied.code, 1)
+    assertNotMatch(
+      decoder.decode(denied.stderr),
+      /LINEAR_CLIENT_ID|read-only app/,
+    )
+    assertEquals(requests.map((r) => r.authorization), ["human_key"])
+  })
+  await fixture(
+    { credentials: 'acme = "human_key"\n' },
+    async ({ run, requests }) => {
+      const result = await run(["auth", "whoami", "--json"]).output()
+      assertEquals(result.code, 1)
+      assertMatch(decoder.decode(result.stdout), /default workspace/)
+      assertEquals(requests.length, 0)
+    },
+  )
+})
+
+Deno.test("delivery selects its saved workspace before client credentials", async () => {
+  let logins = 0
+  const original = issue()
+  const delivery = await deliveryFixture({
+    issues: [original],
+    overrides: () => [{
+      queryName: "AuthLoginViewer",
+      response: () => ({
+        data: {
+          viewer: {
+            name: "Human",
+            email: "human@example.com",
+            organization: {
+              name: "Testing",
+              urlKey: ++logins === 1 ? "other" : WORKSPACE.urlKey,
+            },
+          },
+        },
+      }),
+    }],
+  })
+  try {
+    await delivery.write(manifest([update(original)]))
+    await fixture(
+      { graphqlEndpoint: delivery.server.getEndpoint() },
+      async ({ run, requests }) => {
+        for (const key of ["other_key", "human_key"]) {
+          const login = await run([
+            "auth",
+            "login",
+            "--plaintext",
+            "--key",
+            key,
+          ]).output()
+          assertEquals(login.code, 0, decoder.decode(login.stderr))
+        }
+        for (const mode of ["plan", "apply"] as const) {
+          requests.length = 0
+          const result = await run([
+            "issue",
+            mode,
+            "--file",
+            delivery.path,
+            "--json",
+            ...(mode === "apply"
+              ? ["--confirm-workspace", WORKSPACE.urlKey]
+              : []),
+          ]).output()
+          assertEquals(
+            result.code,
+            0,
+            decoder.decode(result.stdout) + decoder.decode(result.stderr),
+          )
+          assertEquals(
+            requests.every((r) =>
+              r.path === "/graphql" && r.authorization === "human_key"
+            ),
+            true,
+          )
+          assertEquals(delivery.mutations().length, mode === "apply" ? 1 : 0)
+        }
+      },
+    )
+  } finally {
+    await delivery.cleanup()
+  }
+})
+
+Deno.test("failed read-only app mutations identify their credential source and the human login alternative", async () => {
+  for (const raw of [false, true]) {
+    for (const failure of ["errors", "payload", "body"] as const) {
+      if (raw && failure === "payload") continue
+      const delivery = await deliveryFixture({ issues: [issue()] })
+      try {
+        await fixture({
+          graphqlEndpoint: delivery.server.getEndpoint(),
+          mutationFailure: failure,
+        }, async ({ run, requests }) => {
+          const result = await run(
+            raw
+              ? [
+                "api",
+                'mutation UpdateIssue { issueUpdate(id: "id", input: {title: "Changed"}) { success } }',
+                "--unprotected",
+              ]
+              : [
+                "issue",
+                "update",
+                "ENG-1001",
+                "--title",
+                "Changed",
+                "--unprotected",
+                "--json",
+              ],
+          ).output()
+          noSecrets(result)
+          assertEquals(result.code, 1)
+          assertMatch(
+            decoder.decode(result.stderr),
+            /read-only app.*LINEAR_CLIENT_ID/,
+          )
+          assertMatch(
+            decoder.decode(result.stderr),
+            /LINEAR_API_KEY.*linear auth login/,
+          )
+          const json = JSON.parse(decoder.decode(result.stdout))
+          if (raw && failure === "errors") {
+            assertEquals(json, {
+              errors: [{
+                message: "Not authorized",
+                extensions: { code: "FORBIDDEN" },
+              }],
+            })
+          } else {
+            assertEquals(json.effect, "unknown")
+          }
+          assertEquals(
+            requests.filter((r) => r.path === "/oauth/token").length,
+            1,
+          )
+          assertEquals(
+            requests.filter((r) => r.path === "/oauth/revoke").length,
+            1,
+          )
+        })
+      } finally {
+        await delivery.cleanup()
+      }
+    }
+  }
+  await fixture({ mutationFailure: "errors" }, async ({ run }) => {
+    const result = await run([
+      "api",
+      "mutation UpdateIssue { issueUpdate { success } }",
+      "--unprotected",
+    ], { LINEAR_CLIENT_SCOPE: "read,write" }).output()
+    assertEquals(result.code, 1)
+    assertMatch(
+      decoder.decode(result.stderr),
+      /identity: app from LINEAR_CLIENT_ID/,
+    )
+    assertNotMatch(decoder.decode(result.stderr), /read-only/)
+    noSecrets(result)
+  })
+})
 
 Deno.test("OAuth delivery plan and apply verify the manifest workspace with the application principal", async () => {
   for (const mode of ["plan", "apply"] as const) {

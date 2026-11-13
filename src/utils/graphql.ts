@@ -5,7 +5,7 @@ import {
   loadConfig,
   loadEnvironment,
 } from "../config.ts"
-import { getCredentialApiKey } from "../credentials.ts"
+import { getCredentialApiKey, getWorkspaces } from "../credentials.ts"
 import denoConfig from "../../deno.json" with { type: "json" }
 import { AuthError, ValidationError, WriteError } from "./errors.ts"
 import { graphqlFetch, graphQLOperation } from "./graphql-transport.ts"
@@ -55,10 +55,10 @@ function workspaceCredentialNotFound(workspace: string): Error {
 /**
  * Get the resolved API key following the precedence chain:
  * 1. LINEAR_API_KEY env var (conflicts with --workspace)
- * 2. LINEAR_CLIENT_ID + LINEAR_CLIENT_SECRET (conflicts with --workspace)
- * 3. --workspace flag → credentials lookup
- * 4. LINEAR_WORKSPACE or project's workspace config → credentials lookup
- * 5. default workspace from credentials file
+ * 2. --workspace flag → credentials lookup
+ * 3. LINEAR_WORKSPACE or project's workspace config → credentials lookup
+ * 4. default workspace from credentials file
+ * 5. LINEAR_CLIENT_ID + LINEAR_CLIENT_SECRET
  */
 async function resolveApiKey(forDisplay = false): Promise<string | undefined> {
   // Reject obsolete/invalid selected configuration even if an env key exists.
@@ -83,21 +83,40 @@ async function resolveApiKey(forDisplay = false): Promise<string | undefined> {
     return envApiKey
   }
 
+  if (cliWorkspace != null) {
+    if (cliWorkspace === "") {
+      throw new ValidationError("--workspace must not be empty")
+    }
+    const key = await getCredentialApiKey(cliWorkspace)
+    if (key) return key
+    throw workspaceCredentialNotFound(cliWorkspace)
+  }
+
+  const projectWorkspace = getOption("workspace")
+  if (projectWorkspace != null) {
+    const key = await getCredentialApiKey(projectWorkspace)
+    if (key) return key
+    throw workspaceCredentialNotFound(projectWorkspace)
+  }
+
+  const storedKey = await getCredentialApiKey()
+  if (storedKey) return storedKey
+  if (getWorkspaces().length > 0) {
+    throw new AuthError(
+      "No default workspace is selected for saved credentials",
+      {
+        suggestion:
+          "Run `linear auth default <workspace>` or select a saved workspace with --workspace; list them with `linear auth list`.",
+      },
+    )
+  }
+
   const clientId = Deno.env.get("LINEAR_CLIENT_ID")
   const clientSecret = Deno.env.get("LINEAR_CLIENT_SECRET")
   if (clientId != null || clientSecret != null) {
     if (!clientId?.trim() || !clientSecret?.trim()) {
       throw new AuthError(
         "Set both LINEAR_CLIENT_ID and LINEAR_CLIENT_SECRET to non-empty values",
-      )
-    }
-    if (cliWorkspace != null) {
-      throw new AuthError(
-        "Cannot use --workspace with OAuth client credentials",
-        {
-          suggestion:
-            "Remove --workspace and use `linear auth whoami --json` to confirm the application workspace, or unset LINEAR_CLIENT_ID and LINEAR_CLIENT_SECRET to use stored credentials.",
-        },
       )
     }
     if (forDisplay) {
@@ -119,25 +138,6 @@ async function resolveApiKey(forDisplay = false): Promise<string | undefined> {
     invocation.oauth ??= new ClientCredentialsSession()
     return await invocation.oauth.authorization(clientId, clientSecret, scope)
   }
-
-  if (cliWorkspace != null) {
-    if (cliWorkspace === "") {
-      throw new ValidationError("--workspace must not be empty")
-    }
-    const key = await getCredentialApiKey(cliWorkspace)
-    if (key) return key
-    // Explicit --workspace flag must match a configured workspace
-    throw workspaceCredentialNotFound(cliWorkspace)
-  }
-
-  const projectWorkspace = getOption("workspace")
-  if (projectWorkspace != null) {
-    const key = await getCredentialApiKey(projectWorkspace)
-    if (key) return key
-    throw workspaceCredentialNotFound(projectWorkspace)
-  }
-
-  return await getCredentialApiKey()
 }
 
 /** Resolve once per invocation, shared by typed requests and attachment fetches. */
@@ -154,6 +154,11 @@ export function getResolvedApiKey(
 /** Cancellation stops new dispatches without discarding in-flight receipts. */
 export function getGraphQLCancellationSignal(): AbortSignal | undefined {
   return invocationClient.getStore()?.oauth?.signal
+}
+
+/** Keep identity diagnostics off stdout, including for raw GraphQL results. */
+export function reportClientCredentialsWriteFailure(): void {
+  invocationClient.getStore()?.oauth?.reportWriteFailure()
 }
 
 /**
@@ -218,6 +223,13 @@ function createClient(
             },
           )
         }
+        if (
+          hasErrors || !response.ok ||
+          Object.values(envelope.data ?? {}).some((payload) =>
+            payload != null && typeof payload === "object" &&
+            "success" in payload && payload.success === false
+          )
+        ) reportClientCredentialsWriteFailure()
         return new Response(text, {
           status: response.status,
           statusText: response.statusText,
@@ -226,6 +238,7 @@ function createClient(
       } catch (cause) {
         if (cause instanceof CommandExit) throw cause
         if (!mutation) throw cause
+        reportClientCredentialsWriteFailure()
         if (cause instanceof WriteError) throw cause
         throw new WriteError("Mutation response was not received", {
           effect: "unknown",
