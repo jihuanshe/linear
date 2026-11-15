@@ -17,7 +17,7 @@ Linux x86_64、Linux aarch64／arm64 和 macOS arm64 可以使用 Release 资产
 
 ```bash
 if ! (
-  SECONDS=0
+  bootstrap_started=$SECONDS
   retries=0
   curl_exit=none
   installer=''
@@ -26,13 +26,13 @@ if ! (
   trap 'rm -f "$installer" 2>/dev/null' EXIT
   bootstrap_failed() {
     printf 'WARN: Linear CLI failed phase=%s stage=%s curl_exit=%s retries=%s elapsed=%ss; continuing setup\n' \
-      "$phase" "$stage" "$curl_exit" "$retries" "$SECONDS" >&2
+      "$phase" "$stage" "$curl_exit" "$retries" "$((SECONDS - bootstrap_started))" >&2
     exit 1
   }
   installer="$(mktemp 2>/dev/null)" || bootstrap_failed
   stage=bootstrap-download
   while :; do
-    remaining=$((180 - SECONDS))
+    remaining=$((180 - SECONDS + bootstrap_started))
     ((remaining > 0)) || bootstrap_failed
     ((remaining <= 120)) || remaining=120
     curl_exit=0
@@ -45,17 +45,17 @@ if ! (
       28:*|22:408|22:429|22:500|22:502|22:503|22:504) ;;
       *) bootstrap_failed ;;
     esac
-    ((retries < 2 && SECONDS < 179)) || bootstrap_failed
+    ((retries < 2 && SECONDS - bootstrap_started < 179)) || bootstrap_failed
     sleep 1 2>/dev/null || bootstrap_failed
     retries=$((retries + 1))
   done
   report="$(bash "$installer" --strict 2>&1)" || :
   if [[ "$report" =~ ^Linear\ CLI\ installed\ version=0\.0\.[0-9]+-g[0-9a-f]{7}\ retries=[0-9]+\ elapsed=[0-9]+s$ ||
         "$report" =~ ^WARN:\ Linear\ CLI\ failed\ phase=[a-z-]+\ stage=[a-z-]+\ curl_exit=(none|[0-9]+)\ retries=[0-9]+\ elapsed=[0-9]+s\;\ continuing\ setup$ ]]; then
-    printf '%s bootstrap_retries=%s total_elapsed=%ss\n' "$report" "$retries" "$SECONDS" >&2
+    printf '%s bootstrap_retries=%s total_elapsed=%ss\n' "$report" "$retries" "$((SECONDS - bootstrap_started))" >&2
   else
     phase=install
-    stage=installer-report
+    stage='installer-report'
     bootstrap_failed
   fi
 ); then
