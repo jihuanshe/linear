@@ -6,6 +6,10 @@
 
 export LC_ALL=C
 exec 3>&2
+SECONDS=0
+curl_exit=none
+retries=0
+version=unknown
 strict=0
 stage=arguments
 work=''
@@ -59,7 +63,16 @@ fail() {
   trap '' HUP INT TERM
   ((committed == 0)) || exit 0
   rollback >/dev/null 2>&1 || stage=rollback
-  printf 'WARN: Linear CLI %s failed; continuing setup\n' "$stage" >&3
+  local phase
+  case "$stage" in
+    latest|minimum-version) phase=resolve-version ;;
+    *-download) phase=download ;;
+    checksum) phase=checksum ;;
+    unpack) phase=unpack ;;
+    *) phase=install ;;
+  esac
+  printf 'WARN: Linear CLI failed phase=%s stage=%s curl_exit=%s retries=%s elapsed=%ss; continuing setup\n' \
+    "$phase" "$stage" "$curl_exit" "$retries" "$SECONDS" >&3
   exit "$strict"
 }
 
@@ -82,10 +95,27 @@ at_least() {
 }
 
 download() {
-  curl -q --fail --silent --show-error --location \
-    --proto '=https' --proto-redir '=https' \
-    --connect-timeout 10 --max-time 120 \
-    --retry 2 --retry-delay 1 --retry-max-time 180 "$@"
+  local started=$SECONDS attempt=0 response http remaining
+  while :; do
+    remaining=$((180 - SECONDS + started))
+    ((remaining > 0)) || return 1
+    ((remaining <= 120)) || remaining=120
+    curl_exit=0
+    response="$(curl -q --fail --silent --location \
+      --proto '=https' --proto-redir '=https' \
+      --connect-timeout 10 --max-time "$remaining" \
+      --write-out '%{http_code} %{url_effective}' "$@" 2>/dev/null)" || curl_exit=$?
+    ((curl_exit != 0)) || { downloaded_url="${response#* }"; return 0; }
+    http="${response%% *}"
+    case "$curl_exit:$http" in
+      28:*|22:408|22:429|22:500|22:502|22:503|22:504) ;;
+      *) return 1 ;;
+    esac
+    ((attempt < 2 && SECONDS - started < 179)) || return 1
+    sleep 1 || return 1
+    attempt=$((attempt + 1))
+    retries=$((retries + 1))
+  done
 }
 
 install_linear() {
@@ -118,10 +148,12 @@ install_linear() {
 
   stage=latest
   local base=https://github.com/jihuanshe/linear/releases url tag asset
-  url="$(download --output /dev/null --write-out '%{url_effective}' "$base/latest")" || return 1
+  download --output /dev/null "$base/latest" || return 1
+  url="$downloaded_url"
   [[ "$url" == "$base/tag/"* ]] || return 1
   tag="${url#"$base/tag/"}"
   valid_version "$tag" || return 1
+  version="$tag"
   stage=minimum-version
   at_least "$tag" "$minimum" || return 1
   asset="linear-$target.tar.xz"
@@ -223,6 +255,7 @@ install_linear() {
 }
 
 if install_linear "$@" >/dev/null 2>&1; then
+  printf 'Linear CLI installed version=%s retries=%s elapsed=%ss\n' "$version" "$retries" "$SECONDS" >&3
   exit 0
 fi
 fail
