@@ -45,11 +45,14 @@ code=0
 LINEAR_PROMPT_DISABLED=1 linear issue update ENG-123 \
   --base-file issue-edit/original.json --description-file issue-edit/desired.md --json \
   > issue-edit/result.json 2> issue-edit/result.log || code=$?
-jq '{ok, effect, fields: [.fields[]? | {field, verdict}], verification, error}' issue-edit/result.json
+jq 'def brief: [.[]? | {field, verdict}];
+  {ok, effect, fields: (.fields | brief), verification,
+   error: (if .error.details.fields then .error | .details.fields |= brief else .error end)}' \
+  issue-edit/result.json
 test "$code" -eq 0
 ```
 
-`result.json` 的 `fields[]` 带每个字段的 `base`、`desired`、`remote` 全文，正文长时三份会很长，所以摘要只取 `field` 和 `verdict`；冲突时再从 `result.json` 读对应字段的 `remote`。
+字段计划带每个字段的 `base`、`desired`、`remote` 全文：成功时在 `fields[]`，冲突时在 `error.details.fields[]`。摘要两处都只取 `field` 和 `verdict`，保留错误的 `code`、`message`、`suggestion`；冲突时再从 `result.json` 读对应字段的 `remote`。
 
 `issue export` 不修改 Linear，目标目录必须不存在。读取失败不会创建目录，可以在问题解决后重试同一路径；文件已开始保存后失败则保留现有材料，检查后使用新目录，不覆盖旧依据。导出的 Markdown 不是富文本备份，限制见 `linear guide markdown`。
 
