@@ -17,20 +17,59 @@ Linux x86_64、Linux aarch64／arm64 和 macOS arm64 可以使用 Release 资产
 
 ```bash
 if ! (
-  installer="$(mktemp)" || exit 1
-  trap 'rm -f "$installer"' EXIT
-  curl -q --fail --silent --show-error --location --proto '=https' --proto-redir '=https' \
-    --connect-timeout 10 --max-time 120 --retry 2 --retry-max-time 180 \
-    --output "$installer" https://github.com/jihuanshe/linear/releases/latest/download/install.sh || exit 1
-  bash "$installer" --strict
-) >/dev/null 2>&1; then
-  printf 'WARN: Linear CLI bootstrap failed; continuing setup\n' >&2
+  SECONDS=0
+  retries=0
+  curl_exit=none
+  installer=''
+  stage=bootstrap-temp
+  phase=download
+  trap 'rm -f "$installer" 2>/dev/null' EXIT
+  bootstrap_failed() {
+    printf 'WARN: Linear CLI failed phase=%s stage=%s curl_exit=%s retries=%s elapsed=%ss; continuing setup\n' \
+      "$phase" "$stage" "$curl_exit" "$retries" "$SECONDS" >&2
+    exit 1
+  }
+  installer="$(mktemp 2>/dev/null)" || bootstrap_failed
+  stage=bootstrap-download
+  while :; do
+    remaining=$((180 - SECONDS))
+    ((remaining > 0)) || bootstrap_failed
+    ((remaining <= 120)) || remaining=120
+    curl_exit=0
+    http="$(curl -q --fail --silent --location --proto '=https' --proto-redir '=https' \
+      --connect-timeout 10 --max-time "$remaining" --write-out '%{http_code}' \
+      --output "$installer" https://github.com/jihuanshe/linear/releases/latest/download/install.sh \
+      2>/dev/null)" || curl_exit=$?
+    ((curl_exit != 0)) || break
+    case "$curl_exit:$http" in
+      28:*|22:408|22:429|22:500|22:502|22:503|22:504) ;;
+      *) bootstrap_failed ;;
+    esac
+    ((retries < 2 && SECONDS < 179)) || bootstrap_failed
+    sleep 1 2>/dev/null || bootstrap_failed
+    retries=$((retries + 1))
+  done
+  report="$(bash "$installer" --strict 2>&1)" || :
+  if [[ "$report" =~ ^Linear\ CLI\ installed\ version=0\.0\.[0-9]+-g[0-9a-f]{7}\ retries=[0-9]+\ elapsed=[0-9]+s$ ||
+        "$report" =~ ^WARN:\ Linear\ CLI\ failed\ phase=[a-z-]+\ stage=[a-z-]+\ curl_exit=(none|[0-9]+)\ retries=[0-9]+\ elapsed=[0-9]+s\;\ continuing\ setup$ ]]; then
+    printf '%s bootstrap_retries=%s total_elapsed=%ss\n' "$report" "$retries" "$SECONDS" >&2
+  else
+    phase=install
+    stage=installer-report
+    bootstrap_failed
+  fi
+); then
+  :
 fi
 ```
 
 安装器匿名解析当刻 Latest 的确切 tag，并下载同 tag 的平台归档和 `.sha256`；校验和、文件名、二进制版本及最低版本全部通过后，原子替换 `~/.local/bin/linear`。它在 Bash 实际使用的首个 login 文件（`.bash_profile`、`.bash_login`、`.profile`，均不存在时创建 `.bash_profile`）末尾维护一条 local bin 优先的 PATH，每次执行都会将该行移到最后，并验收当前目录和 HOME 中的新 login shell。
 
-默认下限为 `0.0.1794558300-g5800a29`。`LINEAR_MIN_VERSION=<tag>` 或 `bash install.sh --min-version <tag>` 可以提高下限。成功时没有输出；失败时只向 stderr 输出一行 `WARN: Linear CLI <stage> failed; continuing setup`，保留旧入口并返回 0。`--strict` 使失败返回 1；上面的 wrapper 使用此模式统一收口下载或安装失败，setup 继续执行。修复失败阶段后重新运行 wrapper 即可。
+默认下限为 `0.0.1794558300-g5800a29`。`LINEAR_MIN_VERSION=<tag>` 或 `bash install.sh --min-version <tag>` 可以提高下限。成功时向 stderr 输出一行版本、实际重试次数和耗时；失败时输出一行 `WARN`，包含 `phase`（`resolve-version`、`download`、`checksum`、`unpack`、`install`）、具体 `stage`、最近一次 `curl_exit`（未调用时为 `none`）、累计 `retries` 和 `elapsed` 秒数，保留旧入口并返回 0。`--strict` 使失败返回 1。
+
+wrapper 在安装器的单行结果后附加 `bootstrap_retries` 和覆盖下载脚本到安装结束的 `total_elapsed`；下载脚本失败时直接报告 `bootstrap-download`。每次下载对超时、HTTP 408／429／500／502／503／504 最多重试 2 次，间隔 1 秒，单次最长 120 秒，每次下载总预算 180 秒。原始工具输出、URL、响应正文、路径和环境变量不进入诊断。修复失败阶段后重新运行 wrapper 即可。
+
+下游同步时，整体替换本节第一个 Bash 代码块，放在 `.agents/setup` 的其他 PATH 初始化之后，逐字保留重试、输出白名单和最外层 `if`。安装器由 Release 的 Latest 资产分发；须在包含本次安装器改动的 Release 发布后运行新 wrapper。对齐验收需确认代码块文本一致、失败后 setup 仍继续，以及成功只输出一行版本和总耗时。
 
 安装事务使用 `~/.local/bin/.linear-install.lock` 目录锁，重叠调用在 `lock` 阶段失败。PATH 文件与二进制在同一锁内验收，失败时恢复两者。进程被 SIGKILL 等强制终止后，先确认没有安装器仍在运行，再检查遗留的 `.linear-install.*`、login 文件旁的 `.linear-profile.*` 中的 `previous` 备份，恢复需要的文件，最后用 `rmdir ~/.local/bin/.linear-install.lock` 解除锁并重试。
 

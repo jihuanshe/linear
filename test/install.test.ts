@@ -10,6 +10,21 @@ const pathLine =
   'export PATH="$HOME/.local/bin:$PATH" # jihuanshe/linear install.sh'
 const decoder = new TextDecoder()
 
+function success(version = minimum) {
+  return `Linear CLI installed version=${version} retries=0 elapsed=<seconds>s\n`
+}
+
+function warning(stage: string, curl = "0", retries = 0) {
+  const phase = ["latest", "minimum-version"].includes(stage)
+    ? "resolve-version"
+    : stage.endsWith("-download")
+    ? "download"
+    : ["checksum", "unpack"].includes(stage)
+    ? stage
+    : "install"
+  return `WARN: Linear CLI failed phase=${phase} stage=${stage} curl_exit=${curl} retries=${retries} elapsed=<seconds>s; continuing setup\n`
+}
+
 async function executable(path: string, source: string) {
   await Deno.writeTextFile(path, `#!/bin/bash\n${source}\n`, { mode: 0o755 })
 }
@@ -44,22 +59,37 @@ async function fixture() {
     `printf '%s\\n' "$*" >> "$TEST_ROOT/requests"
 [[ "$1" == -q ]] || exit 90
 output=''
+format=''
 while (($#)); do
   case "$1" in
     --output) output="$2"; shift ;;
+    --write-out) format="$2"; shift ;;
     https://*) url="$1" ;;
   esac
   shift
 done
-echo 'curl diagnostic' >&2
+echo 'curl diagnostic Authorization: Bearer TEST_SECRET https://user:TEST_SECRET@example.org/?token=TEST_SECRET' >&2
+http=200
+count="$(awk -v url="$url" '$NF == url { n++ } END { print n+0 }' "$TEST_ROOT/requests")"
+case "\${FAILURE-}" in
+  recover)
+    [[ "$url" != */releases/latest || "$count" -gt 1 ]] || exit 28 ;;
+  http429|http404)
+    printf '%s %s' "\${FAILURE#http}" "$url"; exit 22 ;;
+esac
 case "$url" in
   */releases/latest/download/install.sh)
     [[ "\${FAILURE-}" != bootstrap ]] || exit 28
+    if [[ "\${FAILURE-}" == noisy-installer ]]; then
+      printf 'echo TEST_SECRET >&2; exit 1\\n' > "$output"
+      printf 200
+      exit 0
+    fi
     cp "$TEST_INSTALLER" "$output"
     ;;
   */releases/latest)
     [[ "\${FAILURE-}" != latest ]] || exit 28
-    printf '%s' "\${REDIRECT:-${origin}/tag/$TEST_TAG}"
+    url="\${REDIRECT:-${origin}/tag/$TEST_TAG}"
     ;;
   */releases/download/"$TEST_TAG"/*)
     name="\${url##*/}"
@@ -68,7 +98,12 @@ case "$url" in
     cp "$TEST_ASSETS/$name" "$output"
     ;;
   *) exit 91 ;;
-esac`,
+esac
+if [[ "$format" == *url_effective* ]]; then
+  printf '%s %s' "$http" "$url"
+else
+  printf '%s' "$http"
+fi`,
   )
   for (const command of ["gh", "git", "mise"]) {
     await executable(
@@ -117,7 +152,18 @@ esac`,
     }).output()
     assertEquals(decoder.decode(result.stdout), "")
     assertEquals(await exists(join(root, "forbidden")), false)
-    return { code: result.code, stderr: decoder.decode(result.stderr) }
+    const stderr = decoder.decode(result.stderr)
+    assert(!stderr.includes("TEST_SECRET"), stderr)
+    const timing = stderr.match(/ retries=(\d+) elapsed=(\d+)s/)
+    assert(timing)
+    assert(Number(timing[2]) >= Number(timing[1]), stderr)
+    return {
+      code: result.code,
+      stderr: stderr.replace(
+        /\b(elapsed|total_elapsed)=\d+s/g,
+        "$1=<seconds>s",
+      ),
+    }
   }
   await release()
   return {
@@ -151,13 +197,16 @@ async function exists(path: string) {
 Deno.test("installer pins each latest, replaces atomically and repairs login PATH", async () => {
   const f = await fixture()
   try {
-    assertEquals(await f.run(), { code: 0, stderr: "" })
+    assertEquals(await f.run(), { code: 0, stderr: success() })
     await f.release(next)
     // A later orb initialization resets PATH after the previously managed line.
     await Deno.writeTextFile(f.profile, '. "$HOME/.env"\n', {
       append: true,
     })
-    assertEquals(await f.run({ TEST_TAG: next }), { code: 0, stderr: "" })
+    assertEquals(await f.run({ TEST_TAG: next }), {
+      code: 0,
+      stderr: success(next),
+    })
     const profile = await Deno.readTextFile(f.profile)
     assertEquals(profile.split(pathLine).length, 2)
     assert(profile.endsWith(`${pathLine}\n`))
@@ -186,8 +235,6 @@ Deno.test("installer pins each latest, replaces atomically and repairs login PAT
             "--proto-redir =https",
             "--connect-timeout 10",
             "--max-time 120",
-            "--retry 2",
-            "--retry-max-time 180",
           ]
         ) assert(line.includes(option), line)
         assert(!/Authorization|--user|--netrc|--config/.test(line))
@@ -309,7 +356,17 @@ Deno.test("installer refuses failed stages, keeps the old file and emits one war
           assertEquals(result.code, strict ? 1 : 0)
           assertEquals(
             result.stderr,
-            `WARN: Linear CLI ${stage} failed; continuing setup\n`,
+            warning(
+              stage,
+              ["platform", "arguments"].includes(stage)
+                ? "none"
+                : ["latest", "timeout"].includes(failure)
+                ? "28"
+                : failure === "checksum404"
+                ? "22"
+                : "0",
+              ["latest", "timeout"].includes(failure) ? 2 : 0,
+            ),
           )
           assertEquals(await Deno.readFile(f.binary), f.old)
           assertEquals(await Deno.readTextFile(f.profile), profileBefore)
@@ -363,7 +420,7 @@ fi`,
     const profileDuringFirst = await Deno.readTextFile(f.profile)
     assertEquals(await f.run({ TEST_TAG: next }), {
       code: 0,
-      stderr: "WARN: Linear CLI lock failed; continuing setup\n",
+      stderr: warning("lock"),
     })
     assertEquals(await Deno.readTextFile(f.profile), profileDuringFirst)
     await Deno.writeTextFile(gate, "continue\n")
@@ -371,7 +428,10 @@ fi`,
     const completed = await result
     assertEquals(completed.code, 0, decoder.decode(completed.stderr))
     assertEquals(decoder.decode(completed.stdout), "")
-    assertEquals(await f.run({ TEST_TAG: next }), { code: 0, stderr: "" })
+    assertEquals(await f.run({ TEST_TAG: next }), {
+      code: 0,
+      stderr: success(next),
+    })
     const version = await new Deno.Command(f.binary, { args: ["--version"] })
       .output()
     assertEquals(decoder.decode(version.stdout), `linear ${next}\n`)
@@ -398,13 +458,13 @@ Deno.test("installer preserves profile symlinks and rolls back a previous symlin
     })
     assertEquals(
       (await f.run()).stderr,
-      "WARN: Linear CLI login failed; continuing setup\n",
+      warning("login"),
     )
     assertEquals(await Deno.readLink(f.binary), previous)
     assertEquals(await Deno.readFile(previous), f.old)
     assertEquals(await Deno.readLink(f.profile), "dotfile")
     await Deno.writeTextFile(dotfile, '. "$HOME/.env"\n')
-    assertEquals(await f.run(), { code: 0, stderr: "" })
+    assertEquals(await f.run(), { code: 0, stderr: success() })
     assertEquals(await Deno.readFile(previous), f.old)
     assertEquals(await Deno.readLink(f.profile), "dotfile")
   } finally {
@@ -436,9 +496,7 @@ fi`,
               }, strict ? ["--strict"] : []),
               {
                 code: strict ? 1 : 0,
-                stderr: `WARN: Linear CLI ${
-                  destination === "profile" ? "path" : "publish"
-                } failed; continuing setup\n`,
+                stderr: warning(destination === "profile" ? "path" : "publish"),
               },
             )
             assertEquals(await Deno.readTextFile(f.profile), before)
@@ -467,7 +525,7 @@ Deno.test("installer removes a failed first installation after login rejection",
       ]),
       {
         code: 1,
-        stderr: "WARN: Linear CLI login failed; continuing setup\n",
+        stderr: warning("login"),
       },
     )
     assertEquals(await exists(f.binary), false)
@@ -492,18 +550,80 @@ Deno.test("documented setup wrapper contains download and installer failures", a
       wrapper,
       `set -euo pipefail\n${source}\necho continued >&2\n`,
     )
-    for (const failure of ["bootstrap", "checksum404", ""]) {
+    for (
+      const failure of [
+        "bootstrap",
+        "timeout",
+        "checksum404",
+        "mismatch",
+        "unpack",
+        "noisy-installer",
+        "",
+      ]
+    ) {
+      await f.release()
+      const checksum = join(f.assets, `${archive}.sha256`)
+      if (failure === "mismatch") {
+        await Deno.writeTextFile(checksum, `${"0".repeat(64)}  ${archive}\n`)
+      }
+      if (failure === "unpack") {
+        await Deno.writeTextFile(join(f.assets, archive), "broken")
+        const hash = new Uint8Array(
+          await crypto.subtle.digest(
+            "SHA-256",
+            new TextEncoder().encode("broken"),
+          ),
+        )
+        const digest = Array.from(hash, (v) => v.toString(16).padStart(2, "0"))
+          .join("")
+        await Deno.writeTextFile(checksum, `${digest}  ${archive}\n`)
+      }
       const result = await f.run({ FAILURE: failure }, [], wrapper)
       assertEquals(result.code, 0)
       assertEquals(
         result.stderr,
-        failure
-          ? "WARN: Linear CLI bootstrap failed; continuing setup\ncontinued\n"
-          : "continued\n",
+        failure === "bootstrap"
+          ? warning("bootstrap-download", "28", 2) + "continued\n"
+          : failure === "noisy-installer"
+          ? warning("installer-report") + "continued\n"
+          : (failure === "timeout"
+            ? warning("archive-download", "28", 2)
+            : failure === "checksum404"
+            ? warning("checksum-download", "22")
+            : failure === "mismatch"
+            ? warning("checksum")
+            : failure === "unpack"
+            ? warning("unpack")
+            : success()).trimEnd() +
+            " bootstrap_retries=0 total_elapsed=<seconds>s\ncontinued\n",
       )
     }
   } finally {
     await f.cleanup()
+  }
+})
+
+Deno.test("installer counts performed retries for recovery and HTTP failures", async () => {
+  for (const failure of ["recover", "http429", "http404"]) {
+    const f = await fixture()
+    try {
+      const result = await f.run({ FAILURE: failure }, ["--strict"])
+      assertEquals(result.code, failure === "recover" ? 0 : 1)
+      assertEquals(
+        result.stderr,
+        failure === "recover"
+          ? success().replace("retries=0", "retries=1")
+          : warning("latest", "22", failure === "http429" ? 2 : 0),
+      )
+      const requests = (await Deno.readTextFile(join(f.root, "requests")))
+        .trim().split("\n")
+      assertEquals(
+        requests.length,
+        failure === "recover" ? 4 : failure === "http429" ? 3 : 1,
+      )
+    } finally {
+      await f.cleanup()
+    }
   }
 })
 
@@ -549,6 +669,7 @@ Deno.test("installer supports platform aliases, login files and raised minimum a
               "mv",
               "rm",
               "rmdir",
+              "sleep",
             ]
           ) {
             await Deno.symlink(`/usr/bin/${command}`, join(f.mocks, command))
@@ -560,7 +681,7 @@ Deno.test("installer supports platform aliases, login files and raised minimum a
             env,
             ["--strict", "--min-version", next],
           ),
-          { code: 0, stderr: "" },
+          { code: 0, stderr: success(next) },
         )
         assert(
           (await Deno.readTextFile(join(f.home, login))).endsWith(
